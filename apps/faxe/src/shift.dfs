@@ -1,0 +1,20 @@
+
+def s =
+    |value_emitter()
+    .every(5s)
+    .type(batch)
+
+s   |top()
+    .field('val')
+    .as('top2')
+    .num(2)
+
+%s   |count()
+%    .field('val')
+%    .as('count_in')
+
+s   |difference()
+    .field('val')
+    .as('val.difference')
+
+

@@ -1,0 +1,26 @@
+{application, faxe,
+ [{description, "An OTP application"},
+  {vsn, "0.1.0"},
+  {registered, []},
+  {mod, { faxe_app, []}},
+  {applications,
+   [kernel,
+    stdlib,
+    xmerl,
+    mnesia,
+    erl_lib,
+%%    erlang_js,
+    lager,
+    lager_udp_backend,
+    dataflow,
+    dfs,
+    qdate,
+    cowboy
+   ]},
+  {env,[]},
+  {modules, [esp_stats]},
+
+  {maintainers, ["Alex Minichmair"]},
+  {licenses, ["Apache 2.0"]},
+  {links, []}
+ ]}.

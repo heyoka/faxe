@@ -1,0 +1,8 @@
+-sname faxe
+
+-setcookie faxe_cookie
+
+-s reloader
+
++K true
++A30

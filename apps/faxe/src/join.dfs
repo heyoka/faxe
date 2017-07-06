@@ -1,0 +1,34 @@
+
+def v1 =
+    |value_emitter()
+    .every(3s)
+    .type(point)
+    .align()
+
+def v2 =
+    |value_emitter()
+    .every(5s)
+    .type(point)
+   % .align()
+
+v1
+    |join(v2)
+    .as('v1', 'v2')
+    .tolerance(3s)
+    .missing_timeout(3s)
+    .fill(none)
+
+    |default()
+    .field('v1.val')
+    .field_value(0.0)
+
+    |default()
+    .field('v2.val')
+    .field_value(0.0)
+
+    |eval(lambda: "v1.val" + "v2.val", lambda: "summe"/2)
+    .as('summe', 'durchschnitt')
+
+    |delete()
+    .fields('v1.val', 'v2.val')
+
