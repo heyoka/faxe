@@ -1,8 +1,8 @@
 faxe
 =====
 
-Faxe tries to be a timeseries stream and batch processor on top of https://github.com/heyoka/dataflow
-and https://github.com/heyoka/dfs
+Faxe tries to be a timeseries stream and batch processor on top of the [dataflow](https://github.com/heyoka/dataflow)
+and [dfs](https://github.com/heyoka/dfs) applications.
 
     
 More soon
