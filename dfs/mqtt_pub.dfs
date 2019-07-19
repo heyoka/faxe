@@ -1,0 +1,35 @@
+def whid = 'ab33zr83489urf34r43j'
+def device_id = 'DV0025LM33'
+
+def energy =
+    |modbus('hregs')
+    .ip('127.0.0.1')
+    .port(8899)
+    .device(255)
+    .every(1s)
+    .from(2127)
+    .count(5)
+    .as('Energy.ActiveEnergyConsumption', 'Energy.MaximalCurrentValue',
+        'Energy.BlindEnergyDelivered', 'Energy.Max.A', 'Energy.Min.A')
+    .read(3009, 2, 'float32', 'Energy.ActiveEnergyConsumption')
+
+%% add some tags
+    |default()
+    .tag('name')
+    .tag_value('measurement1')
+    |default()
+    .tag('warehouse_id')
+    .tag_value(whid)
+    |default()
+    .tag('device_id')
+    .tag_value(device_id)
+
+%% publish to mqtt broker
+
+    |mqtt_publish()
+    .host('10.14.12.142')
+    .port(1883)
+    .qos(1)
+    .topic('ttgw/m1')
+    .retained()
+

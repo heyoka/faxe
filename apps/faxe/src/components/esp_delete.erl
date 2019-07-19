@@ -19,7 +19,7 @@
    tags
 }).
 
-options() -> [{fields, list, []},{tags, list, []}].
+options() -> [{fields, binary_list, []},{tags, binary_list, []}].
 
 init(NodeId, _Ins, #{fields := Fields, tags := Tags}) ->
    {ok, all, #state{fields = Fields, node_id = NodeId, tags = Tags}}.

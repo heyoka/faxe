@@ -38,7 +38,8 @@ process(_Inport, #data_point{} = Point, State = #state{offset = Offset}) ->
    {emit, NewValue, State}.
 
 
+-spec execute(#data_point{}, binary()) -> #data_point{}.
 execute(#data_point{ts = Ts} = Point, Offset) ->
    lager:debug("~p process, ~p :: ~p~n",[?MODULE, Point, faxe_time:to_date(flowdata:ts(Point))]),
    NewTs = faxe_time:add(Ts, Offset),
-   Point#data_point{ts=NewTs}.
+   flowdata:set_ts(Point, NewTs).

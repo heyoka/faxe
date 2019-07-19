@@ -1,5 +1,7 @@
 %% Date: 05.01.17 - 17:41
 %% Ⓒ 2017 heyoka
+%% @doc this window-type has wall-clock timing
+%%
 -module(esp_win_clock).
 -author("Alexander Minichmair").
 

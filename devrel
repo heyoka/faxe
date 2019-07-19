@@ -1,0 +1,5 @@
+#!/usr/bin/env bash
+
+# export RELX_REPLACE_OS_VARS=true
+
+NODE_NAME=faxe$1 _build/default/rel/faxe/bin/faxe console

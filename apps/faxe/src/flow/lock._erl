@@ -1,0 +1,110 @@
+%% Date: 30.03.18 - 18:46
+%% Ⓒ 2018 heyoka
+-module(lock).
+-author("Alexander Minichmair").
+
+-behavior(locks_leader).
+
+%% API
+-export([
+   init/1, elected/3, start_link/1,
+   surrendered/3, handle_DOWN/3,
+   handle_leader_call/4, from_leader/3,
+   handle_call/4, handle_cast/3, handle_info/3]).
+
+-record(state, {is_leader = false, name = undefined}).
+
+%%-callback init(any()) -> mod_state().
+%%-callback elected(mod_state(), election(), undefined | pid()) ->
+%%   cb_return() | {reply, msg(), mod_state()}.
+%%-callback surrendered(mod_state(), msg(), election()) -> cb_return().
+%%-callback handle_DOWN(pid(), mod_state(), election()) -> cb_return().
+%%-callback handle_leader_call(msg(), from(), mod_state(), election()) ->
+%%   cb_reply().
+%%-callback handle_leader_cast(msg(), mod_state(), election()) -> cb_return().
+%%-callback from_leader(msg(), mod_state(), election()) -> cb_return().
+%%-callback handle_call(msg(), from(), mod_state(), election()) -> cb_reply().
+%%-callback handle_cast(msg(), mod_state(), election()) -> cb_return().
+%%-callback handle_info(msg(), mod_state(), election()) -> cb_return().
+
+%%-type option() :: {role, candidate | worker}
+%%| {resource, any()}.
+%%-type ldr_options() :: [option()].
+%%-type mod_state() :: any().
+%%-type msg() :: any().
+%%-type reply() :: any().
+%%-type from() :: {pid(), _Tag :: any()}.
+%%-type reason() :: any().
+%%-type server_ref() :: atom() | {atom(), node()} | {global, term()} | {via, module(), term()} | pid().
+%%-type cb_return() ::
+%%{ok, mod_state()}
+%%| {ok, msg(), mod_state()}
+%%| {stop, reason, mod_state()}.
+%%-type cb_reply() ::
+%%{reply, reply(), mod_state()}
+%%| {reply, reply(), msg(), mod_state()}
+%%| {noreply, mod_state()}
+%%| {stop, reason(), mod_state()}.
+
+
+start_link(Name) ->
+   locks_leader:start_link(?MODULE, Name, [{role,candidate}, {resource, Name}]).
+
+init(Name) ->
+   lager:debug("init for ~p" , [Name]),
+   {ok, #state{name = Name}}.
+
+elected(State=#state{name = Name}, Election, CandidatePid) ->
+   Template = "Elected !~nResource: ~p~nCandidate: ~p~nElection: ~p~nFields: ~p~n~n",
+   Fields = [Name, CandidatePid, Election, locks_leader:record_fields(st)],
+   IoList = io_lib:format("From your leader ~p at ~p", [Name, atom_to_list(node())]),
+   Msg = iolist_to_binary(IoList),
+
+   case locks_leader:new_candidates(Election) of
+      [] ->
+         T = "Newly " ++ Template,
+         lager:notice(T, Fields),
+         {ok, binary_to_list(Msg), State#state{is_leader = true}};
+      Cands ->
+         lager:notice("New Candidates: ~p~n",[Cands]),
+         lager:notice(Template, Fields),
+         {ok, binary_to_list(Msg), State#state{is_leader = true}}
+   end.
+
+surrendered(State=#state{is_leader = WasLeader}, Msg, Election) ->
+   if WasLeader -> surrendered_1(State);
+      true -> ok
+   end,
+   lager:notice("Surrendered !~nResource: ~p~nMessage: ~p~nElection: ~p~nFields: ~p~n~n",
+      [State#state.name, Msg, Election, locks_leader:record_fields(st)]),
+   {ok, State#state{is_leader = false}}.
+
+surrendered_1(_State=#state{name = Name}) ->
+   lager:notice("Surrendered, was leader before ! ~p~n~n",[[Name, node()]]).
+
+
+handle_DOWN(Candidate, State, _Election) ->
+   lager:notice("handle_DOWN !~nResource: ~p~nCandidate: ~p~nNode Candidate: ~p~n~n",
+      [State#state.name, Candidate, node(Candidate)]),
+   {ok, State}.
+
+handle_leader_call(Msg, From, State, Election) ->
+   lager:notice("Leader Call !~n ~p",[[Msg, State#state.name, node()]]),
+   {ok, State}.
+
+from_leader(Msg, State, Election) ->
+   lager:notice("from_leader !~n ~p",[[Msg, State#state.name, node()]]),
+   {ok, State}.
+
+handle_call(Msg, State, Name, Election) ->
+   lager:notice("handle_call ! ~p",[[Msg, State#state.name, node()]]),
+   {reply, ok, State}.
+
+handle_cast(Msg, State, Election) ->
+   lager:notice("handle_cast ! ~p",[[Msg, State#state.name, node()]]),
+   {ok, State}.
+
+handle_info(Msg, State, Election) ->
+   lager:notice("handle_info !~n Resource: ~p~nMessage: ~p~nElection: ~p~nFields: ~p~n~n",
+      [State#state.name, Msg,  Election, locks_leader:record_fields(st)]),
+   {ok, State}.

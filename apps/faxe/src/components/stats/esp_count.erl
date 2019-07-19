@@ -12,5 +12,5 @@ options() ->
    esp_stats:get_options() ++ [{module, atom, ?MODULE}].
 
 
-execute({_Tss, Values}, _Opts) when is_list(Values) ->
-   {first, length(Values)}.
+execute({Tss, _Values}, _Opts) when is_list(Tss) ->
+   {first, length(Tss)}.

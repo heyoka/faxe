@@ -3,6 +3,7 @@
 %%-include("amqp_client.hrl").
 
 -include_lib("eunit/include/eunit.hrl").
+-include("dataflow.hrl").
 
 -export_type([window_state/0, window_events/0]).
 
@@ -31,20 +32,6 @@
    setup_mode        :: undefined | binary()
 }).
 
-
--record(data_point, {
-   ts                :: non_neg_integer(), %% timestamp in ms
-   fields   = []     :: list({binary(), term()}),
-   tags     = []     :: list({binary(), term()}),
-   id       = <<>>   :: binary()
-}).
-
--record(data_batch, {
-   id                :: binary(),
-   points            :: list(#data_point{}),
-   start             :: non_neg_integer(),
-   ed                :: non_neg_integer()
-}).
 
 %% window events is a three tuple of lists : { [timestamps], [values], [whole_events] }
 -type window_events() :: {list(), list(), list()}.
@@ -83,11 +70,19 @@
 }).
 
 -record(task, {
-   id,
-   name,
-   definition,
-   date,
-   pid,
-   last_start,
-   last_stop
+   id :: list()|binary(),
+   name :: binary(),
+   definition :: map(),
+   date :: faxe_time:date(),
+   pid :: pid(),
+   last_start :: faxe_time:date(),
+   last_stop :: faxe_time:date()
+}).
+
+-record(template, {
+   id :: list()|binary(),
+   name :: binary(),
+   dfs :: binary(),
+   definition :: map(),
+   date :: faxe_time:date()
 }).

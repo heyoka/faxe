@@ -1,8 +1,8 @@
--sname faxe
+-sname {{node}}
 
--setcookie faxe_cookie
+-setcookie distrepl_proc_cookie
 
--s reloader
+#-s reloader
 
-+K true
-+A30
+#+K true
+#+A 100

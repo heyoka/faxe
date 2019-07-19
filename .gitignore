@@ -12,5 +12,5 @@ log
 erl_crash.dump
 .rebar
 logs
-_build
+_build/
 .idea

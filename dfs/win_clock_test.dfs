@@ -1,0 +1,18 @@
+var in =
+    |value_emitter()
+    .every(1s)
+    .type(point)
+    %.align()
+
+
+in
+    |change_detect()
+    .fields('val')
+    .reset_timeout(3s)
+
+in
+    |win_clock_new()
+    .every(5s)
+    .period(15s)
+    .fill_period()
+    .align()

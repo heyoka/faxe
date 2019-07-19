@@ -2,6 +2,10 @@
 %% Ⓒ 2017 heyoka
 %% @doc
 %% Join Datapoints from two or more nodes
+%% When considering the "fill" option, the following rules apply:
+%% * none - (default) skip rows where a point is missing, inner join.
+%% * null - fill missing points with null, full outer join.
+%% * Any numerical value - fill fields with given value, full outer join.
 %% @end
 -module(esp_join).
 -author("Alexander Minichmair").
@@ -16,7 +20,6 @@
 
 -record(state, {
    node_id,
-   field,
    row_length :: non_neg_integer(),
    lookup = [] :: list(), %% buffer-keys
    buffer, %% orddict with timstamps as keys
@@ -41,7 +44,7 @@ options() -> [
    %% timestamp tolerance in ms
    {tolerance, binary, <<"2s">>},
    %% missing-value handling
-   {fill,   any,     none}
+   {fill,   any,     none} %% none, null, any numerical value
 ].
 
 init(NodeId, Ins, #{as := As, missing_timeout := MTimeOut, tolerance := Tol}) ->
@@ -56,10 +59,11 @@ init(NodeId, Ins, #{as := As, missing_timeout := MTimeOut, tolerance := Tol}) ->
 process(Inport, #data_point{ts = Ts} = Point, State = #state{buffer = undefined, m_timeout = M, timers = TList}) ->
    Buffer = orddict:new(),
    NewList = new_timeout(M, Ts, TList),
+   lager:warning("new buffer entry for Ts: ~p : ~p",[Ts, {Inport, Point}]),
    NewBuffer = orddict:store(Ts, [{Inport, Point}], Buffer),
    {ok, State#state{buffer = NewBuffer, timers = NewList}};
 process(Inport, #data_point{ts = Ts} = Point, State = #state{buffer = Buffer, timers = TList,
-   as = As, field = F, m_timeout = MTimeout, row_length = RowLength, tolerance = Tolerance}) ->
+   as = As, m_timeout = MTimeout, row_length = RowLength, tolerance = Tolerance}) ->
    lager:notice("In on port : ~p",[Inport]),
    TsList = orddict:fetch_keys(Buffer),
 %%   lager:info("new TsList in Buffer: ~p",[TsList]),
@@ -69,9 +73,11 @@ process(Inport, #data_point{ts = Ts} = Point, State = #state{buffer = Buffer, ti
    case abs(LookupTs - Ts) > Tolerance of
       true ->
          %% new ts in buffer
+         lager:warning("new buffer entry for Ts: ~p : ~p",[Ts, {Inport, Point}]),
          {Ts , [{Inport, Point}]};
       false ->
          %% add point to buffer
+         lager:warning("add buffer entry for Ts: ~p: ~p",[LookupTs, {Inport, Point}]),
          {LookupTs, [{Inport, Point}| orddict:fetch(LookupTs, Buffer)]}
    end,
 
@@ -104,15 +110,25 @@ process(Inport, #data_point{ts = Ts} = Point, State = #state{buffer = Buffer, ti
    {ok, State#state{buffer = NewBuffer, timers = NewTimerList}}.
 
 %% missing timeout
-handle_info({tick, Ts}, State = #state{buffer = Buffer,
-      as = As, field = F}) ->
-   lager:info("~p ticks :: ~p",[?MODULE, Buffer]),
-   Row = orddict:fetch(Ts, Buffer),
-   dataflow:emit(join(Row, Ts, As)),
-   NewBuffer = orddict:erase(Ts, Buffer),
-   {ok, State#state{buffer = NewBuffer}}.
+handle_info({tick, Ts}, State = #state{buffer = [], timers = TList}) ->
+   lager:warning("~p empty buffer when ticked",[?MODULE]),
+   {ok, State#state{timers = proplists:delete(Ts, TList), buffer = undefined}};
+handle_info({tick, Ts}, State = #state{buffer = Buffer, as = As, timers = TList}) ->
+   lager:warning("~p ticks missing timeout :: ~p",[?MODULE, Buffer]),
+   NewBuffer =
+   case lists:member(Ts, orddict:fetch_keys(Buffer)) of
+      true ->
+            {Row, NewDict} = orddict:take(Ts, Buffer),
+            dataflow:emit(join(Row, Ts, As)),
+            NewDict;
+      false -> Buffer
+   end,
+%%   Row = orddict:fetch(Ts, Buffer),
+%%   dataflow:emit(join(Row, Ts, As)),
+%%   NewBuffer = orddict:erase(Ts, Buffer),
+   {ok, State#state{buffer = NewBuffer, timers = proplists:delete(Ts, TList)}}.
 
-%% @todo implement
+%% actually join the buffer rows
 join(RowData, Ts, As) ->
    NewPoint =
    lists:foldl(
@@ -153,8 +169,13 @@ new_timeout(T, Ts, TimerList) ->
 clear_timeout(Ts, TimerList) ->
    case proplists:get_value(Ts, TimerList) of
       Ref when is_reference(Ref) ->
+         lager:warning("clear timeout for ~p",[Ts]),
          catch(erlang:cancel_timer(Ref)),
          proplists:delete(Ts, TimerList);
       undefined -> TimerList
    end
    .
+
+-ifdef(TEST).
+%%   basic_test() -> ?assertEqual(16.6, execute([1,3,8,16,55], #{field => <<"val">>})).
+-endif.

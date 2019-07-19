@@ -47,11 +47,13 @@ accumulate({Ts, Val, Event}, Stats = #esp_win_stats{events = {Tss, Vals, Evs}, c
    NewStats.
 
 maybe_emit(Win = #esp_window{agg_mod = AggMod, agg_fields = As, agg = AggState, every = Count,
-                                                   stats = #esp_win_stats{count = Count, events = {Tss, Vals, _}} = Stats}) ->
+                                                   stats = #esp_win_stats{count = Count, events = {Tss, Vals, Es}} = Stats}) ->
    lager:info("emit when count is : ~p",[Count]),
-   Result = c_agg:call({Tss, Vals}, AggMod, AggState, As),
-   lager:info("~n~p emitting : ~p",[?MODULE, {Result, length(Result#data_batch.points)}]),
-   {emit, Result, Win#esp_window{stats = Stats#esp_win_stats{count = 0}}}
+%%   Result = c_agg:call({Tss, Vals}, AggMod, AggState, As),
+   Batch = #data_batch{points = Es},
+%%   lager:info("~n~p emitting : ~p",[?MODULE, {Result, length(Result#data_batch.points)}]),
+%%   lager:info("~n~p emitting : ~p",[?MODULE, Batch]),
+   {emit, Batch, Win#esp_window{stats = Stats#esp_win_stats{count = 0}}}
 ;
 maybe_emit(Win = #esp_window{}) ->
    {ok, Win}.
@@ -64,5 +66,5 @@ maybe_evict(Win = #esp_window{}) ->
    Win.
 
 evict({[HTs|Ts], [HVals|Vals], [HEvents|Events]}) ->
-   lager:info("EVICT ~p", [HVals]),
+%%   lager:info("EVICT ~p", [HVals]),
    {{Ts, Vals, Events}, {HTs, HVals, HEvents}}.

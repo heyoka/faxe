@@ -72,7 +72,7 @@ process(2, #data_point{} = Point, State = #state{}) ->
    {ok, State#state{row_buffer = Point}}
 ;
 
-process(1, #data_batch{}, State = #state{}) ->
+process(_Port, #data_batch{}, State = #state{}) ->
    {ok, State}.
 
 

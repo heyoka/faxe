@@ -1,0 +1,11 @@
+var in =
+|value_emitter()
+.every(1s)
+.type(point)
+%.align()
+
+in
+|win_time_q()
+.every(5s)
+.period(10s)
+.fill_period()

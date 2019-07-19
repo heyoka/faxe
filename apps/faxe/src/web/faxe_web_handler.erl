@@ -1,5 +1,5 @@
 %% Date: 02.05.17 - 21:15
-%% Ⓒ 2017 LineMetrics GmbH
+%% Ⓒ 2017 heyoka
 -module(faxe_web_handler).
 -author("Alexander Minichmair").
 
@@ -12,7 +12,7 @@
 
 %% Custom callbacks.
 -export([create_paste/2]).
--export([paste_html/2]).
+-export([paste_html/2, task_list/2]).
 -export([paste_text/2]).
 
 init(_Transport, _Req, []) ->
@@ -24,7 +24,7 @@ allowed_methods(Req, State) ->
 
 content_types_provided(Req, State) ->
    {[
-      {{<<"text">>, <<"html">>, []}, paste_html}
+      {{<<"text">>, <<"html">>, []}, task_list}
    ], Req, State}.
 
 content_types_accepted(Req, State) ->
@@ -42,6 +42,13 @@ content_types_accepted(Req, State) ->
 %%         end
 %%   end.
 
+task_list(Req, State) ->
+   TaskList = faxe:list_tasks(),
+   Body = <<"jo">>,
+%%   {ok, Body} = render([{list, TaskList}]),
+   {ok, Req2} = cowboy_req:reply(200, [{<<"content-type">>, <<"text/html">>}], Body, Req),
+   {ok, Req2, State}.
+
 create_paste(Req, State) ->
    PasteID = new_paste_id(),
    {ok, [{<<"paste">>, Paste}], Req3} = cowboy_req:body_qs(Req),
@@ -54,7 +61,7 @@ create_paste(Req, State) ->
    end.
 
 paste_html(Req, _) ->
-   {read_file("index.html"), Req, index};
+   {read_file("empty.html"), Req, index};
 paste_html(Req, Paste) ->
    {Style, Req2} = cowboy_req:qs_val(<<"lang">>, Req, plain),
    {format_html(Paste, Style), Req2, Paste}.

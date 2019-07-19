@@ -1,0 +1,8 @@
+def in =
+    |value_emitter()
+    .every(3s)
+    .type(point)
+    .fields('value')
+
+    |value_diff()
+    .fields('val', 'blurr')

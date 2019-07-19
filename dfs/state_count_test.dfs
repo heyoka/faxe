@@ -1,0 +1,8 @@
+def in =
+    |value_emitter()
+    .every(2s)
+    .type(point)
+
+    |state_count()
+    .lambda(lambda: "val" < 7)
+    .as('val_below_7')

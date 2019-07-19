@@ -1,0 +1,65 @@
+%% Date: 15.07.2019 - 09:55
+%% Ⓒ 2019 heyoka
+%% @doc
+%% Computes the number of consecutive points in a given state. The state is defined via a lambda expression.
+%% For each consecutive point for which the expression evaluates as true,
+%% the state count will be incremented.
+%% When a point evaluates to false, the state count is reset.
+%%
+%% The state count will be added as an additional int64 field to each point.
+%% If the expression evaluates to false, the value will be -1.
+%% If the expression generates an error during evaluation, the point is discarded,
+%% and does not affect the state duration.
+%%
+-module(esp_state_count).
+-author("Alexander Minichmair").
+
+%% API
+-behavior(df_component).
+
+-include("faxe.hrl").
+%% API
+-export([init/3, process/3, options/0]).
+
+-record(state, {
+   node_id,
+   lambda,
+   as,
+   last_count = 0
+
+}).
+
+options() -> [{lambda, lambda}, {as, binary, <<"state_count">>}].
+
+init(_NodeId, _Ins, #{lambda := Lambda, as := As}) ->
+   {ok, all, #state{lambda = Lambda, as = As}}.
+
+process(_In, #data_batch{points = Points} = Batch, State = #state{lambda = Lambda}) ->
+   {error, not_implemented};
+process(_Inport, #data_point{} = Point,
+    State = #state{lambda = Lambda, last_count = LastTs, as = As}) ->
+   case process_point(Point, Lambda, LastTs) of
+      {ok, Count} ->
+         NewPoint = flowdata:set_field(Point, As, Count),
+         lager:notice("~p process emitting: ~p",[?MODULE, NewPoint]),
+         {emit, NewPoint, State#state{last_count = Count}};
+      {error, Error} ->
+         lager:error("Error evaluating lambda: ~p",[Error]),
+         {ok, State}
+   end.
+
+
+-spec process_point(#data_point{}, function(), non_neg_integer()) ->
+   {ok, Count :: non_neg_integer()} | {error, term()}.
+process_point(Point=#data_point{}, LFun, LastCount) ->
+   case (catch exec(Point, LFun)) of
+      true when LastCount > -1 -> {ok, LastCount+1};
+      true -> {ok, 1};
+      false -> {ok, -1};
+      Error -> {error, Error}
+   end.
+
+exec(Point, LFun) -> faxe_lambda:execute(Point, LFun).
+
+
+

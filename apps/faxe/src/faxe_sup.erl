@@ -28,7 +28,18 @@ start_link() ->
 
 %% Child :: {Id,StartFunc,Restart,Shutdown,Type,Modules}
 init([]) ->
-    {ok, { {one_for_one, 0, 1}, []} }.
+    Procs = [
+%%        {faxe_peer_manager,
+%%            {faxe_peer_manager, start_link, []},
+%%            permanent, 5000, worker, []},
+        {faxe_ets,
+            {faxe_ets, start_link, []},
+            permanent, 5000, worker, []},
+        {dataflow_sup,
+            {dataflow_sup, start_link, []},
+            permanent, infinity, supervisor, [dataflow_sup]}
+    ],
+    {ok, { {one_for_one, 5, 10}, Procs} }.
 
 %%====================================================================
 %% Internal functions

@@ -76,9 +76,7 @@ handle_info(Request, State) ->
 
 %% prepare a data_batch for aggregate execution
 prepare(B=#data_batch{}, Field) ->
-   Values = flowdata:field(B, Field),
-   Tss = flowdata:ts(B),
-   {Tss, Values}.
+   {flowdata:ts(B), flowdata:field(B, Field)}.
 
 -spec call(tuple(), atom(), term(), binary()) -> #data_batch{} | #data_point{}.
 call({Tss,_Vals}=Data, Module, MState, As) when is_list(Tss) ->

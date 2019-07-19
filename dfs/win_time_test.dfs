@@ -1,0 +1,17 @@
+var modbus =
+|modbus('hregs')
+    .ip('127.0.0.1')
+    .port(8899)
+    .device(255)
+    .every(1s)
+    .from(2127)
+    %.count(5)
+    .as('A')
+     %'B',
+      %      'Energy.BlindEnergyDelivered', 'Energy.Max.A', 'Energy.Min.A')
+
+modbus
+|win_time_q()
+.every(5s)
+.period(15s)
+.fill_period()

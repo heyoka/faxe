@@ -1,0 +1,51 @@
+def whid = 'ab33zr83489urf34r43j'
+def device_id = 'DV0025LM33'
+
+def s7 =
+    |s7poll()
+    .ip('127.0.0.1')
+    .rack(0)
+    .slot(0)
+    .every(100ms)
+    %.diff()
+    .vars('DB4,R1', 'DB4,DWORD7', 'DB4,DInt22', 'DB4,Int42', 'DB4,Int106')
+    .as('StrapDrv.ActMotorTorque', 'StGa.ActVal', 'LiftDrv.TargetPos', 'LiftDrv.SetpVelo', 'LiftDrv.ActVelo')
+
+%% overwrite the above values for testing purposes
+    |eval(lambda: random_real(4), lambda: random_real(44),
+        lambda: random(30), lambda: random(30), lambda: random(30) * -1)
+    .as('StrapDrv.ActMotorTorque', 'StGa.ActVal', 'LiftDrv.TargetPos', 'LiftDrv.SetpVelo', 'LiftDrv.ActVelo')
+
+
+%% add some tags
+    |default()
+    .tag('name')
+    .tag_value('measurement1')
+    |default()
+    .tag('warehouse_id')
+    .tag_value(whid)
+    |default()
+    .tag('device_id')
+    .tag_value(device_id)
+
+    |win_event()
+    .every(10)
+    .period(10)
+
+%% publish to mqtt broker
+
+    |mqtt_publish()
+    .host('10.14.12.142')
+    .port(1883)
+    .qos(1)
+    .topic('ttgw/m1')
+    .retained()
+
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+
+    %% exmaples from former PoC
+    %.vars('DB4902,DInt1222', 'DB4902,DInt1226', 'DB4902,DWORD2636', 'DB4905,Int1172', 'DB4902,Int2616')
+    %.as('TrvDrv.OpHrRet', 'TrvDrv.OpHr', 'TrvDrv.ErrorCode', 'LiftDrv.SetpVelo', 'TrvDrv.ActVelo')
+

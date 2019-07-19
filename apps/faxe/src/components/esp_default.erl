@@ -42,7 +42,7 @@ process(_Inport, #data_point{} = Point, State = #state{field = FName, field_valu
 
    NewPoint0 = set_field(Point, FName, FValue),
    NewPoint = set_tag(NewPoint0, TName, TValue),
-   lager:info("~p emits : ~p",[?MODULE, NewPoint]),
+%%   lager:info("~p emits : ~p",[?MODULE, NewPoint]),
    {emit, NewPoint, State}.
 
 
@@ -54,7 +54,7 @@ process(_Inport, #data_point{} = Point, State = #state{field = FName, field_valu
 set_field(P=#data_point{}, undefined, _) ->
    P;
 set_field(P=#data_point{}, FieldName, FieldValue) ->
-   case flowdata:value(P, FieldName) of
+   case flowdata:field(P, FieldName) of
       undefined -> flowdata:set_field(P, FieldName, FieldValue);
       _ -> P
    end.

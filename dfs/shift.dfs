@@ -1,0 +1,17 @@
+
+def s =
+    |value_emitter()
+    .every(5s)
+    .type(batch)
+
+s   |top()
+    .field('val')
+    .as('top2')
+    .num(2)
+
+s   |difference()
+    .her()
+    .field('val')
+    .as('val.difference')
+    %@mirror()
+    %.foo('hello from python')

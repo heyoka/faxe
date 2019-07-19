@@ -1,0 +1,15 @@
+
+def energy =
+    |modbus('hregs')
+    .ip('127.0.0.1')
+    .port(8899)
+    .device(255)
+    .every(1s)
+    .from(2127)
+    .count(5)
+    .as('ee1', 'ee2', 'ee3', 'ee4', 'ee5')
+
+energy
+    |where(lambda: ("ee1" + "ee2") + ("ee3" + "ee5"))
+    @mirror()
+

@@ -11,6 +11,6 @@
 options() ->
    esp_stats:get_options() ++ [{module, atom, ?MODULE}].
 
-execute({Tss, Values}, _Opts) when is_list(Values) ->
+execute({_Tss, Values}, _Opts) when is_list(Values) ->
    Set = sets:from_list(Values),
-   {lists:last(Tss), sets:to_list(Set)}.
+   {first, sets:to_list(Set)}.

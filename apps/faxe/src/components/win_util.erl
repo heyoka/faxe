@@ -1,10 +1,11 @@
 %% Date: 06.01.17 - 19:29
 %% Ⓒ 2017 heyoka
+%%
 -module(win_util).
 -author("Alexander Minichmair").
 
 %% API
--export([sync/2, split/2]).
+-export([sync/2, split/2, sync_q/2]).
 
 %% @doc
 %% head-drop as many entries in the first list, as there are in the second
@@ -15,6 +16,11 @@ sync(List, []) ->
    List;
 sync([_LH|L], [_E|R]) ->
    sync(L, R).
+
+sync_q(Queue, []) ->
+   Queue;
+sync_q(Q, [_E|R]) ->
+   sync_q(queue:drop(Q), R).
 
 %% @doc
 %% provide a list of timestamps and a reference timestamp
@@ -35,7 +41,7 @@ split_ea([], _, Keep, Evict, _) ->
 split_ea([Ts|T] = List, Pred, Keep, Evict, false) ->
    {K, Ev, Done} =
       case Ts > Pred of
-         true -> {List, Evict, true};
+         true -> lager:info("done evicting when ~p > ~p: diff: ~p",[Ts, Pred, Pred-Ts]), {List, Evict, true};
          false ->  lager:debug("~p evict ~p",[?MODULE, Ts]), {Keep, [Ts|Evict], false}
 
       end,

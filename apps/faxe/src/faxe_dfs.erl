@@ -6,7 +6,16 @@
 -include("faxe.hrl").
 
 %% API
--export([start_script/2, do/0, do/1, do/2, compile/2, file/2, data/2]).
+-export([start_script/2, do/0, do/1, do/2, compile/1, file/2, data/2]).
+
+%% for now the only user defineable component-type is python(3)
+-define(USER_COMPONENT, c_python).
+-define(USER_NODE_PREFIX, "@").
+-define(USER_COMPONENT_MODULE, cb_module).
+-define(USER_COMPONENT_CLASS, cb_class).
+
+%% define a list of lambda libary modules for use in lambda expressions
+-define(LAMBDA_LIBS, [faxe_lambda_lib]).
 
 do() ->
    do(<<"graph1">>).
@@ -30,23 +39,28 @@ start_script(Script, Name) ->
 
 
 
-file(ScriptFile, TaskName) when is_list(ScriptFile) ->
-   D = dfs:parse_file(ScriptFile, [faxe_lambda_lib]),
-   compile(D, TaskName).
+file(ScriptFile, Vars) when is_list(ScriptFile), is_list(Vars) ->
+   {ok, DfsParams} = application:get_env(faxe, dfs),
+   Path = proplists:get_value(script_path, DfsParams),
+   lager:info("dfs file path is: ~p",[Path++ScriptFile]),
+   D = dfs:parse_file(Path ++ ScriptFile, ?LAMBDA_LIBS, Vars),
+   maybe_compile(D).
 
-data(DfsData, TaskName) ->
-   D = dfs:parse(DfsData, [faxe_lambda_lib]),
-   compile(D, TaskName).
+data(DfsData, Vars) ->
+   D = dfs:parse(DfsData, ?LAMBDA_LIBS, Vars),
+   maybe_compile(D).
 
+maybe_compile(ParserResult) ->
+   case ParserResult of
+      {{_Where, line, _LN}, _Message} = M -> erlang:error(M);
+      {_Nodes, _Connections} -> compile(ParserResult);
+      _ -> erlang:error(ParserResult)
+   end.
 
-compile(D, TaskName) ->
+compile(D) ->
    try eval(D) of
       GraphDef when is_map(GraphDef) ->
-         #task{
-            date = faxe_time:now_date(),
-            definition = GraphDef,
-            name = TaskName
-         }
+         GraphDef
    catch
       Err -> {error, Err}
    end.
@@ -57,30 +71,54 @@ eval({Nodes, Connections}) ->
 
    Def = dataflow:new_graph(),
 
-   %% add nodes, handle node options and parameters and build connections from parameters
+   %% add nodes, handle node options and parameters and build connections
    {NewDef, NewConnections} =
-   lists:foldl(
-      fun({{NodeName, _Id} = N, Params, Options}, {Def0, Conns}) ->
-         Component = node_name(NodeName),
-         %% build additional connections from node-parameters
-         {NewConns, ParamOptions} = node_conn_params(N, Params),
+      lists:foldl(
+         fun({{NodeName, _Id} = N, Params, Options}, {Def0, Conns}) ->
+            {Component, NOpts} =
+            case NodeName of
+               << ?USER_NODE_PREFIX, Callback/binary>> ->
+                  Class = estr:str_capitalize(Callback),
+                  {?USER_COMPONENT,
+                     [
+                        {?USER_COMPONENT_MODULE,list_to_atom(binary_to_list(Callback))},
+                        {?USER_COMPONENT_CLASS, list_to_atom(binary_to_list(Class))}
+                     ]
+                  };
+               _ ->
+                  {node_name(NodeName), []}
+            end,
 
-         %% handle all other params and options
-         NodeOptions = convert_options(Component:options(), lists:flatten(Options++ParamOptions)),
-         lager:notice("~n~p wants options : ~p~n has options: ~p~n~n NodeParameters: ~p",
-            [Component, Component:options(), Options++ParamOptions, NodeOptions]),
-         NodeId = node_id(N),
-         lager:info("all options for node ~p: ~p",[N, NodeOptions]),
+            %% build additional connections from node-options
+            {NewConns, ParamOptions} = node_conn_params(N, Params),
+            CompOptions =
+            case Component of
+               ?USER_COMPONENT -> case erlang:function_exported(?USER_COMPONENT, call_options, 2) of
+                              true ->
+                                 Callb = proplists:get_value(?USER_COMPONENT_MODULE, NOpts),
+                                 ClassName = proplists:get_value(?USER_COMPONENT_CLASS, NOpts),
+                                 ?USER_COMPONENT:call_options(Callb, ClassName);
+                              false -> []
+                           end;
+               _        -> Component:options()
+            end,
+            %% handle all other params and options
+            NOptions = convert_options(CompOptions, lists:flatten(Options ++ ParamOptions)),
+            NodeOptions = NOptions ++ NOpts,
+            lager:notice("~n~p wants options : ~p~n has options: ~p~n~n NodeParameters: ~p",
+               [Component, Component:options(), Options ++ ParamOptions, NodeOptions]),
+            NodeId = node_id(N),
+            lager:info("all options for node ~p: ~p", [N, NodeOptions]),
 
-         {
-            dataflow:add_node({NodeId, Component, NodeOptions}, Def0),
-               Conns ++ NewConns
-         }
+            {
+               dataflow:add_node({NodeId, Component, NodeOptions}, Def0),
+                  Conns ++ NewConns
+            }
+         end,
 
-      end,
-      {Def, []},
-      Nodes
-   ),
+         {Def, []},
+         Nodes
+      ),
    lager:info("Got some new NodeConnections: ~p ~n Old : ~p",[NewConnections, Connections]),
    %% connect all
    lists:foldl(
@@ -93,6 +131,11 @@ eval({Nodes, Connections}) ->
       NewDef,
       Connections ++ NewConnections
    ).
+
+%%eval_node({<< "@", Name/binary >>, Id}) ->
+%%   {node_name(Name), node_id({Name, Id}), []};
+%%eval_node({{NodeName, _Id} = N, Params, Options}) ->
+%%   {node_name(NodeName), node_id(N), []}.
 
 node_id({Name, Id}) when is_binary(Name) andalso is_integer(Id) ->
    <<Name/binary, (integer_to_binary(Id))/binary>>.
@@ -178,7 +221,9 @@ node_conn_params({NodeName, _Id}=N, NodeParams) ->
    NewNodeParams = node_params(N, Parameters),
    {NewConns, NewNodeParams}.
 
+-spec convert_options(list(), list()) -> list({binary(),list()}).
 convert_options(NodeOptions, Params) ->
+
    Opts = lists:foldl(
       fun
          ({Name, Type, _Def}, O) -> [{atom_to_binary(Name), {Name, Type}}|O];
@@ -192,28 +237,44 @@ convert_options(NodeOptions, Params) ->
    lager:notice("Options for Node: ~p",[Opts]),
    lists:foldl(
       fun
-%%         ({PName, PVals}, Acc) -> ok;
          ({PName, PVals}, Acc) ->
-            lager:notice("~p :: ~p~n",[PName, proplists:get_value(PName, Opts)]),
+%%            lager:warning("~p :: ~p~n",[PName, proplists:get_value(PName, Opts)]),
          case proplists:get_value(PName, Opts) of
-            undefined -> Acc;
-%%            {Name, list} -> [{Name, list_params(PVals)}|Acc];
+            undefined ->
+               lager:warning("type is: ~p",[{PName, PVals}]),
+               Acc;
+            {Name, param_list = Type} ->
+               {value, {Name, Type, POpts}, _L} = lists:keytake(Name, 1, NodeOptions),
+               lager:alert("~nconvert param_list(~p, ~p, ~p, ~p)",[Name, Type, PVals, POpts]),
+               Zipped = lists:zip(POpts, PVals),
+               C = [convert(N, T, [PV]) || {{N, T}, PV} <- Zipped],
+               [{Name, C} | Acc];
             {Name, Type} ->
-               TName = atom_to_binary(Type),
-               case estr:str_ends_with(TName, <<"list">>) of
-                  true -> [{Name, list_params(PVals)}|Acc];
-                  false -> case length(PVals) of
-                              0 -> [{Name, cparam(Type, [])}|Acc];
-                              1 -> [{Name, cparam(Type, hd(PVals))}|Acc];
-                              _ -> [{Name, list_params(PVals)}|Acc]
-                           end
-               end
+               lager:info("~nconvert(~p, ~p, ~p)",[Name, Type, PVals]),
+               [convert(Name, Type, PVals) | Acc]
+
          end
       end,
       [],
       Params
 
    ).
+
+%%convert(Name, param_list, PVals) ->
+%%   {Name, [convert(N, T, PVal) || {N, T}]}
+%%   lists:map(fun({N, Typ, PVal}) -> convert(N, Typ, PVal) end, Type);
+convert(Name, Type, PVals) ->
+   lager:notice("convert(~p,~p,~p)",[Name, Type, PVals]),
+   TName = atom_to_binary(Type),
+   case estr:str_ends_with(TName, <<"list">>) of
+      true -> {Name, list_params(PVals)};
+      false -> case length(PVals) of
+                  0 -> {Name, cparam(Type, [])};
+                  1 -> {Name, cparam(Type, hd(PVals))};
+                  _ -> {Name, list_params(PVals)}
+               end
+   end.
+
 
 list_params({list, Vals}) -> Vals;
 list_params(Vals) ->

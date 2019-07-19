@@ -27,14 +27,14 @@
    query             :: binary(),
    group_time        :: binary(),
    group_tags        :: list(),
-   period            :: non_neg_integer(),
+   period            :: non_neg_integer(), %% query timerange in milliseconds
    every             :: non_neg_integer(),
    cron              :: binary(),
    align             :: binary(),
    offset            :: binary(),
    fill              :: binary()|term(),
 
-   mark              :: non_neg_integer()
+   mark              :: non_neg_integer() %% query from this timestamp back in time, "period" milliseconds
 }).
 
 %% test it %%

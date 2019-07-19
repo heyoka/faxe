@@ -11,9 +11,6 @@
 
 -spec call(tuple(), atom(), term(), binary()) -> #data_batch{} | #data_point{}.
 call({Tss,_Vals}=Data, Module, MState, As) when is_list(Tss) ->
-%%   lager:notice("call called as ~p ~p ~p",[Module, MState, As]),
-%%   L = lists:zip(Tss, Vals),
-%%   lists:foreach(fun({T, V}) -> lager:notice("in: ~p :: ~p",[faxe_time:to_htime(T), V]) end, L),
    result(Module:execute(Data, MState), As, Tss).
 
 %%-spec result({Ts, V} | [{Ts, V}], binary(), list()) -> #data_point{} | #data_batch{}.

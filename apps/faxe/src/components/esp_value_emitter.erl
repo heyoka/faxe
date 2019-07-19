@@ -13,15 +13,19 @@
    every             :: non_neg_integer(),
    type              :: batch | point,
    batch_size        :: non_neg_integer(),
-   align             :: atom()
+   align             :: atom(),
+   fields            :: list(binary())
 }).
 
 params() -> [].
 
 options() ->
-   [{every, binary, <<"5s">>}, {type, atom, batch}, {batch_size, integer, 5}, {align, is_set}].
+   [{every, binary, <<"5s">>}, {type, atom, batch},
+      {batch_size, integer, 5}, {align, is_set},
+      {fields, binary_list, [<<"val">>]}].
 
-init(NodeId, _Inputs, #{every := Every, type := Type, batch_size := BatchSize, align := Unit} = P) ->
+init(NodeId, _Inputs,
+    #{every := Every, type := Type, batch_size := BatchSize, align := Unit, fields := Fields} = P) ->
    NUnit =
       case Unit of
          false -> false;
@@ -30,11 +34,11 @@ init(NodeId, _Inputs, #{every := Every, type := Type, batch_size := BatchSize, a
 
    lager:debug("~p init:node~n",[{NodeId, P}]),
    EveryMs = faxe_time:duration_to_ms(Every),
-   State = #state{node_id = NodeId, every = EveryMs,
+   State = #state{node_id = NodeId, every = EveryMs, fields = Fields,
       type = Type, batch_size = BatchSize, align = NUnit},
 
    erlang:send_after(EveryMs, self(), values),
-   random:seed(),
+   rand:seed(exs1024s),
    lager:info("~p state is : ~p",[?MODULE, State]),
    {ok, none, State}.
 
@@ -53,16 +57,16 @@ handle_info(Request, State) ->
    lager:debug("~p request: ~p~n", [State, Request]),
    {ok, State}.
 
-build_msg(S = #state{type = batch, batch_size = Size}) ->
+build_msg(S = #state{type = batch, batch_size = Size, fields = Fields}) ->
    {TsStart, Dist} = batch_start(S),
-   Values = batch_points(TsStart, Dist, [], Size),
+   Values = batch_points(TsStart, Dist, [], Size, Fields),
    flowdata:set_bounds(#data_batch{points = Values})
 ;
-build_msg(#state{type = point, align = false}) ->
-   point(faxe_time:now());
-build_msg(#state{type = point, align = Unit}) ->
+build_msg(#state{type = point, align = false, fields = Fields}) ->
+   point(faxe_time:now(), Fields);
+build_msg(#state{type = point, align = Unit, fields = Fields}) ->
    lager:info(" ~p build point~n",[?MODULE]),
-   point(faxe_time:align(faxe_time:now(), Unit)).
+   point(faxe_time:align(faxe_time:now(), Unit), Fields).
 
 batch_start(#state{type = batch, batch_size = Size, every = Every, align = false}) ->
    lager:info("Align is undefined"),
@@ -72,10 +76,10 @@ batch_start(#state{type = batch, batch_size = Size, align = Unit}) ->
    Ts1 = faxe_time:now() - ((Size + 1) * faxe_time:unit_to_ms(Unit)),
    {faxe_time:align(Ts1, Unit), faxe_time:unit_to_ms(Unit)}.
 
-batch_points(_Ts, _Dist, Vals, 0) ->
+batch_points(_Ts, _Dist, Vals, 0, _F) ->
    Vals;
-batch_points(Ts, Dist, Vals, Num) ->
-   batch_points(Ts+Dist, Dist, [point(Ts)|Vals], Num - 1).
+batch_points(Ts, Dist, Vals, Num, Fields) ->
+   batch_points(Ts+Dist, Dist, [point(Ts, Fields)|Vals], Num - 1, Fields).
 
-point(Ts) ->
-   #data_point{ts = Ts, fields = [{<<"val">>, random:uniform()*10}]}.
+point(Ts, FieldNames) ->
+   #data_point{ts = Ts, fields = [{F, rand:uniform()*10} || F <- FieldNames]}.
