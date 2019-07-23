@@ -9,4 +9,3 @@
     .as('Energy.ActiveEnergyConsumption', 'Energy.MaximalCurrentValue',
         'Energy.BlindEnergyDelivered', 'Energy.Max.A', 'Energy.Min.A')
     .read(3009, 2, 'float32', 'Energy.ActiveEnergyConsumption')
-    .read(3011, 5, 'coils', 'Energy.CurrentMAX')

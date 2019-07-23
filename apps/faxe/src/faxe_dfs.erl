@@ -267,7 +267,7 @@ convert(Name, Type, PVals) ->
    lager:notice("convert(~p,~p,~p)",[Name, Type, PVals]),
    TName = atom_to_binary(Type),
    case estr:str_ends_with(TName, <<"list">>) of
-      true -> {Name, list_params(PVals)};
+      true -> {Name, list_params(Type, PVals)};
       false -> case length(PVals) of
                   0 -> {Name, cparam(Type, [])};
                   1 -> {Name, cparam(Type, hd(PVals))};
@@ -275,7 +275,16 @@ convert(Name, Type, PVals) ->
                end
    end.
 
-
+list_params(Type, Vals) ->
+   lists:foldl(
+      fun
+         (Val, Acc) ->
+            Acc ++ [list_param(Type, Val)]
+      end,
+      [],
+      Vals
+   )
+.
 list_params({list, Vals}) -> Vals;
 list_params(Vals) ->
    lists:foldl(
@@ -289,6 +298,11 @@ list_params(Vals) ->
       Vals
    )
    .
+
+list_param(atom_list, Val) ->
+   cparam(atom, Val);
+list_param(_Type, Val) ->
+   cparam(any, Val).
 
 cparam(is_set, _) -> true;
 cparam(atom, {identifier, Val}) -> binary_to_atom(Val);

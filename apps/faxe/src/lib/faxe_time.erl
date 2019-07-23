@@ -48,7 +48,7 @@
    to_ms/1,
    now_aligned/1,
    now_aligned/2,
-   to_htime/1]).
+   to_htime/1, send_at/2]).
 
 %%% @doc
 %%% get "now" in milliseconds,
@@ -57,7 +57,16 @@
 %%
 -spec now() -> timestamp().
 now() ->
-   erlang:system_time(milli_seconds).
+   erlang:system_time(millisecond).
+
+
+%% @doc
+%% convinience function to get a info message with content Message at the desired time Timestamp
+%%
+-spec send_at(timestamp(), term()) -> reference().
+send_at(Timestamp, Message) ->
+   Time = Timestamp - faxe_time:now(),
+   erlang:send_after(Time, self(), Message).
 
 %%% @doc
 %%% get "now" date-tuple with milliseconds added
