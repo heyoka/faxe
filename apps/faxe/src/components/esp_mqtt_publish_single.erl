@@ -16,54 +16,50 @@
 %% API
 -export([init/3, process/3, options/0, handle_info/2, shutdown/1]).
 
--record(state, {
-   client,
-   connected = false,
-   host,
-   port,
-   qos,
-   topic,
-   retained = false,
-   ssl = false
-}).
-
 -define(DEFAULT_PORT, 1883).
 -define(DEFAULT_SSL_PORT, 8883).
+-define(DEFAULT_QUEUE_FILE, "/tmp/mqtt_q").
+
+-record(state, {
+   publisher,
+   options,
+   queue_file = ?DEFAULT_QUEUE_FILE,
+   queue
+}).
+
+
 
 options() -> [
    {host, binary}, {port, integer, ?DEFAULT_PORT},
    {qos, integer, 1}, {topic, binary}, {retained, is_set},
    {ssl, bool, false}].
 
-init(NodeId, _Ins, #{host := Host0, port := Port, topic := Topic, qos := Qos, retained := Retained, ssl := UseSSL}=Opts) ->
+init(NodeId, _Ins, #{host := Host0}=Opts) ->
    lager:notice("++++ ~p ~ngot opts: ~p ~n",[NodeId, Opts]),
 %%   emqttc:start_link([{host, Host}, {client_id, NodeId}, {logger, info}]),
    Host = binary_to_list(Host0),
-   emqttc:start_link([{host, Host}, {port, Port}, {logger, info}]),
-   {ok, all, #state{host = Host, port = Port, topic = Topic, retained = Retained, ssl = UseSSL, qos = Qos}}.
+   {ok, Q} = esq:new(?DEFAULT_QUEUE_FILE),
+   {ok, Publisher} = mqtt_publisher:start_link(Opts#{host := Host}, Q),
+   {ok, all, #state{options = Opts, publisher = Publisher, queue = Q}}.
 
-process(_In, #data_batch{} = Batch, State = #state{}) ->
+process(_In, #data_batch{} = Batch, State = #state{queue = Q}) ->
    Json = flowdata:to_json(Batch),
-   publish(Json, State),
+   esq:enq(Q, Json),
    {ok, State};
-process(_Inport, #data_point{} = Point, State = #state{}) ->
+process(_Inport, #data_point{} = Point, State = #state{queue = Q}) ->
    Json = flowdata:to_json(Point),
-   publish(Json, State),
+   esq:enq(Q, Json),
    {ok, State}.
 
-handle_info({mqttc, C, connected}, State=#state{}) ->
-   lager:warning("mqtt client connected!!"),
-   {ok, State#state{client = C, connected = true}};
-handle_info({mqttc, _C,  disconnected}, State=#state{}) ->
-   lager:warning("mqtt client disconnected!!"),
-   {ok, State#state{connected = false, client = undefined}};
+
 handle_info(E, S) ->
    io:format("unexpected: ~p~n", [E]),
    {ok, S}.
 
-shutdown(#state{client = C}) ->
-   catch (emqttc:disconnect(C)).
+shutdown(#state{publisher = P}) ->
+   catch (P).
 
-publish(Msg, #state{retained = Ret, qos = Qos, client = C, topic = Topic}) when is_binary(Msg) ->
-   lager:notice("publish ~p on topic ~p ~n",[Msg, Topic]),
-   emqttc:publish(C, Topic, Msg, [{qos, Qos}, {retained, Ret}]).
+%%publish(Msg, #state{retained = Ret, qos = Qos, client = C, topic = Topic}) when is_binary(Msg) ->
+%%   lager:notice("publish ~p on topic ~p ~n",[Msg, Topic]),
+%%   emqttc:publish(C, Topic, Msg, [{qos, Qos}, {retained, Ret}]).
+

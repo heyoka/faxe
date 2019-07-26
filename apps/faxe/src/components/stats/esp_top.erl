@@ -8,7 +8,7 @@
 -inherit(esp_stats).
 -behavior(esp_stats).
 %% API
--export([execute/2, options/0, basic_test/0]).
+-export([execute/2, options/0]).
 
 options() ->
    esp_stats:get_options() ++ [{num, integer, 1}, {module, atom, ?MODULE}].

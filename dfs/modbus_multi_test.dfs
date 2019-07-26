@@ -11,5 +11,4 @@
     .as('Energy.ActiveEnergyConsumption', 'Energy.MaximalCurrentValue', 'Energy.BlindEnergyDelivered')
     .output('', 'float32', 'float32')
     .signed(true, true, false)
-    |where(lambda: "value_energy_1" > 12)
 

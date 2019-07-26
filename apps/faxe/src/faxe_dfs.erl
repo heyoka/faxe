@@ -6,7 +6,7 @@
 -include("faxe.hrl").
 
 %% API
--export([start_script/2, do/0, do/1, do/2, compile/1, file/2, data/2]).
+-export([start_script/2, do/0, do/1, do/2, compile/1, file/2, data/2, make_lambda_fun/3]).
 
 %% for now the only user defineable component-type is python(3)
 -define(USER_COMPONENT, c_python).
@@ -313,6 +313,7 @@ cparam(list, {_T, Val}) -> [Val];
 cparam(_, {_Type, Val}) -> Val.
 
 make_lambda_fun(LambdaString, FunParams, BinRefs) ->
+   lager:warning("~~n make_lambda_fun(~p, ~p, ~p)~n",[LambdaString, FunParams, BinRefs]),
    {Bindings, _Index} = lists:foldl(
       fun(P, {Bindings, Index}) ->
          Bind = bind_lambda_param(lists:nth(Index, FunParams), P),

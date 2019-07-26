@@ -11,12 +11,11 @@ def energy =
     .count(5)
     .as('Energy.ActiveEnergyConsumption', 'Energy.MaximalCurrentValue',
         'Energy.BlindEnergyDelivered', 'Energy.Max.A', 'Energy.Min.A')
-    .read(3009, 2, 'float32', 'Energy.ActiveEnergyConsumption')
 
 %% add some tags
     |default()
     .tag('name')
-    .tag_value('measurement1')
+    .tag_value('persistent_publisher')
     |default()
     .tag('warehouse_id')
     .tag_value(whid)
@@ -26,7 +25,7 @@ def energy =
 
 %% publish to mqtt broker
 
-    |mqtt_publish()
+    |mqtt_publish_single()
     .host('10.14.12.142')
     .port(1883)
     .qos(1)

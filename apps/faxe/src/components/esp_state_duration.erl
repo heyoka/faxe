@@ -64,9 +64,7 @@ exec(Point, LFun) -> faxe_lambda:execute(Point, LFun).
 
 
 -ifdef(TEST).
-process_point_test() ->
-   ?assertEqual(ok, ok).
--endif.
 
+-endif.
 
 

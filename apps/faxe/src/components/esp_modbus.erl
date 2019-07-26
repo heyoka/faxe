@@ -35,8 +35,7 @@
 
 options() -> [{ip, string}, {port, integer, 502},
   {every, binary, "1s"}, {device, integer, 255},
-  {function, binary, <<"coils">>}, {from, integer}, {count, integer, 1}, {as, binary_list},
-  {read, param_list, [{address, int}, {count, int}, {output_type, string}, {as, binary}]}].
+  {function, binary, <<"coils">>}, {from, integer}, {count, integer, 1}, {as, binary_list}].
 
 init(_NodeId, _Ins,
     #{ip := Ip0, port := Port, device := DevAddress, every := Dur,

@@ -34,7 +34,7 @@ options() -> [{lambda, lambda}, {as, binary, <<"state_count">>}].
 init(_NodeId, _Ins, #{lambda := Lambda, as := As}) ->
    {ok, all, #state{lambda = Lambda, as = As}}.
 
-process(_In, #data_batch{points = Points} = Batch, State = #state{lambda = Lambda}) ->
+process(_In, #data_batch{points = _Points} = _Batch, _State = #state{lambda = _Lambda}) ->
    {error, not_implemented};
 process(_Inport, #data_point{} = Point,
     State = #state{lambda = Lambda, last_count = LastTs, as = As}) ->
@@ -60,6 +60,25 @@ process_point(Point=#data_point{}, LFun, LastCount) ->
    end.
 
 exec(Point, LFun) -> faxe_lambda:execute(Point, LFun).
+
+
+
+-ifdef(TEST).
+process_point_test_() ->
+   Point = #data_point{ts = 1234, fields = [{<<"value">>, 2134}]},
+   [point_count_test(Point), process_no_count_test(Point), process_first_count_test(Point)].
+point_count_test(Point) ->
+   LambdaString = "Value > 2133",
+   ?_assertEqual(process_point(Point, lambda_helper(LambdaString), 17), {ok, 18}).
+process_no_count_test(Point) ->
+   LambdaString = "Value > 2134",
+   ?_assertEqual(process_point(Point, lambda_helper(LambdaString), 17), {ok, -1}).
+process_first_count_test(Point) ->
+   LambdaString = "Value == 2134",
+   ?_assertEqual(process_point(Point, lambda_helper(LambdaString), -1), {ok, 1}).
+lambda_helper(LambdaString) ->
+   faxe_dfs:make_lambda_fun(LambdaString, ["Value"], [<<"value">>]).
+-endif.
 
 
 

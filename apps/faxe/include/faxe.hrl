@@ -1,8 +1,10 @@
 -author("Alexander Minichmair").
 
 %%-include("amqp_client.hrl").
-
+-ifdef(TEST).
 -include_lib("eunit/include/eunit.hrl").
+-endif.
+
 -include("dataflow.hrl").
 
 -export_type([window_state/0, window_events/0]).

@@ -26,7 +26,6 @@ init(NodeId, _Ins, #{offset := Offset}=P) ->
    {ok, all, #state{node_id = NodeId, offset = Offset}}.
 
 process(_In, #data_batch{points = Points} = Batch, State = #state{offset = Offset}) ->
-   lager:info("~p Ts before: ~p",[?MODULE, [faxe_time:to_date(T0) || T0 <- flowdata:ts(Batch)]]),
    NewPoints = [execute(Point,Offset) || Point <- Points],
    NewBatch = flowdata:set_bounds(Batch#data_batch{points = NewPoints}),
    lager:info("~p Ts after: ~p",[?MODULE, [faxe_time:to_date(T1) || T1 <- flowdata:ts(NewBatch)]]),

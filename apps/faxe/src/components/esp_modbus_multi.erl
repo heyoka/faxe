@@ -38,6 +38,7 @@
 -define(FUNCTIONS, [<<"coils">>, <<"hregs">>, <<"iregs">>, <<"inputs">>, <<"memory">>]).
 -define(FUNCTION_PREFIX, <<"read_">>).
 
+-spec options() -> list().
 options() -> [{ip, string}, {port, integer, 502},
   {every, binary, "1s"}, {device, integer, 255},
   {function, binary_list},
