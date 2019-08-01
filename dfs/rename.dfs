@@ -23,13 +23,9 @@ def energy =
     .tag('device_id')
     .tag_value(device_id)
 
-
-%% publish to mqtt broker
-%%
-  %  |mqtt_publish_single()
-   % .host('10.14.12.142')
-    %.port(1883)
-    %.qos(1)
-    %.topic('ttgw/m1')
-    %.retained()
-
+    %% rename some fields
+    |rename()
+    .fields('Energy.Max.A', 'Energy.Min.A')
+    .as_fields('EMaxA')
+    .tags('warehouse_id')
+    .as_tags('whid')

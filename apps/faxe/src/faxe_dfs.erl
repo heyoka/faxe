@@ -109,6 +109,7 @@ eval({Nodes, Connections}) ->
                [Component, Component:options(), Options ++ ParamOptions, NodeOptions]),
             NodeId = node_id(N),
             lager:info("all options for node ~p: ~p", [N, NodeOptions]),
+%%            dataflow:maybe_check_opts(Component, Options ++ ParamOptions),
 
             {
                dataflow:add_node({NodeId, Component, NodeOptions}, Def0),
@@ -234,7 +235,7 @@ convert_options(NodeOptions, Params) ->
       [],
       NodeOptions
    ),
-   lager:notice("Options for Node: ~p",[Opts]),
+%%   lager:notice("Options for Node: ~p",[Opts]),
    lists:foldl(
       fun
          ({PName, PVals}, Acc) ->
@@ -245,12 +246,12 @@ convert_options(NodeOptions, Params) ->
                Acc;
             {Name, param_list = Type} ->
                {value, {Name, Type, POpts}, _L} = lists:keytake(Name, 1, NodeOptions),
-               lager:alert("~nconvert param_list(~p, ~p, ~p, ~p)",[Name, Type, PVals, POpts]),
+%%               lager:alert("~nconvert param_list(~p, ~p, ~p, ~p)",[Name, Type, PVals, POpts]),
                Zipped = lists:zip(POpts, PVals),
                C = [convert(N, T, [PV]) || {{N, T}, PV} <- Zipped],
                [{Name, C} | Acc];
             {Name, Type} ->
-               lager:info("~nconvert(~p, ~p, ~p)",[Name, Type, PVals]),
+%%               lager:info("~nconvert(~p, ~p, ~p)",[Name, Type, PVals]),
                [convert(Name, Type, PVals) | Acc]
 
          end
@@ -313,7 +314,7 @@ cparam(list, {_T, Val}) -> [Val];
 cparam(_, {_Type, Val}) -> Val.
 
 make_lambda_fun(LambdaString, FunParams, BinRefs) ->
-   lager:warning("~~n make_lambda_fun(~p, ~p, ~p)~n",[LambdaString, FunParams, BinRefs]),
+%%   lager:warning("~~n make_lambda_fun(~p, ~p, ~p)~n",[LambdaString, FunParams, BinRefs]),
    {Bindings, _Index} = lists:foldl(
       fun(P, {Bindings, Index}) ->
          Bind = bind_lambda_param(lists:nth(Index, FunParams), P),
@@ -323,7 +324,7 @@ make_lambda_fun(LambdaString, FunParams, BinRefs) ->
       BinRefs
    ),
    F =  "fun(Point) -> " ++ Bindings ++ " fun() -> " ++ LambdaString ++ " end end.",
-   lager:warning("~nfun: ~p~n",[F]),
+%%   lager:warning("~nfun: ~p~n",[F]),
    Fun = parse_fun(F),
    Fun
 .

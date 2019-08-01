@@ -44,11 +44,13 @@ init(NodeId, _Ins, #{host := Host0}=Opts) ->
 
 process(_In, #data_batch{} = Batch, State = #state{queue = Q}) ->
    Json = flowdata:to_json(Batch),
-   esq:enq(Q, Json),
+   esq:enq(Json, Q),
+   lager:info("enqueued: ~p :: ~p",[Json, Q]),
    {ok, State};
 process(_Inport, #data_point{} = Point, State = #state{queue = Q}) ->
    Json = flowdata:to_json(Point),
-   esq:enq(Q, Json),
+   esq:enq(Json, Q),
+   lager:info("enqueued: ~p :: ~p",[Json, Q]),
    {ok, State}.
 
 

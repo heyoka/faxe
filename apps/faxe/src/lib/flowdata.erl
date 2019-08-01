@@ -32,7 +32,7 @@
    first_ts/1, first/1, take/1, take2/1, set_bounds/1,
    %% point only
    stream_decode/1, to_json/1, set_ts/2
-   , rename_field/3, field_names/1, tag_names/1]).
+   , field_names/1, tag_names/1, rename_fields/3, rename_tags/3]).
 
 
 -spec stream_decode(any()) -> any().
@@ -223,16 +223,17 @@ delete_tag(#data_batch{points = Points}=B, TagName) ->
    B#data_batch{points = NewPoints}.
 
 %% @doc
-%% rename a field
+%% rename fields and tags
 %% @end
--spec rename_field(#data_point{}, binary(), binary()) -> #data_point{}.
-rename_field(#data_point{fields = Fields} = P, From, To) when is_binary(From) andalso is_binary(To)->
-%%   F = field(P, From),
-   NFields = proplists:substitute_aliases([{From, To}], Fields),
-   P#data_point{fields = NFields}.
+-spec rename_fields(#data_point{}, list(binary()), list(binary())) -> #data_point{}.
+rename_fields(#data_point{fields = Fields} = P, FieldNames, Aliases) ->
+   P#data_point{fields = rename(Fields, FieldNames, Aliases)}.
 
+rename_tags(#data_point{tags = Tags} = P, TagNames, Aliases) ->
+   P#data_point{tags = rename(Tags, TagNames, Aliases)}.
 
-
+rename(List, From, To) when is_list(List), is_list(From), is_list(To)->
+   proplists:substitute_aliases(lists:zip(From, To), List).
 %%%%%%%%%%%%%%%%%%%%%%%% batch only  %%%%%%%%%%%%%%%%%%
 
 set_bounds(B=#data_batch{points = [F|_R]}) ->

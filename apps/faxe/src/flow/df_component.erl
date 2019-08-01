@@ -271,13 +271,13 @@ handle_info({item, {Inport, Value}},
     State=#c_state{cb_state = CBState, component = Module, flow_mode = FMode, auto_request = AR}) ->
 
    %gen_event:notify(dfevent_component, {item, State#c_state.node_id, {Inport, Value}}),
-
-   case catch (Module:process(Inport, Value, CBState)) of
-      {'EXIT', {Reason,Stacktrace}} -> lager:error("'error' ~p in component ~p caught when processing item: ~p -- ~p",
-         [Reason, State#c_state.component, {Inport, Value}, hd(Stacktrace)]),
-         {noreply, State};
-
-      Result ->
+   Result = (Module:process(Inport, Value, CBState)),
+%%   case catch (Module:process(Inport, Value, CBState)) of
+%%      {'EXIT', {Reason,Stacktrace}} -> lager:error("'error' ~p in component ~p caught when processing item: ~p -- ~p",
+%%         [Reason, State#c_state.component, {Inport, Value}, Stacktrace]),
+%%         {noreply, State};
+%%
+%%      Result ->
          {NewState, Requested, REmitted} = handle_process_result(Result, State),
          case FMode == pull of
             true -> case {Requested, AR, REmitted} of
@@ -290,7 +290,8 @@ handle_info({item, {Inport, Value}},
             false -> ok
          end,
          {noreply, NewState}
-   end;
+%%   end
+   ;
 
 handle_info({emit, {Outport, Value}}, State=#c_state{subscriptions = Ss,
       flow_mode = FMode, auto_request = AR, emitted = EmitCount}) ->
