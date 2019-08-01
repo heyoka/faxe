@@ -5,7 +5,7 @@ def s7 =
     |s7poll()
     .ip('127.0.0.1')
     .rack(0)
-    .slot(0)
+    .slot(1)
     .every(100ms)
     %.diff()
     .vars('DB4,R1', 'DB4,DWORD7', 'DB4,DInt22', 'DB4,Int42', 'DB4,Int106')

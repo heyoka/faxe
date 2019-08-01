@@ -6,7 +6,7 @@
 -export([new_graph/0, create_graph/2, start_graph/1, start_graph/2,
    add_node/2, add_edge/2, add_debug_handler/0, remove_debug_handler/0]).
 
--export([request_items/2, emit/1, build_options/2]).
+-export([request_items/2, emit/1, build_options/2, maybe_check_opts/2]).
 
 %%====================================================================
 %% CALLBACK API functions
@@ -81,8 +81,8 @@ build_options(Component, L) ->
                         []
           end,
    case catch(do_build_options(Opts, L)) of
-      Opts0 when is_map(Opts0) -> Opts0;
-      {error,What} -> exit({bad_option, {Component, What}});
+      Opts0 when is_map(Opts0) -> maybe_check_opts(Opts0, Component);
+      {error, What} -> exit({bad_option, {Component, What}});
       {'EXIT',{What, _}} -> exit({bad_option, {Component, What}})
    end.
 do_build_options([], _) -> #{};
@@ -154,3 +154,27 @@ list_val(Val, Fun) ->
       true -> Val;
       false -> erlang:error({wrong_list_option_type, {Val}})
    end.
+
+%%
+%% further options checks
+maybe_check_opts(Opts, Module) when is_map(Opts), is_atom(Module) ->
+   lager:alert("function exported ~p: ~p", [[Module, check_options, 0], erlang:function_exported(Module, check_options, 0)]),
+   case erlang:function_exported(Module, check_options, 0) of
+      true -> check_options(Module:check_options(), Opts);
+      false -> Opts
+   end.
+
+check_options([], Opts) ->
+   Opts;
+check_options([Check| Checks], Opts) ->
+   do_check(Check, Opts),
+   check_options(Checks, Opts).
+
+do_check({same_length, Key1, Key2}, Opts = #{}) ->
+   lager:warning("same_length check for ~p ~p out of ~p" ,[Key1, Key2, Opts]),
+   #{Key1 := L1, Key2 := L2} = Opts,
+   case length(L1) == length(L2) of
+      false -> erlang:error({lists_not_of_same_length, {Key1, Key2}});
+      true -> ok
+   end.
+

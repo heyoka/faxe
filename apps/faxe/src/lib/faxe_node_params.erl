@@ -18,3 +18,9 @@ options(<<"eval">>) -> [{all, <<"lambdas">>, lambda_list}];
 options(<<"modbus">>) -> [{1, <<"function">>, binary}];
 options(<<"where">>) -> [{1, <<"lambda">>, lambda}];
 options(_) -> undefined.
+
+%% helper functions
+
+%% ensure given options have the same length
+ensure_same_length(OptionList, Key1, Key2) ->
+   true.
