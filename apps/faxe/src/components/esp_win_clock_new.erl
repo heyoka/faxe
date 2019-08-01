@@ -125,7 +125,8 @@ new_ts(Ts, Align) ->
    faxe_time:align(Ts, Align).
 
 emit_at(Timestamp) ->
-   Now = faxe_time:now(),
-   Time = Timestamp - Now,
-   lager:notice("NEXT EMIT at: ~p", [faxe_time:to_date(Timestamp)]),
-   erlang:send_after(Time, self(), emit_now).
+   faxe_time:send_at(Timestamp, emit_now).
+%%   Now = faxe_time:now(),
+%%   Time = Timestamp - Now,
+%%   lager:notice("NEXT EMIT at: ~p", [faxe_time:to_date(Timestamp)]),
+%%   erlang:send_after(Time, self(), emit_now).
