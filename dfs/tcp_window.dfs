@@ -3,4 +3,30 @@ def v1 =
     .ip('127.0.0.1')
     .port(1111)
 
+def window =
+v1
+    |win_time()
+    .every(12s)
+    .period(12s)
+
+window
+    |variance()
+    .perc(85)
+    .field('val')
+    .as('variance')
+window
+    |sum()
+    .as('sum')
+    .field('val')
+
+def median =
+window
+    |median()
+    .as('median')
+    .field('val')
+
+median
+    |first()
+    .as('first')
+    .field('median')
 
