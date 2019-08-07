@@ -66,7 +66,7 @@ year(Ts) ->
 random(N) when is_integer(N), N > 0 ->
    rand:uniform(N).
 
-%% @doc generate a random float, thats gets multplied by N
+%% @doc generate a random float, that gets multiplied by N
 random_real(N) ->
    rand:uniform_real() * N.
 
