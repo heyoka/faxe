@@ -2,7 +2,7 @@
 %% Ⓒ 2019 heyoka
 %% @doc emits new points only if different from the previous point
 %% multiple fields can be monitored by this node
-%% if reset_timeout is given, all previous values are resetted, if there are no points comming in for this amount of time
+%% if reset_timeout is given, all previous values are resetted, if there are no points coming in for this amount of time
 %%
 -module(esp_change_detect).
 -author("Alexander Minichmair").
