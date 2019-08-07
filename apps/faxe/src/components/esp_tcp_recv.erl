@@ -6,7 +6,7 @@
 %%% @end
 %%% Created : 27. May 2019 09:00
 %%%-------------------------------------------------------------------
--module(esp_tcp_recv_line).
+-module(esp_tcp_recv).
 -author("heyoka").
 
 %% API
@@ -22,10 +22,8 @@
   socket,
   as,
   timer_ref,
-  line_delimiter,
   reconnector,
-  parser = undefined :: undefined|atom(), %% parser module
-  min_length
+  parser = undefined :: undefined|atom() %% parser module
 }).
 
 -define(SOCKOPTS,
@@ -33,7 +31,7 @@
     {active, once},
     binary,
     {reuseaddr, true},
-    {packet, line},
+    {packet, 2},
     {keepalive, true},
     {recbuf, 2048},
     {buffer, 4096}
@@ -46,33 +44,24 @@
 options() -> [
   {ip, binary}, {port, integer},
   {as, binary, <<"value">>}, %% alias for fieldname
-  {line_delimiter, binary, $§}, %% not used at the moment
-  {parser, atom, undefined}, %% parser module to use
-  {min_length, integer, 61} %% lines shorter than min_length bytes will be ignored
+  {parser, atom, undefined} %% parser module to use
 ].
 
 
 init(_NodeId, _Ins,
-    #{ip := Ip, port := Port, as := As, line_delimiter := Delimit, parser := Parser, min_length := MinL}=Opts) ->
+    #{ip := Ip, port := Port, as := As, parser := Parser}=Opts) ->
   lager:notice("++++ ~p ~ngot opts: ~p ~n",[_NodeId, Opts]),
   Reconnector = modbus_reconnector:new({?RECON_MIN_INTERVAL, ?RECON_MAX_INTERVAL, ?RECON_MAX_RETRIES}),
   {ok, Reconnector1} = modbus_reconnector:execute(Reconnector, do_reconnect),
   {ok, all,
-    #state{ip = Ip, port = Port, as = As, parser = Parser, min_length = MinL,
-      reconnector = Reconnector1, line_delimiter = Delimit}}.
+    #state{ip = Ip, port = Port, as = As, parser = Parser, reconnector = Reconnector1}}.
 
 process(_In, #data_batch{points = _Points} = _Batch, State = #state{}) ->
   {ok, State};
 process(_Inport, #data_point{} = _Point, State = #state{}) ->
   {ok, State}.
 
-%% ignore lines that are less than 60 bytes long
-handle_info({tcp, Socket, Data}, State=#state{min_length = Min}) when byte_size(Data) < Min ->
-  inet:setopts(Socket, [{active, once}]),
-  lager:notice("message dropped: ~p :: ~p",[byte_size(Data), Data]),
-  {ok, State};
-handle_info({tcp, Socket, Data0}, State=#state{as = As, parser = Parser}) ->
-  Data = string:chomp(Data0),
+handle_info({tcp, Socket, Data}, State=#state{as = As, parser = Parser}) ->
   lager:notice("Data got from TCP:  ~p~nSize:~p at recbuf:~p",[Data, byte_size(Data), inet:getopts(Socket, [recbuf, buffer])]),
   dataflow:emit(convert(Data, As, Parser)),
 %%  dataflow:emit(convert(#data_point{ts = faxe_time:now()}, Data, As)),
@@ -83,8 +72,8 @@ handle_info({tcp_closed, _S}, S=#state{}) ->
 handle_info({tcp_error, Socket, _}, State) ->
   inet:setopts(Socket, [{active, once}]),
   {ok, State};
-handle_info(do_reconnect, State=#state{ip = Ip, port = Port, line_delimiter = LD}) ->
-  case connect(Ip, Port, LD) of
+handle_info(do_reconnect, State=#state{ip = Ip, port = Port}) ->
+  case connect(Ip, Port) of
     {ok, Socket} -> inet:setopts(Socket, [{active, once}]), {ok, State#state{socket = Socket}};
     {error, Error} -> lager:error("[~p] Error when connection: ~p",[?MODULE, Error]), try_reconnect(State)
   end;
@@ -104,8 +93,8 @@ try_reconnect(State=#state{reconnector = Reconnector}) ->
       {stop, {shutdown, Error}, State}
   end.
 
-connect(Ip, Port, _LineDelimiter) ->
-   gen_tcp:connect(binary_to_list(Ip), Port, ?SOCKOPTS++[_LineDelimiter]).
+connect(Ip, Port) ->
+   gen_tcp:connect(binary_to_list(Ip), Port, ?SOCKOPTS).
 
 %% @doc parse and convert binary-data
 convert(Data, As, undefined) ->
