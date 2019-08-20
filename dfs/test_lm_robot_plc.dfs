@@ -1,0 +1,17 @@
+%% testing robot plc tcp and route through mqtt-broker and rabbitmq
+def parser = parser_robot_plc_v1
+def v1 =
+    |tcp_recv()
+    .ip('127.0.0.1')
+    .port(1122)
+    .parser(parser)
+
+%% publish to mqtt broker
+    |mqtt_publish_single()
+    .host('10.14.204.3')
+    .port(1883)
+    .qos(1)
+    .topic('ttgw/robot_plc')
+    .retained()
+
+

@@ -20,17 +20,33 @@
 start(_StartType, _StartArgs) ->
   faxe_db:create(),
    %% COWBOY
-%%    _Dispatch = cowboy_router:compile([
-%%       {'_', [
-%%          {"/admin", faxe_web_handler, []},
-%%          {"/empty", faxe_web_handler, []},
-%%          {"/assets/[...]", cowboy_static, {priv_dir, faxe, "assets/"}}
-%%       ]}
-%% 
-%%    ]),
-%%   {ok, _} = cowboy:start_http(http, 100, [{port, 8081}], [
-%%      {env, [{dispatch, Dispatch}]}
-%%   ]),
+    Dispatch = cowboy_router:compile([
+       {'_', [
+          {"/admin", faxe_web_handler, []},
+          {"/empty", faxe_web_handler, []},
+          {"/assets/[...]", cowboy_static, {priv_dir, faxe, "assets/"}},
+          %% REST
+
+          {"/v1/tasks/list", rest_tasks_handler, [{op, list}]},
+          {"/v1/tasks/list/running", rest_tasks_handler, [{op, list_running}]},
+
+          {"/v1/task/get/:task_id", rest_task_handler, [{op, get}]},
+          {"/v1/task/delete/:task_id", rest_task_handler, []},
+          {"/v1/task/register", rest_task_handler, []},
+          {"/v1/task/start/:task_id", rest_task_handler, []},
+          {"/v1/task/stop/:task_id", rest_task_handler, []},
+          {"/v1/task/start", rest_task_handler, []},
+
+          {"/v1/template/register", rest_template_handler, []},
+          {"/v1/template/delete/:template_id", rest_template_handler, []},
+          {"/v1/task/from_template/:template_id", rest_template_handler, []}
+
+       ]}
+
+    ]),
+   {ok, _} = cowboy:start_clear(http_rest, [{port, 8081}],
+      #{env =>  #{dispatch => Dispatch}}
+   ),
 
 %%   {ok, Templates} = application:get_env(faxe, erlydtl_templates),
 %%   lager:notice("templates: ~p" ,[[[?PRIV_DIR ++ File, Mod, ?COMPILE_OPTS] || {File, Mod} <- Templates]]),

@@ -15,6 +15,7 @@
       jsx,
     modbus,
     msgpack,
+    cowboy,
 %%     locks,
     erlport,
 %%    erlydtl,
