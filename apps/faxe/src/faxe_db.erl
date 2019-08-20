@@ -21,7 +21,8 @@
    get_all_templates/0,
    save_template/1,
    get_template/1,
-   delete_template/1]).
+   delete_template/1,
+   get_tasks_by_pids/1, get_permanent_tasks/0]).
 
 get_all_tasks() ->
    get_all(task).
@@ -31,7 +32,6 @@ get_all_templates() ->
 
 get_all(Table) ->
    [mnesia:dirty_read(Table, Key) || Key <- mnesia:dirty_all_keys(Table)].
-
 
 get_task(TaskId) when is_integer(TaskId) ->
    case mnesia:dirty_read(task, TaskId) of
@@ -54,6 +54,12 @@ get_template(TemplateName) ->
       [#template{definition = Def} = T] -> T#template{definition = maps:from_list(Def)};
       [] -> {error, not_found}
    end.
+
+get_tasks_by_pids(PidList) ->
+   [mnesia:dirty_index_read(task, Pid, #task.pid) || {_Name, Pid, _, _} <- PidList].
+
+get_permanent_tasks() ->
+   mnesia:dirty_index_read(task, true, #task.permanent).
 
 save_template(#template{id = undefined, definition = Def} = Template) ->
    mnesia:dirty_write(Template#template{id = next_id(template), definition = maps:to_list(Def)});
@@ -158,7 +164,7 @@ create() ->
    mnesia:create_table(task, [
       {attributes, record_info(fields, task)},
       {type, set},
-      {disc_copies, [node()]}, {index, [name]}
+      {disc_copies, [node()]}, {index, [name, pid, permanent]}
    ]),
    mnesia:create_table(ids, [
       {attributes, record_info(fields, ids)},

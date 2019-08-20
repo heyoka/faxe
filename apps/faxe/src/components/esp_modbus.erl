@@ -61,6 +61,7 @@ handle_info(poll, State=#state{client = Modbus, start = Start, count = Count,
   NewState =
   case Res of
     {error, disconnected} ->
+%%      lager:notice("~p gets disconnected", [?MODULE]),
       State#state{timer_ref = undefined};
     {error, Reason} ->
       lager:warning("Modbus data reading failed with : ~p",[Reason]),

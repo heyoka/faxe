@@ -272,10 +272,19 @@ convert(Name, Type, PVals) ->
       false -> case length(PVals) of
                   0 -> {Name, cparam(Type, [])};
                   1 -> {Name, cparam(Type, hd(PVals))};
-                  _ -> {Name, list_params(PVals)}
+                  _ ->
+                     PValList =
+                     case PVals of
+                          {list, PVals1} -> PVals1;
+                           L when is_list(L) -> L
+                       end,
+                     {Name, list_params(PValList)}
                end
    end.
 
+list_params(Type, {list, Vals}) ->
+   lager:notice("~n ~p PVals: ~p", [Type, Vals]),
+   list_params(Type, Vals);
 list_params(Type, Vals) ->
    lists:foldl(
       fun
@@ -302,6 +311,8 @@ list_params(Vals) ->
 
 list_param(atom_list, Val) ->
    cparam(atom, Val);
+list_param(lambda_list, Val) ->
+   cparam(lambda, Val);
 list_param(_Type, Val) ->
    cparam(any, Val).
 
@@ -309,6 +320,7 @@ cparam(is_set, _) -> true;
 cparam(atom, {identifier, Val}) -> binary_to_atom(Val);
 cparam(binary, {string, Val}) -> Val;
 cparam(lambda, {lambda, Fun, BinRefs, FunRefs}) -> make_lambda_fun(Fun, FunRefs, BinRefs);
+cparam(lambda, Fun) -> Fun;
 cparam(list, {_T, Val}) -> [Val];
 %%cparam(integer, {_T, Val}) -> Val;
 cparam(_, {_Type, Val}) -> Val.

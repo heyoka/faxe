@@ -44,9 +44,10 @@ content_types_accepted(Req, State) ->
 
 task_list(Req, State) ->
    TaskList = faxe:list_tasks(),
-   Body = <<"jo">>,
+   {ok, Body} = templates_side:render([]), %<<"jo">>,
+   lager:notice("Body rendered: ~p~n",[Body]),
 %%   {ok, Body} = render([{list, TaskList}]),
-   {ok, Req2} = cowboy_req:reply(200, [{<<"content-type">>, <<"text/html">>}], Body, Req),
+   {ok, Req2} = cowboy_req:reply(200, [{<<"content-type">>, <<"text/html">>}], iolist_to_binary(Body), Req),
    {ok, Req2, State}.
 
 create_paste(Req, State) ->

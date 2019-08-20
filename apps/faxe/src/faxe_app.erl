@@ -11,7 +11,7 @@
 -export([start/2, stop/1]).
 
 -define(PRIV_DIR, code:priv_dir(faxe)).
--define(COMPILE_OPTS, [{out_dir, ?PRIV_DIR ++ "/templates-compiled/"}]).
+-define(COMPILE_OPTS, [{out_dir, ?PRIV_DIR ++ "/templates/"}]).
 
 %%====================================================================
 %% API
@@ -26,7 +26,7 @@ start(_StartType, _StartArgs) ->
 %%          {"/empty", faxe_web_handler, []},
 %%          {"/assets/[...]", cowboy_static, {priv_dir, faxe, "assets/"}}
 %%       ]}
-%% 
+%%
 %%    ]),
 %%   {ok, _} = cowboy:start_http(http, 100, [{port, 8081}], [
 %%      {env, [{dispatch, Dispatch}]}

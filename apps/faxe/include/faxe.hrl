@@ -48,7 +48,7 @@
 -type window_state() :: #esp_win_stats{}.
 
 -record(esp_window, {
-   period      = 30*1000               :: non_neg_integer(), %% lenght of the window in ms or num of events// 30m default
+   period      = 30*1000               :: non_neg_integer(), %% length of the window in ms or num of events// 30m default
    every       = 15*1000               :: non_neg_integer(), %% emit every ms or num of events // 15m default
    tick_time   = 500                   :: non_neg_integer(), %% clock interval in ms // 500ms by default
    agg_mod     = esp_agg_noop_values   :: atom(), %% module-name of stats
@@ -78,7 +78,8 @@
    date :: faxe_time:date(),
    pid :: pid(),
    last_start :: faxe_time:date(),
-   last_stop :: faxe_time:date()
+   last_stop :: faxe_time:date(),
+   permanent = false :: true|false
 }).
 
 -record(template, {
