@@ -21,7 +21,7 @@
 %% API
 -export([
    %% batch and point
-   ts/1, to_map/1,
+   ts/1, to_map/1, to_msgpack/1, to_json/1,
    field/2,
    tag/2,
    id/1,
@@ -31,32 +31,32 @@
    %% batch only
    first_ts/1, first/1, take/1, take2/1, set_bounds/1,
    %% point only
-   stream_decode/1, to_json/1, set_ts/2
-   , field_names/1, tag_names/1, rename_fields/3, rename_tags/3]).
+   set_ts/2,
+   field_names/1, tag_names/1,
+   rename_fields/3, rename_tags/3,
+   expand_json_field/2]).
 
-
--spec stream_decode(any()) -> any().
-stream_decode(JsonString) ->
-   De = jsx:decode(JsonString),
-   D1 = #data_point{
-      ts = proplists:get_value(<<"ts">>, De),
-      id = proplists:get_value(<<"sid">>, De)
-   },
-   De1 = proplists:delete(<<"ts">>, De),
-   De2 = proplists:delete(<<"sid">>, De1),
-   De3 = proplists:delete(<<"ty">>, De2),
-   D1#data_point{fields = De3}.
 
 -spec to_json(P :: #data_batch{}|#data_point{}) -> jsx:json_text().
 to_json(P) when is_record(P, data_point) orelse is_record(P, data_batch) ->
    jsx:encode(to_map(P)).
 
+-spec to_msgpack(P :: #data_point{}|#data_batch{}) -> binary() | {error, {badarg, term()}}.
+to_msgpack(P) when is_record(P, data_point) orelse is_record(P, data_batch) ->
+   msgpack:pack(to_map(P)).
+
 -spec to_map(#data_point{}|#data_batch{}) -> map()|list(map()).
-to_map(#data_point{ts = Ts, fields = Fields}) ->
-   M = maps:from_list(Fields),
+to_map(#data_point{ts = Ts, fields = Fields, tags = Tags}) ->
+   M = maps:merge(maps:from_list(Fields), maps:from_list(Tags)),
    M#{<<"ts">> => Ts};
 to_map(#data_batch{points = Points}) ->
    [to_map(P) || P <- Points].
+
+expand_json_field(P = #data_point{}, FieldName) ->
+   JSONVal = field(P, FieldName),
+   P0 = delete_field(P, FieldName),
+   Map = jsx:decode(JSONVal),
+   P0#data_point{fields = P0#data_point.fields ++ Map}.
 
 %% @doc
 %% get the timestamp from the given field
@@ -277,7 +277,16 @@ take2(#data_batch{points = [First | [Sec|R]]} = Batch) ->
 %%%%%%%%%%%%%%%%%%% INTERNAL %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
+sample_point() ->
+   #data_point{ts = 1231154646, fields=[{f1, 223.3},{f2, 44},{f3, 2}],
+      tags=[{t1, <<"hello">>},{t2, <<"JU323z6">>}]}.
+-ifdef(TEST).
 
+
+datapoint_to_map_test() ->
+   ?assertEqual(flowdata:to_map(sample_point()), #{f1 => 223.3,f2 => 44,f3 => 2,t1 => <<"hello">>,
+      t2 => <<"JU323z6">>,<<"ts">> => 1231154646}).
+-endif.
 
 
 

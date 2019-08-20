@@ -3,9 +3,9 @@
 %%% @copyright (C) 2019, <COMPANY>
 %%% @doc
 %%% parser for the robot_plc data v1
-%%% siemens plc cpus are big-endian
+%%% siemens plc cpus are big-endian (as is erlang's default)
 %%%
-%%% 214 bytes in total
+%%% 216 bytes in total
 %%% @end
 %%% Created : 01. Aug 2019 16:53
 %%%-------------------------------------------------------------------
@@ -15,14 +15,11 @@
 -behavior(tcp_msg_parser).
 
 %% API
--export([parse/1, test/0, pos1_test/0, fourth_test/0]).
+-export([parse/1, test/0, pos1_test/0]).
 
 -ifdef(TEST).
 -include_lib("eunit/include/eunit.hrl").
 -endif.
-
-%% bit-length of timestamp inserted by the PLC
--define(PLC_DATETIME_LENGTH, 24).
 
 -define(BOOL, 1/integer-unsigned).
 -define(INT, 16/integer).
@@ -46,7 +43,7 @@ test() ->
 parse(BinData) ->
    Acc = #{
       <<"DateTimeUTC">> => 0,
-      %% and everything other
+      %% data
       <<"ToolPoint">> => #{},
       ?X => #{},
       ?Y => #{},
@@ -131,10 +128,10 @@ seventh(
 
    NewAcc = set_axis_val(<<"ErrorCode">>,
       [ErrorID_X, ErrorID_Y, ErrorID_Z, ErrorID_Yaw, ErrorID_Pitch], Acc),
-   eigth(Eigth, NewAcc#{<<"ErrorCode">> => ErrorID}).
+   eighth(Eigth, NewAcc#{<<"ErrorCode">> => ErrorID}).
 
 %% 1 byte
-eigth(
+eighth(
     <<XAxisRefState:?BOOL,
        YAxisRefState:?BOOL,
        ZAxisRefState:?BOOL,
@@ -159,7 +156,7 @@ motor(MotorX,
    NewMapPitch = maps:merge(MapPitch, AccPitch),
    NewAcc =
       Acc#{?X := NewMapX, ?Y := NewMapY, ?Z := NewMapZ, ?YAW := NewMapYaw, ?PITCH := NewMapPitch},
-   fourteenth(Rest, NewAcc).
+   ninth(Rest, NewAcc).
 
 %% (20 bytes)
 parse_motor(<<Motorl2t:?REAL, MotorTorque:?REAL, MotorTemp:?REAL, MotorA:?REAL, MotorErr:?REAL, Rest/binary>>) ->
@@ -168,7 +165,7 @@ parse_motor(<<Motorl2t:?REAL, MotorTorque:?REAL, MotorTemp:?REAL, MotorA:?REAL, 
       Rest}.
 
 %% 2 byte
-fourteenth(
+ninth(
     <<RefButtonStateX:?BOOL,
        RefButtonStateY:?BOOL,
        RefButtonStateZ:?BOOL,
@@ -199,7 +196,7 @@ fourteenth(
          <<"ReferenceButtonState">> => RefButtonStateZ, <<"Limit1State">> => Limit1StateZ,
          <<"Limit2State">> => Limit2StateZ
       }},
-   fifteenth(Fifteenth,
+   tenth(Fifteenth,
       NewAcc#{<<"RobotErrorState">> => RobotError, <<"DrivesActiveState">> => MotorActive,
          <<"PlcConnectionState">> => PLCConnActive, <<"ConveyorPositionStateDrop1">> => RobotFreeDP1,
          <<"ConveyorPositionStateDrop2">> => RobotFreeDP2,
@@ -207,7 +204,7 @@ fourteenth(
          <<"ConveyorPositionStatePick2">> => RobotFreePP2}).
 
 %% 6 bytes
-fifteenth(<<CameraConnectionActive:?INT, RobotMode:?INT, CamMode:?INT>>, Acc=#{}) ->
+tenth(<<CameraConnectionActive:?INT, RobotMode:?INT, CamMode:?INT>>, Acc=#{}) ->
    Acc#{<<"CameraConnectionState">> => CameraConnectionActive, <<"OperatingMode">> => RobotMode,
       <<"CameraOpratingMode">> => CamMode}.
 
@@ -253,9 +250,6 @@ make_dints(Num) ->
    << <<X:32/integer>> || X <- L >>.
 part_list(Num, ProdFun) ->
    [ProdFun(40+R) || R <- lists:seq(1,Num)].
-
-fourth_test() ->
-   fourth(<<0:1, 1:1, 1:1, 0:1, 0:4, "blah">>, _Acc=#{}).
 
 
 -ifdef(TEST).

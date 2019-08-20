@@ -61,7 +61,7 @@ now() ->
 
 
 %% @doc
-%% convinience function to get a info message with content Message at the desired time Timestamp
+%% convinience function to get an info message with content Message at the desired time Timestamp
 %%
 -spec send_at(timestamp(), term()) -> reference().
 send_at(Timestamp, Message) ->

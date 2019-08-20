@@ -14,6 +14,7 @@
     emqtt,
       jsx,
     modbus,
+    msgpack,
 %%     locks,
     erlport,
 %%    erlydtl,

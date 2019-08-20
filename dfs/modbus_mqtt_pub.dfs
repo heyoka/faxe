@@ -2,15 +2,18 @@ def whid = 'ab33zr83489urf34r43j'
 def device_id = 'DV0025LM33'
 
 def energy =
-    |modbus('hregs')
+    |modbus_multi('hregs')
     .ip('127.0.0.1')
     .port(8899)
     .device(255)
     .every(1s)
-    .from(2127)
-    .count(5)
-    .as('Energy.ActiveEnergyConsumption', 'Energy.MaximalCurrentValue',
-        'Energy.BlindEnergyDelivered', 'Energy.Max.A', 'Energy.Min.A')
+
+    .function('coils', 'hregs', 'iregs')
+    .from(2127, 3008, 104)
+    .count(1, 2, 2)
+    .as('Energy.ActiveEnergyConsumption', 'Energy.MaximalCurrentValue', 'Energy.BlindEnergyDelivered')
+    .output('', 'float32', 'float32')
+    .signed(true, true, false)
 
 %% add some tags
     |default()
