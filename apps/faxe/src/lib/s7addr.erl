@@ -3,7 +3,7 @@
 %%% @copyright (C) 2019
 %%% @doc
 %%% siemens s7 addressing
-%%% (simatic (german) and IEC (english) mnemonics are supported, but with a comma for db addresses)
+%%% (simatic (german) and IEC (english) mnemonics are supported)
 %%% @see https://www.npmjs.com/package/node-red-contrib-s7 for addressing
 %%% no peripheral addresses supported, no string addresses supported!
 %%%

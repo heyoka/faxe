@@ -46,7 +46,7 @@
 options() -> [
   {ip, binary}, {port, integer},
   {as, binary, <<"value">>}, %% alias for fieldname
-  {line_delimiter, binary, $§}, %% not used at the moment
+  {line_delimiter, binary, $\n}, %% not used at the moment
   {parser, atom, undefined}, %% parser module to use
   {min_length, integer, 61} %% lines shorter than min_length bytes will be ignored
 ].
@@ -86,7 +86,7 @@ handle_info({tcp_error, Socket, _}, State) ->
 handle_info(do_reconnect, State=#state{ip = Ip, port = Port, line_delimiter = LD}) ->
   case connect(Ip, Port, LD) of
     {ok, Socket} -> inet:setopts(Socket, [{active, once}]), {ok, State#state{socket = Socket}};
-    {error, Error} -> lager:error("[~p] Error when connection: ~p",[?MODULE, Error]), try_reconnect(State)
+    {error, Error} -> lager:error("[~p] Error connecting: ~p",[?MODULE, Error]), try_reconnect(State)
   end;
 handle_info(E, S) ->
   io:format("unexpected: ~p~n", [E]),
@@ -105,12 +105,14 @@ try_reconnect(State=#state{reconnector = Reconnector}) ->
   end.
 
 connect(Ip, Port, _LineDelimiter) ->
-   gen_tcp:connect(binary_to_list(Ip), Port, ?SOCKOPTS++[_LineDelimiter]).
+   gen_tcp:connect(binary_to_list(Ip), Port, ?SOCKOPTS).
 
 %% @doc parse and convert binary-data
 convert(Data, As, undefined) ->
   NewPoint = flowdata:set_field(#data_point{ts = faxe_time:now()}, As, Data),
   lager:notice("[~p] new point: ~p",[?MODULE, NewPoint]),
+  PP = flowdata:expand_json_field(NewPoint, As),
+  lager:warning("[~p] expanded json: ~p",[PP]),
   NewPoint;
 convert(Data, As, Parser) ->
   {T, Json} = timer:tc(Parser, parse, [Data]),

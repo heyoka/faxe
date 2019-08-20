@@ -48,7 +48,7 @@
    to_ms/1,
    now_aligned/1,
    now_aligned/2,
-   to_htime/1, send_at/2]).
+   to_htime/1, send_at/2, to_hdate/1]).
 
 %%% @doc
 %%% get "now" in milliseconds,
@@ -61,7 +61,7 @@ now() ->
 
 
 %% @doc
-%% convinience function to get a info message with content Message at the desired time Timestamp
+%% convinience function to get an info message with content Message at the desired time Timestamp
 %%
 -spec send_at(timestamp(), term()) -> reference().
 send_at(Timestamp, Message) ->
@@ -201,6 +201,9 @@ to_htime(Ts) ->
    {_Date, T} = to_date(Ts),
    T.
 %%   qdate:to_date(erlang:convert_time_unit(Ts, milli_seconds, seconds)).
+
+to_hdate({Date,{H, Min, S, _Milli}}) ->
+   qdate:to_string("Y-m-d h:ia", {Date, {H, Min, S}}).
 
 to_ms({Date,{H, Min, S, Milli}}) ->
    qdate:to_unixtime({Date,{H, Min, S}}) * 1000 + Milli;

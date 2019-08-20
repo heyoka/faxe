@@ -123,18 +123,18 @@ handle_cast(_Request, State) ->
 %% @end
 %%--------------------------------------------------------------------
 handle_info({mqttc, C, connected}, State=#state{}) ->
-   lager:warning("mqtt client connected!!"),
+   lager:debug("mqtt client connected!!"),
    NewState = State#state{client = C, connected = true},
    next(NewState),
    {noreply, NewState};
 handle_info({mqttc, _C,  disconnected}, State=#state{}) ->
-   lager:warning("mqtt client disconnected!!"),
+   lager:debug("mqtt client disconnected!!"),
    {noreply, State#state{connected = false, client = undefined}};
 handle_info(deq, State=#state{}) ->
    next(State),
    {noreply, State};
 handle_info(E, S) ->
-   lager:warning("unexpected: ~p~n", [E]),
+   lager:info("unexpected: ~p~n", [E]),
    {noreply, S}.
 
 next(State=#state{queue = Q, deq_interval = Interval}) ->
