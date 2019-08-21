@@ -12,13 +12,17 @@
 %% Cowboy callbacks
 -export([
    init/2
-   , allowed_methods/2, get_to_json/2, content_types_provided/2,
-   resource_exists/2, create_to_json/2, content_types_accepted/2, register_task/2, allow_missing_post/2]).
+   , allowed_methods/2, content_types_provided/2,
+   resource_exists/2, content_types_accepted/2
+   %,
+   %allow_missing_post/2
+]).
 
 %%
 %% Additional callbacks
 -export([
-]).
+   from_register_task/2, get_to_json/2
+   , from_update_to_json/2, create_to_json/2]).
 
 -include("faxe.hrl").
 
@@ -33,9 +37,9 @@ allowed_methods(Req, State) ->
     Value = [<<"GET">>, <<"OPTIONS">>, <<"PUT">>, <<"POST">>],
     {Value, Req, State}.
 
-allow_missing_post(Req, State) ->
-    Value = true,
-    {Value, Req, State}.
+%%allow_missing_post(Req, State) ->
+%%    Value = true,
+%%    {Value, Req, State}.
 
 %%charsets_provided(Req, State) ->
 %%    % Example: 
@@ -43,28 +47,25 @@ allow_missing_post(Req, State) ->
 %%    Value = skip,
 %%    {Value, Req, State}.
 
-content_types_accepted(Req=#{method := <<"PUT">>}, State) ->
-    Value = [{{ <<"application">>, <<"x-www-form-urlencoded">>, '*'}, register_task}],
+content_types_accepted(Req = #{method := <<"POST">>}, State = #state{mode = register}) ->
+    Value = [{{ <<"application">>, <<"x-www-form-urlencoded">>, []}, from_register_task}],
     {Value, Req, State};
-content_types_accepted(Req, State) ->
-   {none, Req, State}.
+content_types_accepted(Req = #{method := <<"POST">>} , State = #state{mode = update}) ->
+   Value = [{{ <<"application">>, <<"x-www-form-urlencoded">>, []}, from_update_to_json}],
+   {Value, Req, State}.
+
+
 
 content_types_provided(Req, State=#state{mode = get}) ->
     {[
        {{<<"application">>, <<"json">>, []}, get_to_json},
        {{<<"text">>, <<"html">>, []}, get_to_json}
     ], Req, State};
-content_types_provided(Req, State=#state{mode = update}) ->
-   {[
-      {{<<"application">>, <<"json">>, []}, update_to_json},
-      {{<<"text">>, <<"html">>, []}, update_to_json}
-   ], Req, State}
-;
-content_types_provided(Req, State=#state{mode = create}) ->
+content_types_provided(Req0 = #{method := _Method}, State=#state{mode = _Mode}) ->
    {[
       {{<<"application">>, <<"json">>, []}, create_to_json},
       {{<<"text">>, <<"html">>, []}, create_to_json}
-   ], Req, State}.
+   ], Req0, State}.
 %%.
 
 %%delete_completed(Req, State) ->
@@ -140,7 +141,7 @@ content_types_provided(Req, State=#state{mode = create}) ->
 %%    {Value, Req, State}.
 
 %% check for existing resource only with get req
-resource_exists(Req, State=#state{mode = get, task_id = TId}) ->
+resource_exists(Req = #{method := <<"GET">>}, State=#state{mode = get, task_id = TId}) ->
    lager:warning("resource_exists? ~p",[State]),
    {Value, NewState} =
     case TId of
@@ -174,12 +175,28 @@ resource_exists(Req, State) ->
 %%    Value = [],
 %%    {Value, Req, State}.
 
-register_task(Req, State) ->
-   {true, Req, State}.
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%% costum CALLBACKS %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
 
 get_to_json(Req, State=#state{task = Task}) ->
    Map = rest_helper:task_to_map(Task),
    {jsx:encode(Map), Req, State}.
 
+from_register_task(Req, State) ->
+   RespMap = #{id => 1232353, name => <<"task_name">>},
+   Req2 = cowboy_req:set_resp_body(jsx:encode(RespMap), Req),
+   {true, Req2, State}.
+%%   {ok, Result, Req2} = cowboy_req:read_urlencoded_body(Req),
+%%
+%%   lager:info("~p called, ~p", [?FUNCTION_NAME, Result]),
+%%   faxe:register_string_task(Result, <<"mytask1">>),
+%%   {true, Req2, State}.
+
+
+from_update_to_json(Req, State) ->
+   RespMap = #{update => true, id => 1232353, name => <<"same_task_name">>},
+   Req2 = cowboy_req:set_resp_body(jsx:encode(RespMap), Req),
+   {true, Req2, State}.
+
 create_to_json(Req, State) ->
-   {<<"ok, created">>, Req, State}.
+   {stop, Req, State}.
