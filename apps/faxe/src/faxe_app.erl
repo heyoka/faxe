@@ -31,11 +31,11 @@ start(_StartType, _StartArgs) ->
           {"/v1/tasks/list/running", rest_tasks_handler, [{op, list_running}]},
 
           {"/v1/task/get/:task_id", rest_task_handler, [{op, get}]},
-          {"/v1/task/delete/:task_id", rest_task_handler, []},
-          {"/v1/task/register", rest_task_handler, []},
-          {"/v1/task/start/:task_id", rest_task_handler, []},
-          {"/v1/task/stop/:task_id", rest_task_handler, []},
-          {"/v1/task/start", rest_task_handler, []},
+          {"/v1/task/delete/:task_id", rest_task_handler, [{op, delete}]},
+          {"/v1/task/register", rest_task_handler, [{op, create}]},
+          {"/v1/task/start/:task_id/[:permanent]", rest_task_handler, [{op, start}]},
+          {"/v1/task/stop/:task_id/[:permanent]", rest_task_handler, [{op, stop}]},
+          {"/v1/task/:task_id/update", rest_task_handler, [{op, update}]},
 
           {"/v1/template/register", rest_template_handler, []},
           {"/v1/template/delete/:template_id", rest_template_handler, []},

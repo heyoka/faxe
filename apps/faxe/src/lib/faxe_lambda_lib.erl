@@ -20,6 +20,8 @@ to_date_string(Ts) ->
    {D,{Hour, Minute, Second, _Ms}} = to_date(Ts),
    qdate:to_string("Y-m-d h:ia", {D,{Hour, Minute, Second}}).
 
+to_iso8601(Ts) -> faxe_time:to_iso8601(Ts).
+
 -spec millisecond(non_neg_integer()) -> non_neg_integer().
 millisecond(Ts) ->
    faxe_time:get(millisecond, Ts).

@@ -128,10 +128,14 @@ register_template(DfsScript, Name, Type) ->
 task_from_template(TemplateId, TaskName) ->
    task_from_template(TemplateId, TaskName, []).
 task_from_template(TemplateId, TaskName, Vars) ->
-   case faxe_db:get_template(TemplateId) of
-      {error, not_found} -> {error, template_not_found};
-      Template = #template{} -> template_to_task(Template, TaskName, Vars), ok
+   case faxe_db:get_task(TaskName) of
+      {error, not_found} -> case faxe_db:get_template(TemplateId) of
+                               {error, not_found} -> {error, template_not_found};
+                               Template = #template{} -> template_to_task(Template, TaskName, Vars), ok
+                            end;
+      #task{} -> {error, task_exists}
    end.
+
 
 start_task(TaskId) ->
    start_task(TaskId, false).
@@ -178,7 +182,8 @@ delete_task(TaskId) ->
          case is_process_alive(Graph) of
             true -> {error, task_is_running};
             false -> faxe_db:delete_task(TaskId)
-         end    
+         end;
+      #task{} -> faxe_db:delete_task(TaskId)
    end.
 
 delete_template(TaskId) ->

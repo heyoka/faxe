@@ -48,7 +48,7 @@
    to_ms/1,
    now_aligned/1,
    now_aligned/2,
-   to_htime/1, send_at/2, to_hdate/1]).
+   to_htime/1, send_at/2, to_iso8601/1]).
 
 %%% @doc
 %%% get "now" in milliseconds,
@@ -200,10 +200,17 @@ to_date(Ts) ->
 to_htime(Ts) ->
    {_Date, T} = to_date(Ts),
    T.
-%%   qdate:to_date(erlang:convert_time_unit(Ts, milli_seconds, seconds)).
 
-to_hdate({Date,{H, Min, S, _Milli}}) ->
-   qdate:to_string("Y-m-d h:ia", {Date, {H, Min, S}}).
+%% @doc convert a timestamp or a datetime tuple into a iso8601 binary string
+%% returns an empty binary if anything other is given as input
+-spec to_iso8601(timestamp()|tuple()) -> binary().
+to_iso8601(Ts) when is_integer(Ts) ->
+   to_iso8601(to_date(Ts));
+to_iso8601({{Year, Month, Day},{H, Min, S, Milli}}) ->
+   Fmt = "~.4.0w-~.2.0w-~.2.0wT~.2.0w:~.2.0w:~.2.0w.~.3.0wZ",
+   iolist_to_binary(io_lib:format(Fmt, [Year,Month,Day,H,Min,S, Milli]));
+to_iso8601(_) ->
+   <<>>.
 
 to_ms({Date,{H, Min, S, Milli}}) ->
    qdate:to_unixtime({Date,{H, Min, S}}) * 1000 + Milli;

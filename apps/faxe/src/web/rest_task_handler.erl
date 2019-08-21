@@ -6,32 +6,36 @@
 %%% @end
 %%% Created : $fulldate
 %%%-------------------------------------------------------------------
--module(rest_tasks_handler).
+-module(rest_task_handler).
 
 %%
 %% Cowboy callbacks
 -export([
    init/2
-   , allowed_methods/2, list_json/2, content_types_provided/2]).
+   , allowed_methods/2, get_to_json/2, content_types_provided/2,
+   resource_exists/2, create_to_json/2, content_types_accepted/2, register_task/2, allow_missing_post/2]).
 
 %%
 %% Additional callbacks
 -export([
 ]).
 
--record(state, {mode}).
+-include("faxe.hrl").
+
+-record(state, {mode, task_id, task}).
 
 init(Req, [{op, Mode}]) ->
    lager:notice("Cowboy Opts are : ~p",[Mode]),
-   {cowboy_rest, Req, #state{mode = Mode}}.
+   TId = cowboy_req:binding(task_id, Req),
+   {cowboy_rest, Req, #state{mode = Mode, task_id = TId}}.
 
 allowed_methods(Req, State) ->
-    Value = [<<"GET">>, <<"OPTIONS">>],
+    Value = [<<"GET">>, <<"OPTIONS">>, <<"PUT">>, <<"POST">>],
     {Value, Req, State}.
 
-%%allow_missing_post(Req, State) ->
-%%    Value = true,
-%%    {Value, Req, State}.
+allow_missing_post(Req, State) ->
+    Value = true,
+    {Value, Req, State}.
 
 %%charsets_provided(Req, State) ->
 %%    % Example: 
@@ -39,17 +43,29 @@ allowed_methods(Req, State) ->
 %%    Value = skip,
 %%    {Value, Req, State}.
 
-%%content_types_accepted(Req, State) ->
-%%    Value = [{{ <<"application">>, <<"x-www-form-urlencoded">>, '*'}, }],
-%%    Value = none,
-%%    {Value, Req, State}.
+content_types_accepted(Req=#{method := <<"PUT">>}, State) ->
+    Value = [{{ <<"application">>, <<"x-www-form-urlencoded">>, '*'}, register_task}],
+    {Value, Req, State};
+content_types_accepted(Req, State) ->
+   {none, Req, State}.
 
-content_types_provided(Req, State) ->
-%%    Value = [{{ <<"text">>, <<"html">>, '*'}, to_html}],
+content_types_provided(Req, State=#state{mode = get}) ->
     {[
-       {{<<"application">>, <<"json">>, []}, list_json},
-       {{<<"text">>, <<"html">>, []}, list_json}
-    ], Req, State}.
+       {{<<"application">>, <<"json">>, []}, get_to_json},
+       {{<<"text">>, <<"html">>, []}, get_to_json}
+    ], Req, State};
+content_types_provided(Req, State=#state{mode = update}) ->
+   {[
+      {{<<"application">>, <<"json">>, []}, update_to_json},
+      {{<<"text">>, <<"html">>, []}, update_to_json}
+   ], Req, State}
+;
+content_types_provided(Req, State=#state{mode = create}) ->
+   {[
+      {{<<"application">>, <<"json">>, []}, create_to_json},
+      {{<<"text">>, <<"html">>, []}, create_to_json}
+   ], Req, State}.
+%%.
 
 %%delete_completed(Req, State) ->
 %%    Value = true,
@@ -123,9 +139,20 @@ content_types_provided(Req, State) ->
 %%    Value = false,
 %%    {Value, Req, State}.
 
-%%resource_exists(Req, State) ->
-%%    Value = true,
-%%    {Value, Req, State}.
+%% check for existing resource only with get req
+resource_exists(Req, State=#state{mode = get, task_id = TId}) ->
+   lager:warning("resource_exists? ~p",[State]),
+   {Value, NewState} =
+    case TId of
+       undefined -> {true, State};
+       Id -> case faxe_db:get_task(binary_to_integer(Id)) of
+                {error, not_found} -> {false, State};
+                Task=#task{} -> {true, State#state{task = Task, task_id = Task#task.id}}
+             end
+    end,
+    {Value, Req, NewState};
+resource_exists(Req, State) ->
+   {true, Req, State}.
 
 %%service_available(Req, State) ->
 %%    Value = true,
@@ -147,10 +174,12 @@ content_types_provided(Req, State) ->
 %%    Value = [],
 %%    {Value, Req, State}.
 
-list_json(Req, State=#state{mode = Mode}) ->
-   Maps = case Mode of
-             list -> L = lists:flatten(faxe:list_tasks()), [rest_helper:task_to_map(T) || T <- L];
-             list_running -> L = lists:flatten(faxe:list_running_tasks()),
-                [rest_helper:task_to_map(T) || T <- L]
-          end,
-   {jsx:encode(Maps), Req, State}.
+register_task(Req, State) ->
+   {true, Req, State}.
+
+get_to_json(Req, State=#state{task = Task}) ->
+   Map = rest_helper:task_to_map(Task),
+   {jsx:encode(Map), Req, State}.
+
+create_to_json(Req, State) ->
+   {<<"ok, created">>, Req, State}.
