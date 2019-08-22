@@ -27,23 +27,23 @@
 -record(state, {mode, task_id, task}).
 
 init(Req, [{op, Mode}]) ->
-   lager:notice("Cowboy Opts are : ~p",[Mode]),
    TId = cowboy_req:binding(task_id, Req),
    {cowboy_rest, Req, #state{mode = Mode, task_id = TId}}.
 
-allowed_methods(Req, State) ->
-    Value = [<<"GET">>, <<"OPTIONS">>, <<"POST">>, <<"DELETE">>],
-    {Value, Req, State}.
-
-%%allow_missing_post(Req, State) ->
-%%    Value = true,
-%%    {Value, Req, State}.
-
-%%charsets_provided(Req, State) ->
-%%    % Example: 
-%%    % Value = [{{ <<"text">>, <<"json">>, '*'}, from_json}],
-%%    Value = skip,
-%%    {Value, Req, State}.
+allowed_methods(Req, State=#state{mode = get}) ->
+   {[<<"GET">>, <<"OPTIONS">>], Req, State};
+allowed_methods(Req, State=#state{mode = register}) ->
+   {[<<"POST">>], Req, State};
+allowed_methods(Req, State=#state{mode = update}) ->
+   {[<<"POST">>], Req, State};
+allowed_methods(Req, State=#state{mode = start}) ->
+   {[<<"GET">>, <<"OPTIONS">>], Req, State};
+allowed_methods(Req, State=#state{mode = stop}) ->
+   {[<<"GET">>, <<"OPTIONS">>], Req, State};
+allowed_methods(Req, State=#state{mode = delete}) ->
+   {[<<"DELETE">>], Req, State};
+allowed_methods(Req, State=#state{}) ->
+   {[], Req, State}.
 
 content_types_accepted(Req = #{method := <<"POST">>}, State = #state{mode = register}) ->
     Value = [{{ <<"application">>, <<"x-www-form-urlencoded">>, []}, from_register_task}],
@@ -79,7 +79,6 @@ content_types_provided(Req0 = #{method := _Method}, State=#state{mode = _Mode}) 
 %% check for existing resource only with get req
 resource_exists(Req = #{method := <<"GET">>}, State=#state{mode = Mode, task_id = TId})
       when Mode == get orelse Mode == start orelse Mode == stop ->
-   lager:warning("resource_exists? ~p",[State]),
    {Value, NewState} =
     case TId of
        undefined -> {true, State};
@@ -93,7 +92,6 @@ resource_exists(Req, State) ->
    {true, Req, State}.
 
 delete_resource(Req, State=#state{task_id = TaskId}) ->
-   lager:notice("DELETE"),
    case faxe:delete_task(binary_to_integer(TaskId)) of
       ok ->
          RespMap = #{success => true, message =>
@@ -101,7 +99,7 @@ delete_resource(Req, State=#state{task_id = TaskId}) ->
          Req2 = cowboy_req:set_resp_body(jsx:encode(RespMap), Req),
          {true, Req2, State};
       {error, Error} ->
-         lager:warning("Error occured when deleting flow: ~p",[Error]),
+         lager:info("Error occured when deleting flow: ~p",[Error]),
          Req3 = cowboy_req:set_resp_body(jsx:encode(#{success => false, error => rest_helper:to_bin(Error)}), Req),
          {false, Req3, State}
    end.

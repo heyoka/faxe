@@ -6,7 +6,7 @@
 %%% @end
 %%% Created : $fulldate
 %%%-------------------------------------------------------------------
--module(rest_tasks_handler).
+-module(rest_templates_handler).
 
 %%
 %% Cowboy callbacks
@@ -37,9 +37,6 @@ content_types_provided(Req, State) ->
 
 
 list_json(Req, State=#state{mode = Mode}) ->
-   Maps = case Mode of
-             list -> L = lists:flatten(faxe:list_tasks()), [rest_helper:task_to_map(T) || T <- L];
-             list_running -> L = lists:flatten(faxe:list_running_tasks()),
-                [rest_helper:task_to_map(T) || T <- L]
-          end,
+   L = lists:flatten(faxe:list_running_tasks()),
+   Maps = [rest_helper:template_to_map(T) || T <- L],
    {jsx:encode(Maps), Req, State}.

@@ -29,13 +29,21 @@
 -record(state, {mode, template_id, template}).
 
 init(Req, [{op, Mode}]) ->
-   lager:notice("Cowboy Opts are : ~p",[Mode]),
    TId = cowboy_req:binding(template_id, Req),
    {cowboy_rest, Req, #state{mode = Mode, template_id = TId}}.
 
-allowed_methods(Req, State) ->
-    Value = [<<"GET">>, <<"OPTIONS">>, <<"PUT">>, <<"POST">>, <<"DELETE">>],
-    {Value, Req, State}.
+allowed_methods(Req, State=#state{mode = get}) ->
+   {[<<"GET">>, <<"OPTIONS">>], Req, State};
+allowed_methods(Req, State=#state{mode = register}) ->
+   {[<<"POST">>], Req, State};
+allowed_methods(Req, State=#state{mode = totask}) ->
+   {[<<"POST">>], Req, State};
+allowed_methods(Req, State=#state{mode = delete}) ->
+   {[<<"DELETE">>], Req, State}.
+
+%%allowed_methods(Req, State) ->
+%%    Value = [<<"GET">>, <<"OPTIONS">>, <<"PUT">>, <<"POST">>, <<"DELETE">>],
+%%    {Value, Req, State}.
 
 content_types_accepted(Req = #{method := <<"POST">>}, State = #state{mode = register}) ->
     Value = [{{ <<"application">>, <<"x-www-form-urlencoded">>, []}, from_register_template}],
@@ -81,7 +89,7 @@ delete_resource(Req, State=#state{template_id = TaskId}) ->
          Req2 = cowboy_req:set_resp_body(jsx:encode(RespMap), Req),
          {true, Req2, State};
       {error, Error} ->
-         lager:warning("Error occured when deleting template: ~p",[Error]),
+         lager:info("Error occured when deleting template: ~p",[Error]),
          Req3 = cowboy_req:set_resp_body(jsx:encode(#{success => false, error => rest_helper:to_bin(Error)}), Req),
          {false, Req3, State}
    end.
@@ -97,15 +105,15 @@ from_register_template(Req, State) ->
    rest_helper:do_register(Req, State, template).
 
 from_totask(Req, State=#state{template_id = TId}) ->
-   {ok, Result, Req2} = cowboy_req:read_urlencoded_body(Req),
-   TaskName = proplists:get_value(<<"name">>, Result),
+   TaskName = cowboy_req:binding(task_name, Req),
    case faxe:task_from_template(binary_to_integer(TId), TaskName) of
       ok ->
-         Req3 = cowboy_req:set_resp_body(jsx:encode(#{success => true, name => TaskName}), Req2),
+         Req3 = cowboy_req:set_resp_body(jsx:encode(#{success => true, name => TaskName}), Req),
          {true, Req3, State};
       {error, Error} ->
-         lager:warning("Error occured when generating flow from template: ~p",[Error]),
-         Req3 = cowboy_req:set_resp_body(jsx:encode(#{success => false, error => rest_helper:to_bin(Error)}), Req2),
+         lager:info("Error occured when generating flow from template: ~p",[Error]),
+         Req3 = cowboy_req:set_resp_body(
+            jsx:encode(#{success => false, error => rest_helper:to_bin(Error)}), Req),
          {false, Req3, State}
    end.
 
