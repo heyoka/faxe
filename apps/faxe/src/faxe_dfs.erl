@@ -30,9 +30,6 @@ start_script(Script, Name) ->
          {ok, Graph} = dataflow:create_graph(Name, GraphDef),
          ok = dataflow:start_graph(Graph, push),
          Graph
-%%         ,
-%%         lager:info("ATOMS used: ~p",[atom_table:count()]),
-%%         Graph
    catch
       Err -> {error, Err}
    end.
@@ -42,7 +39,7 @@ start_script(Script, Name) ->
 file(ScriptFile, Vars) when is_list(ScriptFile), is_list(Vars) ->
    {ok, DfsParams} = application:get_env(faxe, dfs),
    Path = proplists:get_value(script_path, DfsParams),
-   lager:info("dfs file path is: ~p",[Path++ScriptFile]),
+%%   lager:info("dfs file path is: ~p",[Path++ScriptFile]),
    D = dfs:parse_file(Path ++ ScriptFile, ?LAMBDA_LIBS, Vars),
    maybe_compile(D).
 
@@ -52,9 +49,13 @@ data(DfsData, Vars) ->
 
 maybe_compile(ParserResult) ->
    case ParserResult of
-      {{_Where, line, _LN}, _Message} = M -> erlang:error(M);
+      {{_Where, line, _LN}, _Message} = M ->
+         {error, iolist_to_binary(
+            [atom_to_binary(_Where), <<" on line ">>,
+               integer_to_binary(_LN), <<": ">>, list_to_binary(_Message)])
+         };
       {_Nodes, _Connections} -> compile(ParserResult);
-      _ -> erlang:error(ParserResult)
+      _ -> {error, ParserResult}
    end.
 
 compile(D) ->
@@ -62,7 +63,7 @@ compile(D) ->
       GraphDef when is_map(GraphDef) ->
          GraphDef
    catch
-      Err -> {error, Err}
+      _:Err -> {error, Err}
    end.
 
 
@@ -362,8 +363,10 @@ node_name(Name) when is_binary(Name) ->
    case stat_node(Name) of
       undefined -> NodeName = << <<"esp_">>/binary, Name/binary >>,
          case (catch binary_to_existing_atom(NodeName, utf8)) of
-            C when is_atom(C) -> C;
-            _ -> throw("Component '" ++ binary_to_list(NodeName) ++ "' not found")
+            C when is_atom(C) -> %lager:notice("NodeName is : ~p",[C]),
+               C;
+            {'EXIT',{badarg,_R}} -> %lager:notice("NodeName not found: ~p",[Name]),
+               throw("Component '" ++ binary_to_list(NodeName) ++ "' not found")
          end;
       StatNode -> StatNode
    end

@@ -37,9 +37,12 @@ start(_StartType, _StartArgs) ->
           {"/v1/task/start/:task_id/[:permanent]", rest_task_handler, [{op, start}]},
           {"/v1/task/stop/:task_id/[:permanent]", rest_task_handler, [{op, stop}]},
 
-          {"/v1/template/register", rest_template_handler, []},
-          {"/v1/template/delete/:template_id", rest_template_handler, []},
-          {"/v1/task/from_template/:template_id", rest_template_handler, []}
+          {"/v1/templates/list", rest_template_handler, [{op, list}]},
+
+          {"/v1/template/register", rest_template_handler, [{op, register}]},
+          {"/v1/template/get/:template_id", rest_template_handler, [{op, get}]},
+          {"/v1/template/delete/:template_id", rest_template_handler, [{op, delete}]},
+          {"/v1/task/from_template/:template_id", rest_template_handler, [{op, totask}]}
 
        ]}
 

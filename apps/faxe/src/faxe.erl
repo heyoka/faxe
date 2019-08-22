@@ -71,21 +71,27 @@ register_file_task(DfsScript, Name) ->
 register_string_task(DfsScript, Name) ->
    register_task(DfsScript, Name, data).
 
--spec register_task(any(), any(), any()) -> any().
-register_task(DfsScript, Name, Type) when is_list(DfsScript) ->
+-spec register_task(list()|binary(), binary(), atom()) -> ok|{error, task_exists}| {error, term()}.
+register_task(DfsScript, Name, Type) ->
    case faxe_db:get_task(Name) of
       {error, not_found} ->
-         Def = faxe_dfs:Type(DfsScript, []),
-         case Def of
-            _ when is_map(Def) ->
+         try faxe_dfs:Type(DfsScript, []) of
+            Def when is_map(Def) ->
                Task = #task{
                   date = faxe_time:now_date(),
                   definition = Def,
                   name = Name
                },
                faxe_db:save_task(Task);
+
             {error, What} -> {error, What}
+         catch
+            throw:Err -> {error, Err};
+            exit:Err -> {error, Err};
+            error:Err -> {error, Err};
+            _:_      -> {error, unknown}
          end;
+
       _T ->
          {error, task_exists}
    end.
@@ -93,7 +99,7 @@ register_task(DfsScript, Name, Type) when is_list(DfsScript) ->
 register_template_file(DfsFile, TemplateName) ->
    {ok, DfsParams} = application:get_env(faxe, dfs),
    Path = proplists:get_value(script_path, DfsParams),
-   lager:info("dfs file path is: ~p",[Path++DfsFile]),
+%%   lager:info("dfs file path is: ~p",[Path++DfsFile]),
    {ok, Data} = file:read_file(Path++DfsFile),
    StringData = binary_to_list(binary:replace(Data, <<"\\">>, <<>>, [global])),
    register_template_string(StringData, TemplateName).
@@ -109,9 +115,9 @@ register_template_string(DfsString, TemplateName) ->
 register_template(DfsScript, Name, Type) ->
    case faxe_db:get_template(Name) of
       {error, not_found} ->
-         Def = faxe_dfs:Type(DfsScript, []),
-         case Def of
-            _ when is_map(Def) ->
+
+         try faxe_dfs:Type(DfsScript, []) of
+            Def when is_map(Def) ->
                Template = #template{
                   date = faxe_time:now_date(),
                   definition = Def,
@@ -119,8 +125,16 @@ register_template(DfsScript, Name, Type) ->
                   dfs = DfsScript
                },
                faxe_db:save_template(Template);
+
             {error, What} -> {error, What}
+
+         catch
+            throw:Err -> {error, Err};
+            exit:Err -> {error, Err};
+            error:Err -> {error, Err};
+            _:_      -> {error, unknown}
          end;
+
       _T ->
          {error, template_exists}
    end.
@@ -141,19 +155,25 @@ start_task(TaskId) ->
    start_task(TaskId, false).
 start_task(TaskId, Permanent) ->
    start_task(TaskId, push, Permanent).
+-spec start_task(integer()|binary(), atom(), true|false) -> any().
 start_task(TaskId, _GraphRunMode, Permanent) ->
    case faxe_db:get_task(TaskId) of
       {error, not_found} -> {error, task_not_found};
       T = #task{definition = GraphDef, name = Name} ->
-         {ok, Graph} = dataflow:create_graph(Name, GraphDef),
-%%         ok = dataflow:start_graph(Graph, GraphRunMode),
-         faxe_db:save_task(T#task{pid = Graph, last_start = faxe_time:now_date(), permanent = Permanent}),
-         {ok, Graph}
+         case dataflow:create_graph(Name, GraphDef) of
+            {ok, Graph} ->
+               faxe_db:save_task(T#task{pid = Graph,
+                  last_start = faxe_time:now_date(), permanent = Permanent}),
+               {ok, Graph};
+            {error, {already_started, _Pid}} -> {error, already_started}
+         end
    end.
 
 
+-spec stop_task(integer()|binary()) -> ok.
 stop_task(TaskId) ->
    stop_task(TaskId, false).
+-spec stop_task(integer()|binary(), true|false) -> ok.
 stop_task(TaskId, Permanent) ->
    T = faxe_db:get_task(TaskId),
    case T of
@@ -173,11 +193,11 @@ stop_task(TaskId, Permanent) ->
       #task{} -> ok
    end.
 
--spec delete_task(term()) -> ok | {error, task_is_running}.
+-spec delete_task(term()) -> ok | {error, not_found} | {error, task_is_running}.
 delete_task(TaskId) ->
    T = faxe_db:get_task(TaskId),
    case T of
-      {error, not_found} -> ok;
+      {error, not_found} -> {error, not_found};
       #task{pid = Graph} when is_pid(Graph) ->
          case is_process_alive(Graph) of
             true -> {error, task_is_running};

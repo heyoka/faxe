@@ -12,22 +12,12 @@
 -include("faxe.hrl").
 
 %% API
--export([task_to_map/1, template_to_json/1]).
+-export([task_to_map/1, template_to_map/1, do_register/3, to_bin/1]).
 
 
-
-%%id :: list()|binary(),
-%%name :: binary(),
-%%definition :: map(),
-%%date :: faxe_time:date(),
-%%pid :: pid(),
-%%last_start :: faxe_time:date(),
-%%last_stop :: faxe_time:date()
 task_to_map(T = #task{definition = Def0, id = Id, name = Name,
    date = Dt, last_start = LStart, last_stop = LStop}) ->
    lager:notice("task_to_json: ~p",[T]),
-%%   Fields = record_info(fields, T),
-%%   Def = maps:from_list(Def0),
    Map = #{id => Id, name => Name,
       created => faxe_time:to_iso8601(Dt),
       last_start => faxe_time:to_iso8601(LStart),
@@ -35,18 +25,35 @@ task_to_map(T = #task{definition = Def0, id = Id, name = Name,
    lager:notice("theMap: ~p",[Map]),
    Map.
 
-template_to_json(T = #template{definition = Def0, id = Id, name = Name, date = Dt, dfs = Dfs}) ->
+template_to_map(T = #template{definition = Def0, id = Id, name = Name, date = Dt, dfs = Dfs}) ->
    lager:notice("template_to_json: ~p",[T]),
-%%   Fields = record_info(fields, T),
-%%   Def = maps:from_list(Def0),
-   Map = #{id => Id, name => Name, dfs => Dfs, date => faxe_time:to_iso8601(Dt)},
+   Map = #{id => Id, name => Name, dfs => to_bin(Dfs), date => faxe_time:to_iso8601(Dt)},
    lager:notice("theTMap: ~p",[Map]),
    Map.
 
-%%record_to_map(Name, Record) ->
-%%   lists:foldl(
-%%      fun({I, E}, Acc) -> Acc#{E => element(I, Record) } end,
-%%      #{},
-%%      lists:zip(lists:seq(2, (record_info(size, Name))), (record_info(fields, Name)))
-%%   ).
 
+do_register(Req, State, Type) ->
+   {ok, Result, Req3} = cowboy_req:read_urlencoded_body(Req),
+   TaskName = proplists:get_value(<<"name">>, Result),
+   Dfs = proplists:get_value(<<"dfs">>, Result),
+   lager:notice("name: ~p: dfs: ~p",[TaskName, Dfs]),
+   case reg_fun(Dfs, TaskName, Type) of
+      ok -> Req4 = cowboy_req:set_resp_body(jsx:encode(#{success => true, name => TaskName}), Req3),
+         {true, Req4, State};
+      {error, Error} ->
+         Add =
+            case Type of
+               task -> "";
+               _ -> "-template"
+            end,
+         lager:warning("Error occured when registering faxe-flow"++Add++": ~p",[Error]),
+         Req4 = cowboy_req:set_resp_body(jsx:encode(#{success => false, error => to_bin(Error)}), Req3),
+         {false, Req4, State}
+   end.
+
+reg_fun(Dfs, Name, task) -> faxe:register_string_task(Dfs, Name);
+reg_fun(Dfs, Name, _) -> faxe:register_template_string(Dfs, Name).
+
+to_bin(L) when is_list(L) -> list_to_binary(L);
+to_bin(E) when is_atom(E) -> atom_to_binary(E, utf8);
+to_bin(Bin) when is_binary(Bin) -> Bin.

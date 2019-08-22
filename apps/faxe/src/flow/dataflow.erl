@@ -158,7 +158,8 @@ list_val(Val, Fun) ->
 %%
 %% further options checks
 maybe_check_opts(Opts, Module) when is_map(Opts), is_atom(Module) ->
-   lager:alert("function exported ~p: ~p", [[Module, check_options, 0], erlang:function_exported(Module, check_options, 0)]),
+   lager:alert("function exported ~p: ~p", [[Module, check_options, 0],
+      erlang:function_exported(Module, check_options, 0)]),
    case erlang:function_exported(Module, check_options, 0) of
       true -> check_options(Module:check_options(), Opts);
       false -> Opts
@@ -174,7 +175,7 @@ do_check({same_length, Key1, Key2}, Opts = #{}) ->
    lager:warning("same_length check for ~p ~p out of ~p" ,[Key1, Key2, Opts]),
    #{Key1 := L1, Key2 := L2} = Opts,
    case length(L1) == length(L2) of
-      false -> erlang:error({lists_not_of_same_length, {Key1, Key2}});
+      false -> throw({lists_not_of_same_length, {Key1, Key2}});
       true -> ok
    end.
 

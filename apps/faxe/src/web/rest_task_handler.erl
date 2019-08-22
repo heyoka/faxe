@@ -13,16 +13,14 @@
 -export([
    init/2
    , allowed_methods/2, content_types_provided/2,
-   resource_exists/2, content_types_accepted/2
-   %,
-   %allow_missing_post/2
+   resource_exists/2, content_types_accepted/2, delete_resource/2
 ]).
 
 %%
 %% Additional callbacks
 -export([
    from_register_task/2, get_to_json/2
-   , from_update_to_json/2, create_to_json/2]).
+   , from_update_to_json/2, create_to_json/2, start_to_json/2, stop_to_json/2]).
 
 -include("faxe.hrl").
 
@@ -34,7 +32,7 @@ init(Req, [{op, Mode}]) ->
    {cowboy_rest, Req, #state{mode = Mode, task_id = TId}}.
 
 allowed_methods(Req, State) ->
-    Value = [<<"GET">>, <<"OPTIONS">>, <<"PUT">>, <<"POST">>],
+    Value = [<<"GET">>, <<"OPTIONS">>, <<"POST">>, <<"DELETE">>],
     {Value, Req, State}.
 
 %%allow_missing_post(Req, State) ->
@@ -55,12 +53,21 @@ content_types_accepted(Req = #{method := <<"POST">>} , State = #state{mode = upd
    {Value, Req, State}.
 
 
-
 content_types_provided(Req, State=#state{mode = get}) ->
     {[
        {{<<"application">>, <<"json">>, []}, get_to_json},
        {{<<"text">>, <<"html">>, []}, get_to_json}
     ], Req, State};
+content_types_provided(Req, State=#state{mode = start}) ->
+   {[
+      {{<<"application">>, <<"json">>, []}, start_to_json},
+      {{<<"text">>, <<"html">>, []}, start_to_json}
+   ], Req, State};
+content_types_provided(Req, State=#state{mode = stop}) ->
+   {[
+      {{<<"application">>, <<"json">>, []}, stop_to_json},
+      {{<<"text">>, <<"html">>, []}, stop_to_json}
+   ], Req, State};
 content_types_provided(Req0 = #{method := _Method}, State=#state{mode = _Mode}) ->
    {[
       {{<<"application">>, <<"json">>, []}, create_to_json},
@@ -68,80 +75,10 @@ content_types_provided(Req0 = #{method := _Method}, State=#state{mode = _Mode}) 
    ], Req0, State}.
 %%.
 
-%%delete_completed(Req, State) ->
-%%    Value = true,
-%%    {Value, Req, State}.
-
-%%delete_resource(Req, State) ->
-%%    Value = false,
-%%    {Value, Req, State}.
-
-%%expires(Req, State) ->
-%%    Value = undefined,
-%%    {Value, Req, State}.
-
-%%forbidden(Req, State) ->
-%%    Value = false,
-%%    {Value, Req, State}.
-
-%%generate_etag(Req, State) ->
-%%    Value = undefined,
-%%    {Value, Req, State}.
-
-%%is_authorized(Req, State) ->
-%%    Value = true,
-%%    {Value, Req, State}.
-
-%%is_conflict(Req, State) ->
-%%    Value = false,
-%%    {Value, Req, State}.
-
-%%known_methods(Req, State) ->
-%%    Value = [
-%%             <<"GET">>,
-%%             <<"HEAD">>,
-%%             <<"POST">>,
-%%             <<"PUT">>,
-%%             <<"PATCH">>,
-%%             <<"DELETE">>,
-%%             <<"OPTIONS">>
-%%            ],
-%%    {Value, Req, State}.
-
-%%languages_provided(Req, State) ->
-%%    Value = skip,
-%%    {Value, Req, State}.
-
-%%last_modified(Req, State) ->
-%%    Value = undefined,
-%%    {Value, Req, State}.
-
-%%malformed_request(Req, State) ->
-%%    Value = false,
-%%    {Value, Req, State}.
-
-%%moved_permanently(Req, State) ->
-%%    Value = false,
-%%    {Value, Req, State}.
-
-%%moved_temporarily(Req, State) ->
-%%    Value = false,
-%%    {Value, Req, State}.
-
-%%multiple_choices(Req, State) ->
-%%    Value = false,
-%%    {Value, Req, State}.
-
-%%options(Req, State) ->
-%%    Value = ok,
-%%    {Value, Req, State}.
-
-%%previously_existed(Req, State) ->
-%%    Value = false,
-%%    {Value, Req, State}.
 
 %% check for existing resource only with get req
-resource_exists(Req = #{method := <<"GET">>}, State=#state{mode = get, task_id = TId}) ->
+resource_exists(Req = #{method := <<"GET">>}, State=#state{mode = Mode, task_id = TId})
+      when Mode == get orelse Mode == start orelse Mode == stop ->
    lager:warning("resource_exists? ~p",[State]),
    {Value, NewState} =
     case TId of
@@ -155,26 +92,23 @@ resource_exists(Req = #{method := <<"GET">>}, State=#state{mode = get, task_id =
 resource_exists(Req, State) ->
    {true, Req, State}.
 
-%%service_available(Req, State) ->
-%%    Value = true,
-%%    {Value, Req, State}.
+delete_resource(Req, State=#state{task_id = TaskId}) ->
+   lager:notice("DELETE"),
+   case faxe:delete_task(binary_to_integer(TaskId)) of
+      ok ->
+         RespMap = #{success => true, message =>
+            iolist_to_binary([<<"Task ">>, TaskId, <<" successfully deleted.">>])},
+         Req2 = cowboy_req:set_resp_body(jsx:encode(RespMap), Req),
+         {true, Req2, State};
+      {error, Error} ->
+         lager:warning("Error occured when deleting flow: ~p",[Error]),
+         Req3 = cowboy_req:set_resp_body(jsx:encode(#{success => false, error => rest_helper:to_bin(Error)}), Req),
+         {false, Req3, State}
+   end.
 
-%%uri_too_long(Req, State) ->
+%%malformed_request(Req, State=state#{mode = register}) ->
 %%    Value = false,
 %%    {Value, Req, State}.
-
-%%valid_content_headers(Req, State) ->
-%%    Value = true,
-%%    {Value, Req, State}.
-
-%%valid_entity_length(Req, State) ->
-%%    Value = true,
-%%    {Value, Req, State}.
-
-%%variances(Req, State) ->
-%%    Value = [],
-%%    {Value, Req, State}.
-
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%% costum CALLBACKS %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 
@@ -183,20 +117,32 @@ get_to_json(Req, State=#state{task = Task}) ->
    {jsx:encode(Map), Req, State}.
 
 from_register_task(Req, State) ->
-   RespMap = #{id => 1232353, name => <<"task_name">>},
-   Req2 = cowboy_req:set_resp_body(jsx:encode(RespMap), Req),
-   {true, Req2, State}.
-%%   {ok, Result, Req2} = cowboy_req:read_urlencoded_body(Req),
-%%
-%%   lager:info("~p called, ~p", [?FUNCTION_NAME, Result]),
-%%   faxe:register_string_task(Result, <<"mytask1">>),
-%%   {true, Req2, State}.
-
+   rest_helper:do_register(Req, State, task).
 
 from_update_to_json(Req, State) ->
    RespMap = #{update => true, id => 1232353, name => <<"same_task_name">>},
    Req2 = cowboy_req:set_resp_body(jsx:encode(RespMap), Req),
    {true, Req2, State}.
 
+start_to_json(Req, State = #state{task_id = Id}) ->
+   case faxe:start_task(Id, is_permanent(Req)) of
+      {ok, _Graph} ->
+         {jsx:encode(#{<<"ok">> => <<"started">>}), Req, State};
+      {error, Error} ->
+         {jsx:encode(#{<<"error">> => rest_helper:to_bin(Error)}), Req, State}
+   end.
+
+stop_to_json(Req, State = #state{task_id = Id}) ->
+   case faxe:stop_task(Id, is_permanent(Req)) of
+      ok ->
+         {jsx:encode(#{<<"ok">> => <<"stopped">>}), Req, State};
+      {error, Error} ->
+         {jsx:encode(#{<<"error">> => rest_helper:to_bin(Error)}), Req, State}
+   end.
+
 create_to_json(Req, State) ->
    {stop, Req, State}.
+
+is_permanent(Req) ->
+   Permanent = cowboy_req:binding(permanent, Req, <<"false">>),
+   Permanent == <<"true">>.
