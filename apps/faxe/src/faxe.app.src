@@ -25,7 +25,9 @@
 %%    lager_udp_backend,
 %%    swarm,
     dfs,
-    qdate
+    qdate,
+    bear,
+    folsom
 %% ,
 %%     cowboy
    ]},

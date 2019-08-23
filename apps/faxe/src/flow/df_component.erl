@@ -238,6 +238,9 @@ handle_call({start, Inputs, Subscriptions, FlowMode}, _From,
 
    AR = case FlowMode of pull -> AReq; push -> none end,
    CallbackHandlesInfo = erlang:function_exported(CB, handle_info, 2),
+   %% metrics
+   folsom_metrics:new_histogram(NId, slide, 60),
+   folsom_metrics:new_history(<< NId/binary, "_processing_errors" >>, 24),
    {reply, ok,
       State#c_state{
          subscriptions = Subscriptions,
@@ -268,16 +271,20 @@ handle_info({request, ReqPid, ReqPort}, State=#c_state{subscriptions = Ss}) ->
    {noreply, State#c_state{subscriptions =  NewSubs}};
 
 handle_info({item, {Inport, Value}},
-    State=#c_state{cb_state = CBState, component = Module, flow_mode = FMode, auto_request = AR}) ->
-
+    State=#c_state{cb_state = CBState, component = Module, flow_mode = FMode, auto_request = AR, node_id = NId}) ->
+   lager:notice("stats for ~p: ~p",[NId, folsom_metrics:get_histogram_statistics(NId)]),
+   folsom_metrics:notify({NId, 1}),
    %gen_event:notify(dfevent_component, {item, State#c_state.node_id, {Inport, Value}}),
-   Result = (Module:process(Inport, Value, CBState)),
-%%   case catch (Module:process(Inport, Value, CBState)) of
-%%      {'EXIT', {Reason,Stacktrace}} -> lager:error("'error' ~p in component ~p caught when processing item: ~p -- ~p",
-%%         [Reason, State#c_state.component, {Inport, Value}, Stacktrace]),
-%%         {noreply, State};
-%%
-%%      Result ->
+%%   Result = (Module:process(Inport, Value, CBState)),
+   case catch (Module:process(Inport, Value, CBState)) of
+      {'EXIT', {Reason,Stacktrace}} -> lager:error("'error' ~p in component ~p caught when processing item: ~p -- ~p",
+         [Reason, State#c_state.component, {Inport, Value}, Stacktrace]),
+         folsom_metrics:notify({<< NId/binary, "_processing_errors" >>,
+            io_lib:format("'error' ~p in component ~p caught when processing item: ~p -- ~p",
+            [Reason, State#c_state.component, {Inport, Value}, Stacktrace])}),
+         {noreply, State};
+
+      Result ->
          {NewState, Requested, REmitted} = handle_process_result(Result, State),
          case FMode == pull of
             true -> case {Requested, AR, REmitted} of
@@ -290,12 +297,13 @@ handle_info({item, {Inport, Value}},
             false -> ok
          end,
          {noreply, NewState}
-%%   end
+   end
    ;
 
-handle_info({emit, {Outport, Value}}, State=#c_state{subscriptions = Ss,
+handle_info({emit, {Outport, Value}}, State=#c_state{subscriptions = Ss, node_id = NId,
       flow_mode = FMode, auto_request = AR, emitted = EmitCount}) ->
 
+%%   lager:notice("stats for ~p: ~p",[NId, folsom_metrics:get_histogram_statistics(NId)]),
    %gen_event:notify(dfevent_component, {emitting, State#c_state.node_id, {Outport, Value}}),
 
    NewSubs = df_subscription:output(Ss, Value, Outport),
