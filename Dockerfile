@@ -1,5 +1,6 @@
 # Build stage 0
-FROM erlang:alpine
+ARG VERSION=latest
+FROM heyoka/balena-erlang-alpine:$VERSION AS alpine
 
 # Set working directory
 RUN mkdir -p /buildroot/rebar3/bin
@@ -36,5 +37,5 @@ EXPOSE 1883
 EXPOSE 8883
 
 ENTRYPOINT ["/faxe/bin/faxe"]
-# todo: find out, why "start" does not work
+# todo: find out why "start" does not work
 CMD ["foreground"]
