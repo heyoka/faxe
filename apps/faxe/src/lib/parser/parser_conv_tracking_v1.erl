@@ -168,7 +168,6 @@ bitm(<<Bit:1, Rest/bitstring>>, [Item | Others], Gathered) ->
    bitm(Rest, Others, NextR).
 
 %%%%%%%%%%%%%%%%%% end %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-
 -ifdef(TEST).
 %% test
 def() ->

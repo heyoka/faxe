@@ -1,0 +1,10 @@
+# build
+docker build -t faxe-docker .
+
+# run
+docker run -d -p 8081:8081 --ulimit nofile=1024 --log-driver=syslog faxe-docker
+docker run -a stdout -a stderr -p 8081:8081 -it faxe-docker
+docker run -a stdout -a stderr -p 8081:8081 -it --log-driver=syslog faxe-docker
+
+# final
+docker run -d -p 8081:8081 --log-driver=syslog faxe-docker
