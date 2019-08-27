@@ -12,6 +12,9 @@ COPY ./ faxe
 
 # And build the release
 WORKDIR faxe
+
+## balena cross-build start
+RUN [ "cross-build-start" ]
 # need git
 RUN apk update && apk add bash
 SHELL ["/bin/bash", "-c"]
@@ -25,6 +28,10 @@ FROM alpine
 # Install some libs
 RUN apk add --no-cache openssl && \
     apk add --no-cache ncurses-libs
+
+RUN [ "cross-build-start" ]
+## balena cross-build end
+
 
 ENV RELX_REPLACE_OS_VARS true
 
