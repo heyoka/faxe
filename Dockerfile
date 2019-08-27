@@ -12,11 +12,10 @@ COPY ./ faxe
 
 # And build the release
 WORKDIR faxe
-
-SHELL ["/bin/sh", "-c"]
 # need git
-# RUN apk add bash
-RUN apk -U --no-cache --allow-untrusted add git
+RUN apk update && apk add bash
+SHELL ["/bin/bash", "-c"]
+RUN apk add --no-cache git
 
 RUN rebar3 as prod release
 
