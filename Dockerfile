@@ -14,7 +14,7 @@ COPY ./ faxe
 WORKDIR faxe
 # need git
 # RUN apk add bash
-# RUN apk -U --no-cache --allow-untrusted add git
+RUN apk -U --no-cache --allow-untrusted add git
 
 RUN rebar3 as prod release
 
