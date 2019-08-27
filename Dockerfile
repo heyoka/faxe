@@ -3,7 +3,8 @@ ARG VERSION=latest
 FROM heyoka/balena-erlang-alpine:$VERSION AS alpine
 
 # Set working directory
-RUN mkdir -p /buildroot/rebar3/bin
+#RUN mkdir -p /buildroot/rebar3/bin
+WORKDIR /buildroot/rebar3/bin
 WORKDIR /buildroot
 
 # Copy our Erlang test application
