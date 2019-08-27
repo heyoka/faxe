@@ -12,6 +12,8 @@ COPY ./ faxe
 
 # And build the release
 WORKDIR faxe
+
+SHELL ["/bin/bash", "-c"]
 # need git
 # RUN apk add bash
 RUN apk -U --no-cache --allow-untrusted add git
