@@ -13,6 +13,7 @@ COPY ./ faxe
 # And build the release
 WORKDIR faxe
 # need git
+RUN apk update && apk add bash
 RUN apk add git
 
 RUN rebar3 as prod release
