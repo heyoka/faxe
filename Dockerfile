@@ -13,8 +13,8 @@ COPY ./ faxe
 # And build the release
 WORKDIR faxe
 # need git
-RUN apk add bash
-RUN apk add --no-cache --virtual git
+# RUN apk add bash
+RUN apk -U --no-cache --allow-untrusted add git
 
 RUN rebar3 as prod release
 
