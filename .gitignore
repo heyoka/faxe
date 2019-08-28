@@ -15,3 +15,5 @@ logs
 _build/
 .idea
 /apps/faxe/doc/
+/apps/faxe/src/lib/parser/data.erl
+/apps/faxe/src/lib/parser/robot_plc.json

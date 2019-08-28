@@ -9,7 +9,23 @@
 -module(tcp_msg_parser).
 -author("heyoka").
 
+-include("faxe.hrl").
 %% API
--export([]).
+-export([convert/4]).
 
--callback parse(BinData :: binary()) -> jsx:json_text().
+-callback parse(BinData :: binary()) -> map().
+
+%% @doc parse and convert binary-data
+convert(Data, As, false, undefined) ->
+   NewPoint = flowdata:set_field(#data_point{ts = faxe_time:now()}, As, Data),
+%%   lager:notice("[~p] new point: ~p",[?MODULE, NewPoint]),
+   NewPoint;
+convert(Data, _As, true, undefined) ->
+   NewPoint = flowdata:extract_map(#data_point{ts = faxe_time:now()}, Data),
+%%  NewPoint = flowdata:set_field(#data_point{ts = faxe_time:now()}, As, Data),
+%%   lager:notice("[~p] new point: ~p",[?MODULE, NewPoint]),
+   NewPoint;
+convert(Data, As, Extract, Parser) ->
+   {T, Map} = timer:tc(Parser, parse, [Data]),
+%%   lager:notice("[~p] parser time: ~p",[?MODULE, T]),
+   convert(Map, As, Extract, undefined).

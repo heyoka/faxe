@@ -98,7 +98,7 @@ COPY --from=alpine /buildroot/faxe/_build/prod/rel/faxe /faxe
 
 # Expose relevant ports
 ## http api
-EXPOSE 8081
+EXPOSE 80
 EXPOSE 102
 EXPOSE 502
 EXPOSE 1883

@@ -21,6 +21,7 @@
   port,
   socket,
   as,
+  extract = false,
   timer_ref,
   line_delimiter,
   reconnector,
@@ -46,6 +47,8 @@
 options() -> [
   {ip, binary}, {port, integer},
   {as, binary, <<"value">>}, %% alias for fieldname
+  {extract, is_set}, %% extract the parsed message into the fields list of data_point{} ?
+  %% "extract" will always override "as"
   {line_delimiter, binary, $\n}, %% not used at the moment
   {parser, atom, undefined}, %% parser module to use
   {min_length, integer, 61} %% lines shorter than min_length bytes will be ignored
@@ -53,12 +56,13 @@ options() -> [
 
 
 init(_NodeId, _Ins,
-    #{ip := Ip, port := Port, as := As, line_delimiter := Delimit, parser := Parser, min_length := MinL}=Opts) ->
+    #{ip := Ip, port := Port, as := As, extract := Extract,
+      line_delimiter := Delimit, parser := Parser, min_length := MinL}=Opts) ->
   lager:notice("++++ ~p ~ngot opts: ~p ~n",[_NodeId, Opts]),
   Reconnector = modbus_reconnector:new({?RECON_MIN_INTERVAL, ?RECON_MAX_INTERVAL, ?RECON_MAX_RETRIES}),
   {ok, Reconnector1} = modbus_reconnector:execute(Reconnector, do_reconnect),
   {ok, all,
-    #state{ip = Ip, port = Port, as = As, parser = Parser, min_length = MinL,
+    #state{ip = Ip, port = Port, as = As, extract = Extract, parser = Parser, min_length = MinL,
       reconnector = Reconnector1, line_delimiter = Delimit}}.
 
 process(_In, #data_batch{points = _Points} = _Batch, State = #state{}) ->
@@ -71,11 +75,11 @@ handle_info({tcp, Socket, Data}, State=#state{min_length = Min}) when byte_size(
   inet:setopts(Socket, [{active, once}]),
   lager:notice("message dropped: ~p :: ~p",[byte_size(Data), Data]),
   {ok, State};
-handle_info({tcp, Socket, Data0}, State=#state{as = As, parser = Parser}) ->
+handle_info({tcp, Socket, Data0}, State=#state{as = As, extract = Extract, parser = Parser}) ->
   Data = string:chomp(Data0),
-  lager:notice("Data got from TCP:  ~p~nSize:~p at recbuf:~p",[Data, byte_size(Data), inet:getopts(Socket, [recbuf, buffer])]),
-  dataflow:emit(convert(Data, As, Parser)),
-%%  dataflow:emit(convert(#data_point{ts = faxe_time:now()}, Data, As)),
+  P = tcp_msg_parser:convert(Data, As, Extract, Parser),
+  %lager:warning("~n to json: ~p",[timer:tc(flowdata, to_json, [P])]),
+  dataflow:emit(P),
   inet:setopts(Socket, [{active, once}]),
   {ok, State};
 handle_info({tcp_closed, _S}, S=#state{}) ->
@@ -106,17 +110,5 @@ try_reconnect(State=#state{reconnector = Reconnector}) ->
 
 connect(Ip, Port, _LineDelimiter) ->
    gen_tcp:connect(binary_to_list(Ip), Port, ?SOCKOPTS).
-
-%% @doc parse and convert binary-data
-convert(Data, As, undefined) ->
-  NewPoint = flowdata:set_field(#data_point{ts = faxe_time:now()}, As, Data),
-  lager:notice("[~p] new point: ~p",[?MODULE, NewPoint]),
-  PP = flowdata:expand_json_field(NewPoint, As),
-  lager:warning("[~p] expanded json: ~p",[PP]),
-  NewPoint;
-convert(Data, As, Parser) ->
-  {T, Json} = timer:tc(Parser, parse, [Data]),
-  lager:notice("[~p] parser time: ~p",[?MODULE, T]),
-  convert(Json, As, undefined).
 
 

@@ -34,7 +34,7 @@
    set_ts/2,
    field_names/1, tag_names/1,
    rename_fields/3, rename_tags/3,
-   expand_json_field/2]).
+   expand_json_field/2, extract_map/2]).
 
 
 -spec to_json(P :: #data_batch{}|#data_point{}) -> jsx:json_text().
@@ -51,6 +51,12 @@ to_map(#data_point{ts = Ts, fields = Fields, tags = Tags}) ->
    M#{<<"ts">> => Ts};
 to_map(#data_batch{points = Points}) ->
    [to_map(P) || P <- Points].
+
+-spec extract_map(#data_point{}, map()) -> #data_point{}.
+extract_map(P = #data_point{fields = Fields}, Map) when is_map(Map) ->
+   List = maps:to_list(Map),
+   lager:notice("maps:to_list: ~p",[List]),
+   P#data_point{fields = lists:merge(Fields, List)}.
 
 expand_json_field(P = #data_point{}, FieldName) ->
    JSONVal = field(P, FieldName),

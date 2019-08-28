@@ -9,13 +9,13 @@
 %%% @end
 %%% Created : 01. Aug 2019 16:53
 %%%-------------------------------------------------------------------
--module(parser_robot_plc_v1).
+-module(parser_robot_plc_v1_orig).
 -author("heyoka").
 
 -behavior(tcp_msg_parser).
 
 %% API
--export([parse/1]).
+-export([parse/1, test/0, pos1_test/0]).
 
 -ifdef(TEST).
 -include_lib("eunit/include/eunit.hrl").
@@ -26,20 +26,25 @@
 -define(REAL, 32/float).
 -define(DINT, 32/integer).
 
--define(X, <<"x">>).
--define(Y, <<"y">>).
--define(Z, <<"z">>).
--define(YAW, <<"yaw">>).
--define(PITCH, <<"pitch">>).
--define(SUCC1, <<"suc1">>).
--define(SUCC2, <<"suc2">>).
--define(SUCC3, <<"suc3">>).
+-define(X, <<"X">>).
+-define(Y, <<"Y">>).
+-define(Z, <<"Z">>).
+-define(YAW, <<"Yaw">>).
+-define(PITCH, <<"Pitch">>).
+-define(SUCC1, <<"Suction1">>).
+-define(SUCC2, <<"Suction2">>).
+-define(SUCC3, <<"Suction3">>).
+
+%% test the macro
+test() ->
+   <<Flag:?BOOL>> = <<0:1/integer>>,
+   Flag.
 
 parse(BinData) ->
    Acc = #{
-      <<"utc">> => 0,
+      <<"DateTimeUTC">> => 0,
       %% data
-      <<"tool">> => #{},
+      <<"ToolPoint">> => #{},
       ?X => #{},
       ?Y => #{},
       ?Z => #{},
@@ -48,8 +53,7 @@ parse(BinData) ->
       ?SUCC1 => #{},
       ?SUCC2 => #{},
       ?SUCC3 => #{}},
-   pos1(BinData, Acc).
-%%   jsx:encode(pos1(BinData, Acc)).
+   jsx:encode(pos1(BinData, Acc)).
 
 %% we parse the data in chunks ...
 %% first 20 bytes
@@ -61,7 +65,7 @@ pos1(
        PosPitch:?REAL, Second/binary>>, Acc) ->
 
    NewAcc =
-      Acc#{<<"tool">> =>
+      Acc#{<<"ToolPoint">> =>
       #{?X => PosX, ?Y => PosY, ?Z => PosZ, ?YAW => PosYaw, ?PITCH => PosPitch}},
    pos2(Second, NewAcc).
 
@@ -73,7 +77,7 @@ pos2(
        PosA3:?REAL,
        PosA4:?REAL,
        PosA5:?REAL, Third/binary>>, Acc=#{}) ->
-   NewAcc = set_axis_val(<<"pos">>, [PosA1, PosA2, PosA3, PosA4, PosA5], Acc),
+   NewAcc = set_axis_val(<<"DrivePosition">>, [PosA1, PosA2, PosA3, PosA4, PosA5], Acc),
    third(Third, NewAcc).
 
 %% speed and suction
@@ -84,8 +88,8 @@ third(
        Succ1State:?INT,
        Succ2State:?INT,
        Succ3State: ?INT, Fourth/binary>>, Acc) ->
-   NewAcc0 = set_succ_value(<<"stat">>, [Succ1State, Succ2State, Succ3State], Acc),
-   NewAcc = NewAcc0#{<<"vel">> => Speed, <<"acc">> => Accel},
+   NewAcc0 = set_succ_value(<<"VacuumState">>, [Succ1State, Succ2State, Succ3State], Acc),
+   NewAcc = NewAcc0#{<<"Velocity">> => Speed, <<"Acceleration">> => Accel},
    fourth(Fourth, NewAcc).
 
 %% 1 byte
@@ -93,15 +97,15 @@ fourth(
     <<SensStateSucc1:?BOOL,
        SensStateSucc2:?BOOL,
        SensStateSucc3:?BOOL,
-       UltraSoundSenseState:?BOOL, Bit4:1, Bit5:1, Bit6:1, Bit7:1, Fifth/binary>> = Part, Acc) ->
-   lager:warning("Succ1, Succ2, Succ3, Ultrasound, B4, B5, B6, B7: ~p",[
-      {SensStateSucc1, SensStateSucc2, SensStateSucc3, UltraSoundSenseState, Bit4, Bit5, Bit6, Bit7}]),
-   NewAcc = set_succ_value(<<"act">>, [SensStateSucc1, SensStateSucc2, SensStateSucc3], Acc),
-   fifth(Fifth, NewAcc#{<<"usnd">> => UltraSoundSenseState}).
+       UltraSoundSenseState:?BOOL, _Bit4:1, _Bit5:1, _Bit6:1, _Bit7:1, Fifth/binary>>, Acc) ->
+%%   lager:warning("Succ1, Succ2, Succ3, Ultrasound, B4, B5, B6, B7: ~p",[
+%%      {SensStateSucc1, SensStateSucc2, SensStateSucc3, UltraSoundSenseState, Bit4, Bit5, Bit6, Bit7}]),
+   NewAcc = set_succ_value(<<"ActiveState">>, [SensStateSucc1, SensStateSucc2, SensStateSucc3], Acc),
+   fifth(Fifth, NewAcc#{<<"UltraSoundSensorState">> => UltraSoundSenseState}).
 
 %% 12 bytes
 fifth(<<SenseSucc1:?REAL, SenseSucc2:?REAL, SenseSucc3:?REAL, Sixth/binary>>, Acc=#{}) ->
-   NewAcc = set_succ_value(<<"press">>, [SenseSucc1, SenseSucc2, SenseSucc3], Acc),
+   NewAcc = set_succ_value(<<"Pressure">>, [SenseSucc1, SenseSucc2, SenseSucc3], Acc),
    sixth(Sixth, NewAcc).
 
 %% 16 byte
@@ -112,8 +116,8 @@ sixth(
        WeightScaleDrop2:?REAL, Seventh/binary>>, Acc=#{}) ->
 
    seventh(Seventh, Acc#{
-      <<"wpp1">> => WeightScalePick1, <<"wpp2">> => WeightScalePick2,
-      <<"wdp1">> => WeightScaleDrop1, <<"wdp2">> => WeightScaleDrop2}).
+      <<"WeightScalePick1">> => WeightScalePick1, <<"WeightScalePick2">> => WeightScalePick2,
+      <<"WeightScaleDrop1">> => WeightScaleDrop1, <<"WeightScaleDrop2">> => WeightScaleDrop2}).
 
 %% 24 bytes
 seventh(
@@ -124,9 +128,9 @@ seventh(
        ErrorID_Yaw:?DINT,
        ErrorID_Pitch:?DINT, Eigth/binary>>, Acc=#{}) ->
 
-   NewAcc = set_axis_val(<<"err">>,
+   NewAcc = set_axis_val(<<"ErrorCode">>,
       [ErrorID_X, ErrorID_Y, ErrorID_Z, ErrorID_Yaw, ErrorID_Pitch], Acc),
-   eighth(Eigth, NewAcc#{<<"errcode">> => ErrorID}).
+   eighth(Eigth, NewAcc#{<<"ErrorCode">> => ErrorID}).
 
 %% 1 byte
 eighth(
@@ -135,7 +139,7 @@ eighth(
        ZAxisRefState:?BOOL,
        YawAxisRefState:?BOOL,
        PitchAxisRefState:?BOOL, _:1, _:1, _:1, Motor/binary>>, Acc) ->
-   NewAcc = set_axis_val(<<"refs">>,
+   NewAcc = set_axis_val(<<"ReferencedState">>,
       [XAxisRefState, YAxisRefState, ZAxisRefState, YawAxisRefState, PitchAxisRefState], Acc),
    motor(Motor, NewAcc).
 
@@ -158,8 +162,8 @@ motor(MotorX,
 
 %% (20 bytes)
 parse_motor(<<Motorl2t:?REAL, MotorTorque:?REAL, MotorTemp:?REAL, MotorA:?REAL, MotorErr:?REAL, Rest/binary>>) ->
-   {#{<<"i2t">> => Motorl2t, <<"tor">> => MotorTorque, <<"temp">> => MotorTemp,
-      <<"cur">> => MotorA, <<"lag">> => MotorErr},
+   {#{<<"LoadLimitIntegral">> => Motorl2t, <<"Torque">> => MotorTorque, <<"Temperature">> => MotorTemp,
+      <<"Current">> => MotorA, <<"LagError">> => MotorErr},
       Rest}.
 
 %% 2 byte
@@ -185,26 +189,26 @@ ninth(
        Fifteenth/binary>>, Acc=#{?X := MapX, ?Y := MapY, ?Z := MapZ}) ->
    NewAcc = Acc#{
       ?X => MapX#{
-         <<"refb">> => RefButtonStateX, <<"lim1">> => Limit1StateX,
-         <<"lim2">> => Limit2StateX},
+         <<"ReferenceButtonState">> => RefButtonStateX, <<"Limit1State">> => Limit1StateX,
+         <<"Limit2State">> => Limit2StateX},
       ?Y => MapY#{
-         <<"refb">> => RefButtonStateY, <<"lim1">> => Limit1StateY,
-         <<"lim2">> => Limit2StateY},
+         <<"ReferenceButtonState">> => RefButtonStateY, <<"Limit1State">> => Limit1StateY,
+         <<"Limit2State">> => Limit2StateY},
       ?Z => MapZ#{
-         <<"refb">> => RefButtonStateZ, <<"lim1">> => Limit1StateZ,
-         <<"lim2">> => Limit2StateZ
+         <<"ReferenceButtonState">> => RefButtonStateZ, <<"Limit1State">> => Limit1StateZ,
+         <<"Limit2State">> => Limit2StateZ
       }},
    tenth(Fifteenth,
-      NewAcc#{<<"rerr">> => RobotError, <<"dact">> => MotorActive,
-         <<"conn">> => PLCConnActive, <<"sdp1">> => RobotFreeDP1,
-         <<"sdp2">> => RobotFreeDP2,
-         <<"spp1">> => RobotFreePP1,
-         <<"spp2">> => RobotFreePP2}).
+      NewAcc#{<<"RobotErrorState">> => RobotError, <<"DrivesActiveState">> => MotorActive,
+         <<"PlcConnectionState">> => PLCConnActive, <<"ConveyorPositionStateDrop1">> => RobotFreeDP1,
+         <<"ConveyorPositionStateDrop2">> => RobotFreeDP2,
+         <<"ConveyorPositionStatePick1">> => RobotFreePP1,
+         <<"ConveyorPositionStatePick2">> => RobotFreePP2}).
 
 %% 6 bytes
 tenth(<<CameraConnectionActive:?INT, RobotMode:?INT, CamMode:?INT>>, Acc=#{}) ->
-   Acc#{<<"camstat">> => CameraConnectionActive, <<"opmode">> => RobotMode,
-      <<"camopm">> => CamMode}.
+   Acc#{<<"CameraConnectionState">> => CameraConnectionActive, <<"OperatingMode">> => RobotMode,
+      <<"CameraOpratingMode">> => CamMode}.
 
 set_axis_val(Name, Values,
     Acc=#{?X := MapX, ?Y := MapY, ?Z := MapZ, ?YAW := MapYaw, ?PITCH := MapPitch}) ->
@@ -221,12 +225,6 @@ set_succ_value(Name, Values, Acc = #{?SUCC1 := Succ1, ?SUCC2 := Succ2, ?SUCC3 :=
 
 
 %%%%%%%%%%%%%%%%%% end %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
--ifdef(TEST).
-
-%% test the macro
-test() ->
-   <<Flag:?BOOL>> = <<0:1/integer>>,
-   Flag.
 
 pos1_test() ->
 
@@ -243,7 +241,7 @@ pos1_test() ->
    Last = <<2323:?INT, 2329:?INT, 99877:?INT>>,
    Wurst = iolist_to_binary([Pos1, Pos2, Pos21, Pos22, Pos3, Pos4, Pos5, Pos6, Pos7, Motor, Bools, Last]),
    {T, Res} = timer:tc(?MODULE, parse, [Wurst]),
-   lager:warning("Time needed: ~p~nResult: ~p~nJSON: ~s~nWurst: ~p~nByteSize:~p",
+   lager:warning("Time needed: ~p~nResult: ~p~nJSON: ~s~nWust: ~p~nByteSize:~p",
       [T, Res, jsx:encode(Res), Wurst, byte_size(Wurst)]).
 
 make_reals(Num) ->
@@ -254,5 +252,8 @@ make_dints(Num) ->
    << <<X:32/integer>> || X <- L >>.
 part_list(Num, ProdFun) ->
    [ProdFun(40+R) || R <- lists:seq(1,Num)].
+
+
+-ifdef(TEST).
 
 -endif.

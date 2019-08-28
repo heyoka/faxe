@@ -61,15 +61,15 @@ parse(BinData) ->
    %% parse the lines
    Res = parse_lines(DataLines),
    %% convert to json
-   jsx:encode(Res).
+   Res.
+%%   jsx:encode(Res).
 
 to_lines(BinData) ->
    binary:split(BinData, ?LINE_DELIMITER, [global, trim_all]).
 
 parse_lines(Lines) when is_list(Lines) ->
    parse_lines(Lines,
-      #{<<"sources">> => [],<<"targets">> => [], <<"its">> => [],
-         <<"dps">> => [],<<"pps">> => [], <<"es">> => []}).
+      #{<<"sources">> => [],<<"targets">> => []}).
 
 parse_lines([], Acc) ->
    Acc;
@@ -82,37 +82,37 @@ to_fields(LineData) ->
 
 %% line with source definition
 %% <<"S00,TRAC:2001,SCAN:2001,SEQN:,TARG:,ATTR:20,TRG1:3072,TRG2:,TRG3:,TRG4:,TRG5:;">>
-line([<< ?SRC_PREFIX, Source/binary>> | Fields], Acc=#{<<"sources">> := Srcs}) ->
-   NewMap = line_src_e_pp(Fields, #{<<"source">> => Source}),
+line([<< ?SRC_PREFIX, Source/binary>> = Pos | Fields], Acc=#{<<"sources">> := Srcs}) ->
+   NewMap = line_src_e_pp(Pos, Fields),
    Acc#{<<"sources">> => [NewMap|Srcs]};
 
 %% line with target definition
-line([<< ?TARG_PREFIX, Target/binary>> |Fields], Acc = #{<<"targets">> := Targets}) ->
-   NewMap = line_tgt_it_dp(Fields, #{<<"target">> => Target}),
+line([<< ?TARG_PREFIX, Target/binary>> = Pos |Fields], Acc = #{<<"targets">> := Targets}) ->
+   NewMap = line_tgt_it_dp(Pos, Fields),
    Acc#{<<"targets">> => [NewMap|Targets]};
 %% line with IT definition
 %% IT1,TRAC:3062,SCAN:,TEMP:,SEQN:,CASE:,ATTR:0
-line([<< ?IT_PREFIX, IT/binary>> |Fields], Acc = #{<<"its">> := Its}) ->
-   NewMap = line_tgt_it_dp(Fields, #{<<"it">> => IT}),
-   Acc#{<<"its">> => [NewMap|Its]};
+line([<< ?IT_PREFIX, IT/binary>> = Pos |Fields], Acc = #{<<"targets">> := Targets}) ->
+   NewMap = line_tgt_it_dp(Pos, Fields),
+   Acc#{<<"targets">> => [NewMap|Targets]};
 %% line with DP definition
 %% DP1,TRAC:3068,SCAN:3068,TEMP:,SEQN:1,CASE:3100,ATTR:0
-line([<< ?DP_PREFIX, DP/binary>> |Fields], Acc = #{<<"dps">> := Dps}) ->
-   NewMap = line_tgt_it_dp(Fields, #{<<"dp">> => DP}),
-   Acc#{<<"dps">> => [NewMap|Dps]};
+line([<< ?DP_PREFIX, DP/binary>> = Pos |Fields], Acc = #{<<"targets">> := Targets}) ->
+   NewMap = line_tgt_it_dp(Pos, Fields),
+   Acc#{<<"targets">> => [NewMap|Targets]};
 %% line with E definition
 %% E01,TRAC:,SCAN:,SEQN:,TARG:,ATTR:0,TRG1:,TRG2:,TRG3:,TRG4:,TRG5:;
-line([<< ?E_PREFIX, E/binary>> | Fields], Acc=#{<<"es">> := Es}) ->
-   NewMap = line_src_e_pp(Fields, #{<<"e">> => E}),
-   Acc#{<<"es">> => [NewMap|Es]};
+line([<< ?E_PREFIX, E/binary>> = Pos| Fields], Acc=#{<<"sources">> := Srcs}) ->
+   NewMap = line_src_e_pp(Pos, Fields),
+   Acc#{<<"sources">> => [NewMap|Srcs]};
 %% line with PP definition
 %% PP1,TRAC:2071,SCAN:2071,SEQN:1,TARG:1,ATTR:16,TRG1:3068,TRG2:,TRG3:,TRG4:,TRG5:;
-line([<< ?PP_PREFIX, PP/binary>> | Fields], Acc=#{<<"pps">> := PPs}) ->
-   NewMap = line_src_e_pp(Fields, #{<<"pp">> => PP}),
-   Acc#{<<"pps">> => [NewMap|PPs]}.
+line([<< ?PP_PREFIX, PP/binary>> = Pos| Fields], Acc=#{<<"sources">> := Srcs}) ->
+   NewMap = line_src_e_pp(Pos, Fields),
+   Acc#{<<"sources">> => [NewMap|Srcs]}.
 
 %% SOURCE, E, PP lines
-line_src_e_pp(Fields, Map)  ->
+line_src_e_pp(Pos, Fields)  ->
 
    [<<"TRAC:", Trac/binary>>,
    <<"SCAN:", Scan/binary>>,
@@ -124,7 +124,8 @@ line_src_e_pp(Fields, Map)  ->
    <<"TRG3:", Trg3/binary>>,
    <<"TRG4:", Trg4/binary>>,
    <<"TRG5:", Trg5/binary>>] = Fields,
-      Map#{ <<"trac">> => Trac,
+      #{<<"pos">> => Pos,
+         <<"trac">> => Trac,
          <<"scan">> => Scan, <<"seqn">> => int_or_empty(SeqN),
          <<"targ">> => Targ, <<"attr">> => eval_bitarray(int_or_empty(Attr), ?SOURCE_BITMASK_VAL),
          <<"trg1">> => Trg1, <<"trg2">> => Trg2,
@@ -132,14 +133,14 @@ line_src_e_pp(Fields, Map)  ->
          <<"trg5">> => Trg5}.
 
 %% TARGET, IT, DP lines
-line_tgt_it_dp(Fields, Map) ->
+line_tgt_it_dp(Pos, Fields) ->
    [<<"TRAC:", Trac/binary>>,
       <<"SCAN:", Scan/binary>>,
       <<"TEMP:", Temp/binary>>, %% empty or !|? int
       <<"SEQN:", SeqN/binary>>, %% empty or int
       <<"CASE:", Case/binary>>, %% emtpy or int
       <<"ATTR:", Attr/binary>>] = Fields,
-   Map#{<<"trac">> => Trac,
+   #{<<"pos">> => Pos, <<"trac">> => Trac,
       <<"scan">> => Scan, <<"temp">> => Temp,
       <<"seqn">> => int_or_empty(SeqN), <<"case">> => int_or_empty(Case),
       <<"attr">> => eval_bitarray(int_or_empty(Attr), ?TARGET_BITMASK_VAL)}.
@@ -223,23 +224,28 @@ def1() -> iolist_to_binary([
          <<"PP2,TRAC:2058,SCAN:2058,SEQN:2,TARG:1,ATTR:16,TRG1:2051,TRG2:,TRG3:,TRG4:,TRG5:;">>]
    ).
 
-res1() -> iolist_to_binary([<<"{\"dps\":[{\"attr\":[],\"case\":\"\",\"dp\":\"2\",\"scan\":\"2051\"">>,
-   <<",\"seqn\":2,\"temp\":\"\",\"trac\":\"2051\"},{\"attr\":[],\"case\":3100,\"dp\":\"1\",\"scan\"">>,
-   <<":\"3068\",\"seqn\":1,\"temp\":\"\",\"trac\":\"3068\"}],\"es\":[{\"attr\":[],\"e\":\"01\",">>,
-   <<"\"scan\":\"\",\"seqn\":\"\",\"targ\":\"\",\"trac\":\"\",\"trg1\":\"\",\"trg2\":\"0000000000E8\",\"trg3\":\"">>,
-   <<"\",\"trg4\":\"\",\"trg5\":\"\"}],\"its\":[{\"attr\":[],\"case\":\"\",\"it\":\"1\",\"scan\":\"\",">>,
-   <<"\"seqn\":\"\",\"temp\":\"\",\"trac\":\"3062\"}],\"pps\":[{\"attr\":[\"source_processed\"],\"pp\":\"2\",\"scan\":">>,
-   <<"\"2058\",\"seqn\":2,\"targ\":\"1\",\"trac\":\"2058\",\"trg1\":\"2051\",\"trg2\":\"\",\"trg3\":\"\",">>,
-   <<"\"trg4\":\"\",\"trg5\":\"\"}],\"sources\":[{\"attr\":[],\"scan\":\"\",\"seqn\":\"\",\"source\":">>,
-   <<"\"11\",\"targ\":\"\",\"trac\":\"\",\"trg1\":\"\",\"trg2\":\"\",\"trg3\":\"\",\"trg4\":\"\",\"trg5\"">>,
-   <<":\"\"},{\"attr\":[\"source_processed\"],\"scan\":\"\",\"seqn\":9,\"source\":\"10\",\"targ\":\"1\",\"trac\":\"3064\",">>,
-   <<"\"trg1\":\"2057\",\"trg2\":\"\",\"trg3\":\"\",\"trg4\":\"\",\"trg5\":\"\"},{\"attr\":[\"source_processed\",\"goto_exit\"],\"scan\":">>,
-   <<"\"2001\",\"seqn\":\"\",\"source\":\"00\",\"targ\":\"\",\"trac\":\"2001\",\"trg1\":\"3072\",\"trg2\":">>,
-   <<"\"\",\"trg3\":\"\",\"trg4\":\"\",\"trg5\":\"\"}],\"targets\":[{\"attr\":[\"no_source\"],\"case\":1,\"scan\"">>,
-   <<":\"2057\",\"seqn\":\"\",\"target\":\"15\",\"temp\":\"\",\"trac\":\"2057\"},{\"attr\":[],\"case\"">>,
-   <<":9999,\"scan\":\"\",\"seqn\":7,\"target\":\"10\",\"temp\":\"\",\"trac\":\"3062\"},{\"attr\":[],">>,
-   <<"\"case\":6,\"scan\":\"\",\"seqn\":\"\",\"target\":\"09\",\"temp\":\"\",\"trac\":\"\"},{\"attr\":[\"goto_sequencer\"]">>,
-   <<",\"case\":\"\",\"scan\":\"3072\",\"seqn\":\"\",\"target\":\"00\",\"temp\":\"\",\"trac\":\"3072\"}]}">>]).
+
+res_new() -> iolist_to_binary([
+   <<"{\"sources\":[">>,
+   <<"{\"attr\":[\"source_processed\"],\"pos\":\"PP2\",\"scan\":\"2058\",\"seqn\":2,\"targ\":\"1\",">>,
+   <<"\"trac\":\"2058\",\"trg1\":\"2051\",\"trg2\":\"\",\"trg3\":\"\",\"trg4\":\"\",\"trg5\":\"\"},">>,
+   <<"{\"attr\":[],\"pos\":\"E01\",\"scan\":\"\",\"seqn\":\"\",\"targ\":\"\",\"trac\":\"\",\"trg1\"">>,
+   <<":\"\",\"trg2\":\"0000000000E8\",\"trg3\":\"\",\"trg4\":\"\",\"trg5\":\"\"},{\"attr\":[],\"pos\"">>,
+   <<":\"S11\",\"scan\":\"\",\"seqn\":\"\",\"targ\":\"\",\"trac\":\"\",\"trg1\":\"\",\"trg2\":\"\",\"">>,
+   <<"trg3\":\"\",\"trg4\":\"\",\"trg5\":\"\"},{\"attr\":[\"source_processed\"],\"pos\":\"S10\",\"scan\"">>,
+   <<":\"\",\"seqn\":9,\"targ\":\"1\",\"trac\":\"3064\",\"trg1\":\"2057\",\"trg2\":\"\",\"trg3\":\"\",">>,
+   <<"\"trg4\":\"\",\"trg5\":\"\"},{\"attr\":[\"source_processed\",\"goto_exit\"],\"pos\":\"S00\",\"scan\"">>,
+   <<":\"2001\",\"seqn\":\"\",\"targ\":\"\",\"trac\":\"2001\",\"trg1\":\"3072\",\"trg2\":\"\",\"trg3\":\"\",">>,
+   <<"\"trg4\":\"\",\"trg5\":\"\"}],\"targets\":[{\"attr\":[],\"case\":\"\",\"pos\":\"DP2\",\"scan\"">>,
+   <<":\"2051\",\"seqn\":2,\"temp\":\"\",\"trac\":\"2051\"},{\"attr\":[],\"case\":3100,\"pos\":\"DP1\",">>,
+   <<"\"scan\":\"3068\",\"seqn\":1,\"temp\":\"\",\"trac\":\"3068\"},{\"attr\":[],\"case\":\"\",\"pos\"">>,
+   <<":\"IT1\",\"scan\":\"\",\"seqn\":\"\",\"temp\":\"\",\"trac\":\"3062\"},{\"attr\":[\"no_source\"]">>,
+   <<",\"case\":1,\"pos\":\"T15\",\"scan\":\"2057\",\"seqn\":\"\",\"temp\":\"\",\"trac\":\"2057\"},">>,
+   <<"{\"attr\":[],\"case\":9999,\"pos\":\"T10\",\"scan\":\"\",\"seqn\":7,\"temp\":\"\",\"trac\":\"3062\"}">>,
+   <<",{\"attr\":[],\"case\":6,\"pos\":\"T09\",\"scan\":\"\",\"seqn\":\"\",\"temp\":\"\",\"trac\":\"\"},">>,
+   <<"{\"attr\":[\"goto_sequencer\"],\"case\":\"\",\"pos\":\"T00\",\"scan\":\"3072\",\"seqn\":\"\",">>,
+   <<"\"temp\":\"\",\"trac\":\"3072\"}]}">>
+]).
 
 test() ->
    {T, Res} = timer:tc(?MODULE, parse, [def()]),
@@ -248,7 +254,7 @@ test() ->
    lager:info("Time (micros) needed: ~p~nJSON: ~s",[T1, Res1]).
 
 parse_test() ->
-   ?assertEqual(parse(def1()), res1()).
+   ?assertEqual(parse(def1()), res_new()).
 
 test_bin_lines() -> <<" 1;2;;34;35,767,67; /4365;0:">>.
 test_bin_fields() -> <<"ARG:4,BRG:3, ,, SomeField:,AnotherField:hello,KKKRF">>.

@@ -1,7 +1,7 @@
 .PHONY: dev1 dev2 dev3 remsh
 
 dev1:
-	rebar3 as dev1 release && _build/dev1/rel/faxe/bin/faxe
+	rebar3 as dev1 release && _build/dev1/rel/faxe/bin/faxe console
 
 dev2:
 	rebar3 as dev2 release && _build/dev2/rel/faxe/bin/faxe
