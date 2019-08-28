@@ -49,7 +49,8 @@ start(_StartType, _StartArgs) ->
        ]}
 
     ]),
-   {ok, _} = cowboy:start_clear(http_rest, [{port, 8081}],
+   HttpPort = application:get_env(faxe, http_api_port, 8081),
+   {ok, _} = cowboy:start_clear(http_rest, [{port, HttpPort}],
       #{env =>  #{dispatch => Dispatch}}
    ),
 
