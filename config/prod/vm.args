@@ -1,0 +1,8 @@
+-sname {{node}}
+
+-setcookie distrepl_proc_cookie
+
+#-s reloader
+
++K true
++A 30

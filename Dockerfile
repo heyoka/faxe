@@ -95,6 +95,8 @@ ENV RELX_REPLACE_OS_VARS true
 
 # Install the released application
 COPY --from=alpine /buildroot/faxe/_build/prod/rel/faxe /faxe
+# cleanup
+RUN rm -rf /buildroot
 
 # Expose relevant ports
 ## http api
