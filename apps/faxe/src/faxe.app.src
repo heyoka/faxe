@@ -23,7 +23,7 @@
 %%    erlang_js,
     lager,
 %%    lager_udp_backend,
-%%    swarm,
+    snap7erl,
     dfs,
     qdate,
     bear,
