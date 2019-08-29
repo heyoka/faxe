@@ -80,7 +80,8 @@ COPY ./ faxe
 WORKDIR faxe
 
 # need git
-RUN apk add --no-cache git
+RUN apk add --no-cache git && \
+    apk add build-base
 
 # And build the release
 RUN rebar3 as prod release
@@ -88,7 +89,7 @@ RUN rebar3 as prod release
 # Build stage 1
 FROM alpine
 
-# Install some libs
+# Install some libs and build tools
 RUN apk add --no-cache openssl && \
     apk add --no-cache ncurses-libs
 

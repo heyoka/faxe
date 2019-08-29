@@ -1,7 +1,6 @@
 .rebar3
 _*
 .eunit
-*.o
 *.beam
 *.plt
 *.swp
@@ -17,3 +16,4 @@ _build/
 /apps/faxe/doc/
 /apps/faxe/src/lib/parser/data.erl
 /apps/faxe/src/lib/parser/robot_plc.json
+/apps/faxe/priv_old/
