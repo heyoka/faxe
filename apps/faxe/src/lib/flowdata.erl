@@ -52,11 +52,13 @@ to_map(#data_point{ts = Ts, fields = Fields, tags = Tags}) ->
 to_map(#data_batch{points = Points}) ->
    [to_map(P) || P <- Points].
 
+%% extract a given map into the fields-list in data_point P
+%% return the updated data_point
 -spec extract_map(#data_point{}, map()) -> #data_point{}.
 extract_map(P = #data_point{fields = Fields}, Map) when is_map(Map) ->
    List = maps:to_list(Map),
    lager:notice("maps:to_list: ~p",[List]),
-   P#data_point{fields = lists:merge(Fields, List)}.
+   P#data_point{fields = Fields ++ List}.
 
 expand_json_field(P = #data_point{}, FieldName) ->
    JSONVal = field(P, FieldName),

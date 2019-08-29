@@ -74,14 +74,15 @@ FROM erlang AS alpine
 RUN mkdir -p /buildroot/rebar3/bin
 WORKDIR /buildroot
 
-# Copy our Erlang test application
+# Copy faxe application
 COPY ./ faxe
 
-# And build the release
 WORKDIR faxe
+
 # need git
 RUN apk add --no-cache git
 
+# And build the release
 RUN rebar3 as prod release
 
 # Build stage 1
