@@ -212,7 +212,7 @@ outports(Module) ->
    {ok, State :: #c_state{}} | {ok, State :: #c_state{}, timeout() | hibernate} |
    {stop, Reason :: term()} | ignore).
 init([Component, NodeId, Inports, _Outports, Args]) ->
-   {module, Component} = code:ensure_loaded(Component),
+   code:ensure_loaded(Component),
    lager:info("init component ~p",[Component]),
    InputPorts = lists:map(fun({_Pid, Port}) -> Port end, Inports),
    {ok, #c_state{component = Component, node_id = NodeId, subscriptions = [],

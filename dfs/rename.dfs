@@ -14,14 +14,8 @@ def energy =
 
 %% add some tags
     |default()
-    .tag('name')
-    .tag_value('persistent_publisher')
-    |default()
-    .tag('warehouse_id')
-    .tag_value(whid)
-    |default()
-    .tag('device_id')
-    .tag_value(device_id)
+    .tags('name', 'warehouse_id', 'device_id')
+    .tag_values('persistent_publisher', whid, device_id)
 
     %% rename some fields
     |rename()

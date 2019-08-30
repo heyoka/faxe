@@ -15,34 +15,37 @@
 
 -record(state, {
    node_id,
-   field,
-   tag,
-   field_value,
-   tag_value
+   fields,
+   tags,
+   field_values,
+   tag_values
 }).
 
-options() -> [{field, binary, undefined}, {field_value, number, undefined}, {tag, binary, undefined},
-   {tag_value, binary, undefined}].
+options() -> [
+   {field, binary_list, []},
+   {field_value, list, []},
+   {tag, binary_list, []},
+   {tag_value, binary_list, []}].
 
-init(NodeId, _Ins, #{field := Fields, tag := Tags, tag_value := TagV, field_value := FieldV}) ->
-   {ok, all, #state{field = Fields, node_id = NodeId, tag = Tags, tag_value = TagV, field_value = FieldV}}.
+init(NodeId, _Ins, #{field := Fields, tag := Tags, tag_value := TagV, field_value := FieldV} = Opts) ->
+   lager:warning("Opts for esp_default: ~p",[Opts]),
+   {ok, all, #state{fields = Fields, node_id = NodeId, tags = Tags, tag_values = TagV, field_values = FieldV}}.
 
-process(_In, #data_batch{points = Points} = Batch, State = #state{field = FName, field_value = FValue,
-   tag = TName, tag_value = TValue}) ->
+process(_In, #data_batch{points = Points} = Batch, State = #state{fields = FName, field_values = FValue,
+   tags = TName, tag_values = TValue}) ->
    NewPoints = lists:map(
       fun(P) ->
-         NewPoint = set_field(P, FValue, FName),
-         set_tag(NewPoint, TName, TValue)
+         NewPoint = set_fields(P, FValue, FName),
+         set_tags(NewPoint, TName, TValue)
       end,
       Points
    ),
    {emit, Batch#data_batch{points = NewPoints}, State};
-process(_Inport, #data_point{} = Point, State = #state{field = FName, field_value = FValue,
-      tag = TName, tag_value = TValue}) ->
+process(_Inport, #data_point{} = Point, State = #state{fields = FName, field_values = FValue,
+      tags = TName, tag_values = TValue}) ->
 
-   NewPoint0 = set_field(Point, FName, FValue),
-   NewPoint = set_tag(NewPoint0, TName, TValue),
-%%   lager:info("~p emits : ~p",[?MODULE, NewPoint]),
+   NewPoint0 = set_fields(Point, FName, FValue),
+   NewPoint = set_tags(NewPoint0, TName, TValue),
    {emit, NewPoint, State}.
 
 
@@ -50,26 +53,30 @@ process(_Inport, #data_point{} = Point, State = #state{field = FName, field_valu
 %%% @doc
 %%% sets a field with a value, if not already defined
 %%% @end
--spec set_field(#data_point{}, binary()|undefined,  term()) -> #data_point{}.
-set_field(P=#data_point{}, undefined, _) ->
+-spec set_fields(#data_point{}, list(), list()) -> #data_point{}.
+set_fields(P=#data_point{}, [], _) ->
    P;
-set_field(P=#data_point{}, FieldName, FieldValue) ->
+set_fields(P=#data_point{}, [FieldName|Fn], [FieldValue|Fv]) ->
+   NewPoint =
    case flowdata:field(P, FieldName) of
       undefined -> flowdata:set_field(P, FieldName, FieldValue);
       _ -> P
-   end.
+   end,
+   set_fields(NewPoint, Fn, Fv).
 
 
 %%%
 %%% @doc
 %%% sets a tag with a value, if not already defined
 %%% @end
--spec set_tag(#data_point{}, binary()|undefined,  term()) -> #data_point{}.
-set_tag(P=#data_point{}, undefined, _) ->
+-spec set_tags(#data_point{}, list(), list()) -> #data_point{}.
+set_tags(P=#data_point{}, [], []) ->
    P;
-set_tag(P=#data_point{}, TagName, TagValue) ->
+set_tags(P=#data_point{}, [TagName|Tn], [TagValue|Tv]) ->
+   NewP =
    case flowdata:tag(P, TagName) of
       undefined -> flowdata:set_tag(P, TagName, TagValue);
       _ -> P
-   end.
+   end,
+   set_tags(NewP, Tn, Tv).
 
