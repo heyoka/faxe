@@ -1,3 +1,4 @@
+### Build stage 0
 FROM balenalib/revpi-core-3-alpine:latest as erlang
 
 ENV OTP_VERSION="22.0.7" \
@@ -66,7 +67,7 @@ RUN set -xe \
 CMD ["erl"]
 
 
-# Build stage 0
+### Build stage 1
 ARG VERSION=latest
 FROM erlang AS alpine
 
@@ -86,7 +87,7 @@ RUN apk add --no-cache git && \
 # And build the release
 RUN rebar3 as prod release
 
-# Build stage 1
+### Build stage 2
 FROM alpine
 
 # Install some libs and build tools
