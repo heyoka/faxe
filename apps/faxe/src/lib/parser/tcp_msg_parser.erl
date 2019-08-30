@@ -16,6 +16,7 @@
 -callback parse(BinData :: binary()) -> map().
 
 %% @doc parse and convert binary-data
+-spec convert(Data :: binary(), binary(), Extract :: true|falxe, Parser :: atom()) -> #data_point{}.
 convert(Data, As, false, undefined) ->
    NewPoint = flowdata:set_field(#data_point{ts = faxe_time:now()}, As, Data),
 %%   lager:notice("[~p] new point: ~p",[?MODULE, NewPoint]),
