@@ -84,7 +84,7 @@ RUN apk add --no-cache git && \
     apk add build-base
 
 # And build the release
-RUN rebar3 as prod release
+RUN rebar3 as balena release
 
 # Build stage 1
 FROM alpine

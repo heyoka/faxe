@@ -1,7 +1,7 @@
 -sname {{node}}
 
 -setcookie distrepl_proc_cookie
--mnesia dir '"/data"'
+#-mnesia dir '"/data"'
 
 #-s reloader
 
