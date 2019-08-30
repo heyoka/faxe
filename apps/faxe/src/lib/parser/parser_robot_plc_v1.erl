@@ -93,9 +93,9 @@ fourth(
     <<SensStateSucc1:?BOOL,
        SensStateSucc2:?BOOL,
        SensStateSucc3:?BOOL,
-       UltraSoundSenseState:?BOOL, Bit4:1, Bit5:1, Bit6:1, Bit7:1, Fifth/binary>> = Part, Acc) ->
-   lager:warning("Succ1, Succ2, Succ3, Ultrasound, B4, B5, B6, B7: ~p",[
-      {SensStateSucc1, SensStateSucc2, SensStateSucc3, UltraSoundSenseState, Bit4, Bit5, Bit6, Bit7}]),
+       UltraSoundSenseState:?BOOL, _Bit4:1, _Bit5:1, _Bit6:1, _Bit7:1, Fifth/binary>> = Part, Acc) ->
+%%   lager:warning("Succ1, Succ2, Succ3, Ultrasound, B4, B5, B6, B7: ~p",[
+%%      {SensStateSucc1, SensStateSucc2, SensStateSucc3, UltraSoundSenseState, Bit4, Bit5, Bit6, Bit7}]),
    NewAcc = set_succ_value(<<"act">>, [SensStateSucc1, SensStateSucc2, SensStateSucc3], Acc),
    fifth(Fifth, NewAcc#{<<"usnd">> => UltraSoundSenseState}).
 

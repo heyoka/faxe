@@ -36,7 +36,7 @@ content_types_provided(Req, State) ->
     ], Req, State}.
 
 
-list_json(Req, State=#state{mode = Mode}) ->
-   L = lists:flatten(faxe:list_running_tasks()),
+list_json(Req, State=#state{mode = _Mode}) ->
+   L = lists:flatten(faxe:list_templates()),
    Maps = [rest_helper:template_to_map(T) || T <- L],
    {jsx:encode(Maps), Req, State}.

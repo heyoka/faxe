@@ -2,6 +2,7 @@
 %% Ⓒ 2017 heyoka
 %% @doc
 %% Rename existing fields or tags, does not touch any values
+%% Note: param-functions fields and as_fields AND tags and as_tags must have the same length
 %% @end
 -module(esp_rename).
 -author("Alexander Minichmair").

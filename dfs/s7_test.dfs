@@ -19,14 +19,8 @@ def s7 =
 
 %% add some tags
     |default()
-    .tag('name')
-    .tag_value('measurement1')
-    |default()
-    .tag('warehouse_id')
-    .tag_value(whid)
-    |default()
-    .tag('device_id')
-    .tag_value(device_id)
+    .tags('name', 'warehouse_id', 'device_id')
+    .tag_values('measurement1', whid, device_id)
 
     |win_event()
     .every(10)

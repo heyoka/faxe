@@ -2,7 +2,7 @@ def whid = 'ab33zr83489urf34r43j'
 def device_id = 'DV0025LM33'
 
 def energy =
-    |modbus_multi('hregs')
+    |modbus('hregs')
     .ip('127.0.0.1')
     .port(8899)
     .device(255)
@@ -17,19 +17,12 @@ def energy =
 
 %% add some tags
     |default()
-    .tag('name')
-    .tag_value('persistent_publisher')
-    |default()
-    .tag('warehouse_id')
-    .tag_value(whid)
-    |default()
-    .tag('device_id')
-    .tag_value(device_id)
-
+    .tags('name', 'warehouse_id', 'device_id')
+    .tag_values('persistent_publisher', whid, device_id)
 
 %% publish to mqtt broker
 %%
-    |mqtt_publish_single()
+    |mqtt_publish()
     .host('10.14.204.3')
     .port(1883)
     .qos(1)

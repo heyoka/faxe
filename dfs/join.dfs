@@ -19,12 +19,8 @@ v1
     .fill(none)
 
     |default()
-    .field('v1.val')
-    .field_value(0.0)
-
-    |default()
-    .field('v2.val')
-    .field_value(0.0)
+    .fields('v1.val', 'v2.val')
+    .field_values(0.0, 0.0)
 
     |eval(lambda: "v1.val" + "v2.val", lambda: "summe"/2)
     .as('summe', 'durchschnitt')
