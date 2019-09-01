@@ -14,7 +14,6 @@ params(<<"join">>) -> [{all, 2}].
 
 options(<<"deadman">>) -> [{1, <<"interval">>, duration},{2, <<"threshold">>, int}];
 options(<<"shift">>) -> [{1, <<"offset">>, duration}];
-options(<<"eval">>) -> [{all, <<"lambdas">>, lambda_list}];
 options(<<"modbus">>) -> [{1, <<"function">>, binary}];
 options(<<"where">>) -> [{1, <<"lambda">>, lambda}];
 options(_) -> undefined.

@@ -6,7 +6,7 @@
 -export([new_graph/0, create_graph/2, start_graph/1, start_graph/2,
    add_node/2, add_edge/2, add_debug_handler/0, remove_debug_handler/0]).
 
--export([request_items/2, emit/1, build_options/2, maybe_check_opts/2]).
+-export([request_items/2, emit/1, build_options/2, maybe_check_opts/2, option_check/2]).
 
 %%====================================================================
 %% CALLBACK API functions
@@ -72,18 +72,30 @@ emit(Port, Value) ->
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %%%
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+-spec option_check(atom(), list()) -> ok|{error, term()}.
+option_check(Component, VarList) ->
+   try build_options(Component, VarList) of
+      Map when is_map(Map) ->
+         ok;
+      {error, What} -> {error, What}
+   catch
+      throw:Err -> {error, Err};
+      exit:Err -> {error, Err};
+      error:Err -> {error, Err};
+      _:_      -> {error, unknown}
+   end.
 
 -spec build_options(atom(), list( {atom(), option_value()} )) -> map().
 build_options(Component, L) ->
    Opts = case erlang:function_exported(Component, options, 0) of
-             true -> io:format("Module ~p has function options/0 exported~n",[Component]),Component:options();
-             false -> %io:format("Module ~p has NO function options/0 exported~n",[Component]),
-                        []
+             true -> Component:options();
+             false -> []
           end,
    case catch(do_build_options(Opts, L)) of
       Opts0 when is_map(Opts0) -> maybe_check_opts(Opts0, Component);
-      {error, What} -> exit({bad_option, {Component, What}});
-      {'EXIT',{What, _}} -> exit({bad_option, {Component, What}})
+      {error, What} -> erlang:error({bad_option, {Component, What}});
+      {'EXIT',{What, _}} -> erlang:error({bad_option, {Component, What}});
+      Error -> erlang:error(format_error(bad_option, Component, Error))
    end.
 do_build_options([], _) -> #{};
 do_build_options(Opts, L) when is_list(L), is_list(Opts) ->
@@ -102,12 +114,13 @@ do_build_options(Opts, L) when is_list(L), is_list(Opts) ->
          ({OptName, OptType, Default}, Acc) ->
             case proplists:get_value(OptName, L) of
                undefined -> Acc#{OptName => Default};
-               V        -> Acc#{OptName => val(V, OptType)}
+               V        -> Acc#{OptName => val(V, {OptName, OptType})}
             end;
          ({OptName, OptType}, Acc) ->
             case proplists:get_value(OptName, L) of
-               undefined -> erlang:error({option_missing, {OptName, OptType}});
-               V        -> Acc#{OptName => val(V, OptType)}
+               undefined -> throw([<<"option_missing: '">>,
+                  atom_to_binary(OptName,utf8), <<"', required type: ">>, atom_to_binary(OptType,utf8)]);
+               V        -> Acc#{OptName => val(V, {OptName, OptType})}
             end
       end,
       #{},
@@ -119,47 +132,48 @@ do_build_options(Opts, L) when is_list(L), is_list(Opts) ->
 
 %% @todo convert types accordingly, ie: string(binary) to real string(list)
 -spec val(option_value(), option_name()) -> option_value().
-val(Val, number) when is_integer(Val) orelse is_float(Val) -> Val;
-val(Val, integer) when is_integer(Val) -> Val;
-val(Val, float) when is_float(Val) -> Val;
-val(Val, binary) when is_binary(Val) -> Val;
-val(Val, string) when is_binary(Val) -> Val;
-val(Val, list) when is_list(Val) -> Val;
-val(Val, atom) when is_atom(Val) -> Val;
-val(Val, lambda) when is_function(Val) -> Val;
-val(true, bool) -> true;
-val(false, bool) -> false;
+val(Val, {_, number}) when is_integer(Val) orelse is_float(Val) -> Val;
+val(Val, {_, integer}) when is_integer(Val) -> Val;
+val(Val, {_, float}) when is_float(Val) -> Val;
+val(Val, {_, binary}) when is_binary(Val) -> Val;
+val(Val, {_, string}) when is_binary(Val) -> Val;
+val(Val, {_, list}) when is_list(Val) -> Val;
+val(Val, {_, atom}) when is_atom(Val) -> Val;
+val(Val, {_, lambda}) when is_function(Val) -> Val;
+val(true, {_, bool}) -> true;
+val(false, {_, bool}) -> false;
 
-val(Val, number_list) when is_list(Val) ->
-   list_val(Val, fun(E) -> is_integer(E) orelse is_float(E) end);
-val(Val, integer_list) when is_list(Val) ->
-   list_val(Val, fun(E) -> is_integer(E) end);
-val(Val, float_list) when is_list(Val) ->
-   list_val(Val, fun(E) -> is_float(E) end);
-val(Val, binary_list) ->
-   val(Val, string_list);
-val(Val, string_list) when is_list(Val) ->
-   list_val(Val, fun(E) -> is_binary(E) end);
-val(Val, atom_list) when is_list(Val) ->
-   list_val(Val, fun(E) -> is_atom(E) end);
-val(Val, lambda_list) when is_list(Val) ->
-   list_val(Val, fun(E) -> is_function(E) end);
+val(Val, {N, number_list}) when is_list(Val) ->
+   list_val(Val, fun(E) -> is_integer(E) orelse is_float(E) end, numbers, N);
+val(Val, {N, integer_list}) when is_list(Val) ->
+   list_val(Val, fun(E) -> is_integer(E) end, integers, N);
+val(Val, {N, float_list}) when is_list(Val) ->
+   list_val(Val, fun(E) -> is_float(E) end, floats, N);
+val(Val, {N, binary_list}) ->
+   val(Val, {N, string_list});
+val(Val, {N, string_list}) when is_list(Val) ->
+   list_val(Val, fun(E) -> is_binary(E) end, strings, N);
+val(Val, {N, atom_list}) when is_list(Val) ->
+   list_val(Val, fun(E) -> is_atom(E) end, atoms, N);
+val(Val, {N, lambda_list}) when is_list(Val) ->
+   list_val(Val, fun(E) -> is_function(E) end, lambdas, N);
 
-val(Val, any) -> Val;
+val(Val, {_, any}) -> Val;
+val(V, {OptName, Type}) -> option_error(<<"bad parameter type">>, V, Type, OptName).
 
-val(V, Type) -> erlang:error({wrong_option_type, {{given, V}, {should_be, Type}}}).
-
-list_val(Val, Fun) ->
+list_val([], _Fun, Type, OptName) ->
+   option_error(<<"empty parameter(s)">>, "", Type, OptName);
+list_val(Val, Fun, Type, OptName) ->
    case lists:all(Fun, Val) of
       true -> Val;
-      false -> erlang:error({wrong_list_option_type, {Val}})
+      false -> option_error(<<"bad parameter(s) type">>, Val, Type, OptName)
    end.
 
-%%
+
 %% further options checks
 maybe_check_opts(Opts, Module) when is_map(Opts), is_atom(Module) ->
-   lager:alert("function exported ~p: ~p", [[Module, check_options, 0],
-      erlang:function_exported(Module, check_options, 0)]),
+%%   lager:debug("function exported ~p: ~p", [[Module, check_options, 0],
+%%      erlang:function_exported(Module, check_options, 0)]),
    case erlang:function_exported(Module, check_options, 0) of
       true -> check_options(Module:check_options(), Opts);
       false -> Opts
@@ -169,7 +183,7 @@ check_options([], Opts) ->
    Opts;
 check_options([Check| Checks], Opts) ->
    do_check(Check, Opts),
-   check_options(Checks, Opts).
+   option_check(Checks, Opts).
 
 do_check({same_length, Key1, Key2}, Opts = #{}) ->
    lager:warning("same_length check for ~p ~p out of ~p" ,[Key1, Key2, Opts]),
@@ -179,3 +193,13 @@ do_check({same_length, Key1, Key2}, Opts = #{}) ->
       true -> ok
    end.
 
+option_error(OptType, Given, Should, Name) ->
+   throw([OptType,
+      <<" given for param '">>,atom_to_binary(Name, utf8),<<"' ('">>,
+      io_lib:format("~w",[Given]), <<"'), should be: ">>, atom_to_binary(Should, utf8)]).
+
+format_error(Type, Component, Error) ->
+%%   io_lib:format("~s for ~s: ~s",[Type, Component, Error]).
+   iolist_to_binary(
+   [atom_to_binary(Type, utf8), <<" for node ">>, atom_to_binary(Component, utf8), <<": ">>] ++ Error
+   ).

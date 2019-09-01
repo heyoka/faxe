@@ -36,7 +36,7 @@ do_register(Req, State, Type) ->
    {ok, Result, Req3} = cowboy_req:read_urlencoded_body(Req),
    TaskName = proplists:get_value(<<"name">>, Result),
    Dfs = proplists:get_value(<<"dfs">>, Result),
-   lager:notice("name: ~p: dfs: ~p",[TaskName, Dfs]),
+   lager:notice("name: ~p: dfs: ~p, type:~p",[TaskName, Dfs, Type]),
    case reg_fun(Dfs, TaskName, Type) of
       ok -> Req4 = cowboy_req:set_resp_body(jsx:encode(#{success => true, name => TaskName}), Req3),
          {true, Req4, State};
@@ -51,9 +51,10 @@ do_register(Req, State, Type) ->
          {false, Req4, State}
    end.
 
-reg_fun(Dfs, Name, task) -> faxe:register_string_task(Dfs, Name);
+reg_fun(Dfs, Name, task) -> Res = faxe:register_string_task(Dfs, Name), Res;
 reg_fun(Dfs, Name, _) -> faxe:register_template_string(Dfs, Name).
 
 to_bin(L) when is_list(L) -> list_to_binary(L);
 to_bin(E) when is_atom(E) -> atom_to_binary(E, utf8);
-to_bin(Bin) when is_binary(Bin) -> Bin.
+to_bin(Bin) when is_binary(Bin) -> Bin;
+to_bin(Bin) -> lager:warning("to bin: ~p",[Bin]), Bin.

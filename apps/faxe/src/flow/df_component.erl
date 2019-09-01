@@ -192,7 +192,7 @@ outports(Module) ->
 %%%==========================================================
 %%% Callback API
 %%%
-%%% these are exposed through the dataflow module now !
+%%% these are exposed in the dataflow module now !
 %%%==========================================================
 %%request_items(Port, PublisherPids) when is_list(PublisherPids) ->
 %%   [Pid ! {request, self(), Port} || Pid <- PublisherPids].
@@ -250,6 +250,13 @@ handle_call({start, Inputs, Subscriptions, FlowMode}, _From,
          flow_mode = FlowMode,
          cb_handle_info = CallbackHandlesInfo}}
 ;
+handle_call(stats, _From, State=#c_state{node_id = NId, component = Comp}) ->
+   Res = {Comp,#{
+      <<"processing_errors">> => folsom_metrics:get_history_values(<< NId/binary, "_processing_errors" >>, 24),
+      <<"items processed">> => folsom_metrics:get_histogram_statistics(NId)
+   }},
+   {reply, Res, State}
+;
 handle_call(_What, _From, State) ->
    lager:warning("~p:handl_call with ~p",[?MODULE, _What]),
    {reply, error, State}
@@ -262,8 +269,8 @@ handle_cast(_Request, State) ->
 %% @doc
 %% these are the messages from and to other dataflow nodes
 %% do not use these tags in your callback 'handle_info' functions :
-%% 'reqeust' | 'item' | 'emit' | 'pull' | 'stop'
-%% you will not receive the info message in the callback
+%% 'request' | 'item' | 'emit' | 'pull' | 'stop'
+%% you will not receive the info message in the callback with these
 %%
 %% @end
 handle_info({request, ReqPid, ReqPort}, State=#c_state{subscriptions = Ss}) ->
@@ -271,13 +278,16 @@ handle_info({request, ReqPid, ReqPort}, State=#c_state{subscriptions = Ss}) ->
    {noreply, State#c_state{subscriptions =  NewSubs}};
 
 handle_info({item, {Inport, Value}},
-    State=#c_state{cb_state = CBState, component = Module, flow_mode = FMode, auto_request = AR, node_id = NId}) ->
+    State=#c_state{
+       cb_state = CBState, component = Module, flow_mode = FMode, auto_request = AR, node_id = NId}) ->
+
    lager:notice("stats for ~p: ~p",[NId, folsom_metrics:get_histogram_statistics(NId)]),
    folsom_metrics:notify({NId, 1}),
    %gen_event:notify(dfevent_component, {item, State#c_state.node_id, {Inport, Value}}),
 %%   Result = (Module:process(Inport, Value, CBState)),
    case catch (Module:process(Inport, Value, CBState)) of
-      {'EXIT', {Reason,Stacktrace}} -> lager:error("'error' ~p in component ~p caught when processing item: ~p -- ~p",
+      {'EXIT', {Reason,Stacktrace}} ->
+         lager:error("'error' ~p in component ~p caught when processing item: ~p -- ~p",
          [Reason, State#c_state.component, {Inport, Value}, Stacktrace]),
          folsom_metrics:notify({<< NId/binary, "_processing_errors" >>,
             io_lib:format("'error' ~p in component ~p caught when processing item: ~p -- ~p",

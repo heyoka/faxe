@@ -118,8 +118,17 @@ from_register_task(Req, State) ->
    rest_helper:do_register(Req, State, task).
 
 from_update_to_json(Req, State) ->
+   {ok, Result, Req1} = cowboy_req:read_urlencoded_body(Req),
+   TaskId = proplists:get_value(<<"id">>, Result),
+   Dfs = proplists:get_value(<<"dfs">>, Result),
+   case faxe:update_string_task(Dfs, TaskId) of
+      ok -> Req4 = cowboy_req:set_resp_body(jsx:encode(#{success => true, id => TaskId}), Req1),
+         {true, Req4, State};
+      {error, Error} -> ok
+   end,
+   lager:notice("name: ~p: dfs: ~p",[TaskId, Dfs]),
    RespMap = #{update => true, id => 1232353, name => <<"same_task_name">>},
-   Req2 = cowboy_req:set_resp_body(jsx:encode(RespMap), Req),
+   Req2 = cowboy_req:set_resp_body(jsx:encode(RespMap), Req1),
    {true, Req2, State}.
 
 start_to_json(Req, State = #state{task_id = Id}) ->

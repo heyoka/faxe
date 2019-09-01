@@ -61,7 +61,8 @@ maybe_compile(ParserResult) ->
 compile(D) ->
    try eval(D) of
       GraphDef when is_map(GraphDef) ->
-         GraphDef
+         GraphDef;
+      Err -> {error, Err}
    catch
       _:Err -> {error, Err}
    end.
@@ -108,6 +109,11 @@ eval({Nodes, Connections}) ->
             NodeOptions = NOptions ++ NOpts,
             lager:notice("~n~p wants options : ~p~n has options: ~p~n~n NodeParameters: ~p",
                [Component, Component:options(), Options ++ ParamOptions, NodeOptions]),
+
+            %% check options with the components option definition
+            %% any errors raised here, would be caught in the surrounding call
+            dataflow:build_options(Component, NodeOptions),
+
             NodeId = node_id(N),
             lager:info("all options for node ~p: ~p", [N, NodeOptions]),
 %%            dataflow:maybe_check_opts(Component, Options ++ ParamOptions),
@@ -121,7 +127,7 @@ eval({Nodes, Connections}) ->
          {Def, []},
          Nodes
       ),
-   lager:info("Got some new NodeConnections: ~p ~n Old : ~p",[NewConnections, Connections]),
+%%   lager:info("Got some new NodeConnections: ~p ~n Old : ~p",[NewConnections, Connections]),
    %% connect all
    lists:foldl(
       fun
@@ -225,7 +231,7 @@ node_conn_params({NodeName, _Id}=N, NodeParams) ->
 
 -spec convert_options(list(), list()) -> list({binary(),list()}).
 convert_options(NodeOptions, Params) ->
-
+   lager:warning("convert options: ~p~n~p", [NodeOptions, Params]),
    Opts = lists:foldl(
       fun
          ({Name, Type, _Def}, O) -> [{atom_to_binary(Name), {Name, Type}}|O];
@@ -247,7 +253,7 @@ convert_options(NodeOptions, Params) ->
                Acc;
             {Name, param_list = Type} ->
                {value, {Name, Type, POpts}, _L} = lists:keytake(Name, 1, NodeOptions),
-%%               lager:alert("~nconvert param_list(~p, ~p, ~p, ~p)",[Name, Type, PVals, POpts]),
+               lager:warning("~nconvert param_list(~p, ~p, ~p, ~p)",[Name, Type, PVals, POpts]),
                Zipped = lists:zip(POpts, PVals),
                C = [convert(N, T, [PV]) || {{N, T}, PV} <- Zipped],
                [{Name, C} | Acc];

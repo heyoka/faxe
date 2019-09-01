@@ -22,12 +22,12 @@
 }).
 
 options() -> [
-   {field, binary_list, []},
-   {field_value, list, []},
-   {tag, binary_list, []},
-   {tag_value, binary_list, []}].
+   {fields, binary_list, []},
+   {field_values, list, []},
+   {tags, binary_list, []},
+   {tag_values, binary_list, []}].
 
-init(NodeId, _Ins, #{field := Fields, tag := Tags, tag_value := TagV, field_value := FieldV} = Opts) ->
+init(NodeId, _Ins, #{fields := Fields, tags := Tags, tag_values := TagV, field_values := FieldV} = Opts) ->
    lager:warning("Opts for esp_default: ~p",[Opts]),
    {ok, all, #state{fields = Fields, node_id = NodeId, tags = Tags, tag_values = TagV, field_values = FieldV}}.
 

@@ -21,7 +21,7 @@
    start_graph/2,
    stop/1,
    sink_nodes/1,
-   source_nodes/1]).
+   source_nodes/1, get_stats/1]).
 
 %% gen_server callbacks
 -export([init/1,
@@ -79,7 +79,8 @@ sink_nodes(Graph) ->
 source_nodes(Graph) ->
    gen_server:call(Graph, {source_nodes}).
 
-
+get_stats(Graph) ->
+   gen_server:call(Graph, {stats}).
 
 %%%===================================================================
 %%% gen_server callbacks
@@ -138,7 +139,10 @@ handle_call({edges}, _From, State) ->
 %% start the computation
 handle_call({start, FlowMode}, _From, State) ->
    NewState = start(FlowMode, State),
-   {reply, ok, NewState}.
+   {reply, ok, NewState};
+handle_call({stats}, _From, State=#state{nodes = Nodes}) ->
+   Res = [{NodeId, gen_server:call(NPid, stats)} || {NodeId, NPid} <- Nodes],
+   {reply, Res, State}.
 
 
 

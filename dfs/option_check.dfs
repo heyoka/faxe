@@ -1,0 +1,16 @@
+def test = 1
+
+def flow =
+    |value_emitter()
+    .every(3s)
+    .type(point)
+
+    |eval()
+    .lambdas(lambda: 2 + 5)
+    .as('seven')
+
+    |shift()
+    .offset(6s)
+
+
+

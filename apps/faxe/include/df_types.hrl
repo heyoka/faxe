@@ -5,7 +5,7 @@
 
 -export_type([graph_definition/0, option_name/0, option_value/0]).
 
--type graph_definition() :: #{nodes => [], edges => []}.
+-type graph_definition() :: #{nodes => list(), edges => list()}.
 
 -type option_name()              :: any            |
                                     is_set         |
@@ -44,7 +44,7 @@
 -type option_string_list()       :: list(option_binary()).
 -type option_binary_list()       :: option_string_list().
 -type option_atom_list()         :: list(option_atom()).
--type option_lamda_list()        :: list(option_lambda()).
+-type option_lambda_list()        :: list(option_lambda()).
 
 
 
@@ -64,4 +64,4 @@
                                     option_float_list()     |
                                     option_binary_list()    |
                                     option_atom_list()      |
-                                    option_lamda_list().
+                                    option_lambda_list().
