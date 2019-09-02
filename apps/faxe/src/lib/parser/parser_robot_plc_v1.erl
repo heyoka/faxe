@@ -21,6 +21,9 @@
 -include_lib("eunit/include/eunit.hrl").
 -endif.
 
+-define(PARSER_VERSION, 1).
+-define(TGW_DATAFORMAT, <<"03.001">>).
+
 -define(BOOL, 1/integer-unsigned).
 -define(INT, 16/integer).
 -define(REAL, 32/float).
@@ -37,7 +40,6 @@
 
 parse(BinData) ->
    Acc = #{
-      <<"utc">> => 0,
       %% data
       <<"tool">> => #{},
       ?X => #{},
@@ -48,7 +50,7 @@ parse(BinData) ->
       ?SUCC1 => #{},
       ?SUCC2 => #{},
       ?SUCC3 => #{}},
-   pos1(BinData, Acc).
+   {?TGW_DATAFORMAT, ?PARSER_VERSION, pos1(BinData, Acc)}.
 %%   jsx:encode(pos1(BinData, Acc)).
 
 %% we parse the data in chunks ...

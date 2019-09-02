@@ -116,13 +116,14 @@ update_task(DfsScript, TaskId, ScriptType) ->
 update(DfsScript, Task, ScriptType) ->
    case eval_dfs(DfsScript, ScriptType) of
       Map when is_map(Map) ->
-         Task#task{definition = Map, date = faxe_time:now_date()},
-         faxe_db:save_task(Task);
+         NewTask = Task#task{definition = Map, date = faxe_time:now_date()},
+         faxe_db:save_task(NewTask);
       Err -> Err
    end.
 
 -spec update_running(list()|binary(), #task{}, atom()) -> ok|{error, term()}.
 update_running(DfsScript, Task = #task{id = TId}, ScriptType) ->
+   lager:warning("update running task!"),
    case update(DfsScript, Task, ScriptType) of
       {error, Err} -> {error, Err};
       ok -> stop_task(Task),
@@ -141,6 +142,7 @@ eval_dfs(DfsScript, Type) ->
       _:_      -> {error, unknown}
    end.
 
+%% @doc get a task by its id and also if it is currently running
 -spec get_running(integer()|binary()) -> {error, term()}|{true|false, #task{}}.
 get_running(TaskId) ->
    case faxe_db:get_task(TaskId) of

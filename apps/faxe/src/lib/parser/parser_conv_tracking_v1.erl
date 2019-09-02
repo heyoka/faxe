@@ -18,8 +18,12 @@
 -include_lib("eunit/include/eunit.hrl").
 -endif.
 
+-define(PARSER_VERSION, 1).
+-define(TGW_DATAFORMAT, <<"03.002">>).
+
 %% bit-length of timestamp inserted by the PLC
 -define(PLC_DATETIME_LENGTH, 24).
+
 
 -define(LINE_DELIMITER, <<";">>).
 -define(FIELD_DELIMITER, <<",">>).
@@ -61,8 +65,7 @@ parse(BinData) ->
    %% parse the lines
    Res = parse_lines(DataLines),
    %% convert to json
-   Res.
-%%   jsx:encode(Res).
+   {?TGW_DATAFORMAT, ?PARSER_VERSION, Res}.
 
 to_lines(BinData) ->
    binary:split(BinData, ?LINE_DELIMITER, [global, trim_all]).

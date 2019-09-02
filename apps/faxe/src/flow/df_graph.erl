@@ -55,7 +55,10 @@ start_graph(Graph, FlowMode) ->
    gen_server:call(Graph, {start, FlowMode}).
 
 stop(Graph) ->
+   From = self(),
+   erlang:process_flag(trap_exit, true),
    Graph ! stop.
+%%   gen_server:call(Graph, {stop}).
 
 add_node(Graph, NodeId, Component) ->
    add_node(Graph, NodeId, Component, []).
@@ -140,6 +143,9 @@ handle_call({edges}, _From, State) ->
 handle_call({start, FlowMode}, _From, State) ->
    NewState = start(FlowMode, State),
    {reply, ok, NewState};
+handle_call({stop}, _From, State) ->
+   do_stop(State),
+   {stop, normal, State};
 handle_call({stats}, _From, State=#state{nodes = Nodes}) ->
    Res = [{NodeId, gen_server:call(NPid, stats)} || {NodeId, NPid} <- Nodes],
    {reply, Res, State}.
@@ -164,12 +170,8 @@ handle_info({start, RunMode}, State) ->
 handle_info({swarm, die}, State) ->
    lager:warning("~p ~p must (and will) DIE!",[?MODULE, State#state.id]),
    {stop, shutdown, State};
-handle_info(stop, State=#state{running = Running, nodes = Nodes, id = Id}) ->
-   case Running of
-      %% stop all components
-      true -> lists:foreach(fun({_NodeId, NPid}) -> NPid ! stop end, Nodes);
-      false -> ok
-   end,
+handle_info(stop, State=#state{}) ->
+   do_stop(State),
    %gen_event:notify(dfevent_graph, {stop, Id}),
    {stop, normal, State}.
 
@@ -190,6 +192,13 @@ code_change(_OldVsn, State, _Extra) ->
 %%%===================================================================
 %%% Internal functions
 %%%===================================================================
+do_stop(State = #state{running = Running, nodes = Nodes, id = Id}) ->
+   lager:warning("stop graph when running:~p",[Running]),
+   case Running of
+      %% stop all components
+      true -> lists:foreach(fun({_NodeId, NPid}) -> NPid ! stop end, Nodes);
+      false -> ok
+   end.
 
 build_node(Graph, {NodeId, Component}) ->
    build_node(Graph, {NodeId, Component, []});

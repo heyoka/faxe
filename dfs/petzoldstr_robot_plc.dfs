@@ -1,0 +1,9 @@
+def parser = parser_robot_plc_v1
+def v1 =
+    |tcp_recv()
+    .ip('10.44.60.24')
+    .port(9715)
+    .parser(parser)
+    .extract()
+
+

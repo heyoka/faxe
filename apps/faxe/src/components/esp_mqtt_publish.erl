@@ -111,7 +111,7 @@ shutdown(#direct_state{client = C}) ->
    catch (emqtt:disconnect(C)).
 
 publish(Msg, #direct_state{retained = Ret, qos = Qos, client = C, topic = Topic}) when is_binary(Msg) ->
-   lager:notice("publish ~p on topic ~p ~n",[Msg, Topic]),
+   lager:notice("publish ~s on topic ~p ~n",[Msg, Topic]),
    {ok, PacketId} = emqtt:publish(C, Topic, Msg, [{qos, Qos}, {retained, Ret}]),
    lager:notice("sent msg and got PacketId: ~p",[PacketId]).
 

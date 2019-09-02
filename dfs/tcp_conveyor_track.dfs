@@ -1,0 +1,16 @@
+def parser = parser_conv_tracking_v1
+def v1 =
+    |tcp_recv_line()
+    .ip('127.0.0.1')
+    .port(1111)
+    .parser(parser)
+    .min_length(61)
+
+    |mqtt_publish()
+    .host('10.14.204.3')
+    .port(1883)
+    .qos(1)
+    .topic('t_tgw/m1')
+    .retained()
+
+

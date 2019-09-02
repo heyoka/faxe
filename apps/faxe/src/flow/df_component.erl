@@ -281,7 +281,7 @@ handle_info({item, {Inport, Value}},
     State=#c_state{
        cb_state = CBState, component = Module, flow_mode = FMode, auto_request = AR, node_id = NId}) ->
 
-   lager:notice("stats for ~p: ~p",[NId, folsom_metrics:get_histogram_statistics(NId)]),
+%%   lager:notice("stats for ~p: ~p",[NId, folsom_metrics:get_histogram_statistics(NId)]),
    folsom_metrics:notify({NId, 1}),
    %gen_event:notify(dfevent_component, {item, State#c_state.node_id, {Inport, Value}}),
 %%   Result = (Module:process(Inport, Value, CBState)),
@@ -329,11 +329,13 @@ handle_info(pull, State=#c_state{inports = Ins}) ->
    {noreply, State}
 ;
 handle_info(stop, State=#c_state{node_id = _N, component = Mod, cb_state = CBState}) ->
+
    %gen_event:notify(dfevent_component, {stopping, N, Mod}),
    case erlang:function_exported(Mod, shutdown, 1) of
       true -> Mod:shutdown(CBState);
       false -> ok
    end,
+   lager:notice("--- stopped: ~p", [{_N, Mod}]),
    {stop, normal, State}
 ;
 handle_info(Req, State=#c_state{component = Module, cb_state = CB, cb_handle_info = true}) ->

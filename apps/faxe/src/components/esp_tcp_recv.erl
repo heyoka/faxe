@@ -50,7 +50,7 @@
 
 options() -> [
   {ip, binary}, {port, integer},
-  {as, binary, <<"value">>}, %% alias for fieldname
+  {as, binary, <<"data">>}, %% alias for fieldname
   {extract, is_set}, %% overrides as
   {parser, atom, undefined} %% parser module to use
 ].

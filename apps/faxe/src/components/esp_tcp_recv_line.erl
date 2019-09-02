@@ -46,7 +46,7 @@
 
 options() -> [
   {ip, binary}, {port, integer},
-  {as, binary, <<"value">>}, %% alias for fieldname
+  {as, binary, <<"data">>}, %% alias for fieldname
   {extract, is_set}, %% extract the parsed message into the fields list of data_point{} ?
   %% "extract" will always override "as"
   {line_delimiter, binary, $\n}, %% not used at the moment

@@ -100,7 +100,8 @@ delete_resource(Req, State=#state{task_id = TaskId}) ->
          {true, Req2, State};
       {error, Error} ->
          lager:info("Error occured when deleting flow: ~p",[Error]),
-         Req3 = cowboy_req:set_resp_body(jsx:encode(#{success => false, error => rest_helper:to_bin(Error)}), Req),
+         Req3 = cowboy_req:set_resp_body(
+            jsx:encode(#{success => false, error => rest_helper:to_bin(Error)}), Req),
          {false, Req3, State}
    end.
 
@@ -117,19 +118,20 @@ get_to_json(Req, State=#state{task = Task}) ->
 from_register_task(Req, State) ->
    rest_helper:do_register(Req, State, task).
 
-from_update_to_json(Req, State) ->
+from_update_to_json(Req, State=#state{task_id = TaskId}) ->
    {ok, Result, Req1} = cowboy_req:read_urlencoded_body(Req),
-   TaskId = proplists:get_value(<<"id">>, Result),
+%%   TaskId = proplists:get_value(<<"id">>, Result),
    Dfs = proplists:get_value(<<"dfs">>, Result),
-   case faxe:update_string_task(Dfs, TaskId) of
-      ok -> Req4 = cowboy_req:set_resp_body(jsx:encode(#{success => true, id => TaskId}), Req1),
+   lager:info("update ~p with dfs: ~p",[TaskId, Dfs]),
+   case faxe:update_string_task(Dfs, binary_to_integer(TaskId)) of
+      ok ->
+         Req4 = cowboy_req:set_resp_body(jsx:encode(#{success => true, id => TaskId}), Req1),
          {true, Req4, State};
-      {error, Error} -> ok
-   end,
-   lager:notice("name: ~p: dfs: ~p",[TaskId, Dfs]),
-   RespMap = #{update => true, id => 1232353, name => <<"same_task_name">>},
-   Req2 = cowboy_req:set_resp_body(jsx:encode(RespMap), Req1),
-   {true, Req2, State}.
+      {error, Error} ->
+         Req3 = cowboy_req:set_resp_body(
+            jsx:encode(#{success => false, error => rest_helper:to_bin(Error)}), Req1),
+         {false, Req3, State}
+   end.
 
 start_to_json(Req, State = #state{task_id = Id}) ->
    case faxe:start_task(Id, is_permanent(Req)) of
