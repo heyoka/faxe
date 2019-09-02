@@ -12,6 +12,7 @@
     poolboy,
     esq,
     emqtt,
+    jsonpath,
       jsx,
     modbus,
     msgpack,
