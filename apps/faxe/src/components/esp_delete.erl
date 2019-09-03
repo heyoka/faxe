@@ -1,7 +1,7 @@
 %% Date: 28.01.17 - 14:11
 %% Ⓒ 2017 heyoka
 %% @doc
-%% Delete Fields and Tags from datapoint and databatch
+%% Delete value(s) with the given fieldname or path from data_point and data_batch
 %% @end
 -module(esp_delete).
 -author("Alexander Minichmair").
