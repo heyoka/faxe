@@ -292,7 +292,7 @@ sample_point() ->
 
 
 datapoint_to_map_test() ->
-   ?assertEqual(flowdata_jsonpath:to_map(sample_point()), #{f1 => 223.3,f2 => 44,f3 => 2,t1 => <<"hello">>,
+   ?assertEqual(flowdata:to_map(sample_point()), #{f1 => 223.3,f2 => 44,f3 => 2,t1 => <<"hello">>,
       t2 => <<"JU323z6">>,<<"ts">> => 1231154646}).
 -endif.
 
