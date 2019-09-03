@@ -28,6 +28,7 @@ convert(Data, _As, true, undefined) ->
    NewPoint;
 convert(Data, As, _Extract, Parser) ->
    {T, {DataFormat, Vers, Map}} = timer:tc(Parser, parse, [Data]),
+   Struct = maps:to_list(Map), lager:warning("Struct from Map: ~p",[Struct]),
    NewPoint = flowdata:set_field(#data_point{ts = faxe_time:now()}, As, Map),
    NewPoint1 = flowdata:set_field(NewPoint, <<"df">>, DataFormat),
    flowdata:set_field(NewPoint1, <<"vs">>, Vers).

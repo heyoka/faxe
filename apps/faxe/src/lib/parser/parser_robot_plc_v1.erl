@@ -64,7 +64,8 @@ pos1(
 
    NewAcc =
       Acc#{<<"tool">> =>
-      #{?X => PosX, ?Y => PosY, ?Z => PosZ, ?YAW => PosYaw, ?PITCH => PosPitch}},
+      #{?X => round(PosX), ?Y => round(PosY), ?Z => round(PosZ),
+         ?YAW => round(PosYaw), ?PITCH => round(PosPitch)}},
    pos2(Second, NewAcc).
 
 %% second 20 bytes
@@ -75,7 +76,8 @@ pos2(
        PosA3:?REAL,
        PosA4:?REAL,
        PosA5:?REAL, Third/binary>>, Acc=#{}) ->
-   NewAcc = set_axis_val(<<"pos">>, [PosA1, PosA2, PosA3, PosA4, PosA5], Acc),
+   NewAcc = set_axis_val(<<"pos">>,
+      [round(PosA1), round(PosA2), round(PosA3), round(PosA4), round(PosA5)], Acc),
    third(Third, NewAcc).
 
 %% speed and suction
@@ -114,8 +116,8 @@ sixth(
        WeightScaleDrop2:?REAL, Seventh/binary>>, Acc=#{}) ->
 
    seventh(Seventh, Acc#{
-      <<"wpp1">> => WeightScalePick1, <<"wpp2">> => WeightScalePick2,
-      <<"wdp1">> => WeightScaleDrop1, <<"wdp2">> => WeightScaleDrop2}).
+      <<"wpp1">> => to_gramms(WeightScalePick1), <<"wpp2">> => to_gramms(WeightScalePick2),
+      <<"wdp1">> => to_gramms(WeightScaleDrop1), <<"wdp2">> => to_gramms(WeightScaleDrop2)}).
 
 %% 24 bytes
 seventh(
@@ -221,7 +223,7 @@ set_succ_value(Name, Values, Acc = #{?SUCC1 := Succ1, ?SUCC2 := Succ2, ?SUCC3 :=
       ?SUCC2 => Succ2#{Name => lists:nth(2, Values)},
       ?SUCC3 => Succ3#{Name => lists:nth(3, Values)}}.
 
-
+to_gramms(V) -> round(V*1000).
 %%%%%%%%%%%%%%%%%% end %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 -ifdef(TEST).
 

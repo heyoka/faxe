@@ -12,7 +12,7 @@
 -behavior(tcp_msg_parser).
 
 %% API
--export([parse/1, test_bitmask/1, def1/0]).
+-export([parse/1, test_bitmask/1]).
 
 -ifdef(TEST).
 -include_lib("eunit/include/eunit.hrl").

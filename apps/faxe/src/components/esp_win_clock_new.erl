@@ -39,7 +39,6 @@ init(NodeId, _Inputs, #{period := Period, every := Every, align := Align, fill_p
          false -> false;
          true -> faxe_time:binary_to_duration(Every)
       end,
-   io:format("~p init:node~nparams: ~p",[NodeId, P]),
    Every1 = faxe_time:duration_to_ms(Every),
    Per = faxe_time:duration_to_ms(Period),
    State =
@@ -75,9 +74,9 @@ accumulate(Point=#data_point{ts = NewTs},
    Now = faxe_time:now(),
    WinStart = new_ts(Now, Align),
    EmitAt = WinStart + Every,
-   WinEnd = WinStart + Period,
-   lager:notice("NOW: ~p ~nInitial win_start is at: ~p (win_end: ~p)  ~n while data_points timestamp is at : ~p",
-      [faxe_time:to_htime(Now), faxe_time:to_htime(WinStart),faxe_time:to_htime(WinEnd), faxe_time:to_htime(NewTs)]),
+%%   WinEnd = WinStart + Period,
+%%   lager:notice("NOW: ~p ~nInitial win_start is at: ~p (win_end: ~p)  ~n while data_points timestamp is at : ~p",
+%%      [faxe_time:to_htime(Now), faxe_time:to_htime(WinStart),faxe_time:to_htime(WinEnd), faxe_time:to_htime(NewTs)]),
    emit_at(EmitAt),
    State#state{log = [Now], window = queue:in(Point, Win), next_emit = EmitAt};
 accumulate(Point=#data_point{}, State = #state{log = Log, window = Win}) ->
@@ -92,8 +91,8 @@ emit(State = #state{log = Log, next_emit = NextEmit, period = Interval, window =
 
    Now = faxe_time:now(),
    NewAt = new_ts(Now, Align), %% should be equal to NextEmit at this point
-   lager:info("Emit AT: ~p (unaligned: ~p) should be : ~p",
-      [faxe_time:to_htime(NewAt), faxe_time:to_htime(Now), faxe_time:to_htime(NextEmit)]),
+%%   lager:info("Emit AT: ~p (unaligned: ~p) should be : ~p",
+%%      [faxe_time:to_htime(NewAt), faxe_time:to_htime(Now), faxe_time:to_htime(NextEmit)]),
    % on a tick, we check for sliding out old events
    {KeepLog, NewWindow, HasEvicted} = evict(Log, Window, NewAt, Interval),
    NewState =

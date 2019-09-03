@@ -75,7 +75,7 @@ handle_info({tcp, Socket, Data}, State=#state{as = As, parser = Parser, extract 
   %lager:notice("Data got from TCP:  ~p~nSize:~p at recbuf:~p",[Data, byte_size(Data), inet:getopts(Socket, [recbuf, buffer])]),
 %%  P = convert(Data, As, Extract, Parser),
   P = tcp_msg_parser:convert(Data, As, Extract, Parser),
-  %lager:warning("~n to json: ~p",[timer:tc(flowdata, to_json, [P])]),
+  lager:warning("~n to json: ~s",[flowdata:to_json(P)]),
   dataflow:emit(P),
   inet:setopts(Socket, [{active, once}]),
   {ok, State};
@@ -87,7 +87,7 @@ handle_info({tcp_error, Socket, _}, State) ->
 handle_info(do_reconnect, State=#state{ip = Ip, port = Port}) ->
   case connect(Ip, Port) of
     {ok, Socket} -> inet:setopts(Socket, [{active, once}]), {ok, State#state{socket = Socket}};
-    {error, Error} -> lager:error("[~p] Error when connection: ~p",[?MODULE, Error]), try_reconnect(State)
+    {error, Error} -> lager:error("[~p] Error connecting: ~p",[?MODULE, Error]), try_reconnect(State)
   end;
 handle_info(E, S) ->
   io:format("unexpected: ~p~n", [E]),

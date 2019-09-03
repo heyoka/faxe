@@ -78,6 +78,8 @@ handle_info({tcp, Socket, Data}, State=#state{min_length = Min}) when byte_size(
 handle_info({tcp, Socket, Data0}, State=#state{as = As, extract = Extract, parser = Parser}) ->
   Data = string:chomp(Data0),
   P = tcp_msg_parser:convert(Data, As, Extract, Parser),
+%%  P1 = flowdata:delete_field(P, <<"data">>),
+%%  lager:notice("Point from parser: ~p", [P1]),
   %lager:warning("~n to json: ~p",[timer:tc(flowdata, to_json, [P])]),
   dataflow:emit(P),
   inet:setopts(Socket, [{active, once}]),
@@ -93,7 +95,7 @@ handle_info(do_reconnect, State=#state{ip = Ip, port = Port, line_delimiter = LD
     {error, Error} -> lager:error("[~p] Error connecting: ~p",[?MODULE, Error]), try_reconnect(State)
   end;
 handle_info(E, S) ->
-  io:format("unexpected: ~p~n", [E]),
+%%  io:format("unexpected: ~p~n", [E]),
   {ok, S}.
 
 shutdown(#state{socket = Sock, timer_ref = Timer}) ->

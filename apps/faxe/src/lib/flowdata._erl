@@ -5,12 +5,10 @@
 %% This module provides functions for all needs in context with #data_point and #data_batch records.
 %%
 %% Field and Tag names in a data_point are always binary strings.
-%% Field values are simple int, string or float values, but can also be deep nested lists and tuple_lists
+%% Field values are usually int or float values.
 %% Tag values a always binary strings.
 %% Every data_point record has a ts-field it's value is always a unix-timestamp in
 %% millisecond precision.
-%% For every function, which expects a name/path (binary) a jsonpath query can be provided, ie:
-%% flowdata:field(#data_point{], <<"value.sub[2].data">>) will return the value at value.sub[2].data
 %%
 %% A data_batch record consists of an ordered list of data_point records (field 'points').
 %% The 'points' list is ordered by timestamp such that the oldest point is the last entry in the list.
@@ -89,27 +87,27 @@ ts(#data_batch{points = Points}) ->
 %% ie.: in a lambda fun)
 %% @end
 %%
--spec value(#data_point{}, jsonpath:path()) -> term()|undefined.
+-spec value(#data_point{}, binary()) -> term()|undefined.
 value(#data_point{ts = Ts}, <<"ts">>) ->
    Ts;
 value(#data_point{fields = Fields, tags = Tags}, F) ->
-   case jsonpath:search(F, {Fields}) of
-      undefined -> jsonpath:search(F, {Tags});
+   case proplists:get_value(F,Fields) of
+      undefined -> proplists:get_value(F,Tags);
       Value -> Value
    end.
 %%
 %% @doc get the values with a key from data_batch fields or tags @end
 %%
--spec values(#data_batch{}, jsonpath:path()) -> list(term()|undefined).
+-spec values(#data_batch{}, binary()) -> list(term()|undefined).
 values(#data_batch{points = Points}, F) ->
    [value(Point, F) || Point <- Points].
 
 %%
 %% @doc get the values with a key from field(s) @end
 %%
--spec field(#data_point{}|#data_batch{}, jsonpath:path()) -> undefined | term() | list(term()|undefined).
+-spec field(#data_point{}|#data_batch{}, binary()) -> undefined | term() | list(term()|undefined).
 field(#data_point{fields = Fields}, F) ->
-   jsonpath:search(F, {Fields})
+   proplists:get_value(F,Fields)
 ;
 field(#data_batch{points = Points}, F) ->
    [field(Point, F) || Point <- Points].
@@ -138,12 +136,12 @@ set_ts(P=#data_point{}, NewTs) ->
    P#data_point{ts = NewTs}.
 
 %% @doc
-%% Set the field Key to Value with path.
+%% Set the field Key to Value.
 %% If a field named Key does exist, it will be overwritten.
 %% @end
--spec set_field(#data_point{}, jsonpath:path(), any()) -> #data_point{}.
+-spec set_field(#data_point{}, binary(), any()) -> #data_point{}.
 set_field(P = #data_point{fields = Fields}, Key, Value) ->
-   NewFields = set(Key, Value, Fields),
+   NewFields = set_field(Key, Value, Fields),
    P#data_point{fields = NewFields}
 ;
 %%%
@@ -158,28 +156,27 @@ set_field(P = #data_batch{points = Points}, Key, Value) ->
      end,
       Points
    ),
-   P#data_batch{points = Ps}.
+   P#data_batch{points = Ps};
 %% @doc 
 %% set a key value pair into a fieldlist (which is a proplist)
 %% if an entry with Key exists already, then the entry will be updated,
 %% otherwise the entry will be appended to the fieldlist
 %% @end
--spec set(jsonpath:path(), term(), list()) -> list().
-set(Key, Value, FieldList) ->
-   Struct = {FieldList},
-   {Res} =
-   case jsonpath:search(Key, Struct) of
-      undefined -> jsonpath:update(Key, Value, Struct);
-      _ -> jsonpath:replace(Key, Value, Struct)
-   end,
-   Res.
+set_field(Key, Value, FieldList) when is_binary(Key), is_list(FieldList) ->
+   FList =
+      case proplists:get_value(Key, FieldList, nil) of
+         nil   -> FieldList;
+         _     -> proplists:delete(Key, FieldList)
+      end,
+   [{Key, Value} | FList].
 
--spec tag(#data_point{}|#data_batch{}, jsonpath:path()) -> undefined | term() | list(term()|undefined).
+
+-spec tag(#data_point{}|#data_batch{}, binary()) -> undefined | term() | list(term()|undefined).
 %%% @doc
 %%% get a tags' value
 %%% @end
 tag(#data_point{tags = Fields}, F) ->
-   jsonpath:search(F, {Fields})
+   proplists:get_value(F,Fields)
 ;
 tag(#data_batch{points = Points}, F) ->
    [tag(Point, F) || Point <- Points].
@@ -198,7 +195,7 @@ id(#data_point{id = Id}) ->
 %% @end
 -spec set_tag(#data_batch{}|#data_point{}, binary(), binary()) -> #data_batch{}|#data_point{}.
 set_tag(P = #data_point{tags = Fields}, Key, Value) ->
-   NewFields = set(Key, Value, Fields),
+   NewFields = set_field(Key, Value, Fields),
    P#data_point{tags = NewFields}
 ;
 set_tag(#data_batch{points = Points}, Key, Value) ->
@@ -215,8 +212,7 @@ set_tag(#data_batch{points = Points}, Key, Value) ->
 %% @end
 -spec delete_field(#data_point{}|#data_batch{}, binary()) -> #data_point{} | #data_batch{}.
 delete_field(#data_point{fields = Fields}=P, FieldName) ->
-   {JData} = jsonpath:delete(FieldName, {Fields}),
-   P#data_point{fields = JData}
+   P#data_point{fields = proplists:delete(FieldName, Fields)}
    ;
 delete_field(#data_batch{points = Points}=B, FieldName) ->
    NewPoints = [delete_field(Point, FieldName) || Point <- Points],
@@ -228,7 +224,7 @@ delete_field(#data_batch{points = Points}=B, FieldName) ->
 %% @end
 -spec delete_tag(#data_point{}|#data_batch{}, binary()) -> #data_point{} | #data_batch{}.
 delete_tag(#data_point{tags = Tags}=P, TagName) ->
-   P#data_point{tags = jsonpath:delete(TagName, {Tags})}
+   P#data_point{tags = proplists:delete(TagName, Tags)}
 ;
 delete_tag(#data_batch{points = Points}=B, TagName) ->
    NewPoints = [delete_field(Point, TagName) || Point <- Points],
@@ -237,29 +233,15 @@ delete_tag(#data_batch{points = Points}=B, TagName) ->
 %% @doc
 %% rename fields and tags
 %% @end
--spec rename_fields(#data_point{}, list(jsonpath:path()), list(jsonpath:path())) -> #data_point{}.
+-spec rename_fields(#data_point{}, list(binary()), list(binary())) -> #data_point{}.
 rename_fields(#data_point{fields = Fields} = P, FieldNames, Aliases) ->
-   P#data_point{fields = rename(Fields, lists:reverse(FieldNames), lists:reverse(Aliases))}.
+   P#data_point{fields = rename(Fields, FieldNames, Aliases)}.
 
 rename_tags(#data_point{tags = Tags} = P, TagNames, Aliases) ->
-   P#data_point{tags = rename(Tags, lists:reverse(TagNames), lists:reverse(Aliases))}.
+   P#data_point{tags = rename(Tags, TagNames, Aliases)}.
 
-rename(List, [], []) ->
-   List;
-rename(List, [From|RFrom], [To|RTo]) when is_list(List) ->
-   NewData = do_rename(List, From, To),
-   rename(NewData, RFrom, RTo).
-
-do_rename(List, From, To) ->
-   Val = jsonpath:search(From, {List}),
-   {Res} =
-   case Val of
-      undefinded -> undefined;
-      _Val -> NewData = jsonpath:delete(From, {List}),
-         jsonpath:update(To, Val, NewData)
-   end,
-   Res.
-
+rename(List, From, To) when is_list(List), is_list(From), is_list(To)->
+   proplists:substitute_aliases(lists:zip(From, To), List).
 %%%%%%%%%%%%%%%%%%%%%%%% batch only  %%%%%%%%%%%%%%%%%%
 
 set_bounds(B=#data_batch{points = [F|_R]}) ->
@@ -306,114 +288,13 @@ take2(#data_batch{points = [First | [Sec|R]]} = Batch) ->
 sample_point() ->
    #data_point{ts = 1231154646, fields=[{f1, 223.3},{f2, 44},{f3, 2}],
       tags=[{t1, <<"hello">>},{t2, <<"JU323z6">>}]}.
-
 -ifdef(TEST).
 
-%%datapoint_to_map_test() ->
-%%   ?assertEqual(flowdata:to_map(sample_point()), #{f1 => 223.3,f2 => 44,f3 => 2,t1 => <<"hello">>,
-%%      t2 => <<"JU323z6">>,<<"ts">> => 1231154646}).
 
-get_field_value_kv_test() ->
-   P = #data_point{ts = 1234567891234, id = <<"324392i09i329i2df4">>, fields = [{<<"val">>, 3}]},
-   Path = <<"val">>,
-   ?assertEqual(field(P, Path), 3).
-
-get_field_value_undefined_test() ->
-   P = #data_point{ts = 1234567891234, id = <<"324392i09i329i2df4">>, fields = [{<<"val">>, 3}]},
-   Path = <<"value">>,
-   ?assertEqual(field(P, Path), undefined).
-
-deep_val() -> {[{<<"menu">>,
-   {[{<<"id">>,<<"file">>},
-      {<<"value">>,<<"File">>},
-      {<<"popup">>,
-         {[{<<"menuitem">>,
-            [{[{<<"value">>,<<"New">>},
-               {<<"onclick">>,<<"CreateNewDoc()">>}]},
-               {[{<<"value">>,<<"Open">>},{<<"onclick">>,<<"OpenDoc()">>}]},
-               {[{<<"value">>,<<"Close">>},
-                  {<<"onclick">>,<<"CloseDoc()">>},
-                  {<<"ondbclick">>, <<"print()">>}
-               ]}]}]}}]}}]}.
-
-
-get_field_value_deep_test() ->
-   P = #data_point{ts = 1234567891234, id = <<"324392i09i329i2df4">>, fields = [{<<"val">>, deep_val()}]},
-   Path = <<"val.menu.popup.menuitem">>,
-   ?assertEqual(field(P, Path),
-      [{[{<<"value">>,<<"New">>},
-         {<<"onclick">>,<<"CreateNewDoc()">>}]},
-         {[{<<"value">>,<<"Open">>},{<<"onclick">>,<<"OpenDoc()">>}]},
-         {[{<<"value">>,<<"Close">>},
-            {<<"onclick">>,<<"CloseDoc()">>},
-            {<<"ondbclick">>, <<"print()">>}
-         ]}]
-   ).
-
-delete_field_value_deep_test() ->
-   P = #data_point{ts = 1234567891234, id = <<"324392i09i329i2df4">>,
-      fields = [{<<"val">>, deep_val()},{<<"var">>,44}]},
-   Path = <<"val.menu.popup.menuitem">>,
-   NewPoint = delete_field(P, Path),
-   ?assertEqual(NewPoint#data_point.fields,
-      [{<<"val">>,
-         {[{<<"menu">>,
-            {[{<<"id">>,<<"file">>},
-               {<<"value">>,<<"File">>},
-               {<<"popup">>,{[]}}]}}]}},
-         {<<"var">>,44}]
-   ).
-
-set_field_kv_test() ->
-   P = #data_point{ts = 1234567891234, id = <<"324392i09i329i2df4">>,
-      fields = [{<<"val">>, <<"somestring">>},{<<"var">>,44}]},
-   Path = <<"value">>,
-   SetP = set_field(P, Path, <<"new">>),
-   ?assertEqual(SetP#data_point.fields,
-      [{<<"val">>, <<"somestring">>}, {<<"var">>,44}, {<<"value">>, <<"new">>}]).
-
-rename_tag_kv_test() ->
-   P = #data_point{ts = 1234567891234, id = <<"324392i09i329i2df4">>,
-      tags = [{<<"val">>, <<"somestring">>},{<<"var">>, <<"anotherstring">>}]},
-   From = [<<"var">>, <<"val">>], To = [<<"variable">>, <<"value">>],
-   SetP = rename_tags(P, From, To),
-   ?assertEqual(SetP#data_point.tags,
-      [{<<"value">>, <<"somestring">>}, {<<"variable">>, <<"anotherstring">>}]).
-
-
-rename_field_deep_test() ->
-   P = #data_point{ts = 1234567891234, id = <<"324392i09i329i2df4">>,
-      fields = [{<<"val">>, deep_val()},{<<"var">>,44}]},
-   From = [<<"val.menu.popup.menuitem">>, <<"val.menu.popup.menuitem[1].value">>],
-   To = [<<"val.menu.popup.menu_item">>, <<"val.menu.popup.menuitem[1].val">>],
-   SetP = rename_fields(P, From, To),
-   ?assertEqual(SetP#data_point.fields,
-      [{<<"val">>,
-         {[{<<"menu">>,
-            {[{<<"id">>,<<"file">>},
-               {<<"value">>,<<"File">>},
-               {<<"popup">>,
-                  {[{<<"menu_item">>,
-                     [{[{<<"value">>,<<"New">>},
-                        {<<"onclick">>,<<"CreateNewDoc()">>}]},
-                        {[{<<"onclick">>,<<"OpenDoc()">>},
-                           {<<"val">>,<<"Open">>}]},
-                        {[{<<"value">>,<<"Close">>},
-                           {<<"onclick">>,<<"CloseDoc()">>},
-                           {<<"ondbclick">>,<<"print()">>}]}]}]}}]}}]}},
-         {<<"var">>,44}]
-   ).
-
-get_field_names_kv_test() ->
-   P = #data_point{ts = 1234567891234, id = <<"324392i09i329i2df4">>,
-      fields = [{<<"val">>, <<"somestring">>},{<<"var">>,44}]},
-   ?assertEqual(field_names(P), [<<"var">>, <<"val">>]).
-
-get_field_names_deep_test() ->
-   P = #data_point{ts = 1234567891234, id = <<"324392i09i329i2df4">>,
-      fields = [{<<"val">>, deep_val()},{<<"var">>,44}]},
-   ?assertEqual(field_names(P), [<<"var">>, <<"val">>]).
-
+datapoint_to_map_test() ->
+   ?assertEqual(flowdata:to_map(sample_point()), #{f1 => 223.3,f2 => 44,f3 => 2,t1 => <<"hello">>,
+      t2 => <<"JU323z6">>,<<"ts">> => 1231154646}).
 -endif.
+
 
 
