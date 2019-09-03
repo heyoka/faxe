@@ -1,15 +1,30 @@
+def in =
+    |value_emitter()
+    .every(300ms)
+    .type(point)
 
-def energy =
-    |modbus('hregs')
-    .ip('127.0.0.1')
-    .port(8899)
-    .device(255)
-    .every(1s)
-    .from(2127)
-    .count(5)
-    .as('ee1', 'ee2', 'ee3', 'ee4', 'ee5')
+in
+    |where()
+    .lambda(lambda: "val" > 3)
 
-energy
-    |where(lambda: ("ee1" + "ee2") + ("ee3" + "ee5"))
-    @mirror()
+    |eval()
+    .lambdas(lambda: round("val" * 1000), lambda: round("val")*2)
+    .as('val_gramm_rounded', 'double')
+
+    |where()
+    .lambda(lambda: if(member("topic", l_mem('topics_seen')), false, true))
+    .l_mem('topics_seen')
+    .l_mem_fields('topic')
+    .l_mem_ttl(3h)
+
+    |delete()
+    .fields('val')
+
+    %@mirror()
+
+    |log()
+    .file('lambda_log.txt')
+
+    %|debug()
+
 

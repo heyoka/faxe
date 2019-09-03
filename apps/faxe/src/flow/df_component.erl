@@ -284,17 +284,17 @@ handle_info({item, {Inport, Value}},
 %%   lager:notice("stats for ~p: ~p",[NId, folsom_metrics:get_histogram_statistics(NId)]),
    folsom_metrics:notify({NId, 1}),
    %gen_event:notify(dfevent_component, {item, State#c_state.node_id, {Inport, Value}}),
-%%   Result = (Module:process(Inport, Value, CBState)),
-   case catch (Module:process(Inport, Value, CBState)) of
-      {'EXIT', {Reason,Stacktrace}} ->
-         lager:error("'error' ~p in component ~p caught when processing item: ~p -- ~p",
-         [Reason, State#c_state.component, {Inport, Value}, Stacktrace]),
-         folsom_metrics:notify({<< NId/binary, "_processing_errors" >>,
-            io_lib:format("'error' ~p in component ~p caught when processing item: ~p -- ~p",
-            [Reason, State#c_state.component, {Inport, Value}, Stacktrace])}),
-         {noreply, State};
-
-      Result ->
+   Result = (Module:process(Inport, Value, CBState)),
+%%   case catch (Module:process(Inport, Value, CBState)) of
+%%      {'EXIT', {Reason,Stacktrace}} ->
+%%         lager:error("'error' ~p in component ~p caught when processing item: ~p -- ~p",
+%%         [Reason, State#c_state.component, {Inport, Value}, Stacktrace]),
+%%         folsom_metrics:notify({<< NId/binary, "_processing_errors" >>,
+%%            io_lib:format("'error' ~p in component ~p caught when processing item: ~p -- ~p",
+%%            [Reason, State#c_state.component, {Inport, Value}, Stacktrace])}),
+%%         {noreply, State};
+%%
+%%      Result ->
          {NewState, Requested, REmitted} = handle_process_result(Result, State),
          case FMode == pull of
             true -> case {Requested, AR, REmitted} of
@@ -307,7 +307,7 @@ handle_info({item, {Inport, Value}},
             false -> ok
          end,
          {noreply, NewState}
-   end
+%%   end
    ;
 
 handle_info({emit, {Outport, Value}}, State=#c_state{subscriptions = Ss, node_id = NId,

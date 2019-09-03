@@ -65,7 +65,8 @@ now() ->
 %%
 -spec send_at(timestamp(), term()) -> reference().
 send_at(Timestamp, Message) ->
-   Time = Timestamp - faxe_time:now(),
+   Time0 = Timestamp - faxe_time:now(),
+   Time = case Time0 < 0 of true -> 0; _ -> Time0 end,
    erlang:send_after(Time, self(), Message).
 
 %%% @doc

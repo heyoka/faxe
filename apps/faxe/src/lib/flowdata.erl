@@ -10,8 +10,9 @@
 %% Every data_point record has a ts-field it's value is always a unix-timestamp in
 %% millisecond precision.
 %% For every function, which expects a name/path (binary) a jsonpath query can be provided, ie:
-%% flowdata:field(#data_point{], <<"value.sub[2].data">>) will return the value at value.sub[2].data
-%%
+%% * flowdata:field(#data_point{}, <<"value.sub[2].data">>). will return the value at value.sub[2].data
+%% * flowdata:field(#data_point{}, <<"averages">>).
+%% * flowdata:field(#data_point{}, <<"averages.emitted[5]">>).
 %% A data_batch record consists of an ordered list of data_point records (field 'points').
 %% The 'points' list is ordered by timestamp such that the oldest point is the last entry in the list.
 %% @end

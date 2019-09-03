@@ -9,7 +9,150 @@
 
 %% API
 -compile(export_all).
+%%% @doc
 
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%% string functions
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%% the module estr has severl string manipulation function, that can be used:
+
+%%    str_at/2
+%%,   str_capitalize/1
+%%,   str_chunk/2
+%%,   str_codepoints/1
+%%,   str_contains/2
+%%,   str_downcase/1
+%%,   str_ends_with/2
+%%,   str_ends_with_any/2
+%%,   str_eqi/2
+%%,   str_first/1
+%%,   str_last/1
+%%,   str_length/1
+%%,   str_lstrip/1
+%%,   str_lstrip/2
+%%,   str_next_codepoint/1
+%%,   str_normalize/2
+%%,   str_pad_leading/2
+%%,   str_pad_leading/3
+%%,   str_pad_trailing/2
+%%,   str_pad_trailing/3
+%%,   str_replace/3
+%%,   str_replace_leading/3
+%%,   str_replace_prefix/3
+%%,   str_replace_suffix/3
+%%,   str_replace_trailing/3
+%%,   str_reverse/1
+%%,   str_rstrip/1
+%%,   str_rstrip/2
+%%,   str_slice/3
+%%,   str_split/1
+%%,   str_split/2
+%%,   str_split/3
+%%,   str_split_at/2
+%%,   str_split_by_any/2
+%%,   str_split_by_any/3
+%%,   str_split_by_re/2
+%%,   str_split_by_re/3
+%%,   str_starts_with/2
+%%,   str_starts_with_any/2
+%%,   str_strip/1
+%%,   str_strip/2
+%%,   str_upcase/1
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%% Math functions
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%% all function from the 'math' module can be used in lambda-expressions
+%% these are:
+
+%% acos(X) -> float()
+%%
+%% acosh(X) -> float()
+%%
+%% asin(X) -> float()
+%%
+%% asinh(X) -> float()
+%%
+%% atan(X) -> float()
+%%
+%% atan2(Y, X) -> float()
+%%
+%% atanh(X) -> float()
+%%
+%% ceil(X) -> float()
+%%
+%% cos(X) -> float()
+%%
+%% cosh(X) -> float()
+%%
+%% exp(X) -> float()
+%%
+%% floor(X) -> float()
+%%
+%% fmod(X, Y) -> float()
+%%
+%% log(X) -> float()
+%%
+%% log10(X) -> float()
+%%
+%% log2(X) -> float()
+%%
+%% pow(X, Y) -> float()
+%%
+%% sin(X) -> float()
+%%
+%% sinh(X) -> float()
+%%
+%% sqrt(X) -> float()
+%%
+%% tan(X) -> float()
+%%
+%% tanh(X) -> float()
+
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%% Mathex
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%% all functions from the module mathex can be used
+%% these are:
+
+%% moving_average/1,
+%% average/1,
+%% sum/1,
+%% stdev_sample/1,
+%% stdev_population/1,
+%% skew/1,
+%% kurtosis/1,
+%% variance/1,
+%% covariance/2,
+%% correlation/2,
+%% correlation_matrix/1,
+%% nth_root/2,
+%% percentile/2,
+%% zscore/1
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%% std-lib
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%% dfs includes a std-lib, these functions are defined:
+
+%%   type-conversions:
+%%
+%%   bool/1,
+%%   int/1,
+%%   float/1,
+%%   string/1
+%%
+%%   some basic math funs:
+%%
+%%   abs/1,
+%%   round/1,
+%%   floor/1,
+%%   min/2,
+%%   max/2]
+%%
+%%
+%%% @end
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %%% Time related functions
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%

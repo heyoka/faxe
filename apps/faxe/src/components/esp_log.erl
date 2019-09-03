@@ -1,5 +1,7 @@
 %% Date: 30.12.16 - 23:01
+%% Log everything that comes in to a file, line by line
 %% Ⓒ 2019 heyoka
+%%
 -module(esp_log).
 -author("Alexander Minichmair").
 
@@ -18,15 +20,18 @@ options() ->
 
 init(NodeId, _Inputs, #{file := File}) ->
    lager:info("~p init:node",[NodeId]),
-   {ok, all, NodeId}.
+   {ok, F} = file:open(File, [write]),
+   {ok, all, #state{file = F}}.
 
-process(_Inport, P = #data_point{fields = Fields}, State = #state{file = FName}) ->
-   F = file:open(FName, [write]),
-   io:format(F, "~s~n", [Fields]),
-   {ok, State};
-process(_In, B = #data_batch{points = Ps}, State) ->
-   [process(_In, P, State) || P <- Ps],
-   {ok, State}.
+process(_In, P = #data_point{}, State = #state{file = F}) ->
+   do_log(P, F),
+   {emit, P, State};
+process(_In, B = #data_batch{points = Ps}, State = #state{file = F}) ->
+   [do_log(P, F) || P <- Ps],
+   {emit, B, State}.
+
+do_log(P, File) ->
+   io:format(File, "~s~n", [binary_to_list(flowdata:to_json(P))]).
 
 shutdown(_State) ->
    lager:info("shutdown in ~p called",[?MODULE]).
