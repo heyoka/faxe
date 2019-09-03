@@ -34,7 +34,7 @@
    set_ts/2,
    field_names/1, tag_names/1,
    rename_fields/3, rename_tags/3,
-   expand_json_field/2, extract_map/2, jsontest/0]).
+   expand_json_field/2, extract_map/2]).
 
 
 -spec to_json(P :: #data_batch{}|#data_point{}) -> jsx:json_text().
@@ -107,8 +107,7 @@ values(#data_batch{points = Points}, F) ->
 %%
 -spec field(#data_point{}|#data_batch{}, binary()) -> undefined | term() | list(term()|undefined).
 field(#data_point{fields = Fields}, F) ->
-   jsonpath:search(F, {Fields})
-%%   proplists:get_value(F,Fields)
+   proplists:get_value(F,Fields)
 ;
 field(#data_batch{points = Points}, F) ->
    [field(Point, F) || Point <- Points].
@@ -137,7 +136,7 @@ set_ts(P=#data_point{}, NewTs) ->
    P#data_point{ts = NewTs}.
 
 %% @doc
-%% Set the field Key to Value with path.
+%% Set the field Key to Value.
 %% If a field named Key does exist, it will be overwritten.
 %% @end
 -spec set_field(#data_point{}, binary(), any()) -> #data_point{}.
@@ -171,12 +170,6 @@ set_field(Key, Value, FieldList) when is_binary(Key), is_list(FieldList) ->
       end,
    [{Key, Value} | FList].
 
-set(Key, Value, FieldList) ->
-   Struct = {FieldList},
-   case jsonpath:search(Key, Struct) of
-      undefined -> jsonpath:update(Key, Value, Struct);
-      _ -> jsonpath:replace(Key, Value, Struct)
-   end.
 
 -spec tag(#data_point{}|#data_batch{}, binary()) -> undefined | term() | list(term()|undefined).
 %%% @doc
@@ -219,7 +212,7 @@ set_tag(#data_batch{points = Points}, Key, Value) ->
 %% @end
 -spec delete_field(#data_point{}|#data_batch{}, binary()) -> #data_point{} | #data_batch{}.
 delete_field(#data_point{fields = Fields}=P, FieldName) ->
-   P#data_point{fields = jsonpath:delete(FieldName, {Fields})}
+   P#data_point{fields = proplists:delete(FieldName, Fields)}
    ;
 delete_field(#data_batch{points = Points}=B, FieldName) ->
    NewPoints = [delete_field(Point, FieldName) || Point <- Points],
@@ -299,14 +292,9 @@ sample_point() ->
 
 
 datapoint_to_map_test() ->
-   ?assertEqual(flowdata:to_map(sample_point()), #{f1 => 223.3,f2 => 44,f3 => 2,t1 => <<"hello">>,
+   ?assertEqual(flowdata_jsonpath:to_map(sample_point()), #{f1 => 223.3,f2 => 44,f3 => 2,t1 => <<"hello">>,
       t2 => <<"JU323z6">>,<<"ts">> => 1231154646}).
 -endif.
-
-jsontest() ->
-   P = #data_point{ts = faxe_time:now(), id = <<"324392i09i329i2df4">>, fields = [{<<"val">>, 3}]},
-   Path = <<"val1">>,
-   jsonpath:search(Path, {P#data_point.fields}).
 
 
 
