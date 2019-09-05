@@ -257,7 +257,7 @@ do_rename(List, From, To) ->
    Val = jsn:get(From, List),
    case Val of
       undefinded -> undefined;
-      _Val -> NewData = jsn:delete(From, {List}),
+      _Val -> NewData = jsn:delete(From, List),
          jsn:set(To, NewData, Val)
    end.
 
@@ -381,29 +381,30 @@ rename_tag_kv_test() ->
    ?assertEqual(SetP#data_point.tags,
       [{<<"value">>, <<"somestring">>}, {<<"variable">>, <<"anotherstring">>}]).
 
-
-rename_field_deep_test() ->
-   P = #data_point{ts = 1234567891234, id = <<"324392i09i329i2df4">>,
-      fields = [{<<"val">>, deep_val()},{<<"var">>,44}]},
-   From = [<<"val.menu.popup.menuitem">>, <<"val.menu.popup.menuitem[1].value">>],
-   To = [<<"val.menu.popup.menu_item">>, <<"val.menu.popup.menuitem[1].val">>],
-   SetP = rename_fields(P, From, To),
-   ?assertEqual(SetP#data_point.fields,
-      [{<<"val">>,
-         {[{<<"menu">>,
-            {[{<<"id">>,<<"file">>},
-               {<<"value">>,<<"File">>},
-               {<<"popup">>,
-                  {[{<<"menu_item">>,
-                     [{[{<<"value">>,<<"New">>},
-                        {<<"onclick">>,<<"CreateNewDoc()">>}]},
-                        {[{<<"onclick">>,<<"OpenDoc()">>},
-                           {<<"val">>,<<"Open">>}]},
-                        {[{<<"value">>,<<"Close">>},
-                           {<<"onclick">>,<<"CloseDoc()">>},
-                           {<<"ondbclick">>,<<"print()">>}]}]}]}}]}}]}},
-         {<<"var">>,44}]
-   ).
+%% array indices are available only through the tuple path format
+%%%
+%%rename_field_deep_test() ->
+%%   P = #data_point{ts = 1234567891234, id = <<"324392i09i329i2df4">>,
+%%      fields = [{<<"val">>, deep_val()},{<<"var">>,44}]},
+%%   From = [<<"val.menu.popup.menuitem">>, <<"val.menu.popup.menuitem[1].value">>],
+%%   To = [<<"val.menu.popup.menu_item">>, <<"val.menu.popup.menuitem[1].val">>],
+%%   SetP = rename_fields(P, From, To),
+%%   ?assertEqual(SetP#data_point.fields,
+%%      [{<<"val">>,
+%%         {[{<<"menu">>,
+%%            {[{<<"id">>,<<"file">>},
+%%               {<<"value">>,<<"File">>},
+%%               {<<"popup">>,
+%%                  {[{<<"menu_item">>,
+%%                     [{[{<<"value">>,<<"New">>},
+%%                        {<<"onclick">>,<<"CreateNewDoc()">>}]},
+%%                        {[{<<"onclick">>,<<"OpenDoc()">>},
+%%                           {<<"val">>,<<"Open">>}]},
+%%                        {[{<<"value">>,<<"Close">>},
+%%                           {<<"onclick">>,<<"CloseDoc()">>},
+%%                           {<<"ondbclick">>,<<"print()">>}]}]}]}}]}}]}},
+%%         {<<"var">>,44}]
+%%   ).
 
 get_field_names_kv_test() ->
    P = #data_point{ts = 1234567891234, id = <<"324392i09i329i2df4">>,

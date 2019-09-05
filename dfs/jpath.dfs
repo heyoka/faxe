@@ -9,16 +9,25 @@ def in =
     |win_time_q()
     .every(5s)
     .period(10s)
-    .fill()
+    .fill_period()
 
 in
     |mean()
     .field('val.val')
     .as('val')
 
+    |eval()
+    .lambdas(lambda: "val" * 2)
+    .as('val')
+
     |default()
     .fields('var.val2')
     .field_values(5)
+
+    |eval()
+        .lambdas(lambda: "var.val2" * 2)
+        .as('var.val2')
+    |debug()
 
     |default()
     .fields('wuzz.wazz.wizz')
