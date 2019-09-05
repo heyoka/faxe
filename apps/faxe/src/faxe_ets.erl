@@ -55,6 +55,7 @@ start_link() ->
    {stop, Reason :: term()} | ignore).
 init([]) ->
    ok = new_table(up_nodes, ordered_set),
+   ok = new_table(ls_mem, set),
    {ok, #state{}}.
 
 

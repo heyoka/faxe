@@ -12,7 +12,9 @@
 
 -include("faxe.hrl").
 %% API
--export([init/3, process/3, options/0, check_options/0]).
+-export([init/3, process/3, options/0
+%%   , check_options/0
+]).
 
 -record(state, {
    node_id,
@@ -25,8 +27,8 @@
 options() -> [{fields, binary_list, []}, {as_fields, binary_list, []}, {tags, binary_list, []},
    {as_tags, binary_list, []}].
 
-check_options() ->
-   [{same_length, fields, as_fields}, {same_length, tags, as_tags}].
+%%check_options() ->
+%%   [{same_length, fields, as_fields}, {same_length, tags, as_tags}].
 
 init(NodeId, _Ins, #{fields := Fields, tags := Tags, as_fields := AsFields, as_tags := AsTags}) ->
    {ok, all, #state{fields = Fields, node_id = NodeId, tags = Tags, as_fields = AsFields, as_tags = AsTags}}.

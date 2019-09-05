@@ -216,6 +216,19 @@ random_real(N) ->
    rand:uniform_real() * N.
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-%%% other functions
+%%% list functions
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+member(Ele, List) -> lists:member(Ele, List).
+not_member(Ele, List) -> lists:member(Ele, List) == false.
 
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%% lambda state functions
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+ls_mem(Name) ->
+   Res =
+   case ets:lookup(ls_mem, Name) of
+      [{Name, Val}] -> Val;
+      Other -> Other
+   end,
+%%   lager:info("ls_mem(~p) gives ~p",[Name, Res]),
+   Res.

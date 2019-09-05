@@ -88,9 +88,11 @@ option_check(Component, VarList) ->
 
 -spec build_options(atom(), list( {atom(), option_value()} )) -> map().
 build_options(Component, L) ->
+   %% add ls_mem options as optional
+   LsMem = [{ls_mem, binary, undefined}, {ls_mem_field, binary, <<>>}, {ls_mem_ttl, integer, 0}],
    Opts = case erlang:function_exported(Component, options, 0) of
-             true -> Component:options();
-             false -> []
+             true -> Component:options() ++ LsMem;
+             false -> LsMem
           end,
    case catch(do_build_options(Opts, L)) of
       Opts0 when is_map(Opts0) -> maybe_check_opts(Opts0, Component);

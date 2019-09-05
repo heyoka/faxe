@@ -93,7 +93,8 @@ eval({Nodes, Connections}) ->
 
             %% build additional connections from node-options
             {NewConns, ParamOptions} = node_conn_params(N, Params),
-            CompOptions =
+
+            CompOptions0 =
             case Component of
                ?USER_COMPONENT -> case erlang:function_exported(?USER_COMPONENT, call_options, 2) of
                               true ->
@@ -102,8 +103,14 @@ eval({Nodes, Connections}) ->
                                  ?USER_COMPONENT:call_options(Callb, ClassName);
                               false -> []
                            end;
-               _        -> Component:options()
+               _        ->  case erlang:function_exported(Component, options, 0) of
+                               true -> Component:options();
+                               false -> throw("Component '" ++ binary_to_list(NodeName) ++ ";options' not found")
+                            end
             end,
+            %% add ls_mem options as optional
+            LsMem = [{ls_mem, binary, undefined}, {ls_mem_field, binary, <<>>}, {ls_mem_ttl, integer, 0}],
+            CompOptions = CompOptions0 ++ LsMem,
             %% handle all other params and options
             NOptions = convert_options(CompOptions, lists:flatten(Options ++ ParamOptions)),
             NodeOptions = NOptions ++ NOpts,
@@ -369,10 +376,9 @@ node_name(Name) when is_binary(Name) ->
    case stat_node(Name) of
       undefined -> NodeName = << <<"esp_">>/binary, Name/binary >>,
          case (catch binary_to_existing_atom(NodeName, utf8)) of
-            C when is_atom(C) -> %lager:notice("NodeName is : ~p",[C]),
+            C when is_atom(C) ->
                C;
-            {'EXIT',{badarg,_R}} -> %lager:notice("NodeName not found: ~p",[Name]),
-               throw("Component '" ++ binary_to_list(NodeName) ++ "' not found")
+            _ -> throw("Component '" ++ binary_to_list(NodeName) ++ "' not found")
          end;
       StatNode -> StatNode
    end

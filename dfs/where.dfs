@@ -3,7 +3,6 @@ def in =
     .every(300ms)
     .type(point)
 
-in
     |where()
     .lambda(lambda: "val" > 3)
 
@@ -11,20 +10,24 @@ in
     .lambdas(lambda: round("val" * 1000), lambda: round("val")*2)
     .as('val_gramm_rounded', 'double')
 
-    |where()
-    .lambda(lambda: if(member("topic", l_mem('topics_seen')), false, true))
-    .l_mem('topics_seen')
-    .l_mem_fields('topic')
-    .l_mem_ttl(3h)
+    %|where()
+    %.lambda(lambda: if(member("double", ls_mem('topics_seen')), false, true))
+    %.ls_mem('topics_seen')
+    %.ls_mem_field('double')
+    %.ls_mem_ttl(3)
 
-    |delete()
-    .fields('val')
+    |debug()
+
+    %|delete()
+    %.fields('val')
+
+    %|debug()
 
     %@mirror()
 
-    |log()
-    .file('lambda_log.txt')
+   % |log()
+    %.file('lambda_log.txt')
 
-    %|debug()
+
 
 

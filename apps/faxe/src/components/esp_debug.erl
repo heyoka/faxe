@@ -1,5 +1,9 @@
 %% Date: 30.12.16 - 23:01
 %% Ⓒ 2019 heyoka
+%%
+%% the debug node just logs the incomming message with lager
+%% and emits it without touching it in any way
+%%
 -module(esp_debug).
 -author("Alexander Minichmair").
 
@@ -13,13 +17,11 @@ options() ->
    [].
 
 init(NodeId, _Inputs, _Args) ->
-   lager:info("~p init:node",[NodeId]),
    {ok, all, NodeId}.
 
 process(_Inport, Value, State) ->
-   lager:notice("~p process, ~p",[State, {_Inport, Value}]),
-
-   {ok, State}.
+   lager:notice("~p process [at ~p] , ~p",[State, faxe_time:now(),  {_Inport, Value}]),
+   {emit, Value, State}.
 
 shutdown(_State) ->
-   lager:info("shutdown in ~p called",[?MODULE]).
+   ok.

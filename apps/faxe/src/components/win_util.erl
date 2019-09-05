@@ -41,8 +41,10 @@ split_ea([], _, Keep, Evict, _) ->
 split_ea([Ts|T] = List, Pred, Keep, Evict, false) ->
    {K, Ev, Done} =
       case Ts > Pred of
-         true -> lager:info("done evicting when ~p > ~p: diff: ~p",[Ts, Pred, Pred-Ts]), {List, Evict, true};
-         false ->  lager:debug("~p evict ~p",[?MODULE, Ts]), {Keep, [Ts|Evict], false}
+         true -> %lager:info("done evicting when ~p > ~p: diff: ~p",[Ts, Pred, Pred-Ts]),
+            {List, Evict, true};
+         false ->  %lager:debug("~p evict ~p",[?MODULE, Ts]),
+            {Keep, [Ts|Evict], false}
 
       end,
    split_ea(T, Pred, K, Ev, Done);

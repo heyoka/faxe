@@ -66,7 +66,7 @@ tick(State = #state{mark = Mark, at = At, window = Win, period = Interval,
    case check_emit(NewAt, Mark, Every, Fill, (HasEvicted orelse State#state.has_emitted)) of
       true ->
          Batch = #data_batch{points = queue:to_list(NewWindow)},
-         lager:warning("~n when ~p period: ~p emitting: ~p",[NewAt-Mark, Interval, length(Batch#data_batch.points)]),
+         lager:warning("~n ~p emitting: ~p",[?MODULE, length(Batch#data_batch.points)]),
          dataflow:emit(Batch),
          State#state{mark = NewAt, at = NewAt, window = NewWindow, ts_list = KeepTsList, has_emitted = true};
       false ->
@@ -75,8 +75,8 @@ tick(State = #state{mark = Mark, at = At, window = Win, period = Interval,
 
 evict(TimestampList, Window, At, Interval) ->
    {KeepTimestamps, Evict} = win_util:split(TimestampList, At - Interval),
-   lager:info("evict: [~p] ~p~n keep [~p]: ~p",[length(Evict), [faxe_time:to_date(E) || E <- Evict],
-      length(KeepTimestamps), [faxe_time:to_date(T) || T <- KeepTimestamps]]),
+%%   lager:info("evict: [~p] ~p~n keep [~p]: ~p",[length(Evict), [faxe_time:to_date(E) || E <- Evict],
+%%      length(KeepTimestamps), [faxe_time:to_date(T) || T <- KeepTimestamps]]),
    {KeepTimestamps, win_util:sync_q(Window, Evict), length(Evict) > 0}.
 
 

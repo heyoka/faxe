@@ -33,7 +33,7 @@ process(_In, #data_batch{points = Points} = Batch,
    {emit, Batch#data_batch{points = NewPoints}, State};
 process(_Inport, #data_point{} = Point, State = #state{lambdas = LambdaFun, as = As, tags = Tags}) ->
    NewValue = eval(Point, LambdaFun, As, Tags),
-   lager:info("~p emitting: ~p",[?MODULE, NewValue]),
+%%   lager:info("~p emitting: ~p",[?MODULE, NewValue]),
    {emit, NewValue, State}.
 
 eval(#data_point{} = Point, Lambdas, As, Tags) ->

@@ -1,0 +1,40 @@
+def every = 100ms
+
+def in =
+    |value_emitter()
+    .every(every)
+    .type(point)
+    .format(ejson)
+
+    |win_time_q()
+    .every(5s)
+    .period(10s)
+    .fill()
+
+in
+    |mean()
+    .field('val.val')
+    .as('val')
+
+    |default()
+    .fields('var.val2')
+    .field_values(5)
+
+    |default()
+    .fields('wuzz.wazz.wizz')
+    .field_values('tadaaa!!')
+
+    |delete()
+    .fields('var.val2')
+
+    |default()
+    .fields('var.val2')
+    .field_values('deleted')
+
+    |debug()
+
+    |rename()
+    .fields('var.val2')
+    .as_fields('var.vallee')
+
+    |debug()

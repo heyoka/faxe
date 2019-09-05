@@ -94,8 +94,8 @@ ts(#data_batch{points = Points}) ->
 value(#data_point{ts = Ts}, <<"ts">>) ->
    Ts;
 value(#data_point{fields = Fields, tags = Tags}, F) ->
-   case jsonpath:search(F, {Fields}) of
-      undefined -> jsonpath:search(F, {Tags});
+   case jsn:get(F, Fields) of
+      undefined -> jsn:get(F, Tags);
       Value -> Value
    end.
 %%
@@ -110,7 +110,7 @@ values(#data_batch{points = Points}, F) ->
 %%
 -spec field(#data_point{}|#data_batch{}, jsonpath:path()) -> undefined | term() | list(term()|undefined).
 field(#data_point{fields = Fields}, F) ->
-   jsonpath:search(F, {Fields})
+   jsn:get(F, Fields)
 ;
 field(#data_batch{points = Points}, F) ->
    [field(Point, F) || Point <- Points].
@@ -144,6 +144,7 @@ set_ts(P=#data_point{}, NewTs) ->
 %% @end
 -spec set_field(#data_point{}, jsonpath:path(), any()) -> #data_point{}.
 set_field(P = #data_point{fields = Fields}, Key, Value) ->
+   lager:notice("set_field(~p, ~p, ~p)", [Fields, Key, Value]),
    NewFields = set(Key, Value, Fields),
    P#data_point{fields = NewFields}
 ;
@@ -167,20 +168,21 @@ set_field(P = #data_batch{points = Points}, Key, Value) ->
 %% @end
 -spec set(jsonpath:path(), term(), list()) -> list().
 set(Key, Value, FieldList) ->
-   Struct = {FieldList},
-   {Res} =
-   case jsonpath:search(Key, Struct) of
-      undefined -> jsonpath:update(Key, Value, Struct);
-      _ -> jsonpath:replace(Key, Value, Struct)
-   end,
-   Res.
+   jsn:set(Key, FieldList, Value).
+%%   {Res} =
+%%   case jsonpath:search(Key, Struct) of
+%%      undefined -> lager:warning("jsonpath:update(~p, ~p, ~p)",[Key, Value, Struct]),jsonpath:update(Key, Value, Struct);
+%%      _ -> jsonpath:replace(Key, Value, Struct)
+%%   end,
+%%   lager:info("after set: ~p", [Res]),
+%%   Res.
 
 -spec tag(#data_point{}|#data_batch{}, jsonpath:path()) -> undefined | term() | list(term()|undefined).
 %%% @doc
 %%% get a tags' value
 %%% @end
 tag(#data_point{tags = Fields}, F) ->
-   jsonpath:search(F, {Fields})
+   jsn:get(F, Fields)
 ;
 tag(#data_batch{points = Points}, F) ->
    [tag(Point, F) || Point <- Points].
@@ -216,7 +218,7 @@ set_tag(#data_batch{points = Points}, Key, Value) ->
 %% @end
 -spec delete_field(#data_point{}|#data_batch{}, binary()) -> #data_point{} | #data_batch{}.
 delete_field(#data_point{fields = Fields}=P, FieldName) ->
-   {JData} = jsonpath:delete(FieldName, {Fields}),
+   JData = jsn:delete(FieldName, Fields),
    P#data_point{fields = JData}
    ;
 delete_field(#data_batch{points = Points}=B, FieldName) ->
@@ -229,14 +231,14 @@ delete_field(#data_batch{points = Points}=B, FieldName) ->
 %% @end
 -spec delete_tag(#data_point{}|#data_batch{}, binary()) -> #data_point{} | #data_batch{}.
 delete_tag(#data_point{tags = Tags}=P, TagName) ->
-   P#data_point{tags = jsonpath:delete(TagName, {Tags})}
+   P#data_point{tags = jsn:delete(TagName, Tags)}
 ;
 delete_tag(#data_batch{points = Points}=B, TagName) ->
-   NewPoints = [delete_field(Point, TagName) || Point <- Points],
+   NewPoints = [delete_tag(Point, TagName) || Point <- Points],
    B#data_batch{points = NewPoints}.
 
 %% @doc
-%% rename fields and tags
+%% rename fields and tags, does no inserting value, when field(s) / tag(s) are not found
 %% @end
 -spec rename_fields(#data_point{}, list(jsonpath:path()), list(jsonpath:path())) -> #data_point{}.
 rename_fields(#data_point{fields = Fields} = P, FieldNames, Aliases) ->
@@ -252,14 +254,12 @@ rename(List, [From|RFrom], [To|RTo]) when is_list(List) ->
    rename(NewData, RFrom, RTo).
 
 do_rename(List, From, To) ->
-   Val = jsonpath:search(From, {List}),
-   {Res} =
+   Val = jsn:get(From, List),
    case Val of
       undefinded -> undefined;
-      _Val -> NewData = jsonpath:delete(From, {List}),
-         jsonpath:update(To, Val, NewData)
-   end,
-   Res.
+      _Val -> NewData = jsn:delete(From, {List}),
+         jsn:set(To, NewData, Val)
+   end.
 
 %%%%%%%%%%%%%%%%%%%%%%%% batch only  %%%%%%%%%%%%%%%%%%
 

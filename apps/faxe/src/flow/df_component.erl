@@ -38,7 +38,10 @@
    subscriptions        :: list(#subscription{}),
    auto_request         :: none | all | emit,
    history              :: list(),
-   emitted = 0          :: non_neg_integer()
+   emitted = 0          :: non_neg_integer(),
+   ls_mem,
+   ls_mem_fields,
+   ls_mem_ttl
 
 }).
 
@@ -227,8 +230,11 @@ handle_call({start, Inputs, Subscriptions, FlowMode}, _From,
    %gen_event:notify(dfevent_component, {start, State#c_state.node_id, FlowMode}),
 
 %%   {ok, AutoRequest, NewCBState} = CB:init(NId, Inputs, dataflow:build_options(CB, CBState)),
+   lager:warning("before build options; ~p", [{CB, CBState}]),
+   Opts = dataflow:build_options(CB, CBState),
+   {NewCBOpts, NewState} = eval_args(Opts, State),
    {AReq, NewCBState} =
-   case CB:init(NId, Inputs, dataflow:build_options(CB, CBState)) of
+   case CB:init(NId, Inputs, NewCBOpts) of
 
       {ok, ARequest, NCBState}      -> {ARequest, NCBState};
       {ok, NCBState}                -> {all, NCBState};
@@ -242,7 +248,7 @@ handle_call({start, Inputs, Subscriptions, FlowMode}, _From,
    folsom_metrics:new_histogram(NId, slide, 60),
    folsom_metrics:new_history(<< NId/binary, "_processing_errors" >>, 24),
    {reply, ok,
-      State#c_state{
+      NewState#c_state{
          subscriptions = Subscriptions,
          inports = Inputs,
          auto_request = AR,
@@ -282,6 +288,11 @@ handle_info({item, {Inport, Value}},
        cb_state = CBState, component = Module, flow_mode = FMode, auto_request = AR, node_id = NId}) ->
 
 %%   lager:notice("stats for ~p: ~p",[NId, folsom_metrics:get_histogram_statistics(NId)]),
+%%   case State#c_state.ls_mem of
+%%      undefined -> ok;
+%%      _ -> lager:notice("after handle_ls_mem ~p",[ets:tab2list(ls_mem)])
+%%   end,
+
    folsom_metrics:notify({NId, 1}),
    %gen_event:notify(dfevent_component, {item, State#c_state.node_id, {Inport, Value}}),
    Result = (Module:process(Inport, Value, CBState)),
@@ -306,6 +317,7 @@ handle_info({item, {Inport, Value}},
                     end;
             false -> ok
          end,
+   handle_ls_mem(Value, State),
          {noreply, NewState}
 %%   end
    ;
@@ -367,7 +379,7 @@ code_change(_OldVsn, State, _Extra) ->
 %%% Internal functions
 %%%===================================================================
 
--spec handle_process_result(tuple(), #state{}) -> {NewState::#c_state{}, boolean(), boolean()}.
+-spec handle_process_result(tuple(), #c_state{}) -> {NewState::#c_state{}, boolean(), boolean()}.
 handle_process_result({emit, {Port, Emitted}, NState}, State=#c_state{subscriptions = Subs}) when is_integer(Port) ->
    NewSubs = df_subscription:output(Subs, Emitted, Port),
    {State#c_state{subscriptions = NewSubs, cb_state = NState},false, true};
@@ -415,3 +427,32 @@ inports() ->
 
 outports() ->
    inports().
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+eval_args(A = #{}, State) ->
+   {LsMem, A0} = maps:take(ls_mem, A),
+   {LsMemFields, A1} = maps:take(ls_mem_field, A0),
+   {LsMemTTL, Args} = maps:take(ls_mem_ttl, A1),
+   NewState = State#c_state{ls_mem = LsMem, ls_mem_field = LsMemFields, ls_mem_ttl = LsMemTTL},
+%%   lager:warning("LSMEM: ~p", [NewState]),
+   {A, NewState}.
+
+
+handle_ls_mem(_, State=#c_state{ls_mem = undefined}) ->
+   ok;
+handle_ls_mem(P = #data_batch{points = Points}, State=#c_state{}) ->
+   [handle_ls_mem(P, State) || P <- Points];
+handle_ls_mem(P = #data_point{}, State=#c_state{ls_mem = MemKey, ls_mem_field = MemField}) ->
+   Set0 =
+   case ets:lookup(ls_mem, MemKey) of
+      [] -> sets:new();
+      [{MemKey, List}] -> sets:from_list(List)
+
+   end,
+   Set = sets:add_element(flowdata:field(P, MemField), Set0),
+%%   lager:warning("~p memfields: ~p", [State#c_state.component, MemField]),
+   ets:insert(ls_mem, {MemKey, sets:to_list(Set)}).
+%%   [
+%%      ets:insert(ls_mem, {<<MemKey/binary, "_", FieldName/binary>>, flowdata:field(P, FieldName)})
+%%      || FieldName <- MemFields
+%%   ].

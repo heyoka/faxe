@@ -13,6 +13,7 @@
     esq,
     emqtt,
     jsonpath,
+    jsn,
       jsx,
     modbus,
     msgpack,

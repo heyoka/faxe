@@ -32,7 +32,7 @@ process(_In, #data_batch{points = Points} = Batch, State = #state{fields = Fs, t
    {emit, Batch#data_batch{points = NewPoints}, State};
 process(_Inport, #data_point{} = Point, State = #state{fields = Fs, tags = Ts}) ->
    NewPoint = delete(Fs, Ts, Point),
-   lager:info("~p emitting: ~p",[?MODULE, NewPoint]),
+%%   lager:notice("~p emitting: ~p",[?MODULE, NewPoint]),
    {emit, NewPoint, State}.
 
 
