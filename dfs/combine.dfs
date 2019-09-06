@@ -1,0 +1,31 @@
+def in1 =
+ |value_emitter()
+ .every(500ms)
+ .type(point)
+ .fields(val)
+
+def in2 =
+    |value_emitter()
+    .every(4s)
+    .type(point)
+    .fields('val2', 'val3')
+
+def in3 =
+    |value_emitter()
+    .every(3s)
+    .type(point)
+    .format(ejson)
+
+def combined =
+in1
+    |combine(in2)
+    .fields('val2', 'val3')
+    .prefix('comb')
+    .prefix_delimiter('-')
+
+combined
+    |combine(in3)
+    .fields('val.val')
+    .aliases('val3')
+
+    |debug()

@@ -1,0 +1,10 @@
+
+    |value_emitter()
+    .every(3s)
+    .type(point)
+    .align()
+
+    |default()
+    .fields('v1.val')
+    .field_values(0.0)
+

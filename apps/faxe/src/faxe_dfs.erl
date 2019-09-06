@@ -15,7 +15,7 @@
 -define(USER_COMPONENT_CLASS, cb_class).
 
 %% define a list of lambda libary modules for use in lambda expressions
--define(LAMBDA_LIBS, [faxe_lambda_lib]).
+-define(LAMBDA_LIBS, [faxe_lambda_lib, mathex]).
 
 do() ->
    do(<<"graph1">>).

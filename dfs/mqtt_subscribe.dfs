@@ -1,0 +1,14 @@
+def mqtt =
+    |mqtt_subscribe()
+    .host('devat-cw-mqtt.tgwdev.internal')
+    .port(1883)
+    .topic('ttgw/grip/#')
+
+    |win_clock_new()
+    .every(1m)
+    .period(1m)
+
+    |log()
+    .file('cogsys.txt')
+
+

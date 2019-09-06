@@ -37,7 +37,7 @@
    set_ts/2,
    field_names/1, tag_names/1,
    rename_fields/3, rename_tags/3,
-   expand_json_field/2, extract_map/2]).
+   expand_json_field/2, extract_map/2, extract_field/3]).
 
 
 -spec to_json(P :: #data_batch{}|#data_point{}) -> jsx:json_text().
@@ -144,7 +144,7 @@ set_ts(P=#data_point{}, NewTs) ->
 %% @end
 -spec set_field(#data_point{}, jsonpath:path(), any()) -> #data_point{}.
 set_field(P = #data_point{fields = Fields}, Key, Value) ->
-   lager:notice("set_field(~p, ~p, ~p)", [Fields, Key, Value]),
+%%   lager:notice("set_field(~p, ~p, ~p)", [Fields, Key, Value]),
    NewFields = set(Key, Value, Fields),
    P#data_point{fields = NewFields}
 ;
@@ -260,6 +260,22 @@ do_rename(List, From, To) ->
       _Val -> NewData = jsn:delete(From, List),
          jsn:set(To, NewData, Val)
    end.
+
+%% @doc searches for a path-value and returns a new data_point with this value
+%% if the given path is not found, returns a Default value
+extract_field(P = #data_point{}, Path, FieldName) ->
+   extract_field(P, Path, FieldName, 0).
+
+-spec extract_field(#data_point{}, binary(), binary()) -> #data_point{}.
+extract_field(P = #data_point{}, Path, FieldName, Default) ->
+   NewValue =
+   case field(P, Path) of
+      undefined -> Default;
+      Val -> Val
+   end,
+   set_field(#data_point{}, FieldName, NewValue).
+   
+
 
 %%%%%%%%%%%%%%%%%%%%%%%% batch only  %%%%%%%%%%%%%%%%%%
 

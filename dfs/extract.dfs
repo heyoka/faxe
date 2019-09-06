@@ -1,0 +1,20 @@
+def every = 3s
+
+def in =
+    |value_emitter()
+    .every(every)
+    .type(point)
+    .format(ejson)
+
+def extracted =
+in
+    |extract_path()
+    .path('val.val', 'pi.pa.pup')
+    .as('gurk', 'value')
+
+
+in
+    |debug()
+
+extracted
+    |debug()
