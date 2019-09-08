@@ -337,7 +337,8 @@ cparam(lambda, {lambda, Fun, BinRefs, FunRefs}) -> make_lambda_fun(Fun, FunRefs,
 cparam(lambda, Fun) -> Fun;
 cparam(list, {_T, Val}) -> [Val];
 %%cparam(integer, {_T, Val}) -> Val;
-cparam(_, {_Type, Val}) -> Val.
+cparam(_, {_Type, Val}) -> Val;
+cparam(_, V) -> V.
 
 make_lambda_fun(LambdaString, FunParams, BinRefs) ->
 %%   lager:warning("~~n make_lambda_fun(~p, ~p, ~p)~n",[LambdaString, FunParams, BinRefs]),

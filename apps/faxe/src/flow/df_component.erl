@@ -435,7 +435,7 @@ eval_args(A = #{}, State) ->
    {LsMemTTL, Args} = maps:take(ls_mem_ttl, A1),
    NewState = State#c_state{ls_mem = LsMem, ls_mem_field = LsMemFields, ls_mem_ttl = LsMemTTL},
 %%   lager:warning("LSMEM: ~p", [NewState]),
-   {A, NewState}.
+   {Args, NewState}.
 
 
 handle_ls_mem(_, State=#c_state{ls_mem = undefined}) ->

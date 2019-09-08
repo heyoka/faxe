@@ -33,7 +33,7 @@
    exclusive = false
 }).
 
-options() -> [{fields, binary_list}, {reset_timeout, binary, <<"3h">>}, {exclusive, is_set}].
+options() -> [{fields, binary_list}, {reset_timeout, duration, <<"3h">>}, {exclusive, is_set}].
 
 init(_NodeId, _Ins, #{fields := FieldList, reset_timeout := Timeout, exclusive := Exc} = P) ->
    lager:notice("~p init: ~p",[_NodeId, P]),

@@ -13,7 +13,7 @@
 -export([init/3, process/3, handle_info/2, options/0]).
 
 options() ->
-   [{period, binary}, {every, binary}, {module, atom, c_noop}, {field, atom, <<"val">>}, {agg_param, any, #{}}].
+   [{period, duration}, {every, duration}, {module, atom, c_noop}, {field, atom, <<"val">>}, {agg_param, any, #{}}].
 
 init(NodeId, _Inputs, #{period := Period, every := Every, module := AggMod, field := F, agg_param := P} = Params) ->
    io:format("~p init:node ~p~n",[NodeId, Params]),
