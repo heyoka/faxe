@@ -19,7 +19,7 @@
    offset
 }).
 
-options() -> [{offset, binary, <<"30s">>}].
+options() -> [{offset, duration, <<"30s">>}].
 
 init(NodeId, _Ins, #{offset := Offset}=P) ->
    lager:info("Params for ~p ~p",[?MODULE, P]),
