@@ -135,7 +135,7 @@ join(RowData, Ts, As) ->
       fun({Port, #data_point{fields = Fields}}, P=#data_point{fields = ResFields}) ->
          Prefix = proplists:get_value(Port, As),
 %%         NewFields = 0
-         NewFields = [{<<Prefix/binary, <<".">>/binary, FName/binary>>, Val} || {FName, Val} <- Fields],
+         NewFields = maps:from_list([{<<Prefix/binary, <<".">>/binary, FName/binary>>, Val} || {FName, Val} <- Fields]),
          P#data_point{fields = ResFields ++ NewFields}
       end,
       #data_point{ts = Ts},
