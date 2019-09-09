@@ -71,22 +71,10 @@ handle_info({mqttc, _C,  disconnected}, State=#state{}) ->
    lager:debug("mqtt client disconnected!!"),
    {ok, State#state{connected = false, client = undefined}};
 handle_info({publish, #{payload := Payload, topic := Topic} }, S=#state{topics_seen = Seen}) ->
-%%   P0 = flowdata:set_field(#data_point{ts = faxe_time:now()}, <<"topic">>, Topic),
-%%   P = flowdata:set_field(P0, <<"payload">>, Payload),
-%%   dataflow:emit(P),
-%%%%   lager:info("[~p] message: ~p~n", [Topic, Payload]),
-%%   {ok, S};
-Seen1 =
-case lists:member(Topic, Seen) of
-true -> Seen;
-false -> P0 = #data_point{ts = faxe_time:now()},
-P = flowdata:set_field(P0, <<"topics_seen">>, Topic),
-dataflow:emit(P),
-[Topic|Seen]
-end,
-{ok, S#state{topics_seen = Seen1}};
-handle_info(E, S) ->
-   lager:info("[~p] message: ~p~n", [?MODULE, E]),
+   P0 = flowdata:set_field(#data_point{ts = faxe_time:now()}, <<"topic">>, Topic),
+   P = flowdata:set_field(P0, <<"payload">>, Payload),
+   dataflow:emit(P),
+%%   lager:info("[~p] message: ~p~n", [Topic, Payload]),
    {ok, S}.
 
 shutdown(#state{client = C}) ->

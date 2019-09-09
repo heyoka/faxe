@@ -4,9 +4,13 @@ def mqtt =
     .port(1883)
     .topic('ttgw/grip/#')
 
-    |win_clock_new()
-    .every(1m)
-    .period(1m)
+    |where()
+    .lambda(lambda: if(member("topic", ls_mem('topics_seen')), false, true))
+    .ls_mem('topics_seen')
+    .ls_mem_field('topic')
+    .ls_mem_ttl(3)
+
+    |debug()
 
     |log()
     .file('cogsys.txt')

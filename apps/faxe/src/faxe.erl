@@ -134,7 +134,8 @@ update_running(DfsScript, Task = #task{id = TId}, ScriptType) ->
 eval_dfs(DfsScript, Type) ->
    try faxe_dfs:Type(DfsScript, []) of
       Def when is_map(Def) -> Def;
-      {error, What} -> {error, What}
+      {error, What} -> {error, What};
+      E -> E
    catch
       throw:Err -> {error, Err};
       exit:Err -> {error, Err};

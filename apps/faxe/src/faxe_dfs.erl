@@ -49,7 +49,13 @@ data(DfsData, Vars) ->
 
 maybe_compile(ParserResult) ->
    case ParserResult of
-      {{_Where, line, _LN}, _Message} = M ->
+      {{_Where, line, _LN}, {Keyword, MsgList}} = _M ->
+         {error, iolist_to_binary(
+            [atom_to_binary(_Where), <<" on line ">>,
+               integer_to_binary(_LN), <<": ">>,
+               atom_to_binary(Keyword), <<" ">>, list_to_binary(MsgList)])
+         };
+      {{_Where, line, _LN}, _Message} = _M ->
          {error, iolist_to_binary(
             [atom_to_binary(_Where), <<" on line ">>,
                integer_to_binary(_LN), <<": ">>, list_to_binary(_Message)])
