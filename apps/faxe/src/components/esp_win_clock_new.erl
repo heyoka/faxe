@@ -31,7 +31,7 @@
 }).
 
 options() ->
-   [{period, binary}, {every, binary}, {align, is_set, false}, {fill_period, is_set, false}].
+   [{period, duration}, {every, duration}, {align, is_set, false}, {fill_period, is_set, false}].
 
 init(NodeId, _Inputs, #{period := Period, every := Every, align := Align, fill_period := Fill} =P) ->
    NUnit =

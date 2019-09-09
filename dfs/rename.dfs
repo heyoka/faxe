@@ -2,15 +2,17 @@ def whid = 'ab33zr83489urf34r43j'
 def device_id = 'DV0025LM33'
 
 def energy =
-    |modbus('hregs')
+    |modbus()
     .ip('127.0.0.1')
     .port(8899)
     .device(255)
-    .every(1s)
-    .from(2127)
-    .count(5)
-    .as('Energy.ActiveEnergyConsumption', 'Energy.MaximalCurrentValue',
-        'Energy.BlindEnergyDelivered', 'Energy.Max.A', 'Energy.Min.A')
+    .every('336.6546')
+    .function('hregs', 'hregs')
+    .from(2127, 255)
+    .count(5, 23)
+    .as('Energy.ActiveEnergyConsumption', 'somevalue')
+    .output('real', '')
+    .signed(true, false)
 
 %% add some tags
     |default()
@@ -19,7 +21,7 @@ def energy =
 
     %% rename some fields
     |rename()
-    .fields('Energy.Max.A', 'Energy.Min.A')
+    .fields('Energy.Max.A')
     .as_fields('EMaxA')
     .tags('warehouse_id')
     .as_tags('whid')

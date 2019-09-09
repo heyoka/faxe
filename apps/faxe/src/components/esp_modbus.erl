@@ -4,9 +4,10 @@
 %%% @doc
 %%%
 %%% pull data via modbus tcp, supported read functions are :
-%%% [<<"coils">>, <<"hregs">>, <<"iregs">>, <<"inputs">>, <<"memory">>]
+%%% ['coils', 'hregs', 'iregs', 'inputs', 'memory']
 %%%
 %%% read multiple values with possibly different functions at once
+%%%
 %%% parameters are:
 %%% + every(duration) interval for reading values from a modbus device
 %%% + device(integer) the modbus device id
@@ -15,8 +16,10 @@
 %%% + from(integer_list) a list of start values to read
 %%% + count(integer_list) a list of count values -> how much to read for each function
 %%% + as(string_list) a list of fieldnames to use for the retrieved values
+%%%
 %%% // optional read params:
-%%% + output(string_list) a list of output format strings, one of [int16, int32, float32, coils, ascii, binary]
+%%% + output(string_list) a list of output format strings,
+%%% one of ['int16', 'int32', 'float32', 'coils', 'ascii', 'binary']
 %%% + signed(bool_list) a list of true/false values indicating if values should be signed or not
 %%%
 %%% Note that, if given, all parameter function must have the same length, this mean if you have two
@@ -35,7 +38,7 @@
 
 -include("faxe.hrl").
 %% API
--export([init/3, process/3, options/0, handle_info/2, shutdown/1, read/2]).
+-export([init/3, process/3, options/0, handle_info/2, shutdown/1, read/2, check_options/0]).
 
 -record(state, {
    ip,
@@ -58,24 +61,43 @@
 -define(FUNCTION_PREFIX, <<"read_">>).
 
 -spec options() -> list().
-options() -> [{ip, string}, {port, integer, 502},
-   {every, binary, "1s"}, {device, integer, 255},
+options() -> [
+   {ip, string},
+   {port, integer, 502},
+   {every, duration, "1s"},
+   {device, integer, 255},
    {function, binary_list},
    {from, integer_list},
    {count, integer_list},
    {as, binary_list},
-   {output, string_list},
-   {signed, atom_list}].
+   {output, string_list, undefined},
+   {signed, atom_list, undefined}].
+
+check_options() ->
+   [
+      {same_length, [function, from, count, as, output, signed]}
+%%      {not_empty, [every]}
+   ].
 
 init(_NodeId, _Ins, #{} = Opts) ->
-   lager:notice("++++ ~p ~ngot opts: ~p ~n",[_NodeId, Opts]),
+   lager:notice("++++ ~p ~ngot opts: ~p ~n",[_NodeId, maps:to_list(Opts)]),
 
    State = init_opts(maps:to_list(Opts), #state{}),
+   lager:notice("MODBUS State is: ~p", [State]),
    {ok, Modbus} = modbus:connect(
       State#state.ip, State#state.port, State#state.device_address),
    erlang:monitor(process, Modbus),
+   Req0 = build(State),
+   lager:notice("BUILT MODBUS Options: ~p", [Req0]),
+   ReqOpts =
+      case build_opts(State#state.outputs, State#state.signed) of
+         [] -> [ [] || X <- lists:seq(1, erlang:length(Req0))];
+         L when is_list(L) -> L
+      end,
 
-   NewState = State#state{client = Modbus, requests = build(State)},
+   Requests = lists:zip(Req0, ReqOpts),
+   lager:notice("MODBUS Requests: ~p",[Requests]),
+   NewState = State#state{client = Modbus, requests = Requests},
    lager:info("~p init state is: ~p",[?MODULE, NewState#state.requests]),
    {ok, all, NewState}.
 
@@ -152,19 +174,29 @@ poll(State=#state{last_poll_time = LPT, interval = Interval}) ->
    State#state{timer_ref = NewTRef, last_poll_time = At}.
 
 %% @doc build request lists
-build(#state{function = Fs, starts = Ss, counts = Cs, outputs = Os, signed = Sigs, as = Ass}) ->
-   build(Fs, Ss, Cs, Os, Sigs, Ass, []).
+build(#state{function = Fs, starts = Ss, counts = Cs, as = Ass}) ->
+   build(Fs, Ss, Cs, Ass, []).
 
-build([], [], [], [], [], [], Acc) ->
+build([], [], [], [], Acc) ->
    Acc;
-build([F|Functions], [S|Starts], [C|Counts], [Out|Outputs], [Signed|Flags], [As|Aliases], Acc) ->
-   NewAcc = Acc ++ [{F, S, C, build_opts(Out, Signed), As}],
-   build(Functions, Starts, Counts, Outputs, Flags, Aliases, NewAcc).
+build([F|Functions], [S|Starts], [C|Counts], [As|Aliases], Acc) ->
+   NewAcc = Acc ++ [{F, S, C, As}],
+   build(Functions, Starts, Counts, Aliases, NewAcc).
 
-build_opts(<<>>, Bool) when is_atom(Bool) ->
-   [{signed, Bool}];
-build_opts(Out, Signed) when is_binary(Out), is_atom(Signed) ->
-   [{output, binary_to_existing_atom(Out, latin1)}, {signed, Signed}].
+build_opts(undefined, undefined) ->
+   [];
+build_opts(undefined, SignedList) when is_list(SignedList) ->
+   [[{signed, Bool}] || Bool <- SignedList];
+build_opts(OutFormats, undefined) when is_list(OutFormats) ->
+   [[{output, binary_to_existing_atom(Out, latin1)}] || Out <- OutFormats];
+build_opts(Out, Signed) when is_list(Out), is_list(Signed) ->
+   F = fun
+          ({<<>>, S}) ->  [{signed, S}];
+          ({O, <<>>}) -> [{output, O}];
+          ({O, S}) -> [{output, O}, {signed, S}]
+       end,
+   lists:map(F, lists:zip(Out, Signed)).
+
 
 %% read all prepared requests
 read(Client, Reqs) ->
@@ -172,7 +204,7 @@ read(Client, Reqs) ->
 
 read(_Client, Point, []) ->
    {ok, Point};
-read(Client, Point, [{Fun, Start, Count, Opts, As} | Reqs]) ->
+read(Client, Point, [{{Fun, Start, Count, As}, Opts} | Reqs]) ->
    lager:notice("read modbus:~p(~p)",[Fun,[Client, Start, Count, Opts]]),
    Res = modbus:Fun(Client, Start, Count, Opts),
    case Res of

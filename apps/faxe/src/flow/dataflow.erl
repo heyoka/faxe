@@ -134,7 +134,12 @@ do_build_options(Opts, L) when is_list(L), is_list(Opts) ->
 %%====================================================================
 
 %% @todo convert types accordingly, ie: string(binary) to real string(list)
--spec val(option_value(), option_name()) -> option_value().
+-spec val(option_value(), {Name :: binary(), option_name()}) -> option_value().
+val(Val, {OptName, duration}) when is_binary(Val) ->
+   case catch(faxe_time:duration_to_ms(Val)) of
+      T when is_integer(T) -> Val;
+      _ -> option_error(<<"bad parameter type">>, Val, duration, OptName)
+   end;
 val(Val, {_, number}) when is_integer(Val) orelse is_float(Val) -> Val;
 val(Val, {_, integer}) when is_integer(Val) -> Val;
 val(Val, {_, float}) when is_float(Val) -> Val;
@@ -178,23 +183,44 @@ maybe_check_opts(Opts, Module) when is_map(Opts), is_atom(Module) ->
 %%   lager:debug("function exported ~p: ~p", [[Module, check_options, 0],
 %%      erlang:function_exported(Module, check_options, 0)]),
    case erlang:function_exported(Module, check_options, 0) of
-      true -> check_options(Module:check_options(), Opts);
+      true -> check_options(Module:check_options(), Opts, Module);
       false -> Opts
    end.
 
-check_options([], Opts) ->
+check_options([], Opts, Mod) ->
    Opts;
-check_options([Check| Checks], Opts) ->
-   do_check(Check, Opts),
-   option_check(Checks, Opts).
+check_options([Check| Checks], Opts, Mod) ->
+   do_check(Check, Opts, Mod),
+   check_options(Checks, Opts, Mod).
 
-do_check({same_length, Key1, Key2}, Opts = #{}) ->
-   lager:warning("same_length check for ~p ~p out of ~p" ,[Key1, Key2, Opts]),
-   #{Key1 := L1, Key2 := L2} = Opts,
-   case length(L1) == length(L2) of
-      false -> throw({lists_not_of_same_length, {Key1, Key2}});
-      true -> ok
-   end.
+do_check({same_length, [Key1|Keys]=_OptionKeys}, Opts = #{}, Mod) ->
+%%   lager:warning("same_length check for ~p ~p out of ~p" ,[OptionKeys, Opts]),
+   #{Key1 := L1} = Opts,
+   L = erlang:length(L1),
+   F = fun(KeyE) ->
+      case maps:get(KeyE, Opts, undefined) of
+         undefined -> ok;
+         ListOpts ->
+            case erlang:length(ListOpts) == L of
+               true -> ok;
+               false -> erlang:error(format_error(options_error, Mod,
+                  [<<"Different parameter count for options '">>, atom_to_binary(Key1, utf8),
+                     <<"' and '">>, atom_to_binary(KeyE, utf8), <<"'">>]))
+            end
+      end
+      end,
+   lists:foreach(F, Keys);
+
+do_check({not_empty, Keys}, Opts, Mod) ->
+   F = fun(KeyE) ->
+      case maps:get(KeyE, Opts, undefined) of
+         undefined -> ok; %% should not happen
+         [] -> erlang:error(format_error(option_empty, Mod,
+            [<<"Option may not be empty: '">>, atom_to_binary(KeyE, utf8), <<"'">>]));
+         _ -> ok
+      end
+      end,
+   lists:foreach(F, Keys).
 
 option_error(OptType, Given, Should, Name) ->
    throw([OptType,

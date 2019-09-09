@@ -26,7 +26,7 @@
 }).
 
 options() ->
-   [{period, binary}, {every, binary}, {fill_period, is_set}].
+   [{period, duration}, {every, duration}, {fill_period, is_set}].
 
 init(NodeId, _Inputs, #{period := Period, every := Every, fill_period := Fill} = Params) ->
    io:format("~p init:node ~p~n",[NodeId, Params]),

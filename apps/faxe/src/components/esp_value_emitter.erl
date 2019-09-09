@@ -21,7 +21,7 @@
 params() -> [].
 
 options() ->
-   [{every, binary, <<"5s">>}, {type, atom, batch},
+   [{every, duration, <<"5s">>}, {type, atom, batch},
       {batch_size, integer, 5}, {align, is_set},
       {fields, binary_list, [<<"val">>]}, {format, atom, undefined}].
 

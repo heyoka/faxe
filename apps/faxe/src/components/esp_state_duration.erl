@@ -30,7 +30,7 @@
 
 }).
 
-options() -> [{lambda, lambda}, {as, binary, <<"state_duration">>}, {unit, binary, <<"1s">>}].
+options() -> [{lambda, lambda}, {as, binary, <<"state_duration">>}, {unit, duration, <<"1s">>}].
 
 init(_NodeId, _Ins, #{lambda := Lambda, as := As, unit := Unit}) ->
    {ok, all, #state{lambda = Lambda, as = As, unit = Unit}}.
