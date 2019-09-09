@@ -3,6 +3,10 @@ faxe
 
     Flow based data collector/ timeseries processor
     
+Branch
+------
+with this branch faxe's internal data format changes to erlang maps
+    
 Status
 ------
 
