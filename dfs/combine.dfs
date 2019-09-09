@@ -28,4 +28,5 @@ combined
     .fields('val.val')
     .aliases('val3')
 
-    |debug()
+    |log()
+    .file('faxe.out')

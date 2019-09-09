@@ -42,8 +42,8 @@
 
 -record(data_point, {
    ts                :: non_neg_integer(), %% timestamp in ms
-   fields   = []     :: list(),
-   tags     = []     :: list(),
+   fields   = #{}    :: map(),
+   tags     = #{}    :: map(),
    id       = <<>>   :: binary()
 }).
 

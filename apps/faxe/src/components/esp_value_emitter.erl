@@ -84,6 +84,24 @@ batch_points(Ts, Dist, Vals, Num, Fields, Format) ->
    batch_points(Ts+Dist, Dist, [point(Ts, Fields, Format)|Vals], Num - 1, Fields, Format).
 
 point(Ts, FieldNames, undefined) ->
-   #data_point{ts = Ts, fields = [{F, rand:uniform()*10} || F <- FieldNames]};
+   Fields0 = #{},
+   Fields =
+   lists:foldl(
+      fun(FName, FMap) ->
+         FMap#{FName => rand:uniform()*10}
+      end,
+      Fields0,
+      FieldNames
+   ),
+   #data_point{ts = Ts, fields = Fields};
 point(Ts, FieldNames, ejson) ->
-   #data_point{ts = Ts, fields = [{F, {[{F,rand:uniform()*10}]}} || F <- FieldNames]}.
+   Fields0 = #{},
+   Fields =
+      lists:foldl(
+         fun(FName, FMap) ->
+            #{FName => FMap#{FName => rand:uniform()*10}}
+         end,
+         Fields0,
+         FieldNames
+      ),
+      #data_point{ts = Ts, fields = Fields}.

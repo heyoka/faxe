@@ -134,6 +134,7 @@ join(RowData, Ts, As) ->
    lists:foldl(
       fun({Port, #data_point{fields = Fields}}, P=#data_point{fields = ResFields}) ->
          Prefix = proplists:get_value(Port, As),
+%%         NewFields = 0
          NewFields = [{<<Prefix/binary, <<".">>/binary, FName/binary>>, Val} || {FName, Val} <- Fields],
          P#data_point{fields = ResFields ++ NewFields}
       end,

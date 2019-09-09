@@ -26,7 +26,7 @@
 %% API
 -export([
    %% batch and point
-   ts/1, to_map/1, to_msgpack/1, to_json/1,
+   ts/1, to_json/1,
    field/2,
    tag/2,
    id/1,
@@ -40,7 +40,7 @@
    field_names/1, tag_names/1,
    rename_fields/3, rename_tags/3,
    expand_json_field/2, extract_map/2, extract_field/3,
-   to_json/1, field/3, to_s_msgpack/1]).
+   field/3, to_s_msgpack/1]).
 
 
 -define(DEFAULT_ID, <<"00000">>).
@@ -49,26 +49,21 @@
 
 
 to_json(P) when is_record(P, data_point) orelse is_record(P, data_batch) ->
-   jiffy:encode(to_struct(P)).
-
+   jiffy:encode(to_mapstruct(P)).
 %%
-to_struct(P=#data_point{ts = Ts, fields = Fields, tags = _Tags}) ->
+to_mapstruct(P=#data_point{ts = Ts, fields = Fields, tags = _Tags}) ->
    DataFields =
-   case proplists:get_value(<<"data">>, Fields) of
-      undefined ->
-         #data_point{fields = RFields} = delete_fields_root(P,[<<"id">>,<<"vs">>,<<"df">>]),
-         {RFields};
-      Data -> {Data}
+   case maps:get(<<"data">>, Fields, nil) of
+      nil -> maps:without([<<"id">>,<<"vs">>,<<"df">>], Fields);
+      Data -> Data
    end,
-   {[
-      {<<"ts">>, Ts},
-      {<<"id">>, field(P ,<<"id">>, ?DEFAULT_ID)},
-      {<<"vs">>, field(P, <<"vs">>, ?DEFAULT_VS)},
-      {<<"df">>, field(P, <<"df">>, ?DEFAULT_DF)},
-      {<<"data">>, DataFields}
-   ]};
-to_struct(_B=#data_batch{points = Points}) ->
-   [to_struct(P) || P <- Points].
+   #{<<"ts">> => Ts,
+      <<"id">> => field(P ,<<"id">>, ?DEFAULT_ID),
+      <<"vs">> => field(P, <<"vs">>, ?DEFAULT_VS),
+      <<"df">> => field(P, <<"df">>, ?DEFAULT_DF),
+      <<"data">> => DataFields};
+to_mapstruct(_B=#data_batch{points = Points}) ->
+   [to_mapstruct(P) || P <- Points].
 
 %%-spec to_json(P :: #data_batch{}|#data_point{}) -> jsx:json_text().
 %%to_json(P) when is_record(P, data_point) orelse is_record(P, data_batch) ->
@@ -76,18 +71,18 @@ to_struct(_B=#data_batch{points = Points}) ->
 
 -spec to_s_msgpack(P :: #data_point{}|#data_batch{}) -> binary() | {error, {badarg, term()}}.
 to_s_msgpack(P) when is_record(P, data_point) orelse is_record(P, data_batch) ->
-   msgpack:pack(to_struct(P), [{map_format, jiffy}]).
+   msgpack:pack(to_mapstruct(P), [{map_format, jiffy}]).
 
--spec to_msgpack(P :: #data_point{}|#data_batch{}) -> binary() | {error, {badarg, term()}}.
-to_msgpack(P) when is_record(P, data_point) orelse is_record(P, data_batch) ->
-   msgpack:pack(to_map(P)).
-
--spec to_map(#data_point{}|#data_batch{}) -> map()|list(map()).
-to_map(#data_point{ts = Ts, fields = Fields, tags = Tags}) ->
-   M = maps:merge(maps:from_list(Fields), maps:from_list(Tags)),
-   M#{<<"ts">> => Ts};
-to_map(#data_batch{points = Points}) ->
-   [to_map(P) || P <- Points].
+%%-spec to_msgpack(P :: #data_point{}|#data_batch{}) -> binary() | {error, {badarg, term()}}.
+%%to_msgpack(P) when is_record(P, data_point) orelse is_record(P, data_batch) ->
+%%   msgpack:pack(to_map(P)).
+%%
+%%-spec to_map(#data_point{}|#data_batch{}) -> map()|list(map()).
+%%to_map(#data_point{ts = Ts, fields = Fields, tags = Tags}) ->
+%%   M = maps:merge(maps:from_list(Fields), maps:from_list(Tags)),
+%%   M#{<<"ts">> => Ts};
+%%to_map(#data_batch{points = Points}) ->
+%%   [to_map(P) || P <- Points].
 
 %% extract a given map into the fields-list in data_point P
 %% return the updated data_point
@@ -161,14 +156,14 @@ field(#data_batch{points = Points}, F) ->
 %% @end
 -spec field_names(#data_point{}) -> list().
 field_names(#data_point{fields = Fields}) ->
-   proplists:get_keys(Fields).
+   maps:keys(Fields).
 
 %% @doc
 %% get an unordered list of all tag-names from the given data_point
 %% @end
 -spec tag_names(#data_point{}) -> list().
 tag_names(#data_point{tags = Tags}) ->
-   proplists:get_keys(Tags).
+   maps:keys(Tags).
 
 %%%% setter
 
@@ -203,7 +198,7 @@ set_field(P = #data_batch{points = Points}, Key, Value) ->
    ),
    P#data_batch{points = Ps}.
 %% @doc 
-%% set a key value pair into a fieldlist (which is a proplist)
+%% set a key value pair into a fieldlist (which is a map)
 %% if an entry with Key exists already, then the entry will be updated,
 %% otherwise the entry will be appended to the fieldlist
 %% @end
@@ -270,7 +265,7 @@ delete_field(#data_batch{points = Points}=B, FieldName) ->
 delete_fields_root(#data_point{fields = Fields}=P, FieldNames) ->
    PFields =
    lists:foldl(
-      fun(FN, FieldList) -> proplists:delete(FN, FieldList) end,
+      fun(FName, Fields) -> maps:without(FName, Fields) end,
       Fields, FieldNames
    ),
    P#data_point{fields = PFields}.
