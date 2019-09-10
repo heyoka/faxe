@@ -90,21 +90,29 @@ process_point(Point = #data_point{}, LastValues, FieldNames, Exc) ->
 filter(#data_point{fields = Fields}, [], _Exc) ->
    Fields;
 filter(#data_point{fields = Fields}, LastVals, false) ->
-   lists:filter(filter_fun(LastVals), Fields)
+   maps:filter(filter_fun(LastVals), Fields)
    ;
 filter(#data_point{fields = Fields}, LastVals, true) ->
-   case lists:all(filter_fun(LastVals), Fields) of
+   case lists:all(filter_list_fun(LastVals), maps:to_list(Fields)) of
       true -> Fields;
-      false -> []
+      false -> #{}
    end.
 
 filter_fun(LastVals) ->
-   fun({FName, FieldValue}) ->
-      case proplists:get_value(FName, LastVals) of
-         undefined -> true;
-         Val when Val =:= FieldValue -> false;
-         _ -> true
-      end
+   fun
+      (FName, FieldValue) -> do_filter_fun(FName, FieldValue, LastVals)
+   end.
+
+filter_list_fun(LastVals) ->
+   fun
+      ({FName, FieldValue}) -> do_filter_fun(FName, FieldValue, LastVals)
+   end.
+
+do_filter_fun(FName, FieldValue, LastVals) ->
+   case proplists:get_value(FName, LastVals) of
+      undefined -> true;
+      Val when Val =:= FieldValue -> false;
+      _ -> true
    end.
 
 -spec get_values(#data_point{}, list()) -> list({Key :: binary(), Val :: any()}).
@@ -136,27 +144,27 @@ filter_nochange_exclusive_test() ->
 filter_normal_test() ->
    Point = #data_point{ts = 1, fields = maps:from_list([{<<"val">>, 1}, {<<"val1">>, 1.343}, {<<"val2">>, 2.222}])},
    LastVals = [{<<"val1">>, 1.343}, {<<"val2">>, 2.222}],
-   ?assertEqual([{<<"val">>, 1}], filter(Point, LastVals, false)).
+   ?assertEqual(#{<<"val">> => 1}, filter(Point, LastVals, false)).
 filter_normal_exclusive_test() ->
    Point = #data_point{ts = 1, fields = maps:from_list([{<<"val">>, 1}, {<<"val1">>, 1.343}, {<<"val2">>, 2.222}])},
    LastVals = [{<<"val1">>, 1.343}, {<<"val2">>, 2.222}],
-   ?assertEqual([], filter(Point, LastVals, true)).
+   ?assertEqual(#{}, filter(Point, LastVals, true)).
 filter_other_test() ->
    Point = #data_point{ts = 1, fields = maps:from_list([{<<"val">>, 1}, {<<"val1">>, 1.343}, {<<"val2">>, 2.222}])},
    LastVals = [{<<"val5">>, 1.343}, {<<"val2">>, 2.222}],
-   ?assertEqual([{<<"val">>, 1}, {<<"val1">>, 1.343}], filter(Point, LastVals, false)).
+   ?assertEqual(#{<<"val">> => 1, <<"val1">> => 1.343}, filter(Point, LastVals, false)).
 filter_all_test() ->
    Point = #data_point{ts = 1, fields = maps:from_list([{<<"val">>, 1}, {<<"val1">>, 1.343}, {<<"val2">>, 2.222}])},
    LastVals = [{<<"val">>, 1}, {<<"val1">>, 1.343}, {<<"val2">>, 2.222}],
-   ?assertEqual([], filter(Point, LastVals, false)).
+   ?assertEqual(#{}, filter(Point, LastVals, false)).
 filter_all_exclusive_test() ->
    Point = #data_point{ts = 1, fields = maps:from_list([{<<"val">>, 1}, {<<"val1">>, 1.343}, {<<"val2">>, 2.222}])},
    LastVals = [{<<"val">>, 1}, {<<"val1">>, 1.343}, {<<"val2">>, 2.222}],
-   ?assertEqual([], filter(Point, LastVals, true)).
+   ?assertEqual(#{}, filter(Point, LastVals, true)).
 filter_equality_test() ->
    Point = #data_point{ts = 1, fields = maps:from_list([{<<"val">>, 1.0}, {<<"val1">>, 1.343}, {<<"val2">>, 2.222}])},
    LastVals = [{<<"val">>, 1}, {<<"val1">>, 1.343}, {<<"val2">>, 2.222}],
-   ?assertEqual([{<<"val">>, 1.0}], filter(Point, LastVals, false)).
+   ?assertEqual(#{<<"val">> => 1.0}, filter(Point, LastVals, false)).
 %%process_test() ->
 %%   Point = #data_point{ts = 1, fields = [{<<"val">>, 1.0}, {<<"val1">>, 1.343}, {<<"val2">>, 2.222}]},
 %%   LastVals = [{<<"val">>, 1}, {<<"val2">>, 2.222}],

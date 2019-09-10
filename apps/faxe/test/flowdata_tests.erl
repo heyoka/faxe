@@ -23,16 +23,16 @@ sample_point() ->
       tags=[{t1, <<"hello">>},{t2, <<"JU323z6">>}]}.
 
 get_field_value_kv_test() ->
-   P = #data_point{ts = 1234567891234, id = <<"324392i09i329i2df4">>, fields = [{<<"val">>, 3}]},
+   P = #data_point{ts = 1234567891234, id = <<"324392i09i329i2df4">>, fields = #{<<"val">> => 3}},
    Path = <<"val">>,
    ?assertEqual(field(P, Path), 3).
 
 get_field_value_undefined_test() ->
-   P = #data_point{ts = 1234567891234, id = <<"324392i09i329i2df4">>, fields = [{<<"val">>, 3}]},
+   P = #data_point{ts = 1234567891234, id = <<"324392i09i329i2df4">>, fields = #{<<"val">> => 3}},
    Path = <<"value">>,
    ?assertEqual(field(P, Path), undefined).
 
-deep_val() -> {[{<<"menu">>,
+deep_val() -> maps:from_list([{<<"menu">>,
    {[{<<"id">>,<<"file">>},
       {<<"value">>,<<"File">>},
       {<<"popup">>,
@@ -43,11 +43,11 @@ deep_val() -> {[{<<"menu">>,
                {[{<<"value">>,<<"Close">>},
                   {<<"onclick">>,<<"CloseDoc()">>},
                   {<<"ondbclick">>, <<"print()">>}
-               ]}]}]}}]}}]}.
+               ]}]}]}}]}}]).
 
 
 get_field_value_deep_test() ->
-   P = #data_point{ts = 1234567891234, id = <<"324392i09i329i2df4">>, fields = [{<<"val">>, deep_val()}]},
+   P = #data_point{ts = 1234567891234, id = <<"324392i09i329i2df4">>, fields = #{<<"val">> => deep_val()}},
    Path = <<"val.menu.popup.menuitem">>,
    ?assertEqual(field(P, Path),
       [{[{<<"value">>,<<"New">>},
@@ -61,33 +61,33 @@ get_field_value_deep_test() ->
 
 delete_field_value_deep_test() ->
    P = #data_point{ts = 1234567891234, id = <<"324392i09i329i2df4">>,
-      fields = [{<<"val">>, deep_val()},{<<"var">>,44}]},
+      fields = #{<<"val">> => deep_val(), <<"var">> => 44}},
    Path = <<"val.menu.popup.menuitem">>,
    NewPoint = delete_field(P, Path),
    ?assertEqual(NewPoint#data_point.fields,
-      [{<<"val">>,
-         {[{<<"menu">>,
-            {[{<<"id">>,<<"file">>},
-               {<<"value">>,<<"File">>},
-               {<<"popup">>,{[]}}]}}]}},
-         {<<"var">>,44}]
+      #{<<"val">> =>
+      #{<<"menu">> =>
+      {[{<<"id">>,<<"file">>},
+         {<<"value">>,<<"File">>},
+         {<<"popup">>,{[]}}]}},
+         <<"var">> => 44}
    ).
 
 set_field_kv_test() ->
    P = #data_point{ts = 1234567891234, id = <<"324392i09i329i2df4">>,
-      fields = [{<<"val">>, <<"somestring">>},{<<"var">>,44}]},
+      fields = #{<<"val">> => <<"somestring">>, <<"var">> => 44}},
    Path = <<"value">>,
    SetP = set_field(P, Path, <<"new">>),
    ?assertEqual(SetP#data_point.fields,
-      [{<<"val">>, <<"somestring">>}, {<<"var">>,44}, {<<"value">>, <<"new">>}]).
+      #{<<"val">> => <<"somestring">>, <<"var">> => 44, <<"value">> => <<"new">>}).
 
 rename_tag_kv_test() ->
    P = #data_point{ts = 1234567891234, id = <<"324392i09i329i2df4">>,
-      tags = [{<<"val">>, <<"somestring">>},{<<"var">>, <<"anotherstring">>}]},
+      tags = #{<<"val">> => <<"somestring">>, <<"var">> => <<"anotherstring">>}},
    From = [<<"var">>, <<"val">>], To = [<<"variable">>, <<"value">>],
    SetP = rename_tags(P, From, To),
    ?assertEqual(SetP#data_point.tags,
-      [{<<"value">>, <<"somestring">>}, {<<"variable">>, <<"anotherstring">>}]).
+      #{<<"value">> => <<"somestring">>, <<"variable">> => <<"anotherstring">>}).
 
 %% array indices are available only through the tuple path format
 %%%
@@ -116,104 +116,100 @@ rename_tag_kv_test() ->
 
 get_field_names_kv_test() ->
    P = #data_point{ts = 1234567891234, id = <<"324392i09i329i2df4">>,
-      fields = [{<<"val">>, <<"somestring">>},{<<"var">>,44}]},
-   ?assertEqual(field_names(P), [<<"var">>, <<"val">>]).
+      fields = #{<<"val">> => <<"somestring">>, <<"var">> => 44}},
+   RList = field_names(P),
+   ?assert(lists:member(<<"var">>, RList)),
+   ?assert(lists:member(<<"val">>, RList)).
+%%   ?assertEqual(field_names(P), [<<"var">>, <<"val">>]).
 
 get_field_names_deep_test() ->
    P = #data_point{ts = 1234567891234, id = <<"324392i09i329i2df4">>,
-      fields = [{<<"val">>, deep_val()},{<<"var">>,44}]},
-   ?assertEqual(field_names(P), [<<"var">>, <<"val">>]).
+      fields = #{<<"val">> => deep_val(),<<"var">> =>44}},
+   RList = field_names(P),
+   ?assert(lists:member(<<"var">>, RList)),
+   ?assert(lists:member(<<"val">>, RList)).
 
 
 json_basic_test() ->
-   P = #data_point{ts = 1568029511598, fields = [{<<"id">>, <<"ioi2u34oiu23oi4u2oi4u2">>},
-      {<<"df">>, <<"01.002">>}, {<<"value1">>, 323424}, {<<"value2">>, <<"somestringvalue">>}]},
-   ?assertEqual(jiffy:decode(to_json(P)),
-      {[{<<"ts">>,1568029511598},
-         {<<"id">>,<<"ioi2u34oiu23oi4u2oi4u2">>},
-         {<<"vs">>,1},
-         {<<"df">>,<<"01.002">>},
-         {<<"data">>,
-            {[{<<"value1">>,323424},
-               {<<"value2">>,<<"somestringvalue">>}]}}]}
+   P = #data_point{ts = 1568029511598, fields = #{<<"id">> => <<"ioi2u34oiu23oi4u2oi4u2">>,
+      <<"df">> => <<"01.002">>, <<"value1">> => 323424, <<"value2">> => <<"somestringvalue">>}},
+   ?assertEqual(jiffy:decode(to_json(P), [return_maps]),
+      #{<<"ts">> =>1568029511598,
+         <<"id">> => <<"ioi2u34oiu23oi4u2oi4u2">>,
+         <<"vs">> => 1,
+         <<"df">> => <<"01.002">>,
+         <<"data">> => #{<<"value1">> => 323424, <<"value2">> => <<"somestringvalue">>}}
 
    ).
 
 json_basic_vs_test() ->
-   P = #data_point{ts = 1568029511598, fields = [{<<"id">>, <<"ioi2u34oiu23oi4u2oi4u2">>},
-      {<<"df">>, <<"01.002">>}, {<<"vs">>, 2}, {<<"value1">>, 323424}, {<<"value2">>, <<"somestringvalue">>}]},
-   ?assertEqual(jiffy:decode(to_json(P)),
-      {[{<<"ts">>,1568029511598},
-         {<<"id">>,<<"ioi2u34oiu23oi4u2oi4u2">>},
-         {<<"vs">>,2},
-         {<<"df">>,<<"01.002">>},
-         {<<"data">>,
-            {[{<<"value1">>,323424},
-               {<<"value2">>,<<"somestringvalue">>}]}}]}
+   P = #data_point{ts = 1568029511598, fields = #{<<"id">> => <<"ioi2u34oiu23oi4u2oi4u2">>,
+      <<"df">> => <<"01.002">>, <<"vs">> => 2, <<"value1">> => 323424,
+      <<"value2">> => <<"somestringvalue">>}},
+   ?assertEqual(jiffy:decode(to_json(P), [return_maps]),
+      #{<<"ts">> =>1568029511598,
+         <<"id">> => <<"ioi2u34oiu23oi4u2oi4u2">>,
+         <<"vs">> => 2,
+         <<"df">> => <<"01.002">>,
+         <<"data">> => #{<<"value1">> => 323424, <<"value2">> => <<"somestringvalue">>}}
 
    ).
 
 json_basic_default_test() ->
-   P = #data_point{ts = 1568029511598, fields = [
-      {<<"value1">>, 323424}, {<<"value2">>, <<"somestringvalue">>}]},
-   ?assertEqual(jiffy:decode(to_json(P)),
-      {[{<<"ts">>,1568029511598},
-         {<<"id">>,<<"00000">>},
-         {<<"vs">>,1},
-         {<<"df">>,<<"00.000">>},
-         {<<"data">>,
-            {[{<<"value1">>,323424},
-               {<<"value2">>,<<"somestringvalue">>}]}}]}
-
+   P = #data_point{ts = 1568029511598,
+      fields = #{<<"value1">> => 323424, <<"value2">> => <<"somestringvalue">>}},
+   ?assertEqual(jiffy:decode(to_json(P), [return_maps]),
+      #{<<"ts">> =>1568029511598,
+         <<"id">> => <<"00000">>,
+         <<"vs">> => 1,
+         <<"df">> => <<"00.000">>,
+         <<"data">> => #{<<"value1">> => 323424, <<"value2">> => <<"somestringvalue">>}}
    ).
 
 json_basic_data_test() ->
-   P = #data_point{ts = 1568029511598, fields = [
-      {<<"id">>, <<"ioi2u34oiu23oi4u2oi4u2">>},
-      {<<"df">>, <<"01.002">>}, {<<"vs">>, 2},
-      {<<"data">>, [{<<"value1">>, 323424}, {<<"value2">>, <<"somestringvalue">>}]}
-   ]},
-   ?assertEqual(jiffy:decode(to_json(P)),
-      {[{<<"ts">>,1568029511598},
-         {<<"id">>,<<"ioi2u34oiu23oi4u2oi4u2">>},
-         {<<"vs">>,2},
-         {<<"df">>,<<"01.002">>},
-         {<<"data">>,
-            {[{<<"value1">>,323424}, {<<"value2">>,<<"somestringvalue">>}]}
-         }]}
+   P = #data_point{ts = 1568029511598, fields =
+   #{<<"id">> => <<"ioi2u34oiu23oi4u2oi4u2">>,
+      <<"df">> => <<"01.002">>, <<"vs">> => 2,
+      <<"data">> => #{<<"value1">> => 323424, <<"value2">> => <<"somestringvalue">>}}
+   },
+
+   ?assertEqual(jiffy:decode(to_json(P), [return_maps]),
+
+      #{<<"ts">> =>1568029511598,
+         <<"id">> => <<"ioi2u34oiu23oi4u2oi4u2">>,
+         <<"vs">> => 2,
+         <<"df">> => <<"01.002">>,
+         <<"data">> => #{<<"value1">> => 323424, <<"value2">> => <<"somestringvalue">>}}
+
 
    ).
 
 json_basic_data_excl_test() ->
-   P = #data_point{ts = 1568029511598, fields = [
-      {<<"id">>, <<"ioi2u34oiu23oi4u2oi4u2">>},
-      {<<"df">>, <<"01.002">>}, {<<"vs">>, 2},
-      {<<"value1">>, 55}, {<<"value2">>, <<"safoiwj">>},
-      {<<"data">>, [{<<"value1">>, 323424}, {<<"value2">>, <<"somestringvalue">>}]}
-   ]},
-   ?assertEqual(jiffy:decode(to_json(P)),
-      {[{<<"ts">>,1568029511598},
-         {<<"id">>,<<"ioi2u34oiu23oi4u2oi4u2">>},
-         {<<"vs">>,2},
-         {<<"df">>,<<"01.002">>},
-         {<<"data">>,
-            {[{<<"value1">>,323424}, {<<"value2">>,<<"somestringvalue">>}]}
-         }]}
+   P = #data_point{ts = 1568029511598, fields =
+      #{<<"id">> => <<"ioi2u34oiu23oi4u2oi4u2">>,
+         <<"df">> => <<"01.002">>, <<"vs">> => 2, <<"value1">> => 2323422, <<"value2">> => <<"savoi">>,
+         <<"data">> => #{<<"value1">> => 323424, <<"value2">> => <<"somestringvalue">>}}
+   },
+   ?assertEqual(jiffy:decode(to_json(P), [return_maps]),
+      #{<<"ts">> =>1568029511598,
+         <<"id">> => <<"ioi2u34oiu23oi4u2oi4u2">>,
+         <<"vs">> => 2,
+         <<"df">> => <<"01.002">>,
+         <<"data">> => #{<<"value1">> => 323424, <<"value2">> => <<"somestringvalue">>}}
 
    ).
 
 msgpack_basic_test() ->
-   P = #data_point{ts = 1568029511598, fields = [{<<"id">>, <<"ioi2u34oiu23oi4u2oi4u2">>},
-      {<<"df">>, <<"01.002">>}, {<<"vs">>, 2}, {<<"value1">>, 323424},
-      {<<"value2">>, <<"somestringvalue">>}]},
-   ?assertEqual(msgpack:unpack(flowdata:to_s_msgpack(P),[{map_format,jiffy}]),
-      {ok,{[{<<"ts">>,1568029511598},
-         {<<"id">>,<<"ioi2u34oiu23oi4u2oi4u2">>},
-         {<<"vs">>,2},
-         {<<"df">>,<<"01.002">>},
-         {<<"data">>,
-            {[{<<"value1">>,323424},
-               {<<"value2">>,<<"somestringvalue">>}]}}]}
+   P = #data_point{ts = 1568029511598, fields = #{<<"id">> => <<"ioi2u34oiu23oi4u2oi4u2">>,
+      <<"df">> => <<"01.002">>, <<"vs">> => 2,
+      <<"data">> => #{<<"value1">> => 323424, <<"value2">> => <<"somestringvalue">>}}
+   },
+   ?assertEqual(msgpack:unpack(flowdata:to_s_msgpack(P),[{map_format,map}]),
+      {ok,#{<<"ts">> =>1568029511598,
+         <<"id">> => <<"ioi2u34oiu23oi4u2oi4u2">>,
+         <<"vs">> => 2,
+         <<"df">> => <<"01.002">>,
+         <<"data">> => #{<<"value1">> => 323424, <<"value2">> => <<"somestringvalue">>}}
       }
    ).
 

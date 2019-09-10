@@ -292,17 +292,17 @@ rename_fields(#data_point{fields = Fields} = P, FieldNames, Aliases) ->
 rename_tags(#data_point{tags = Tags} = P, TagNames, Aliases) ->
    P#data_point{tags = rename(Tags, lists:reverse(TagNames), lists:reverse(Aliases))}.
 
-rename(List, [], []) ->
-   List;
-rename(List, [From|RFrom], [To|RTo]) when is_list(List) ->
-   NewData = do_rename(List, From, To),
+rename(Map, [], []) ->
+   Map;
+rename(Map, [From|RFrom], [To|RTo]) when is_map(Map) ->
+   NewData = do_rename(Map, From, To),
    rename(NewData, RFrom, RTo).
 
-do_rename(List, From, To) ->
-   Val = jsn:get(From, List),
+do_rename(Map, From, To) ->
+   Val = jsn:get(From, Map),
    case Val of
       undefinded -> undefined;
-      _Val -> NewData = jsn:delete(From, List),
+      _Val -> NewData = jsn:delete(From, Map),
          jsn:set(To, NewData, Val)
    end.
 
