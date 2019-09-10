@@ -48,10 +48,9 @@ options() -> [
    {ssl, bool, false}].
 
 
-init(NodeId, _Ins,
+init(_NodeId, _Ins,
    #{ host := Host0, port := Port, topic := Topic,
-      retained := Retained, ssl := UseSSL, qos := Qos} = Opts) ->
-   lager:notice("++++ ~p ~ngot opts: ~p ~n",[NodeId, Opts]),
+      retained := Retained, ssl := UseSSL, qos := Qos} = _Opts) ->
    Host = binary_to_list(Host0),
    {ok, Client} = emqtt:start_link([{host, Host}, {port, Port}]),
    emqtt:connect(Client),
@@ -70,17 +69,16 @@ handle_info({mqttc, C, connected}, State=#state{}) ->
 handle_info({mqttc, _C,  disconnected}, State=#state{}) ->
    lager:debug("mqtt client disconnected!!"),
    {ok, State#state{connected = false, client = undefined}};
-handle_info({publish, #{payload := Payload, topic := Topic} }, S=#state{topics_seen = Seen}) ->
+handle_info({publish, #{payload := Payload, topic := Topic} }, S=#state{}) ->
    P0 = flowdata:set_field(#data_point{ts = faxe_time:now()}, <<"topic">>, Topic),
-   P = flowdata:set_field(P0, <<"payload">>, Payload),
+   P = flowdata:set_field(P0, <<"payload">>, flowdata:from_json(Payload)),
    dataflow:emit(P),
-%%   lager:info("[~p] message: ~p~n", [Topic, Payload]),
    {ok, S}.
 
 shutdown(#state{client = C}) ->
    catch (emqtt:disconnect(C)).
 
 subscribe(#state{qos = Qos, client = C, topic = Topic}) when is_binary(Topic) ->
-   lager:notice("subscribe to topic ~p ~n",[Topic]),
+%%   lager:notice("subscribe to topic ~p ~n",[Topic]),
    {ok, _, _} = emqtt:subscribe(C, {Topic, Qos}).
 

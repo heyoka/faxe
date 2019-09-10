@@ -51,7 +51,7 @@ init(_NodeId, _Ins,
       as := As,
       diff := Diff} = Opts) ->
 
-  lager:notice("++++ ~p ~ngot opts: ~p ~n",[_NodeId, Opts]),
+%%  lager:notice("++++ ~p ~ngot opts: ~p ~n",[_NodeId, Opts]),
 
   Client = connect(Ip, Rack, Slot),
 
@@ -87,7 +87,8 @@ handle_info(poll,
       vars = Opts, diff = Diff, last_values = LastList, ip = Ip, rack = Rack, slot = Slot}) ->
   NewState =
   case (catch snapclient:read_multi_vars(Client, Opts)) of
-    {ok, Res} -> lager:info("Result from snap7 polling ~p : ~p",[Opts, Res]),
+    {ok, Res} ->
+%%      lager:info("Result from snap7 polling ~p : ~p",[Opts, Res]),
       maybe_emit(Diff, Res, Aliases, LastList), State#state{last_values = Res};
     _Other -> NewClient = connect(Ip, Rack, Slot), State#state{client = NewClient}
   end,
@@ -111,7 +112,7 @@ shutdown(#state{client = Client, timer_ref = Timer}) ->
   catch (snapclient:disconnect(Client)).
 
 poll(Interval) ->
-  lager:notice("new poll timeout with interval: ~p",[Interval]),
+%%  lager:notice("new poll timeout with interval: ~p",[Interval]),
   erlang:send_after(Interval, self(), poll).
 
 
@@ -119,27 +120,27 @@ poll(Interval) ->
 %% no diff flag -> emit
 maybe_emit(false, Res, Aliases, _) ->
   Out = build_point(Res, Aliases),
-  lager:notice("~p emitting no diff (or empty last list): ~p ",[?MODULE, Out]),
+%%  lager:notice("~p emitting no diff (or empty last list): ~p ",[?MODULE, Out]),
   dataflow:emit(Out);
 %% no last values -> emit
 maybe_emit(true, Res, Aliases, []) ->
   maybe_emit(false, Res, Aliases, []);
 %% diff flag and result-list is exactly last list -> no emit
 maybe_emit(true, Result, _, Result) ->
-  lager:warning("diff is true and there is no diff in ResultList !"),
+%%  lager:warning("diff is true and there is no diff in ResultList !"),
   ok;
 %% diff flag -> emit diff values only
 maybe_emit(true, Result, Aliases, LastList) ->
   ResAliasList = lists:zip(Aliases, Result),
   LastAliasList = lists:zip(Aliases, LastList),
-  lager:info("resalias: ~p ~n lastalias : ~p",[ResAliasList, LastAliasList]),
+%%  lager:info("resalias: ~p ~n lastalias : ~p",[ResAliasList, LastAliasList]),
   ResList = lists:filter(
     fun({K, Res}) -> (proplists:get_value(K, LastAliasList) /= Res) end,
     ResAliasList),
   {ResAliases, ResValues} = lists:unzip(ResList),
-  lager:info("unzipped again: ~p" ,[lists:unzip(ResList)]),
+%%  lager:info("unzipped again: ~p" ,[lists:unzip(ResList)]),
   Out = build_point(ResValues, ResAliases),
-  lager:notice("~p emitting diff: ~p ",[?MODULE, Out]),
+%%  lager:notice("~p emitting diff: ~p ",[?MODULE, Out]),
   dataflow:emit(Out).
 
 

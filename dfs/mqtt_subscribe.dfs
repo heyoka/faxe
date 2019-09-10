@@ -5,6 +5,9 @@ def mqtt =
     .topic('ttgw/grip/#')
 
     |where()
+    .lambda(lambda: str_ends_with("topic", '/conveyor_message') == false)
+
+    |where()
     .lambda(lambda: if(member("topic", ls_mem('topics_seen')), false, true))
     .ls_mem('topics_seen')
     .ls_mem_field('topic')
@@ -12,7 +15,6 @@ def mqtt =
 
     |debug()
 
-    |log()
-    .file('cogsys.txt')
+
 
 

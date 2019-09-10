@@ -57,7 +57,7 @@ options() -> [
 
 %% save mode with ondisc queuing
 init(NodeId, _Ins, #{save := true, host := Host0}=Opts) ->
-   lager:notice("++++ ~p ~ngot opts: ~p ~n",[NodeId, Opts]),
+%%   lager:notice("++++ ~p ~ngot opts: ~p ~n",[NodeId, Opts]),
 %%   emqttc:start_link([{host, Host}, {client_id, NodeId}, {logger, info}]),
    Host = binary_to_list(Host0),
    {ok, Q} = esq:new(?DEFAULT_QUEUE_FILE),
@@ -67,7 +67,7 @@ init(NodeId, _Ins, #{save := true, host := Host0}=Opts) ->
 init(NodeId, _Ins,
    #{save := false, host := Host0, port := Port, topic := Topic,
       retained := Retained, ssl := UseSSL, qos := Qos} = Opts) ->
-   lager:notice("++++ ~p ~ngot opts: ~p ~n",[NodeId, Opts]),
+%%   lager:notice("++++ ~p ~ngot opts: ~p ~n",[NodeId, Opts]),
    Host = binary_to_list(Host0),
    {ok, Client} = emqtt:start_link([{host, Host}, {port, Port}]),
    emqtt:connect(Client),
@@ -86,12 +86,12 @@ process(_Inport, #data_point{} = Point, State = #direct_state{}) ->
 process(_In, #data_batch{} = Batch, State = #save_state{queue = Q}) ->
    Json = flowdata:to_json(Batch),
    esq:enq(Json, Q),
-   lager:info("enqueued: ~p :: ~p",[Json, Q]),
+%%   lager:info("enqueued: ~p :: ~p",[Json, Q]),
    {ok, State};
 process(_Inport, #data_point{} = Point, State = #save_state{queue = Q}) ->
    Json = flowdata:to_json(Point),
    esq:enq(Json, Q),
-   lager:info("enqueued: ~p :: ~p",[Json, Q]),
+%%   lager:info("enqueued: ~p :: ~p",[Json, Q]),
    {ok, State}.
 
 handle_info({mqttc, C, connected}, State=#direct_state{}) ->
@@ -102,7 +102,7 @@ handle_info({mqttc, _C,  disconnected}, State=#direct_state{}) ->
    lager:debug("mqtt client disconnected!!"),
    {ok, State#direct_state{connected = false, client = undefined}};
 handle_info(E, S) ->
-   lager:info("[~p] unexpected: ~p~n", [?MODULE, E]),
+%%   lager:info("[~p] unexpected: ~p~n", [?MODULE, E]),
    {ok, S}.
 
 shutdown(#save_state{publisher = P}) ->
@@ -110,8 +110,12 @@ shutdown(#save_state{publisher = P}) ->
 shutdown(#direct_state{client = C}) ->
    catch (emqtt:disconnect(C)).
 
-publish(Msg, #direct_state{retained = Ret, qos = Qos, client = C, topic = Topic}) when is_binary(Msg) ->
-   lager:notice("publish ~s on topic ~p ~n",[Msg, Topic]),
-   {ok, PacketId} = emqtt:publish(C, Topic, Msg, [{qos, Qos}, {retained, Ret}]),
-   lager:notice("sent msg and got PacketId: ~p",[PacketId]).
+
+publish(Msg, #direct_state{retained = Ret, qos = Qos, client = C, topic = Topic})
+   when is_binary(Msg); is_list(Msg)->
+%%   lager:notice("publish ~s on topic ~p ~n",[Msg, Topic]),
+   {ok, PacketId} = emqtt:publish(C, Topic, Msg, [{qos, Qos}, {retained, Ret}])
+%%   ,
+%%   lager:notice("sent msg and got PacketId: ~p",[PacketId])
+.
 

@@ -42,7 +42,6 @@ process(_Inport, #data_point{} = Point,
    case process_point(Point, Lambda, LastTs) of
       {ok, Duration, NewLastTs} ->
          NewPoint = flowdata:set_field(Point, As, Duration),
-         lager:notice("~p process emitting: ~p",[?MODULE, NewPoint]),
          {emit, NewPoint, State#state{last_state_timestamp = NewLastTs}};
       {error, Error} ->
          lager:error("Error evaluating lambda: ~p",[Error]),

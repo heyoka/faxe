@@ -37,7 +37,7 @@ init(NodeId, _Inputs, #{period := Period, every := Every, fill_period := Fill} =
 process(_Inport, #data_point{} = Point, State=#state{} ) ->
    NewState = accumulate(Point, State),
    EvictState = maybe_evict(NewState),
-   lager:notice("window length after eviction: ~p ",[queue:len(EvictState#state.window)]),
+%%   lager:notice("window after eviction: ~p ",[EvictState#state.window]),
    maybe_emit(EvictState).
 
 handle_info(Request, State) ->
@@ -49,13 +49,13 @@ handle_info(Request, State) ->
 %%% Internal functions
 %%%===================================================================
 accumulate(Point = #data_point{}, State = #state{window = Win, count = C, at = At, len = Len}) ->
-   lager:info("accumulate"),
+%%   lager:info("accumulate"),
    State#state{count = C+1, at = At+1, len = Len+1, window = queue:in(Point, Win)}.
 
 maybe_emit(State = #state{every = Count, count = Count}) ->
    maybe_do_emit(State#state{count = 0});
 maybe_emit(State = #state{}) ->
-   lager:info("no emit when count is: ~p ",[State#state.count]),
+%%   lager:info("no emit when count is: ~p ",[State#state.count]),
    {ok, State}.
 
 maybe_do_emit(State = #state{fill_period = true, len = Period, period = Period}) ->
@@ -65,18 +65,16 @@ maybe_do_emit(State = #state{fill_period = false}) ->
 maybe_do_emit(State = #state{}) ->
    {ok, State}.
 
-do_emit(State=#state{window = Win, count = Count, len = Len}) ->
-%%   lager:notice("emitting ~p when count is: ~p ",[Len, Count]),
+do_emit(State=#state{window = Win, count = _Count, len = _Len}) ->
    Batch = #data_batch{points = queue:to_list(Win)},
+%%   lager:notice("emitting ~p ",[Batch]),
    {emit, Batch, State}.
 
 
 maybe_evict(State = #state{period = Period, at = At, len = Len, window = Win}) when At == Period+1 ->
    NewWin = queue:drop(Win),
-%%   lager:notice("evict 1 : At, Period: ~p ",[{At, Period}]),
    State#state{at = Period, len = Len-1, window = NewWin};
 maybe_evict(Win = #state{}) ->
-   lager:info("no eviction"),
    Win.
 
 

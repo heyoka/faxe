@@ -192,8 +192,8 @@ build_opts(OutFormats, undefined) when is_list(OutFormats) ->
 build_opts(Out, Signed) when is_list(Out), is_list(Signed) ->
    F = fun
           ({<<>>, S}) ->  [{signed, S}];
-          ({O, <<>>}) -> [{output, O}];
-          ({O, S}) -> [{output, O}, {signed, S}]
+          ({O, <<>>}) -> [{output, binary_to_existing_atom(O, latin1)}];
+          ({O, S}) -> [{output, binary_to_existing_atom(O, latin1)}, {signed, S}]
        end,
    lists:map(F, lists:zip(Out, Signed)).
 
@@ -207,13 +207,25 @@ read(_Client, Point, []) ->
 read(Client, Point, [{{Fun, Start, Count, As}, Opts} | Reqs]) ->
    lager:notice("read modbus:~p(~p)",[Fun,[Client, Start, Count, Opts]]),
    Res = modbus:Fun(Client, Start, Count, Opts),
+   lager:notice("modbus result: ~p", [Res]),
    case Res of
       {error, disconnected} ->
          {error, stop};
       {error, _Reason} ->
          read(Client, Point, Reqs);
       Data ->
-         NewPoint = flowdata:set_field(Point, As, Data),
+         FData =
+         case Data of
+            [D] -> D;
+            _ -> Data
+         end,
+         %% we assume, if an output option is given, then a single value (instead a list) is desired
+%%         FData =
+%%         case proplists:get_value(output, Opts) of
+%%            undefined -> Data;
+%%            _ ->  case Data of [] -> []; [D] -> D end
+%%         end,
+         NewPoint = flowdata:set_field(Point, As, FData),
          read(Client, NewPoint, Reqs)
    end.
 

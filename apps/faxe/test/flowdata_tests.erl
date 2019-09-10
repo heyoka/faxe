@@ -199,6 +199,49 @@ json_basic_data_excl_test() ->
 
    ).
 
+
+batch_to_json_test() ->
+   P = #data_point{ts = 1568029511598, fields =
+   #{<<"id">> => <<"ioi2u34oiu23oi4u2oi4u2">>,
+      <<"df">> => <<"01.002">>, <<"vs">> => 2, <<"value1">> => 2323422, <<"value2">> => <<"savoi">>,
+      <<"data">> => #{<<"value1">> => 323424, <<"value2">> => <<"somestringvalue">>}}
+   },
+   Points = [P#data_point{ts = P#data_point.ts+(X*1000)} || X <- lists:seq(1,5)],
+   Json = to_json(#data_batch{points = Points}),
+   ?assertEqual(jiffy:decode(Json, [return_maps]),
+      [#{<<"data">> =>
+      #{<<"value1">> => 323424,
+         <<"value2">> => <<"somestringvalue">>},
+         <<"df">> => <<"01.002">>,
+         <<"id">> => <<"ioi2u34oiu23oi4u2oi4u2">>,
+         <<"ts">> => 1568029512598,<<"vs">> => 2},
+         #{<<"data">> =>
+         #{<<"value1">> => 323424,
+            <<"value2">> => <<"somestringvalue">>},
+            <<"df">> => <<"01.002">>,
+            <<"id">> => <<"ioi2u34oiu23oi4u2oi4u2">>,
+            <<"ts">> => 1568029513598,<<"vs">> => 2},
+         #{<<"data">> =>
+         #{<<"value1">> => 323424,
+            <<"value2">> => <<"somestringvalue">>},
+            <<"df">> => <<"01.002">>,
+            <<"id">> => <<"ioi2u34oiu23oi4u2oi4u2">>,
+            <<"ts">> => 1568029514598,<<"vs">> => 2},
+         #{<<"data">> =>
+         #{<<"value1">> => 323424,
+            <<"value2">> => <<"somestringvalue">>},
+            <<"df">> => <<"01.002">>,
+            <<"id">> => <<"ioi2u34oiu23oi4u2oi4u2">>,
+            <<"ts">> => 1568029515598,<<"vs">> => 2},
+         #{<<"data">> =>
+         #{<<"value1">> => 323424,
+            <<"value2">> => <<"somestringvalue">>},
+            <<"df">> => <<"01.002">>,
+            <<"id">> => <<"ioi2u34oiu23oi4u2oi4u2">>,
+            <<"ts">> => 1568029516598,<<"vs">> => 2}]
+
+   ).
+
 msgpack_basic_test() ->
    P = #data_point{ts = 1568029511598, fields = #{<<"id">> => <<"ioi2u34oiu23oi4u2oi4u2">>,
       <<"df">> => <<"01.002">>, <<"vs">> => 2,

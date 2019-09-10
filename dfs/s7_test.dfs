@@ -1,5 +1,6 @@
 def whid = 'ab33zr83489urf34r43j'
 def device_id = 'DV0025LM33'
+def mqtt_host = '10.14.204.3'
 
 def s7 =
     |s7poll()
@@ -12,7 +13,8 @@ def s7 =
     .as('StrapDrv.ActMotorTorque', 'StGa.ActVal', 'LiftDrv.TargetPos', 'LiftDrv.SetpVelo', 'LiftDrv.ActVelo')
 
 %% overwrite the above values for testing purposes
-    |eval(lambda: random_real(4), lambda: random_real(44),
+    |eval()
+    .lambdas(lambda: random_real(4), lambda: random_real(44),
         lambda: random(30), lambda: random(30), lambda: random(30) * -1)
     .as('StrapDrv.ActMotorTorque', 'StGa.ActVal', 'LiftDrv.TargetPos', 'LiftDrv.SetpVelo', 'LiftDrv.ActVelo')
 
@@ -22,14 +24,14 @@ def s7 =
     .tags('name', 'warehouse_id', 'device_id')
     .tag_values('measurement1', whid, device_id)
 
-    |win_event()
+    |win_event_q()
     .every(10)
     .period(10)
 
 %% publish to mqtt broker
 
     |mqtt_publish()
-    .host('10.14.12.142')
+    .host(mqtt_host)
     .port(1883)
     .qos(1)
     .topic('ttgw/m1')

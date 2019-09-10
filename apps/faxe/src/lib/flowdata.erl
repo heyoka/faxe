@@ -40,16 +40,30 @@
    field_names/1, tag_names/1,
    rename_fields/3, rename_tags/3,
    expand_json_field/2, extract_map/2, extract_field/3,
-   field/3, to_s_msgpack/1]).
+   field/3, to_s_msgpack/1, from_json/1, t/0, to_map/1]).
 
 
 -define(DEFAULT_ID, <<"00000">>).
 -define(DEFAULT_VS, 1).
 -define(DEFAULT_DF, <<"00.000">>).
 
+t() ->
+   P = #data_point{ts = 1568029511598, fields =
+   #{<<"id">> => <<"ioi2u34oiu23oi4u2oi4u2">>,
+   <<"df">> => <<"01.002">>, <<"vs">> => 2, <<"value1">> => 2323422, <<"value2">> => <<"savoi">>,
+   <<"data">> => #{<<"value1">> => 323424, <<"value2">> => <<"somestringvalue">>}}
+   },
+   Q = queue:new(),
+   Q0 = queue:in(P#data_point{ts = P#data_point.ts+(1*1000)}, Q),
+   Q1 = queue:in(P#data_point{ts = P#data_point.ts+(2*1000)}, Q0),
+   Q2 = queue:in(P#data_point{ts = P#data_point.ts+(3*1000)}, Q1),
+%%   Points = [P#data_point{ts = P#data_point.ts+(X*1000)} || X <- lists:seq(1,3)],
+   Json = to_json(#data_batch{points = queue:to_list(Q2)}),
+   lager:warning("BATCH TO JSON: ~p",[Json]).
 
 to_json(P) when is_record(P, data_point) orelse is_record(P, data_batch) ->
-   jiffy:encode(to_mapstruct(P)).
+%%   lager:notice("MapStruct: ~p", [to_mapstruct(P)]),
+   jiffy:encode(to_mapstruct(P), []).
 %%
 to_mapstruct(P=#data_point{ts = Ts, fields = Fields, tags = _Tags}) ->
    DataFields =
@@ -57,32 +71,35 @@ to_mapstruct(P=#data_point{ts = Ts, fields = Fields, tags = _Tags}) ->
       nil -> maps:without([<<"id">>,<<"vs">>,<<"df">>], Fields);
       Data -> Data
    end,
+%%   lager:info("Datafields for JSON: ~p", [DataFields]),
    #{<<"ts">> => Ts,
       <<"id">> => field(P ,<<"id">>, ?DEFAULT_ID),
       <<"vs">> => field(P, <<"vs">>, ?DEFAULT_VS),
       <<"df">> => field(P, <<"df">>, ?DEFAULT_DF),
       <<"data">> => DataFields};
+
 to_mapstruct(_B=#data_batch{points = Points}) ->
    [to_mapstruct(P) || P <- Points].
-
-%%-spec to_json(P :: #data_batch{}|#data_point{}) -> jsx:json_text().
-%%to_json(P) when is_record(P, data_point) orelse is_record(P, data_batch) ->
-%%   jsx:encode(to_map(P)).
 
 -spec to_s_msgpack(P :: #data_point{}|#data_batch{}) -> binary() | {error, {badarg, term()}}.
 to_s_msgpack(P) when is_record(P, data_point) orelse is_record(P, data_batch) ->
    msgpack:pack(to_mapstruct(P), [{map_format, jiffy}]).
 
-%%-spec to_msgpack(P :: #data_point{}|#data_batch{}) -> binary() | {error, {badarg, term()}}.
-%%to_msgpack(P) when is_record(P, data_point) orelse is_record(P, data_batch) ->
-%%   msgpack:pack(to_map(P)).
-%%
-%%-spec to_map(#data_point{}|#data_batch{}) -> map()|list(map()).
-%%to_map(#data_point{ts = Ts, fields = Fields, tags = Tags}) ->
-%%   M = maps:merge(maps:from_list(Fields), maps:from_list(Tags)),
-%%   M#{<<"ts">> => Ts};
-%%to_map(#data_batch{points = Points}) ->
-%%   [to_map(P) || P <- Points].
+
+from_json(Message) ->
+   try jiffy:decode(Message, [return_maps, dedupe_keys]) of
+      Json when is_map(Json) -> Json
+   catch
+      _:_ -> #{}
+   end.
+
+%% return a pure map representation from a data_point/data_batch
+-spec to_map(#data_point{}|#data_batch{}) -> map()|list(map()).
+to_map(#data_point{ts = Ts, fields = Fields, tags = Tags}) ->
+   M = maps:merge(Fields, Tags),
+   M#{<<"ts">> => Ts};
+to_map(#data_batch{points = Points}) ->
+   [to_map(P) || P <- Points].
 
 %% extract a given map into the fields-list in data_point P
 %% return the updated data_point
