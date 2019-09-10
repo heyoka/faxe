@@ -4,18 +4,38 @@
 %% @doc
 %% This module provides functions for all needs in context with #data_point and #data_batch records.
 %%
+%% -record(data_point, {
+%%    ts                :: non_neg_integer(), %% timestamp in ms
+%%    fields   = #{}    :: map(),
+%%    tags     = #{}    :: map(),
+%%    id       = <<>>   :: binary()
+%% }).
+%%
+%% -record(data_batch, {
+%%    id                :: binary(),
+%%    points            :: list(#data_point{}),
+%%    start             :: non_neg_integer(),
+%%    ed                :: non_neg_integer()
+%% }).
+%%
+%% The basic data_type for the record-fields 'fields' and 'tags' is a map.
+%% Note: for 'tags' it is assumed, that the map is 1-dimensional
+%%
 %% Field and Tag names in a data_point are always binary strings.
-%% Field values are simple int, string or float values, but can also be deep nested lists and tuple_lists
+%% Field values are simple int, string or float values, but can also be deep nested maps and lists
+%%
 %% Tag values a always binary strings.
+%%
 %% Every data_point record has a ts-field it's value is always a unix-timestamp in
 %% millisecond precision.
 %%
-%% For every function, which expects a name/path (binary) a jsonpath query can be provided, ie:
+%% For every function that expects a name/path (binary) a jsonpath query can be provided, ie:
+%%
 %% * flowdata:field(#data_point{}, <<"value.sub[2].data">>). will return the value at value.sub[2].data
 %% * flowdata:field(#data_point{}, <<"averages">>).
 %% * flowdata:field(#data_point{}, <<"averages.emitted[5]">>).
 %%
-%% A data_batch record consists of an ordered list of data_point records (field 'points').
+%% A data_batch record consists of an ordered (by timestamp) list of data_point records (field 'points').
 %% The 'points' list is ordered by timestamp such that the oldest point is the last entry in the list.
 %% @end
 

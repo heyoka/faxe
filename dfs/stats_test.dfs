@@ -1,0 +1,29 @@
+def go =
+    |value_emitter()
+    .every(1s)
+    .type(point)
+
+    |win_time_q()
+    .every(7s)
+    .period(7s)
+
+    |kurtosis()
+    .field('val')
+
+    |debug()
+
+def path_perc =
+    |value_emitter()
+    .every(1s)
+    .type(point)
+    .format(ejson)
+
+    | win_time_q()
+    .every(5s)
+    .period(5s)
+
+    |range()
+    .field('val.val')
+    .as('val.val.range')
+
+    |debug()

@@ -15,7 +15,7 @@
    node_id,
    field,
    factor,
-   module,
+   modules :: list(),
    module_state,
    as,
    row1 = [],
@@ -25,17 +25,18 @@
    buffer_time = 0
 }).
 
-get_options() -> [{field, binary}, {as, binary, undefined}].
+get_options() -> [{field, binary}, {as, binary, undefined}, {func, atomlist, undefined}].
 
 
-init(NodeId, Ins, #{field := Field, as := As, module := Mod} = Args) ->
+init(NodeId, Ins, #{field := Field, as := As, module := Mod, func := Func} = Args) ->
    lager:notice("ARgs for ~p: ~p", [Mod, Args]),
    RowLength = length(Ins),
+   Modules = case Func of undefined -> [Mod]; _ -> Func end,
    As1 = case As of undefined -> Mod; _ -> As end,
-   State = #state{field = Field, node_id = NodeId, as = As1, row_length = RowLength, module = Mod},
+   State = #state{field = Field, node_id = NodeId, as = As1, row_length = RowLength, modules = Modules},
    {ok, all, State#state{module_state = Args}}.
 
-process(_Inport, #data_batch{} = Batch, State = #state{module = Mod, module_state = MState, field = F, as = As}) ->
+process(_Inport, #data_batch{} = Batch, State = #state{modules = Mod, module_state = MState, field = F, as = As}) ->
 
    Ps = prepare(Batch, F),
    Result = call(Ps, Mod, MState, As),
@@ -45,7 +46,7 @@ process(_Inport, #data_batch{} = Batch, State = #state{module = Mod, module_stat
 process(_Inport, #data_point{ts = Ts_Buffer} = Point,
     State = #state{field = F, buffer_time = Ts_Buffer}) ->
    State#state{buffer = [{Ts_Buffer, flowdata:field(Point, F)}|State#state.buffer]};
-process(_Inport, #data_point{ts = Ts} = Point, State = #state{as = As, module = Mod, module_state = MState, field = F}) ->
+process(_Inport, #data_point{ts = Ts} = Point, State = #state{as = As, modules = Mod, module_state = MState, field = F}) ->
 %%   Val = flowdata:field(Point, F),
    lager:info("~p buffertime: ~p", [?MODULE, State#state.buffer_time]),
    NewState =

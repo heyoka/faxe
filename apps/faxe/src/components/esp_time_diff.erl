@@ -2,8 +2,14 @@
 %% Ⓒ 2017 heyoka
 %%
 %% @doc
-%% Instead of the current value outputs the difference to a previous value for multiple fields
-%% if no previous value is found for a specific field, the current field-value is used
+%% The time_diff node adds a field to the current item
+%% containing the difference between the timestamps of the consecutive items
+%%
+%% With the 'as' option, the name of the output field can be changed.
+%%
+%% 'as' defaults to "elapsed"
+%%
+%% unit output value is milliseconds
 %% @end
 -module(esp_time_diff).
 -author("Alexander Minichmair").
