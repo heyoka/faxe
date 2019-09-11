@@ -23,7 +23,7 @@
    row_length :: non_neg_integer(),
    lookup = [] :: list(), %% buffer-keys
    buffer, %% orddict with timstamps as keys
-   as,
+   prefix,
    tolerance,
    granularity = {minute, 5}, %% if given, means: align the joining to the time-interval
    m_timeout,
@@ -36,7 +36,7 @@ inports() ->
 
 options() -> [
    {joined, nodes, {ports, [2,3,4,5]}},
-   {as,     string_list, [<<"val">>]},
+   {prefix,     string_list, [<<"val">>]},
    %% @todo maybe this should be aligned to wall clock ?
    %% a wall-clock timeout will be set up per time unit to collect all values,
    %% values that do not arrive within the given timeout will be treated as missing, in ms
@@ -47,12 +47,12 @@ options() -> [
    {fill,   any,     none} %% none, null, any numerical value
 ].
 
-init(NodeId, Ins, #{as := As, missing_timeout := MTimeOut, tolerance := Tol}) ->
+init(NodeId, Ins, #{prefix := Prefix, missing_timeout := MTimeOut, tolerance := Tol}) ->
    RowLength = length(Ins),
-   As1 = lists:zip(lists:seq(1,RowLength), As),
+  Prefix1 = lists:zip(lists:seq(1,RowLength), Prefix),
    io:format("~p init:node :: ~p~n",[NodeId, Ins]),
    {ok, all,
-      #state{node_id = NodeId, as = As1, row_length = length(Ins),
+      #state{node_id = NodeId, prefix = Prefix1, row_length = length(Ins),
       tolerance = faxe_time:duration_to_ms(Tol),
       m_timeout = faxe_time:duration_to_ms(MTimeOut)}}.
 
@@ -63,7 +63,7 @@ process(Inport, #data_point{ts = Ts} = Point, State = #state{buffer = undefined,
    NewBuffer = orddict:store(Ts, [{Inport, Point}], Buffer),
    {ok, State#state{buffer = NewBuffer, timers = NewList}};
 process(Inport, #data_point{ts = Ts} = Point, State = #state{buffer = Buffer, timers = TList,
-   as = As, m_timeout = MTimeout, row_length = RowLength, tolerance = Tolerance}) ->
+   prefix = As, m_timeout = MTimeout, row_length = RowLength, tolerance = Tolerance}) ->
    lager:notice("In on port : ~p",[Inport]),
    TsList = orddict:fetch_keys(Buffer),
 %%   lager:info("new TsList in Buffer: ~p",[TsList]),
@@ -113,7 +113,7 @@ process(Inport, #data_point{ts = Ts} = Point, State = #state{buffer = Buffer, ti
 handle_info({tick, Ts}, State = #state{buffer = [], timers = TList}) ->
    lager:warning("~p empty buffer when ticked",[?MODULE]),
    {ok, State#state{timers = proplists:delete(Ts, TList), buffer = undefined}};
-handle_info({tick, Ts}, State = #state{buffer = Buffer, as = As, timers = TList}) ->
+handle_info({tick, Ts}, State = #state{buffer = Buffer, prefix = As, timers = TList}) ->
    lager:warning("~p ticks missing timeout :: ~p",[?MODULE, Buffer]),
    NewBuffer =
    case lists:member(Ts, orddict:fetch_keys(Buffer)) of
@@ -123,19 +123,16 @@ handle_info({tick, Ts}, State = #state{buffer = Buffer, as = As, timers = TList}
             NewDict;
       false -> Buffer
    end,
-%%   Row = orddict:fetch(Ts, Buffer),
-%%   dataflow:emit(join(Row, Ts, As)),
-%%   NewBuffer = orddict:erase(Ts, Buffer),
    {ok, State#state{buffer = NewBuffer, timers = proplists:delete(Ts, TList)}}.
 
 %% actually join the buffer rows
-join(RowData, Ts, As) ->
+join(RowData, Ts, Prefixes) ->
    NewPoint =
    lists:foldl(
-      fun({Port, #data_point{fields = Fields}}, P=#data_point{fields = ResFields}) ->
-         Prefix = proplists:get_value(Port, As),
+      fun({Port, #data_point{fields = Fields}}, P=#data_point{}) ->
+         Prefix = proplists:get_value(Port, Prefixes),
          NewFields =
-            [{<<Prefix/binary, <<"_">>/binary, FName/binary>>, Val} ||
+            [{<<Prefix/binary, FName/binary>>, Val} ||
                {FName, Val} <- maps:to_list(Fields)],
          flowdata:set_fields(P, NewFields)
       end,
@@ -146,6 +143,7 @@ join(RowData, Ts, As) ->
    NewPoint.
 
 %% get the nearest from a list of values
+%% the absolute value difference is used here
 nearest_ts(Ts, TsList) ->
    lists:foldl(
       fun(E, Nearest) ->

@@ -347,7 +347,7 @@ cparam(_, {_Type, Val}) -> Val;
 cparam(_, V) -> V.
 
 make_lambda_fun(LambdaString, FunParams, BinRefs) ->
-%%   lager:warning("~~n make_lambda_fun(~p, ~p, ~p)~n",[LambdaString, FunParams, BinRefs]),
+   lager:warning("~~n make_lambda_fun(~p, ~p, ~p)~n",[LambdaString, FunParams, BinRefs]),
    {Bindings, _Index} = lists:foldl(
       fun(P, {Bindings, Index}) ->
          Bind = bind_lambda_param(lists:nth(Index, FunParams), P),
@@ -357,13 +357,14 @@ make_lambda_fun(LambdaString, FunParams, BinRefs) ->
       BinRefs
    ),
    F =  "fun(Point) -> " ++ Bindings ++ " fun() -> " ++ LambdaString ++ " end end.",
-%%   lager:warning("~nfun: ~p~n",[F]),
+   lager:warning("~nfun: ~p~n",[F]),
    Fun = parse_fun(F),
    Fun
 .
 
 bind_lambda_param(PName, BinRef) ->
-   PName ++ " = flowdata:value(Point, <<\"" ++ binary_to_list(BinRef) ++ "\">>), ".
+   lager:notice("*************************************~n bind_lambda: ~p", [{PName, BinRef}]),
+   string:replace(PName, ".", "$") ++ " = flowdata:value(Point, <<\"" ++ binary_to_list(BinRef) ++ "\">>), ".
 
 
 parse_fun(S) ->

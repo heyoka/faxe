@@ -2,14 +2,14 @@
 %% Ⓒ 2017 heyoka
 %%
 %% @doc
-%% The time_diff node adds a field to the current item
+%% The time_diff node adds a field to the current data-item
 %% containing the difference between the timestamps of the consecutive items
 %%
 %% With the 'as' option, the name of the output field can be changed.
 %%
 %% 'as' defaults to "elapsed"
 %%
-%% unit output value is milliseconds
+%% unit for output value is milliseconds
 %% @end
 -module(esp_time_diff).
 -author("Alexander Minichmair").

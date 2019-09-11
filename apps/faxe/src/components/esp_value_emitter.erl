@@ -11,6 +11,7 @@
 -record(state, {
    node_id           :: term(),
    every             :: non_neg_integer(),
+   jitter            :: non_neg_integer(),
    type              :: batch | point,
    format            :: undefined | ejson,
    batch_size        :: non_neg_integer(),
@@ -21,23 +22,22 @@
 params() -> [].
 
 options() ->
-   [{every, duration, <<"5s">>}, {type, atom, batch},
+   [{every, duration, <<"5s">>}, {jitter, duration, <<"0ms">>}, {type, atom, batch},
       {batch_size, integer, 5}, {align, is_set},
       {fields, binary_list, [<<"val">>]}, {format, atom, undefined}].
 
 init(NodeId, _Inputs,
     #{every := Every, type := Type, batch_size := BatchSize, align := Unit,
-       fields := Fields, format := Fmt} = P) ->
+       fields := Fields, format := Fmt, jitter := Jitter} = P) ->
    NUnit =
       case Unit of
          false -> false;
          true -> faxe_time:binary_to_duration(Every)
       end,
-
-%%   lager:debug("~p init:node~n",[{NodeId, P}]),
+   JT = faxe_time:duration_to_ms(Jitter),
    EveryMs = faxe_time:duration_to_ms(Every),
    State = #state{node_id = NodeId, every = EveryMs, fields = Fields,
-      type = Type, batch_size = BatchSize, align = NUnit, format = Fmt},
+      type = Type, batch_size = BatchSize, align = NUnit, format = Fmt, jitter = JT},
 
    erlang:send_after(EveryMs, self(), values),
    rand:seed(exs1024s),
@@ -64,8 +64,8 @@ build_msg(S = #state{type = batch, batch_size = Size, fields = Fields, format = 
    Values = batch_points(TsStart, Dist, [], Size, Fields, Fmt),
    flowdata:set_bounds(#data_batch{points = Values})
 ;
-build_msg(#state{type = point, align = false, fields = Fields, format = Fmt}) ->
-   point(faxe_time:now(), Fields, Fmt);
+build_msg(#state{type = point, align = false, fields = Fields, format = Fmt, jitter = JT}) ->
+   point(faxe_time:now()+(round(rand:uniform()*JT)), Fields, Fmt);
 build_msg(#state{type = point, align = Unit, fields = Fields, format = Fmt}) ->
 %%   lager:info(" ~p build point~n",[?MODULE]),
    point(faxe_time:align(faxe_time:now(), Unit), Fields, Fmt).
@@ -99,7 +99,7 @@ point(Ts, FieldNames, ejson) ->
    Fields =
       lists:foldl(
          fun(FName, FMap) ->
-            #{FName => FMap#{FName => rand:uniform()*10}}
+            #{<<FName/binary, <<"_root">>/binary >> => FMap#{FName => rand:uniform()*10}}
          end,
          Fields0,
          FieldNames

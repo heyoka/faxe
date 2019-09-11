@@ -1,0 +1,43 @@
+
+def v1 =
+    |value_emitter()
+    .every(1s)
+    .type(point)
+    .format(ejson)
+    .jitter(300ms)
+
+def v2 =
+    |value_emitter()
+    .every(700ms)
+    .type(point)
+    .format(ejson)
+    .jitter(200ms)
+
+def v3 =
+    |value_emitter()
+    .every(900ms)
+    .type(point)
+    .format(ejson)
+    .jitter(100ms)
+
+def j1 =
+v1
+    |join(v2)
+    .prefix('v1_', 'v2_')
+    .tolerance(1s)
+    .missing_timeout(2s)
+    .fill(none)
+
+j1
+    |join(v3)
+    .prefix('j1.', 'v3.')
+    .tolerance(1s)
+    .missing_timeout(2s)
+    .fill(none)
+
+    |eval()
+    .lambdas(lambda: "j1.val_root.val" + "v3.val_root.val" / 2)
+    .as('avg')
+
+    |debug()
+
