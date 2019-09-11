@@ -13,18 +13,10 @@ def v2 =
 
 v1
     |join(v2)
-    .as('v1', 'v2')
+    .as('v1.joined', 'v2.joined')
     .tolerance(3s)
     .missing_timeout(3s)
     .fill(none)
 
-    |default()
-    .fields('v1.val', 'v2.val')
-    .field_values(0.0, 0.0)
-
-    |eval(lambda: "v1.val" + "v2.val", lambda: "summe"/2)
-    .as('summe', 'durchschnitt')
-
-    |delete()
-    .fields('v1.val', 'v2.val')
+    |debug()
 

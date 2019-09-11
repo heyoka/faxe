@@ -60,26 +60,15 @@
    field_names/1, tag_names/1,
    rename_fields/3, rename_tags/3,
    expand_json_field/2, extract_map/2, extract_field/3,
-   field/3, to_s_msgpack/1, from_json/1, t/0, to_map/1, set_fields/3, set_tags/3, fields/2, delete_fields/2, delete_tags/2, path/1, paths/1]).
+   field/3, to_s_msgpack/1, from_json/1,
+   to_map/1, set_fields/3, set_tags/3, fields/2,
+   delete_fields/2, delete_tags/2, path/1, paths/1, set_fields/2]).
 
 
 -define(DEFAULT_ID, <<"00000">>).
 -define(DEFAULT_VS, 1).
 -define(DEFAULT_DF, <<"00.000">>).
 
-t() ->
-   P = #data_point{ts = 1568029511598, fields =
-   #{<<"id">> => <<"ioi2u34oiu23oi4u2oi4u2">>,
-   <<"df">> => <<"01.002">>, <<"vs">> => 2, <<"value1">> => 2323422, <<"value2">> => <<"savoi">>,
-   <<"data">> => #{<<"value1">> => 323424, <<"value2">> => <<"somestringvalue">>}}
-   },
-   Q = queue:new(),
-   Q0 = queue:in(P#data_point{ts = P#data_point.ts+(1*1000)}, Q),
-   Q1 = queue:in(P#data_point{ts = P#data_point.ts+(2*1000)}, Q0),
-   Q2 = queue:in(P#data_point{ts = P#data_point.ts+(3*1000)}, Q1),
-%%   Points = [P#data_point{ts = P#data_point.ts+(X*1000)} || X <- lists:seq(1,3)],
-   Json = to_json(#data_batch{points = queue:to_list(Q2)}),
-   lager:warning("BATCH TO JSON: ~p",[Json]).
 
 to_json(P) when is_record(P, data_point) orelse is_record(P, data_batch) ->
 %%   lager:notice("MapStruct: ~p", [to_mapstruct(P)]),
@@ -252,6 +241,10 @@ set_fields(B = #data_batch{points = Points}, Keys, Values) when is_list(Keys), i
       Points
    ),
    B#data_batch{points = Ps}.
+
+set_fields(P = #data_point{fields = Fields}, KeysValues) when is_list(KeysValues) ->
+   NewFields = jsn:set_list(KeysValues, Fields),
+   P#data_point{fields = NewFields}.
 
 %% @doc 
 %% set a key value pair into a fieldlist (which is a map)
