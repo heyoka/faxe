@@ -22,6 +22,15 @@ sample_point() ->
    #data_point{ts = 1231154646, fields=[{f1, 223.3},{f2, 44},{f3, 2}],
       tags=[{t1, <<"hello">>},{t2, <<"JU323z6">>}]}.
 
+path_array_index_test() ->
+   faxe_ets:start_link(),
+   ?assertEqual(flowdata:path(<<"this[2].is.my.paths[2].id">>),
+      {<<"this">>, 2, <<"is">>, <<"my">>, <<"paths">>, 2, <<"id">>}).
+
+path_test() ->
+   Path = <<"this.is.my.paths.id">>,
+   ?assertEqual(flowdata:path(Path), Path).
+
 get_field_value_kv_test() ->
    P = #data_point{ts = 1234567891234, id = <<"324392i09i329i2df4">>, fields = #{<<"val">> => 3}},
    Path = <<"val">>,
@@ -73,6 +82,19 @@ delete_field_value_deep_test() ->
          <<"var">> => 44}
    ).
 
+delete_fields_test() ->
+   P = #data_point{ts = 1234567891234, id = <<"324392i09i329i2df4">>,
+      fields = #{<<"val">> => deep_val(), <<"var">> => 44}},
+   Paths = [<<"val.menu.popup.menuitem">>, <<"var">>],
+   NewPoint = flowdata:delete_fields(P, Paths),
+   ?assertEqual(NewPoint#data_point.fields,
+      #{<<"val">> =>
+      #{<<"menu">> =>
+      {[{<<"id">>,<<"file">>},
+         {<<"value">>,<<"File">>},
+         {<<"popup">>,{[]}}]}} }
+   ).
+
 rename_field_basic_test() ->
    P = #data_point{ts = 1234567891234, id = <<"324392i09i329i2df4">>,
       fields = #{<<"val">> => <<"somestring">>, <<"var">> => 44}},
@@ -102,6 +124,31 @@ set_field_deep_test() ->
                #{<<"deep">> => <<"new">>}}}
    ).
 
+set_multiple_fields_test() ->
+   P = #data_point{ts = 1234567891234, id = <<"324392i09i329i2df4">>,
+      fields = #{<<"val">> => <<"somestring">>, <<"var">> => 44}},
+   Keys = [<<"simple">>, <<"value.into.deep">>],
+   Values = [321321.5645, <<"some_string-value">>],
+   SetP = flowdata:set_fields(P, Keys, Values),
+   ?assertEqual(SetP#data_point.fields,
+      #{<<"val">> => <<"somestring">>, <<"var">> => 44,
+         <<"simple">> => 321321.5645,
+         <<"value">> =>
+         #{<<"into">> =>
+         #{<<"deep">> => <<"some_string-value">>}}}
+   ).
+
+set_multiple_tags_test() ->
+   P = #data_point{ts = 1234567891234, id = <<"324392i09i329i2df4">>,
+      tags = #{<<"tag1">> => <<"somestring">>, <<"tag2">> => <<"44">>}},
+   Keys = [<<"tag3">>, <<"tag4">>],
+   Values = [<<"mytagvalue">>, <<"some_string-value">>],
+   SetP = flowdata:set_tags(P, Keys, Values),
+   ?assertEqual(SetP#data_point.tags,
+      #{<<"tag1">> => <<"somestring">>, <<"tag2">> => <<"44">>,
+         <<"tag3">> => <<"mytagvalue">>,
+         <<"tag4">> => <<"some_string-value">>}
+   ).
 
 rename_tag_kv_test() ->
    P = #data_point{ts = 1234567891234, id = <<"324392i09i329i2df4">>,
@@ -113,28 +160,17 @@ rename_tag_kv_test() ->
 
 %% array indices are available only through the tuple path format
 %%%
-%%rename_field_deep_test() ->
-%%   P = #data_point{ts = 1234567891234, id = <<"324392i09i329i2df4">>,
-%%      fields = [{<<"val">>, deep_val()},{<<"var">>,44}]},
-%%   From = [<<"val.menu.popup.menuitem">>, <<"val.menu.popup.menuitem[1].value">>],
-%%   To = [<<"val.menu.popup.menu_item">>, <<"val.menu.popup.menuitem[1].val">>],
-%%   SetP = rename_fields(P, From, To),
-%%   ?assertEqual(SetP#data_point.fields,
-%%      [{<<"val">>,
-%%         {[{<<"menu">>,
-%%            {[{<<"id">>,<<"file">>},
-%%               {<<"value">>,<<"File">>},
-%%               {<<"popup">>,
-%%                  {[{<<"menu_item">>,
-%%                     [{[{<<"value">>,<<"New">>},
-%%                        {<<"onclick">>,<<"CreateNewDoc()">>}]},
-%%                        {[{<<"onclick">>,<<"OpenDoc()">>},
-%%                           {<<"val">>,<<"Open">>}]},
-%%                        {[{<<"value">>,<<"Close">>},
-%%                           {<<"onclick">>,<<"CloseDoc()">>},
-%%                           {<<"ondbclick">>,<<"print()">>}]}]}]}}]}}]}},
-%%         {<<"var">>,44}]
-%%   ).
+r_val() -> #{<<"foo">> => #{<<"bar">> =>[#{<<"first">> => 1},2,3]}}.
+
+rename_field_deep_array_index_test() ->
+   P = #data_point{ts = 1234567891234, id = <<"324392i09i329i2df4">>,
+      fields = #{<<"val">> => r_val(), <<"var">> => 44}},
+   From = [flowdata:path(<<"val.foo.bar[1].first">>)],
+   To = [flowdata:path(<<"val.foo.bar[1].erster">>)],
+   SetP = flowdata:rename_fields(P, From, To),
+   ?assertEqual(SetP#data_point.fields,
+      #{<<"val">> => #{<<"foo">> => #{<<"bar">> =>[#{<<"erster">> => 1},2,3]}}, <<"var">> => 44}
+   ).
 
 get_field_names_kv_test() ->
    P = #data_point{ts = 1234567891234, id = <<"324392i09i329i2df4">>,

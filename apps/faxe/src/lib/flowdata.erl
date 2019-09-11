@@ -60,7 +60,7 @@
    field_names/1, tag_names/1,
    rename_fields/3, rename_tags/3,
    expand_json_field/2, extract_map/2, extract_field/3,
-   field/3, to_s_msgpack/1, from_json/1, t/0, to_map/1]).
+   field/3, to_s_msgpack/1, from_json/1, t/0, to_map/1, set_fields/3, set_tags/3, fields/2, delete_fields/2, delete_tags/2, path/1, paths/1]).
 
 
 -define(DEFAULT_ID, <<"00000">>).
@@ -188,6 +188,10 @@ field(#data_point{fields = Fields}, F) ->
 field(#data_batch{points = Points}, F) ->
    [field(Point, F) || Point <- Points].
 
+%% @doc get a list of field-values with a list of keys/paths
+fields(#data_point{fields = Fields}, PathList) when is_list(PathList) ->
+   jsn:get_list(PathList, Fields).
+
 %% @doc
 %% get an unordered list of all fieldnames from the given data_point
 %% @end
@@ -234,6 +238,21 @@ set_field(P = #data_batch{points = Points}, Key, Value) ->
       Points
    ),
    P#data_batch{points = Ps}.
+
+%% set multiple fields at once
+-spec set_fields(#data_point{}|#data_batch{}, list(), list()) -> #data_point{}|#data_batch{}.
+set_fields(P = #data_point{fields = Fields}, Keys, Values) when is_list(Keys), is_list(Values) ->
+   NewFields = jsn:set_list(lists:zip(Keys, Values), Fields),
+   P#data_point{fields = NewFields};
+set_fields(B = #data_batch{points = Points}, Keys, Values) when is_list(Keys), is_list(Values) ->
+   Ps = lists:map(
+      fun(#data_point{} = D) ->
+         set_fields(D, Keys, Values)
+      end,
+      Points
+   ),
+   B#data_batch{points = Ps}.
+
 %% @doc 
 %% set a key value pair into a fieldlist (which is a map)
 %% if an entry with Key exists already, then the entry will be updated,
@@ -277,13 +296,28 @@ set_tag(P = #data_point{tags = Fields}, Key, Value) ->
    NewFields = set(Key, Value, Fields),
    P#data_point{tags = NewFields}
 ;
-set_tag(#data_batch{points = Points}, Key, Value) ->
-   lists:map(
+set_tag(B = #data_batch{points = Points}, Key, Value) ->
+   Ps = lists:map(
       fun(#data_point{} = D) ->
          set_tag(D, Key, Value)
       end,
       Points
-   ).
+   ),
+   B#data_batch{points = Ps}.
+
+%% set multiple tags at once
+-spec set_tags(#data_point{}|#data_batch{}, list(), list()) -> #data_point{}|#data_batch{}.
+set_tags(P = #data_point{tags = Tags}, Keys, Values) when is_list(Keys), is_list(Values) ->
+   NewTags = jsn:set_list(lists:zip(Keys, Values), Tags),
+   P#data_point{tags = NewTags};
+set_tags(B = #data_batch{points = Points}, Keys, Values) when is_list(Keys), is_list(Values) ->
+   Ps = lists:map(
+      fun(#data_point{} = D) ->
+         set_tags(D, Keys, Values)
+      end,
+      Points
+   ),
+   B#data_batch{points = Ps}.
 
 %% @doc
 %% delete a field with the given name, if a data_batch record is provided, the field gets deleted from all
@@ -298,14 +332,28 @@ delete_field(#data_batch{points = Points}=B, FieldName) ->
    NewPoints = [delete_field(Point, FieldName) || Point <- Points],
    B#data_batch{points = NewPoints}.
 
-%% @doc delete a list of fields from a data_point and return the data_point with the remaining fields
-delete_fields_root(#data_point{fields = Fields}=P, FieldNames) ->
-   PFields =
-   lists:foldl(
-      fun(FName, Fields) -> maps:without(FName, Fields) end,
-      Fields, FieldNames
+%% @doc delete a list of keys/paths
+-spec delete_fields(#data_point{}|#data_batch{}, list()) -> #data_point{}|#data_batch{}.
+delete_fields(P = #data_point{fields = Fields}, KeyList) when is_list(KeyList) ->
+   NewFields = jsn:delete_list(KeyList, Fields),
+   P#data_point{fields = NewFields};
+delete_fields(B = #data_batch{points = Points}, KeyList) when is_list(KeyList) ->
+   Ps = lists:map(
+      fun(#data_point{} = D) ->
+         delete_fields(D, KeyList)
+      end,
+      Points
    ),
-   P#data_point{fields = PFields}.
+   B#data_batch{points = Ps}.
+
+%% @doc delete a list of fields from a data_point and return the data_point with the remaining fields
+%%delete_fields_root(#data_point{fields = Fields}=P, FieldNames) ->
+%%   PFields =
+%%   lists:foldl(
+%%      fun(FName, Fields) -> maps:without(FName, Fields) end,
+%%      Fields, FieldNames
+%%   ),
+%%   P#data_point{fields = PFields}.
 
 %% @doc
 %% delete a tag with the given name, if a data_batch record is provided, the tag gets deleted from all
@@ -318,6 +366,20 @@ delete_tag(#data_point{tags = Tags}=P, TagName) ->
 delete_tag(#data_batch{points = Points}=B, TagName) ->
    NewPoints = [delete_tag(Point, TagName) || Point <- Points],
    B#data_batch{points = NewPoints}.
+
+%% @doc delete a list of keys/paths from tags
+-spec delete_tags(#data_point{}|#data_batch{}, list()) -> #data_point{}|#data_batch{}.
+delete_tags(P = #data_point{tags = Tags}, KeyList) when is_list(KeyList) ->
+   NewTags = jsn:delete_list(KeyList, Tags),
+   P#data_point{tags = NewTags};
+delete_tags(B = #data_batch{points = Points}, KeyList) when is_list(KeyList) ->
+   Ps = lists:map(
+      fun(#data_point{} = D) ->
+         delete_tags(D, KeyList)
+      end,
+      Points
+   ),
+   B#data_batch{points = Ps}.
 
 %% @doc
 %% rename fields and tags, does no inserting value, when field(s) / tag(s) are not found
@@ -374,6 +436,43 @@ set_first(B=#data_batch{points = Ps}) ->
 first_ts(#data_batch{points = P}) ->
    ts(lists:last(P)).
 
+%% @doc Convert a binary path into its tuple-form, only when array-indices are used in the path.
+%% This is required, because binary paths do not support array indices.
+%% It is recommended to compile the paths used in your flow-components at startup and use the
+%% compiled version in consecutive calls to the flowdata functions
+-spec paths(list(binary())) -> list(binary()|tuple()).
+paths(Paths) when is_list(Paths) ->
+   [path(Path) || Path <- Paths].
 
-%%%%%%%%%%%%%%%%%%% INTERNAL %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+-spec path(binary()) -> binary()|tuple().
+path(Path) when is_binary(Path) ->
+   case ets:lookup(field_paths, Path) of
+      [] -> Ret = convert_path(Path), ets:insert(field_paths, {Path, Ret}), Ret;
+      [{Path, Cached}] -> Cached
+   end.
+
+convert_path(Path) ->
+   case binary:match(Path, <<"[">>) of
+      nomatch -> Path;
+      _Match -> Split = binary:split(Path, [<<".">>], [global, trim_all]),
+         PathList =
+            lists:foldl(fun(E, List) -> List ++ extract_array_index(E) end,
+               [],
+               Split),
+         list_to_tuple(PathList)
+   end.
+
+extract_array_index(Bin) ->
+   case binary:split(Bin, [<<"[">>,<<"]">>], [global, trim_all]) of
+      [Bin] = Out -> Out;
+      [Part1, BinIndex] -> [Part1, binary_to_integer(BinIndex)]
+   end.
+%%   ,
+%%
+%%
+%%   case re:run(Bin, <<".*\\[(\\d+)\\]">>, [global,{capture,[0],binary}]) of
+%%      nomatch -> Bin;
+%%      {match, [[BinMatch]]} -> [BinIndex] =
+%%         binary:split(BinMatch, [<<"[">>,<<"]">>], [global, trim_all]),
+%%         {Bin, binary_to_integer(BinIndex)}
+%%   end.
