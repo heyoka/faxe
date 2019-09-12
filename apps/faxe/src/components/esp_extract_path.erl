@@ -22,7 +22,7 @@
 }).
 
 options() ->
-   [{path, binary_list}, {as, binary_list, <<"extract">>}, {default, any, 0}].
+   [{path, binary_list}, {as, binary_list}, {default, any, 0}].
 
 init(NodeId, _Inputs, #{path := Paths, as := As, default := Def} = _Args) ->
    {ok, all, #state{paths = Paths, as = As, default = Def, nodeid = NodeId}}.
