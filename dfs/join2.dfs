@@ -35,8 +35,12 @@ j1
     .missing_timeout(2s)
     .fill(none)
 
+    |default()
+    .fields('j1.v1_val_root.val', 'j1.v2_val_root.val', 'v3.val_root.val')
+    .field_values(0, 0, 0)
+
     |eval()
-    .lambdas(lambda: "j1.val_root.val" + "v3.val_root.val" / 2)
+    .lambdas(lambda: ("j1.v1_val_root.val" + "j1.v2_val_root.val" + "v3.val_root.val") / 3 )
     .as('avg')
 
     |debug()

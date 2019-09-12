@@ -244,7 +244,7 @@ node_conn_params({NodeName, _Id}=N, NodeParams) ->
 
 -spec convert_options(list(), list()) -> list({binary(),list()}).
 convert_options(NodeOptions, Params) ->
-   lager:warning("convert options: ~p~n~p", [NodeOptions, Params]),
+%%   lager:warning("convert options: ~p~n~p", [NodeOptions, Params]),
    Opts = lists:foldl(
       fun
          ({Name, Type, _Def}, O) -> [{atom_to_binary(Name), {Name, Type}}|O];
@@ -266,7 +266,7 @@ convert_options(NodeOptions, Params) ->
                Acc;
             {Name, param_list = Type} ->
                {value, {Name, Type, POpts}, _L} = lists:keytake(Name, 1, NodeOptions),
-               lager:warning("~nconvert param_list(~p, ~p, ~p, ~p)",[Name, Type, PVals, POpts]),
+%%               lager:warning("~nconvert param_list(~p, ~p, ~p, ~p)",[Name, Type, PVals, POpts]),
                Zipped = lists:zip(POpts, PVals),
                C = [convert(N, T, [PV]) || {{N, T}, PV} <- Zipped],
                [{Name, C} | Acc];
@@ -285,7 +285,7 @@ convert_options(NodeOptions, Params) ->
 %%   {Name, [convert(N, T, PVal) || {N, T}]}
 %%   lists:map(fun({N, Typ, PVal}) -> convert(N, Typ, PVal) end, Type);
 convert(Name, Type, PVals) ->
-   lager:notice("convert(~p,~p,~p)",[Name, Type, PVals]),
+%%   lager:notice("convert(~p,~p,~p)",[Name, Type, PVals]),
    TName = atom_to_binary(Type),
    case estr:str_ends_with(TName, <<"list">>) of
       true -> {Name, list_params(Type, PVals)};
@@ -303,7 +303,7 @@ convert(Name, Type, PVals) ->
    end.
 
 list_params(Type, {list, Vals}) ->
-   lager:notice("~n ~p PVals: ~p", [Type, Vals]),
+%%   lager:notice("~n ~p PVals: ~p", [Type, Vals]),
    list_params(Type, Vals);
 list_params(Type, Vals) ->
    lists:foldl(
@@ -347,7 +347,7 @@ cparam(_, {_Type, Val}) -> Val;
 cparam(_, V) -> V.
 
 make_lambda_fun(LambdaString, FunParams, BinRefs) ->
-   lager:warning("~~n make_lambda_fun(~p, ~p, ~p)~n",[LambdaString, FunParams, BinRefs]),
+%%   lager:warning("~~n make_lambda_fun(~p, ~p, ~p)~n",[LambdaString, FunParams, BinRefs]),
    {Bindings, _Index} = lists:foldl(
       fun(P, {Bindings, Index}) ->
          Bind = bind_lambda_param(lists:nth(Index, FunParams), P),
@@ -357,14 +357,14 @@ make_lambda_fun(LambdaString, FunParams, BinRefs) ->
       BinRefs
    ),
    F =  "fun(Point) -> " ++ Bindings ++ " fun() -> " ++ LambdaString ++ " end end.",
-   lager:warning("~nfun: ~p~n",[F]),
+%%   lager:warning("~nfun: ~p~n",[F]),
    Fun = parse_fun(F),
    Fun
 .
 
 bind_lambda_param(PName, BinRef) ->
-   lager:notice("*************************************~n bind_lambda: ~p", [{PName, BinRef}]),
-   string:replace(PName, ".", "$") ++ " = flowdata:value(Point, <<\"" ++ binary_to_list(BinRef) ++ "\">>), ".
+%%   lager:notice("*************************************~n bind_lambda: ~p", [{PName, BinRef}]),
+   PName ++ " = flowdata:value(Point, <<\"" ++ binary_to_list(BinRef) ++ "\">>), ".
 
 
 parse_fun(S) ->
