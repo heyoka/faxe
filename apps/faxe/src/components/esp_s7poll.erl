@@ -60,7 +60,7 @@ init(_NodeId, _Ins,
   TypeList = [K || {K, _P} <- Splitted],
   PList = [P || {_K, P} <- Splitted],
 
-  lager:notice("ParameterList from Addresses string: ~p ~n~n~p ~n~n~p~n~n~p",[ParamList, Splitted, TypeList, PList]),
+%%  lager:notice("ParameterList from Addresses string: ~p ~n~n~p ~n~n~p~n~n~p",[ParamList, Splitted, TypeList, PList]),
   Interval = faxe_time:duration_to_ms(Dur),
   TRef = poll(0),
   {ok, all,
@@ -104,7 +104,6 @@ handle_info({'DOWN', _MonitorRef, _Type, Client, Info},
 handle_info({'DOWN', _MonitorRef, _Type, _Object, _Info}, State) ->
   {ok, State};
 handle_info(E, S) ->
-  lager:warning("unexpected: ~p~n", [E]),
   {ok, S#state{}}.
 
 shutdown(#state{client = Client, timer_ref = Timer}) ->

@@ -46,7 +46,7 @@ init(NodeId, _Inputs,
 
 
 process(_Inport, Value, State) ->
-   io:format("~p process, ~p~n",[State, {_Inport, Value}]),
+%%   io:format("~p process, ~p~n",[State, {_Inport, Value}]),
    {ok, State}.
 
 handle_info(values, State=#state{every = Every}) ->
@@ -56,7 +56,7 @@ handle_info(values, State=#state{every = Every}) ->
    dataflow:emit(Msg),
    {ok, State};
 handle_info(Request, State) ->
-   lager:debug("~p request: ~p~n", [State, Request]),
+%%   lager:debug("~p request: ~p~n", [State, Request]),
    {ok, State}.
 
 build_msg(S = #state{type = batch, batch_size = Size, fields = Fields, format = Fmt}) ->

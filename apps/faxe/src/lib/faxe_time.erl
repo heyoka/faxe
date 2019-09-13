@@ -61,7 +61,8 @@ now() ->
 
 
 %% @doc
-%% convenience function to get an info message with content Message at the desired clock time Timestamp
+%% convenience function that sends a message to serlf() with content 'Message'
+%% at the desired clock time Timestamp
 %%
 -spec send_at(timestamp(), term()) -> reference().
 send_at(Timestamp, Message) ->

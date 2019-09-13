@@ -28,10 +28,7 @@ init(NodeId, _Inputs, #{path := Paths, as := As, default := Def} = _Args) ->
    {ok, all, #state{paths = Paths, as = As, default = Def, nodeid = NodeId}}.
 
 process(_Inport, P = #data_point{}, State=#state{paths = Paths, as = As, default = Def}) ->
-   lager:notice("~p process [at ~p] , ~p",[State, faxe_time:now(),  {_Inport, P}]),
-   {T, NewVal} = timer:tc(?MODULE, extract, [P, Paths, As, Def]),
-   lager:info("needed: ~p micro", [T]),
-%%   NewVal = extract(P, Paths, As, Def),
+   NewVal = extract(P, Paths, As, Def),
    {emit, NewVal, State}.
 
 shutdown(_State) ->

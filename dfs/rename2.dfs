@@ -1,0 +1,11 @@
+def vals =
+    |value_emitter()
+    .every(2s)
+    .type(point)
+    .format(ejson)
+
+    |rename()
+    .fields('val_root.val', 'hall')
+    .as_fields('val_root.value', 'hull')
+
+    |debug()

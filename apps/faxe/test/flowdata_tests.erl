@@ -82,6 +82,13 @@ delete_field_value_deep_test() ->
          <<"var">> => 44}
    ).
 
+delete_field_undefined_test() ->
+   P = #data_point{ts = 1234567891234, id = <<"324392i09i329i2df4">>,
+      fields = #{<<"val">> => <<"some_string_value">>, <<"var">> => 44}},
+   Path = {<<"vuzz">>, <<"vizz">>, <<"vazz">>},
+   NewPoint = flowdata:delete_field(P, Path),
+   ?assertEqual(NewPoint#data_point.fields, P#data_point.fields).
+
 delete_fields_test() ->
    P = #data_point{ts = 1234567891234, id = <<"324392i09i329i2df4">>,
       fields = #{<<"val">> => deep_val(), <<"var">> => 44}},
@@ -95,6 +102,23 @@ delete_fields_test() ->
          {<<"popup">>,{[]}}]}} }
    ).
 
+delete_fields_empty_test() ->
+   P = #data_point{ts = 1234567891234, id = <<"324392i09i329i2df4">>,
+      fields = #{<<"val">> => deep_val(), <<"var">> => 44}},
+   Paths = [],
+   NewPoint = flowdata:delete_fields(P, Paths),
+   ?assertEqual(NewPoint#data_point.fields, P#data_point.fields).
+
+delete_fields_undefined_test() ->
+   P = #data_point{ts = 1234567891234, id = <<"324392i09i329i2df4">>,
+      fields = #{<<"val">> => deep_val(), <<"var">> => 44}},
+   Paths = [<<"pops.pips.paps">>, <<"var">>],
+   NewPoint = flowdata:delete_fields(P, Paths),
+   ?assertEqual(NewPoint#data_point.fields,
+      #{<<"val">> => deep_val()}
+
+   ).
+
 rename_field_basic_test() ->
    P = #data_point{ts = 1234567891234, id = <<"324392i09i329i2df4">>,
       fields = #{<<"val">> => <<"somestring">>, <<"var">> => 44}},
@@ -102,6 +126,21 @@ rename_field_basic_test() ->
    SetP = flowdata:rename_fields(P, From, To),
    ?assertEqual(SetP#data_point.fields,
       #{<<"value">> => #{<<"into">> => #{<<"deep">> => <<"somestring">>}}, <<"var">> => 44}).
+
+rename_field_undefined_test() ->
+   P = #data_point{ts = 1234567891234, id = <<"324392i09i329i2df4">>,
+      fields = #{<<"val">> => <<"somestring">>, <<"var">> => 44}},
+   From = [<<"val">>, <<"value">>], To = [<<"value.into.deep">>, <<"my_value">>],
+   SetP = flowdata:rename_fields(P, From, To),
+   ?assertEqual(SetP#data_point.fields,
+      #{<<"value">> => #{<<"into">> => #{<<"deep">> => <<"somestring">>}}, <<"var">> => 44}).
+
+rename_field_empty_path_test() ->
+   P = #data_point{ts = 1234567891234, id = <<"324392i09i329i2df4">>,
+      fields = #{<<"val">> => <<"somestring">>, <<"var">> => 44}},
+   From = [], To = [],
+   SetP = flowdata:rename_fields(P, From, To),
+   ?assertEqual(SetP#data_point.fields, P#data_point.fields).
 
 set_field_kv_test() ->
    P = #data_point{ts = 1234567891234, id = <<"324392i09i329i2df4">>,

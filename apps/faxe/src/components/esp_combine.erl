@@ -57,7 +57,6 @@ options() -> [
 
 
 init(NodeId, _Ins, #{fields := Fields, aliases := Aliases, prefix := Prefix, prefix_delimiter := PFL}=Ps) ->
-   lager:debug("~p init:node~p",[NodeId, Ps]),
    NP =
       case Prefix of
          undefined -> lists:zip(Fields, Aliases);

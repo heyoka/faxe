@@ -58,7 +58,6 @@ options() -> [
 
 init(_NodeId, _Ins,
     #{ip := Ip, port := Port, as := As, parser := Parser, extract := Extract} = Opts) ->
-  lager:notice("++++ ~p ~ngot opts: ~p ~n",[_NodeId, Opts]),
   Reconnector = modbus_reconnector:new(
     {?RECON_MIN_INTERVAL, ?RECON_MAX_INTERVAL, ?RECON_MAX_RETRIES}),
   {ok, Reconnector1} = modbus_reconnector:execute(Reconnector, do_reconnect),
@@ -75,7 +74,6 @@ handle_info({tcp, Socket, Data}, State=#state{as = As, parser = Parser, extract 
   %lager:notice("Data got from TCP:  ~p~nSize:~p at recbuf:~p",[Data, byte_size(Data), inet:getopts(Socket, [recbuf, buffer])]),
 %%  P = convert(Data, As, Extract, Parser),
   P = tcp_msg_parser:convert(Data, As, Extract, Parser),
-  lager:warning("~n to json: ~s",[flowdata:to_json(P)]),
   dataflow:emit(P),
   inet:setopts(Socket, [{active, once}]),
   {ok, State};
@@ -90,7 +88,6 @@ handle_info(do_reconnect, State=#state{ip = Ip, port = Port}) ->
     {error, Error} -> lager:error("[~p] Error connecting: ~p",[?MODULE, Error]), try_reconnect(State)
   end;
 handle_info(E, S) ->
-  io:format("unexpected: ~p~n", [E]),
   {ok, S}.
 
 shutdown(#state{socket = Sock, timer_ref = Timer}) ->

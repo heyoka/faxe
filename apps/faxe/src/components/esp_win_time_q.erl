@@ -28,8 +28,7 @@
 options() ->
    [{period, duration}, {every, duration}, {fill_period, is_set}].
 
-init(NodeId, _Inputs, #{period := Period, every := Every, fill_period := Fill} = Params) ->
-   io:format("~p init:node ~p~n",[NodeId, Params]),
+init(_NodeId, _Inputs, #{period := Period, every := Every, fill_period := Fill} = Params) ->
    Ev = faxe_time:duration_to_ms(Every),
    Per = faxe_time:duration_to_ms(Period),
    %% fill_period does not make sense, if every is less than period
@@ -44,7 +43,6 @@ process(_Inport, #data_point{} = Point, State=#state{} ) ->
    {ok, NewState}.
 
 handle_info(Request, State) ->
-   io:format("~p request: ~p~n", [State, Request]),
    {ok, State}.
 
 %%%===================================================================
@@ -66,7 +64,7 @@ tick(State = #state{mark = Mark, at = At, window = Win, period = Interval,
    case check_emit(NewAt, Mark, Every, Fill, (HasEvicted orelse State#state.has_emitted)) of
       true ->
          Batch = #data_batch{points = queue:to_list(NewWindow)},
-         lager:warning("~n ~p emitting: ~p",[?MODULE, length(Batch#data_batch.points)]),
+%%         lager:warning("~n ~p emitting: ~p",[?MODULE, length(Batch#data_batch.points)]),
          dataflow:emit(Batch),
          State#state{mark = NewAt, at = NewAt, window = NewWindow, ts_list = KeepTsList, has_emitted = true};
       false ->

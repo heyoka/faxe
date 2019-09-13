@@ -57,8 +57,6 @@ options() -> [
 
 %% save mode with ondisc queuing
 init(NodeId, _Ins, #{save := true, host := Host0}=Opts) ->
-%%   lager:notice("++++ ~p ~ngot opts: ~p ~n",[NodeId, Opts]),
-%%   emqttc:start_link([{host, Host}, {client_id, NodeId}, {logger, info}]),
    Host = binary_to_list(Host0),
    {ok, Q} = esq:new(?DEFAULT_QUEUE_FILE),
    {ok, Publisher} = mqtt_publisher:start_link(Opts#{host := Host}, Q),
@@ -67,7 +65,6 @@ init(NodeId, _Ins, #{save := true, host := Host0}=Opts) ->
 init(NodeId, _Ins,
    #{save := false, host := Host0, port := Port, topic := Topic,
       retained := Retained, ssl := UseSSL, qos := Qos} = Opts) ->
-%%   lager:notice("++++ ~p ~ngot opts: ~p ~n",[NodeId, Opts]),
    Host = binary_to_list(Host0),
    {ok, Client} = emqtt:start_link([{host, Host}, {port, Port}]),
    emqtt:connect(Client),

@@ -62,8 +62,3 @@ process_point(Point=#data_point{ts = Ts}, LFun, LastTs) ->
 exec(Point, LFun) -> faxe_lambda:execute(Point, LFun).
 
 
--ifdef(TEST).
-
--endif.
-
-

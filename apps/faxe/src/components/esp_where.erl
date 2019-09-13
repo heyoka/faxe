@@ -22,7 +22,6 @@
 options() -> [{lambda, lambda}].
 
 init(_NodeId, _Ins, #{lambda := Lambda} = O) ->
-   lager:notice("Opts for ~p :: ~p", [?MODULE, O]),
    {ok, all, #state{lambda = Lambda}}.
 
 process(_In, #data_batch{points = Points} = Batch, State = #state{lambda = Lambda}) ->

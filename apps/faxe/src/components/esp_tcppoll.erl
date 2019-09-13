@@ -31,7 +31,6 @@
 options() -> [{ip, binary}, {port, integer}, {every, duration, "1s"}, {count, integer, 1}, {prefix, string, <<"val_">>}].
 
 init(_NodeId, _Ins, #{ip := Ip, port := Port, every := Dur, count := C, prefix := Prefix}=Opts) ->
-  lager:notice("++++ ~p ~ngot opts: ~p ~n",[_NodeId, Opts]),
   {ok, Socket} = connect(Ip, Port),
   Interval = faxe_time:duration_to_ms(Dur),
   TRef = poll(0),
@@ -46,7 +45,7 @@ process(_Inport, #data_point{} = _Point, State = #state{}) ->
 
 handle_info({tcp, Socket, Data0}, State=#state{socket = _Socket, interval = Interval, prefix = Prefix}) ->
   Data = binary_to_term(Data0),
-  lager:notice("Data got from TCP:  ~p",[Data]),
+%%  lager:notice("Data got from TCP:  ~p",[Data]),
   dataflow:emit(convert(#data_point{ts = faxe_time:now()}, Data, Prefix)),
   inet:setopts(Socket, [{active, once}]),
   TRef = poll(Interval),

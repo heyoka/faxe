@@ -22,23 +22,19 @@
 options() -> [{offset, duration, <<"30s">>}].
 
 init(NodeId, _Ins, #{offset := Offset}=P) ->
-   lager:info("Params for ~p ~p",[?MODULE, P]),
    {ok, all, #state{node_id = NodeId, offset = Offset}}.
 
 process(_In, #data_batch{points = Points} = Batch, State = #state{offset = Offset}) ->
    NewPoints = [execute(Point,Offset) || Point <- Points],
    NewBatch = flowdata:set_bounds(Batch#data_batch{points = NewPoints}),
-   lager:info("~p Ts after: ~p",[?MODULE, [faxe_time:to_date(T1) || T1 <- flowdata:ts(NewBatch)]]),
    {emit, NewBatch, State}
 ;
 process(_Inport, #data_point{} = Point, State = #state{offset = Offset}) ->
    NewValue = execute(Point,Offset),
-   lager:info("~p emitting: ~p :: ~p",[?MODULE, NewValue, faxe_time:to_date(flowdata:ts(NewValue))]),
    {emit, NewValue, State}.
 
 
 -spec execute(#data_point{}, binary()) -> #data_point{}.
 execute(#data_point{ts = Ts} = Point, Offset) ->
-   lager:debug("~p process, ~p :: ~p~n",[?MODULE, Point, faxe_time:to_date(flowdata:ts(Point))]),
    NewTs = faxe_time:add(Ts, Offset),
    flowdata:set_ts(Point, NewTs).

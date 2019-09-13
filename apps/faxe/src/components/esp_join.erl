@@ -50,7 +50,7 @@ options() -> [
 init(NodeId, Ins, #{prefix := Prefix, missing_timeout := MTimeOut, tolerance := Tol}) ->
    RowLength = length(Ins),
   Prefix1 = lists:zip(lists:seq(1,RowLength), Prefix),
-   io:format("~p init:node :: ~p~n",[NodeId, Ins]),
+%%   io:format("~p init:node :: ~p~n",[NodeId, Ins]),
    {ok, all,
       #state{node_id = NodeId, prefix = Prefix1, row_length = length(Ins),
       tolerance = faxe_time:duration_to_ms(Tol),
@@ -59,12 +59,12 @@ init(NodeId, Ins, #{prefix := Prefix, missing_timeout := MTimeOut, tolerance := 
 process(Inport, #data_point{ts = Ts} = Point, State = #state{buffer = undefined, m_timeout = M, timers = TList}) ->
    Buffer = orddict:new(),
    NewList = new_timeout(M, Ts, TList),
-   lager:warning("new buffer entry for Ts: ~p : ~p",[Ts, {Inport, Point}]),
+%%   lager:warning("new buffer entry for Ts: ~p : ~p",[Ts, {Inport, Point}]),
    NewBuffer = orddict:store(Ts, [{Inport, Point}], Buffer),
    {ok, State#state{buffer = NewBuffer, timers = NewList}};
 process(Inport, #data_point{ts = Ts} = Point, State = #state{buffer = Buffer, timers = TList,
    prefix = As, m_timeout = MTimeout, row_length = RowLength, tolerance = Tolerance}) ->
-   lager:notice("In on port : ~p",[Inport]),
+%%   lager:notice("In on port : ~p",[Inport]),
    TsList = orddict:fetch_keys(Buffer),
 %%   lager:info("new TsList in Buffer: ~p",[TsList]),
    LookupTs = nearest_ts(Ts, TsList),
@@ -73,11 +73,11 @@ process(Inport, #data_point{ts = Ts} = Point, State = #state{buffer = Buffer, ti
    case abs(LookupTs - Ts) > Tolerance of
       true ->
          %% new ts in buffer
-         lager:warning("new buffer entry for Ts: ~p : ~p",[Ts, {Inport, Point}]),
+%%         lager:warning("new buffer entry for Ts: ~p : ~p",[Ts, {Inport, Point}]),
          {Ts , [{Inport, Point}]};
       false ->
          %% add point to buffer
-         lager:warning("add buffer entry for Ts: ~p: ~p",[LookupTs, {Inport, Point}]),
+%%         lager:warning("add buffer entry for Ts: ~p: ~p",[LookupTs, {Inport, Point}]),
          {LookupTs, [{Inport, Point}| orddict:fetch(LookupTs, Buffer)]}
    end,
 
@@ -100,21 +100,14 @@ process(Inport, #data_point{ts = Ts} = Point, State = #state{buffer = Buffer, ti
 
 
    end,
-
-%%   TimeNext = esp_time:beginning_unit(Unit, Ts),
-%%   TimeBase = esp_time:add_unit(TimeNext, Unit, GVal),
-%%   TimeBase1 = esp_time:align(G, Ts),
-%%   Val = flowdata:field(Point, F),
-
-
    {ok, State#state{buffer = NewBuffer, timers = NewTimerList}}.
 
 %% missing timeout
 handle_info({tick, Ts}, State = #state{buffer = [], timers = TList}) ->
-   lager:warning("~p empty buffer when ticked",[?MODULE]),
+%%   lager:warning("~p empty buffer when ticked",[?MODULE]),
    {ok, State#state{timers = proplists:delete(Ts, TList), buffer = undefined}};
 handle_info({tick, Ts}, State = #state{buffer = Buffer, prefix = As, timers = TList}) ->
-   lager:warning("~p ticks missing timeout :: ~p",[?MODULE, Buffer]),
+%%   lager:warning("~p ticks missing timeout :: ~p",[?MODULE, Buffer]),
    NewBuffer =
    case lists:member(Ts, orddict:fetch_keys(Buffer)) of
       true ->
@@ -139,7 +132,7 @@ join(RowData, Ts, Prefixes) ->
       #data_point{ts = Ts},
       RowData
    ),
-   lager:info("join OUT at ~p: ~p",[faxe_time:to_date(Ts),NewPoint]),
+%%   lager:info("join OUT at ~p: ~p",[faxe_time:to_date(Ts),NewPoint]),
    NewPoint.
 
 %% get the nearest from a list of values
@@ -169,7 +162,7 @@ new_timeout(T, Ts, TimerList) ->
 clear_timeout(Ts, TimerList) ->
    case proplists:get_value(Ts, TimerList) of
       Ref when is_reference(Ref) ->
-         lager:warning("clear timeout for ~p",[Ts]),
+%%         lager:warning("clear timeout for ~p",[Ts]),
          catch(erlang:cancel_timer(Ref)),
          proplists:delete(Ts, TimerList);
       undefined -> TimerList

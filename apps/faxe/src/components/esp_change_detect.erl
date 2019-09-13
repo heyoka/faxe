@@ -36,7 +36,6 @@
 options() -> [{fields, binary_list}, {reset_timeout, duration, <<"3h">>}, {exclusive, is_set}].
 
 init(_NodeId, _Ins, #{fields := FieldList, reset_timeout := Timeout, exclusive := Exc} = P) ->
-   lager:notice("~p init: ~p",[_NodeId, P]),
    Time = faxe_time:duration_to_ms(Timeout),
    {ok, all, #state{fields = FieldList, reset_timeout = Time, exclusive = Exc}}.
 
@@ -65,10 +64,8 @@ process(_Inport, #data_point{} = Point,
 
 
 handle_info(reset_timeout, State) ->
-   lager:info("reset last values"),
    {ok, State#state{values = []}};
 handle_info(Req, State) ->
-   lager:notice("~p got info : ~p", [?MODULE, Req]),
    {ok, State}.
 
 

@@ -33,7 +33,7 @@
 options() ->
    [{period, duration}, {every, duration}, {align, is_set, false}, {fill_period, is_set, false}].
 
-init(NodeId, _Inputs, #{period := Period, every := Every, align := Align, fill_period := Fill} =P) ->
+init(_NodeId, _Inputs, #{period := Period, every := Every, align := Align, fill_period := Fill} =P) ->
    NUnit =
       case Align of
          false -> false;
@@ -54,13 +54,11 @@ process(_Inport, #data_point{ts = _Ts} = Point, State=#state{}) ->
 .
 
 handle_info(emit_now, State=#state{}) ->
-   lager:info("EMIT!"),
    NewState = emit(State),
    emit_at(NewState#state.next_emit),
    {ok, NewState}
 ;
 handle_info(Request, State) ->
-   io:format("~p request: ~p~n", [State, Request]),
    {ok, State}.
 
 
@@ -99,7 +97,7 @@ emit(State = #state{log = Log, next_emit = NextEmit, period = Interval, window =
       case (Fill == false) orelse (Fill == true andalso (Emitted == true orelse HasEvicted == true)) of
          true ->
             Batch = #data_batch{points = queue:to_list(NewWindow)},
-            lager:warning("~n  period: ~p emitting: ~p",[Interval, length(Batch#data_batch.points)]),
+%%            lager:warning("~n  period: ~p emitting: ~p",[Interval, length(Batch#data_batch.points)]),
             dataflow:emit(Batch),
             State#state{has_emitted = true};
          false -> State
@@ -113,8 +111,6 @@ emit(State = #state{log = Log, next_emit = NextEmit, period = Interval, window =
 -spec evict(list(), window_events(), non_neg_integer(), non_neg_integer()) -> {window_events(), list()}.
 evict(Log, Window, At, Interval) ->
    {KeepTimestamps, Evict} = win_util:split(Log, At-Interval),
-   lager:info("evict: [~p] ~p~n keep [~p]: ~p",[length(Evict), [faxe_time:to_date(E) || E <- Evict],
-      length(KeepTimestamps), [faxe_time:to_date(T) || T <- KeepTimestamps]]),
    {KeepTimestamps, win_util:sync_q(Window, Evict), length(Evict) > 0}
 .
 
@@ -125,7 +121,3 @@ new_ts(Ts, Align) ->
 
 emit_at(Timestamp) ->
    faxe_time:send_at(Timestamp, emit_now).
-%%   Now = faxe_time:now(),
-%%   Time = Timestamp - Now,
-%%   lager:notice("NEXT EMIT at: ~p", [faxe_time:to_date(Timestamp)]),
-%%   erlang:send_after(Time, self(), emit_now).

@@ -58,7 +58,6 @@ options() -> [
 init(_NodeId, _Ins,
     #{ip := Ip, port := Port, as := As, extract := Extract,
       line_delimiter := Delimit, parser := Parser, min_length := MinL}=Opts) ->
-  lager:notice("++++ ~p ~ngot opts: ~p ~n",[_NodeId, Opts]),
   Reconnector = modbus_reconnector:new({?RECON_MIN_INTERVAL, ?RECON_MAX_INTERVAL, ?RECON_MAX_RETRIES}),
   {ok, Reconnector1} = modbus_reconnector:execute(Reconnector, do_reconnect),
   {ok, all,
@@ -78,9 +77,6 @@ handle_info({tcp, Socket, Data}, State=#state{min_length = Min}) when byte_size(
 handle_info({tcp, Socket, Data0}, State=#state{as = As, extract = Extract, parser = Parser}) ->
   Data = string:chomp(Data0),
   P = tcp_msg_parser:convert(Data, As, Extract, Parser),
-%%  P1 = flowdata:delete_field(P, <<"data">>),
-%%  lager:notice("Point from parser: ~p", [P1]),
-  %lager:warning("~n to json: ~p",[timer:tc(flowdata, to_json, [P])]),
   dataflow:emit(P),
   inet:setopts(Socket, [{active, once}]),
   {ok, State};

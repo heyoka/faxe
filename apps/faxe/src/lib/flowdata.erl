@@ -318,8 +318,11 @@ set_tags(B = #data_batch{points = Points}, Keys, Values) when is_list(Keys), is_
 %% @end
 -spec delete_field(#data_point{}|#data_batch{}, binary()) -> #data_point{} | #data_batch{}.
 delete_field(#data_point{fields = Fields}=P, FieldName) ->
-   JData = jsn:delete(FieldName, Fields),
-   P#data_point{fields = JData}
+   case field(P, FieldName) of
+      undefined -> P;
+      _Else -> JData = jsn:delete(FieldName, Fields),
+         P#data_point{fields = JData}
+   end
    ;
 delete_field(#data_batch{points = Points}=B, FieldName) ->
    NewPoints = [delete_field(Point, FieldName) || Point <- Points],
@@ -328,8 +331,7 @@ delete_field(#data_batch{points = Points}=B, FieldName) ->
 %% @doc delete a list of keys/paths
 -spec delete_fields(#data_point{}|#data_batch{}, list()) -> #data_point{}|#data_batch{}.
 delete_fields(P = #data_point{fields = Fields}, KeyList) when is_list(KeyList) ->
-   NewFields = jsn:delete_list(KeyList, Fields),
-   P#data_point{fields = NewFields};
+   lists:foldl(fun(E, Acc) -> delete_field(Acc, E) end, P, KeyList);
 delete_fields(B = #data_batch{points = Points}, KeyList) when is_list(KeyList) ->
    Ps = lists:map(
       fun(#data_point{} = D) ->
@@ -393,7 +395,7 @@ rename(Map, [From|RFrom], [To|RTo]) when is_map(Map) ->
 do_rename(Map, From, To) ->
    Val = jsn:get(From, Map),
    case Val of
-      undefinded -> undefined;
+      undefined -> Map;
       _Val -> NewData = jsn:delete(From, Map),
          jsn:set(To, NewData, Val)
    end.

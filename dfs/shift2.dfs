@@ -1,0 +1,9 @@
+def vals =
+    |value_emitter()
+    .every(2s)
+    .type(point)
+    .format(ejson)
+
+    |shift(-3m)
+
+    |debug()

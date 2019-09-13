@@ -30,7 +30,6 @@
 options() -> [{as, binary, <<"elapsed">>}].
 
 init(NodeId, _Ins, #{as := As}=P) ->
-   lager:info("Params for ~p ~p",[?MODULE, P]),
    {ok, all, #state{node_id = NodeId, as = As}}.
 
 process(_In, _Item, State = #state{last_time = undefined}) ->
@@ -38,7 +37,6 @@ process(_In, _Item, State = #state{last_time = undefined}) ->
 process(_In, Item, State = #state{as = As, last_time = Last}) ->
    Now = faxe_time:now(),
    NewItem = flowdata:set_field(Item, As, Now - Last),
-   lager:info("~p emitting: ~p",[?MODULE, NewItem]),
    {emit, NewItem, State#state{last_time = Now}}.
 
 

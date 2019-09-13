@@ -24,7 +24,6 @@
 options() -> [{fields, binary_list}].
 
 init(NodeId, _Ins, #{fields := Fields}=P) ->
-   lager:info("Params for ~p ~p",[?MODULE, P]),
    {ok, all, #state{node_id = NodeId, fields = Fields}}.
 
 process(_In, #data_batch{points = Points} = Batch, State = #state{fields = Offset}) ->
@@ -37,7 +36,7 @@ ok
 ;
 process(_Inport, #data_point{fields = FieldVals} = Point, State = #state{fields = Fields, field_states = FS}) ->
    NewPoint = execute(Point, Fields, FS),
-   lager:info("~p emitting: ~p when previous: ~p",[?MODULE, NewPoint, FS]),
+%%   lager:info("~p emitting: ~p when previous: ~p",[?MODULE, NewPoint, FS]),
    {emit, NewPoint, State#state{field_states = FieldVals}}.
 
 %% @doc maps current datapoint fields to new values, depending on previous values and

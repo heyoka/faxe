@@ -27,12 +27,14 @@ options() -> [
    {tags, binary_list, []},
    {tag_values, binary_list, []}].
 
-init(NodeId, _Ins, #{fields := Fields, tags := Tags, tag_values := TagV, field_values := FieldV} = Opts) ->
-   lager:warning("Opts for esp_default: ~p",[Opts]),
-   {ok, all, #state{fields = Fields, node_id = NodeId, tags = Tags, tag_values = TagV, field_values = FieldV}}.
+init(NodeId, _Ins, #{fields := Fields, tags := Tags,
+   tag_values := TagV, field_values := FieldV} = Opts) ->
+   {ok, all,
+      #state{fields = Fields, node_id = NodeId, tags = Tags,
+         tag_values = TagV, field_values = FieldV}}.
 
-process(_In, #data_batch{points = Points} = Batch, State = #state{fields = FName, field_values = FValue,
-   tags = TName, tag_values = TValue}) ->
+process(_In, #data_batch{points = Points} = Batch,
+    State = #state{fields = FName, field_values = FValue, tags = TName, tag_values = TValue}) ->
    NewPoints = lists:map(
       fun(P) ->
          NewPoint = set_fields(P, FValue, FName),

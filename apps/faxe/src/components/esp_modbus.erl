@@ -80,15 +80,11 @@ check_options() ->
    ].
 
 init(_NodeId, _Ins, #{} = Opts) ->
-   lager:notice("++++ ~p ~ngot opts: ~p ~n",[_NodeId, maps:to_list(Opts)]),
-
    State = init_opts(maps:to_list(Opts), #state{}),
-   lager:notice("MODBUS State is: ~p", [State]),
    {ok, Modbus} = modbus:connect(
       State#state.ip, State#state.port, State#state.device_address),
    erlang:monitor(process, Modbus),
    Req0 = build(State),
-   lager:notice("BUILT MODBUS Options: ~p", [Req0]),
    ReqOpts =
       case build_opts(State#state.outputs, State#state.signed) of
          [] -> [ [] || X <- lists:seq(1, erlang:length(Req0))];
@@ -96,9 +92,7 @@ init(_NodeId, _Ins, #{} = Opts) ->
       end,
 
    Requests = lists:zip(Req0, ReqOpts),
-   lager:notice("MODBUS Requests: ~p",[Requests]),
    NewState = State#state{client = Modbus, requests = Requests},
-   lager:info("~p init state is: ~p",[?MODULE, NewState#state.requests]),
    {ok, all, NewState}.
 
 init_opts([{ip, Ip0}|Opts], State) ->
@@ -122,7 +116,6 @@ init_opts([{output, Outputs}|Opts], State) ->
 init_opts([{signed, Flags}|Opts], State) ->
    init_opts(Opts, State#state{signed = Flags});
 init_opts(_O, State) ->
-   lager:notice("done init_opts when :~p",[_O]),
    State.
 
 process(_In, #data_batch{points = _Points} = _Batch, State = #state{}) ->
@@ -138,7 +131,6 @@ handle_info(poll, State=#state{client = Modbus, requests = Requests, interval = 
             State#state{timer_ref = undefined};
          {ok, OutPoint} ->
             dataflow:emit(OutPoint),
-            lager:info("emit after: ~p: ~p" ,[Time, OutPoint]),
             poll(State)
       end,
    {ok, NewState};
@@ -148,7 +140,7 @@ handle_info({'DOWN', _MonitorRef, process, _Object, Info}, State=#state{ip = Ip,
    erlang:monitor(process, Modbus),
    {ok, State#state{client = Modbus}};
 handle_info({modbus, _From, connected}, S) ->
-   lager:notice("Modbus is connected, lets start polling ..."),
+%%   lager:notice("Modbus is connected, lets start polling ..."),
    NewState = poll_now(S),
    {ok, NewState};
 %% if disconnected, we just wait for a connected message and stop polling in the mean time
@@ -157,7 +149,6 @@ handle_info({modbus, _From, disconnected}, State=#state{timer_ref = TRef}) ->
    cancel_timer(TRef),
    {ok, State#state{timer_ref = undefined}};
 handle_info(E, S) ->
-   lager:warning("unexpected: ~p~n", [E]),
    {ok, S#state{}}.
 
 shutdown(#state{client = Modbus, timer_ref = Timer}) ->
@@ -205,9 +196,7 @@ read(Client, Reqs) ->
 read(_Client, Point, []) ->
    {ok, Point};
 read(Client, Point, [{{Fun, Start, Count, As}, Opts} | Reqs]) ->
-   lager:notice("read modbus:~p(~p)",[Fun,[Client, Start, Count, Opts]]),
    Res = modbus:Fun(Client, Start, Count, Opts),
-   lager:notice("modbus result: ~p", [Res]),
    case Res of
       {error, disconnected} ->
          {error, stop};
@@ -219,12 +208,6 @@ read(Client, Point, [{{Fun, Start, Count, As}, Opts} | Reqs]) ->
             [D] -> D;
             _ -> Data
          end,
-         %% we assume, if an output option is given, then a single value (instead a list) is desired
-%%         FData =
-%%         case proplists:get_value(output, Opts) of
-%%            undefined -> Data;
-%%            _ ->  case Data of [] -> []; [D] -> D end
-%%         end,
          NewPoint = flowdata:set_field(Point, As, FData),
          read(Client, NewPoint, Reqs)
    end.
@@ -241,6 +224,5 @@ func(BinString) ->
          true -> binary_to_existing_atom(<< ?FUNCTION_PREFIX/binary, BinString/binary >>, utf8);
          false -> erlang:error("Modbus function " ++ binary_to_list(BinString) ++ " not available")
       end,
-   lager:notice("Function for Modbus Node is: ~p",[F]),
    F.
 

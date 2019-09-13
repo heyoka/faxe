@@ -52,9 +52,7 @@ process(_Inport, #data_point{} = Point,
     State = #state{fields = FNames, as_fields = AsFields, tags = Tags, as_tags = AsTags}) ->
 
    NewPoint0 = flowdata:rename_fields(Point, FNames, AsFields),
-   lager:info("~p renamed fields : ~p",[?MODULE, NewPoint0]),
    NewPoint = flowdata:rename_tags(NewPoint0, Tags, AsTags),
-   lager:info("~p emits : ~p",[?MODULE, NewPoint]),
    {emit, NewPoint, State}.
 
 
