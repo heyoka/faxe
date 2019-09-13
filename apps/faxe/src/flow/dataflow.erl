@@ -187,7 +187,7 @@ maybe_check_opts(Opts, Module) when is_map(Opts), is_atom(Module) ->
       false -> Opts
    end.
 
-check_options([], Opts, Mod) ->
+check_options([], Opts, _Mod) ->
    Opts;
 check_options([Check| Checks], Opts, Mod) ->
    do_check(Check, Opts, Mod),

@@ -33,7 +33,7 @@
 options() ->
    [{period, duration}, {every, duration}, {align, is_set, false}, {fill_period, is_set, false}].
 
-init(_NodeId, _Inputs, #{period := Period, every := Every, align := Align, fill_period := Fill} =P) ->
+init(_NodeId, _Inputs, #{period := Period, every := Every, align := Align, fill_period := Fill}) ->
    NUnit =
       case Align of
          false -> false;
@@ -58,7 +58,7 @@ handle_info(emit_now, State=#state{}) ->
    emit_at(NewState#state.next_emit),
    {ok, NewState}
 ;
-handle_info(Request, State) ->
+handle_info(_Request, State) ->
    {ok, State}.
 
 
@@ -66,8 +66,8 @@ handle_info(Request, State) ->
 %%% Internal functions
 %%%===================================================================
 %% the window starts running on the first message that comes in
-accumulate(Point=#data_point{ts = NewTs},
-    State = #state{log = [], align = Align, window = Win, every = Every, period = Period}) ->
+accumulate(Point=#data_point{},
+    State = #state{log = [], align = Align, window = Win, every = Every}) ->
 
    Now = faxe_time:now(),
    WinStart = new_ts(Now, Align),

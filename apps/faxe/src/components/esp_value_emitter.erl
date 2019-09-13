@@ -28,7 +28,7 @@ options() ->
 
 init(NodeId, _Inputs,
     #{every := Every, type := Type, batch_size := BatchSize, align := Unit,
-       fields := Fields, format := Fmt, jitter := Jitter} = P) ->
+       fields := Fields, format := Fmt, jitter := Jitter}) ->
    NUnit =
       case Unit of
          false -> false;
@@ -45,8 +45,7 @@ init(NodeId, _Inputs,
    {ok, none, State}.
 
 
-process(_Inport, Value, State) ->
-%%   io:format("~p process, ~p~n",[State, {_Inport, Value}]),
+process(_Inport, _Value, State) ->
    {ok, State}.
 
 handle_info(values, State=#state{every = Every}) ->
@@ -55,8 +54,7 @@ handle_info(values, State=#state{every = Every}) ->
 %%   lager:info("~p emitting; ~p",[?MODULE, Msg]),
    dataflow:emit(Msg),
    {ok, State};
-handle_info(Request, State) ->
-%%   lager:debug("~p request: ~p~n", [State, Request]),
+handle_info(_Request, State) ->
    {ok, State}.
 
 build_msg(S = #state{type = batch, batch_size = Size, fields = Fields, format = Fmt}) ->

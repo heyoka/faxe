@@ -63,20 +63,20 @@ init([]) ->
    {ok, {SupFlags, Procs}}.
 %%{ok, {SupFlags, Procs ++ event_mgrs()}}.
 
-
-event_mgrs() ->
-   Managers =
-      [
-         dfevent_system,
-         dfevent_graph,
-         dfevent_component,
-         dfevent_debug
-      ],
-   lists:map(
-      fun(M) ->
-         {M,
-            {dataflow_events, start_link, [M]},
-            permanent, 5000, worker, dynamic}
-      end,
-      Managers
-   ).
+%%
+%%event_mgrs() ->
+%%   Managers =
+%%      [
+%%         dfevent_system,
+%%         dfevent_graph,
+%%         dfevent_component,
+%%         dfevent_debug
+%%      ],
+%%   lists:map(
+%%      fun(M) ->
+%%         {M,
+%%            {dataflow_events, start_link, [M]},
+%%            permanent, 5000, worker, dynamic}
+%%      end,
+%%      Managers
+%%   ).

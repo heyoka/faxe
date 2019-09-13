@@ -87,7 +87,7 @@ init(_NodeId, _Ins, #{} = Opts) ->
    Req0 = build(State),
    ReqOpts =
       case build_opts(State#state.outputs, State#state.signed) of
-         [] -> [ [] || X <- lists:seq(1, erlang:length(Req0))];
+         [] -> [ [] || _X <- lists:seq(1, erlang:length(Req0))];
          L when is_list(L) -> L
       end,
 
@@ -123,8 +123,8 @@ process(_In, #data_batch{points = _Points} = _Batch, State = #state{}) ->
 process(_Inport, #data_point{} = _Point, State = #state{}) ->
    {ok, State}.
 
-handle_info(poll, State=#state{client = Modbus, requests = Requests, interval = Interval}) ->
-   {Time, Res} = timer:tc(?MODULE, read, [Modbus, Requests]),
+handle_info(poll, State=#state{client = Modbus, requests = Requests, interval = _Interval}) ->
+   {_Time, Res} = timer:tc(?MODULE, read, [Modbus, Requests]),
    NewState =
       case Res of
          {error, stop} ->
@@ -148,7 +148,7 @@ handle_info({modbus, _From, disconnected}, State=#state{timer_ref = TRef}) ->
    lager:notice("Modbus is disconnected!!, stop polling ...."),
    cancel_timer(TRef),
    {ok, State#state{timer_ref = undefined}};
-handle_info(E, S) ->
+handle_info(_E, S) ->
    {ok, S#state{}}.
 
 shutdown(#state{client = Modbus, timer_ref = Timer}) ->

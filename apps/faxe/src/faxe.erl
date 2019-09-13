@@ -226,7 +226,7 @@ start_task(TaskId, _GraphRunMode, Permanent) ->
 
 -spec stop_task(integer()|binary()|#task{}) -> ok.
 %% @doc just stop the graph process and its children
-stop_task(T=#task{pid = Graph}) when is_pid(Graph) ->
+stop_task(_T=#task{pid = Graph}) when is_pid(Graph) ->
    case is_process_alive(Graph) of
       true ->
          df_graph:stop(Graph);

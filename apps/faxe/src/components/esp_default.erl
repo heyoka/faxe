@@ -28,7 +28,7 @@ options() -> [
    {tag_values, binary_list, []}].
 
 init(NodeId, _Ins, #{fields := Fields, tags := Tags,
-   tag_values := TagV, field_values := FieldV} = Opts) ->
+   tag_values := TagV, field_values := FieldV}) ->
    {ok, all,
       #state{fields = Fields, node_id = NodeId, tags = Tags,
          tag_values = TagV, field_values = FieldV}}.

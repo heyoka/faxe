@@ -55,7 +55,6 @@ start_graph(Graph, FlowMode) ->
    gen_server:call(Graph, {start, FlowMode}).
 
 stop(Graph) ->
-   From = self(),
    erlang:process_flag(trap_exit, true),
    Graph ! stop.
 %%   gen_server:call(Graph, {stop}).
@@ -111,7 +110,7 @@ init([Id, _Params]) ->
 handle_call({swarm, begin_handoff} = _Request, _From, State) ->
    lager:notice("~p ~p begin_handoff : ~p",[?MODULE, State#state.id, _Request]),
    {reply, {resume, State}, State};
-handle_call({add_node, NodeId, Component, Metadata}, _From, State=#state{id = Id}) ->
+handle_call({add_node, NodeId, Component, Metadata}, _From, State=#state{id = _Id}) ->
    %gen_event:notify(dfevent_graph, {add_node, Id, {NodeId, Component}}),
    Inports = df_component:inports(Component),
    OutPorts = df_component:outports(Component),
@@ -122,7 +121,7 @@ handle_call({add_node, NodeId, Component, Metadata}, _From, State=#state{id = Id
    _NewVertex = digraph:add_vertex(State#state.graph, NodeId, Label),
 
    {reply, ok, State};
-handle_call({add_edge, SourceNode, SourcePort, TargetNode, TargetPort, Metadata}, _From, State=#state{id = Id}) ->
+handle_call({add_edge, SourceNode, SourcePort, TargetNode, TargetPort, Metadata}, _From, State=#state{id = _Id}) ->
    %gen_event:notify(dfevent_graph, {add_edge, Id, {SourceNode, SourcePort, TargetNode, TargetPort}}),
    Label = #{src_port => SourcePort, tgt_port => TargetPort, metadata => Metadata},
    _NewEdge = digraph:add_edge(State#state.graph, SourceNode, TargetNode, Label),
@@ -192,7 +191,7 @@ code_change(_OldVsn, State, _Extra) ->
 %%%===================================================================
 %%% Internal functions
 %%%===================================================================
-do_stop(State = #state{running = Running, nodes = Nodes, id = Id}) ->
+do_stop(#state{running = Running, nodes = Nodes, id = _Id}) ->
    lager:warning("stop graph when running:~p",[Running]),
    case Running of
       %% stop all components
@@ -247,7 +246,7 @@ build_subscriptions(Graph, Node, Nodes, FlowMode) ->
 %% @doc
 %% creates the graph processes and starts the computation
 %%
-start(FlowMode, State=#state{graph = G, id = Id}) ->
+start(FlowMode, State=#state{graph = G, id = _Id}) ->
    Nodes0 = digraph:vertices(G),
 
 %% build : [{NodeId, Pid}]

@@ -23,17 +23,17 @@
 
 options() -> [{fields, binary_list}].
 
-init(NodeId, _Ins, #{fields := Fields}=P) ->
+init(NodeId, _Ins, #{fields := Fields}) ->
    {ok, all, #state{node_id = NodeId, fields = Fields}}.
 
-process(_In, #data_batch{points = Points} = Batch, State = #state{fields = Offset}) ->
-%%   lager:info("~p Ts before: ~p",[?MODULE, [faxe_time:to_date(T0) || T0 <- flowdata:ts(Batch)]]),
-%%   NewPoints = [execute(Point,Offset) || Point <- Points],
-%%   NewBatch = flowdata:set_bounds(Batch#data_batch{points = NewPoints}),
-%%   lager:info("~p Ts after: ~p",[?MODULE, [faxe_time:to_date(T1) || T1 <- flowdata:ts(NewBatch)]]),
-%%   {emit, NewBatch, State}
-ok
-;
+%%process(_In, #data_batch{points = Points} = Batch, State = #state{fields = Offset}) ->
+%%%%   lager:info("~p Ts before: ~p",[?MODULE, [faxe_time:to_date(T0) || T0 <- flowdata:ts(Batch)]]),
+%%%%   NewPoints = [execute(Point,Offset) || Point <- Points],
+%%%%   NewBatch = flowdata:set_bounds(Batch#data_batch{points = NewPoints}),
+%%%%   lager:info("~p Ts after: ~p",[?MODULE, [faxe_time:to_date(T1) || T1 <- flowdata:ts(NewBatch)]]),
+%%%%   {emit, NewBatch, State}
+%%ok
+%%;
 process(_Inport, #data_point{fields = FieldVals} = Point, State = #state{fields = Fields, field_states = FS}) ->
    NewPoint = execute(Point, Fields, FS),
 %%   lager:info("~p emitting: ~p when previous: ~p",[?MODULE, NewPoint, FS]),

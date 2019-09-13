@@ -28,24 +28,6 @@
 -type df_port()         :: non_neg_integer().
 
 
--record(state, {
-   flow_mode = push     :: push | pull,
-   node_id              :: term(), %% this nodes id
-   component            :: atom(), %% callbacks module name
-   cb_state             :: cbstate(), %% state for callback
-   cb_handle_info       :: true | false,
-   inports              :: list(), %% list of inputs {port, pid}
-   subscriptions        :: list(#subscription{}),
-   auto_request         :: none | all | emit,
-   history              :: list(),
-   emitted = 0          :: non_neg_integer(),
-   ls_mem,
-   ls_mem_fields,
-   ls_mem_ttl
-
-}).
-
-
 %%%===================================================================
 %%% CALLBACKS
 %%%===================================================================
@@ -322,7 +304,7 @@ handle_info({item, {Inport, Value}},
 %%   end
    ;
 
-handle_info({emit, {Outport, Value}}, State=#c_state{subscriptions = Ss, node_id = NId,
+handle_info({emit, {Outport, Value}}, State=#c_state{subscriptions = Ss, node_id = _NId,
       flow_mode = FMode, auto_request = AR, emitted = EmitCount}) ->
 
 %%   lager:notice("stats for ~p: ~p",[NId, folsom_metrics:get_histogram_statistics(NId)]),
@@ -438,11 +420,11 @@ eval_args(A = #{}, State) ->
    {Args, NewState}.
 
 
-handle_ls_mem(_, State=#c_state{ls_mem = undefined}) ->
+handle_ls_mem(_, #c_state{ls_mem = undefined}) ->
    ok;
-handle_ls_mem(P = #data_batch{points = Points}, State=#c_state{}) ->
+handle_ls_mem(#data_batch{points = Points}, State=#c_state{}) ->
    [handle_ls_mem(P, State) || P <- Points];
-handle_ls_mem(P = #data_point{}, State=#c_state{ls_mem = MemKey, ls_mem_field = MemField}) ->
+handle_ls_mem(P = #data_point{}, #c_state{ls_mem = MemKey, ls_mem_field = MemField}) ->
    Set0 =
    case ets:lookup(ls_mem, MemKey) of
       [] -> sets:new();

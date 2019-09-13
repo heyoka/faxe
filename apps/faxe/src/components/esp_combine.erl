@@ -56,7 +56,7 @@ options() -> [
    {prefix_delimiter, binary, ?PREFIX_DEL}].
 
 
-init(NodeId, _Ins, #{fields := Fields, aliases := Aliases, prefix := Prefix, prefix_delimiter := PFL}=Ps) ->
+init(NodeId, _Ins, #{fields := Fields, aliases := Aliases, prefix := Prefix, prefix_delimiter := PFL}) ->
    NP =
       case Prefix of
          undefined -> lists:zip(Fields, Aliases);

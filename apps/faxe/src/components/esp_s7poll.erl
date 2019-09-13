@@ -49,7 +49,7 @@ init(_NodeId, _Ins,
       rack := Rack,
       vars := Addresses,
       as := As,
-      diff := Diff} = Opts) ->
+      diff := Diff}) ->
 
 %%  lager:notice("++++ ~p ~ngot opts: ~p ~n",[_NodeId, Opts]),
 
@@ -103,7 +103,7 @@ handle_info({'DOWN', _MonitorRef, _Type, Client, Info},
 %% old DOWN message from alread restarted client process
 handle_info({'DOWN', _MonitorRef, _Type, _Object, _Info}, State) ->
   {ok, State};
-handle_info(E, S) ->
+handle_info(_E, S) ->
   {ok, S#state{}}.
 
 shutdown(#state{client = Client, timer_ref = Timer}) ->

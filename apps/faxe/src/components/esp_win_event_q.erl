@@ -29,7 +29,7 @@
 options() ->
    [{period, integer, 12}, {every, integer, 4}, {fill_period, is_set}].
 
-init(_NodeId, _Inputs, #{period := Period, every := Every, fill_period := Fill} = P) ->
+init(_NodeId, _Inputs, #{period := Period, every := Every, fill_period := Fill}) ->
    State = #state{every = Every, period = Period, fill_period = Fill, window = queue:new()},
    {ok, all, State}.
 
@@ -38,7 +38,7 @@ process(_Inport, #data_point{} = Point, State=#state{} ) ->
    EvictState = maybe_evict(NewState),
    maybe_emit(EvictState).
 
-handle_info(Request, State) ->
+handle_info(_Request, State) ->
    {ok, State}.
 
 

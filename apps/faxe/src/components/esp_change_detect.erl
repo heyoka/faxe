@@ -35,7 +35,7 @@
 
 options() -> [{fields, binary_list}, {reset_timeout, duration, <<"3h">>}, {exclusive, is_set}].
 
-init(_NodeId, _Ins, #{fields := FieldList, reset_timeout := Timeout, exclusive := Exc} = P) ->
+init(_NodeId, _Ins, #{fields := FieldList, reset_timeout := Timeout, exclusive := Exc}) ->
    Time = faxe_time:duration_to_ms(Timeout),
    {ok, all, #state{fields = FieldList, reset_timeout = Time, exclusive = Exc}}.
 
@@ -65,7 +65,7 @@ process(_Inport, #data_point{} = Point,
 
 handle_info(reset_timeout, State) ->
    {ok, State#state{values = []}};
-handle_info(Req, State) ->
+handle_info(_Req, State) ->
    {ok, State}.
 
 

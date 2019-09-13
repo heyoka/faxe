@@ -29,7 +29,7 @@
 
 options() -> [{as, binary, <<"elapsed">>}].
 
-init(NodeId, _Ins, #{as := As}=P) ->
+init(NodeId, _Ins, #{as := As}) ->
    {ok, all, #state{node_id = NodeId, as = As}}.
 
 process(_In, _Item, State = #state{last_time = undefined}) ->

@@ -23,7 +23,7 @@
 
 options() -> [{lambdas, lambda_list}, {as, string_list}, {tags, string_list, []}].
 
-init(NodeId, _Ins, #{lambdas := LambdaFuns, as := As, tags := Tags} =Ps) ->
+init(NodeId, _Ins, #{lambdas := LambdaFuns, as := As, tags := Tags}) ->
 %%   lager:notice("~p init:node~n~p",[NodeId, Ps]),
    {ok, all, #state{lambdas = LambdaFuns, node_id = NodeId, as = As, tags = Tags}}.
 

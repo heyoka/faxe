@@ -18,7 +18,7 @@
 options() ->
    [{file, string}].
 
-init(NodeId, _Inputs, #{file := File}) ->
+init(_NodeId, _Inputs, #{file := File}) ->
    {ok, F} = file:open(File, [write]),
    {ok, all, #state{file = F}}.
 

@@ -147,13 +147,13 @@ nearest_ts(Ts, TsList) ->
       end, 0, TsList).
 
 %% get the nearest from a list of values, which is less than the given value
-nearest_ts_lower(Ts, TsList) ->
-   NList = lists:filter(fun(ETs) -> (Ts - ETs) >= 0 end, TsList),
-   nearest_ts(Ts, NList).
-
-nearest_ts_higher(Ts, TsList) ->
-   NList = lists:filter(fun(ETs) -> (Ts - ETs) =< 0 end, TsList),
-   nearest_ts(Ts, NList).
+%%nearest_ts_lower(Ts, TsList) ->
+%%   NList = lists:filter(fun(ETs) -> (Ts - ETs) >= 0 end, TsList),
+%%   nearest_ts(Ts, NList).
+%%
+%%nearest_ts_higher(Ts, TsList) ->
+%%   NList = lists:filter(fun(ETs) -> (Ts - ETs) =< 0 end, TsList),
+%%   nearest_ts(Ts, NList).
 
 new_timeout(T, Ts, TimerList) ->
    TRef = erlang:send_after(T, self(), {tick, Ts}),

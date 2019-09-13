@@ -21,7 +21,7 @@
 
 options() -> [{lambda, lambda}].
 
-init(_NodeId, _Ins, #{lambda := Lambda} = O) ->
+init(_NodeId, _Ins, #{lambda := Lambda}) ->
    {ok, all, #state{lambda = Lambda}}.
 
 process(_In, #data_batch{points = Points} = Batch, State = #state{lambda = Lambda}) ->

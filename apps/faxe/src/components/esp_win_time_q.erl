@@ -28,7 +28,7 @@
 options() ->
    [{period, duration}, {every, duration}, {fill_period, is_set}].
 
-init(_NodeId, _Inputs, #{period := Period, every := Every, fill_period := Fill} = Params) ->
+init(_NodeId, _Inputs, #{period := Period, every := Every, fill_period := Fill}) ->
    Ev = faxe_time:duration_to_ms(Every),
    Per = faxe_time:duration_to_ms(Period),
    %% fill_period does not make sense, if every is less than period
@@ -42,7 +42,7 @@ process(_Inport, #data_point{} = Point, State=#state{} ) ->
    NewState = accumulate(Point, State1),
    {ok, NewState}.
 
-handle_info(Request, State) ->
+handle_info(_Request, State) ->
    {ok, State}.
 
 %%%===================================================================

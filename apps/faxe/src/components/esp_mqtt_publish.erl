@@ -56,15 +56,15 @@ options() -> [
    {save, is_set}].
 
 %% save mode with ondisc queuing
-init(NodeId, _Ins, #{save := true, host := Host0}=Opts) ->
+init(_NodeId, _Ins, #{save := true, host := Host0}=Opts) ->
    Host = binary_to_list(Host0),
    {ok, Q} = esq:new(?DEFAULT_QUEUE_FILE),
    {ok, Publisher} = mqtt_publisher:start_link(Opts#{host := Host}, Q),
    {ok, all, #save_state{options = Opts, publisher = Publisher, queue = Q}};
 %% direct publish mode
-init(NodeId, _Ins,
+init(_NodeId, _Ins,
    #{save := false, host := Host0, port := Port, topic := Topic,
-      retained := Retained, ssl := UseSSL, qos := Qos} = Opts) ->
+      retained := Retained, ssl := UseSSL, qos := Qos}) ->
    Host = binary_to_list(Host0),
    {ok, Client} = emqtt:start_link([{host, Host}, {port, Port}]),
    emqtt:connect(Client),
@@ -98,8 +98,7 @@ handle_info({mqttc, C, connected}, State=#direct_state{}) ->
 handle_info({mqttc, _C,  disconnected}, State=#direct_state{}) ->
    lager:debug("mqtt client disconnected!!"),
    {ok, State#direct_state{connected = false, client = undefined}};
-handle_info(E, S) ->
-%%   lager:info("[~p] unexpected: ~p~n", [?MODULE, E]),
+handle_info(_E, S) ->
    {ok, S}.
 
 shutdown(#save_state{publisher = P}) ->
@@ -111,7 +110,7 @@ shutdown(#direct_state{client = C}) ->
 publish(Msg, #direct_state{retained = Ret, qos = Qos, client = C, topic = Topic})
    when is_binary(Msg); is_list(Msg)->
 %%   lager:notice("publish ~s on topic ~p ~n",[Msg, Topic]),
-   {ok, PacketId} = emqtt:publish(C, Topic, Msg, [{qos, Qos}, {retained, Ret}])
+   {ok, _PacketId} = emqtt:publish(C, Topic, Msg, [{qos, Qos}, {retained, Ret}])
 %%   ,
 %%   lager:notice("sent msg and got PacketId: ~p",[PacketId])
 .

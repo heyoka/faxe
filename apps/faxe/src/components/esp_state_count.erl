@@ -42,7 +42,7 @@ process(_Inport, #data_point{} = Point,
       {ok, Count} ->
          NewPoint = flowdata:set_field(Point, As, Count),
          {emit, NewPoint, State#state{last_count = Count}};
-      {error, Error} ->
+      {error, _Error} ->
          {ok, State}
    end.
 

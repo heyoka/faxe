@@ -21,7 +21,7 @@
 
 options() -> [{offset, duration, <<"30s">>}].
 
-init(NodeId, _Ins, #{offset := Offset}=P) ->
+init(NodeId, _Ins, #{offset := Offset}) ->
    {ok, all, #state{node_id = NodeId, offset = Offset}}.
 
 process(_In, #data_batch{points = Points} = Batch, State = #state{offset = Offset}) ->

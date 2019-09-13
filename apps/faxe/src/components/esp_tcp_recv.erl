@@ -57,7 +57,7 @@ options() -> [
 
 
 init(_NodeId, _Ins,
-    #{ip := Ip, port := Port, as := As, parser := Parser, extract := Extract} = Opts) ->
+    #{ip := Ip, port := Port, as := As, parser := Parser, extract := Extract}) ->
   Reconnector = modbus_reconnector:new(
     {?RECON_MIN_INTERVAL, ?RECON_MAX_INTERVAL, ?RECON_MAX_RETRIES}),
   {ok, Reconnector1} = modbus_reconnector:execute(Reconnector, do_reconnect),
@@ -87,7 +87,7 @@ handle_info(do_reconnect, State=#state{ip = Ip, port = Port}) ->
     {ok, Socket} -> inet:setopts(Socket, [{active, once}]), {ok, State#state{socket = Socket}};
     {error, Error} -> lager:error("[~p] Error connecting: ~p",[?MODULE, Error]), try_reconnect(State)
   end;
-handle_info(E, S) ->
+handle_info(_E, S) ->
   {ok, S}.
 
 shutdown(#state{socket = Sock, timer_ref = Timer}) ->

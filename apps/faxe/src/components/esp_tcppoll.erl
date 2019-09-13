@@ -30,7 +30,7 @@
 
 options() -> [{ip, binary}, {port, integer}, {every, duration, "1s"}, {count, integer, 1}, {prefix, string, <<"val_">>}].
 
-init(_NodeId, _Ins, #{ip := Ip, port := Port, every := Dur, count := C, prefix := Prefix}=Opts) ->
+init(_NodeId, _Ins, #{ip := Ip, port := Port, every := Dur, count := C, prefix := Prefix}) ->
   {ok, Socket} = connect(Ip, Port),
   Interval = faxe_time:duration_to_ms(Dur),
   TRef = poll(0),

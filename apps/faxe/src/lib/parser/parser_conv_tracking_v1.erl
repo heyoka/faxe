@@ -85,32 +85,32 @@ to_fields(LineData) ->
 
 %% line with source definition
 %% <<"S00,TRAC:2001,SCAN:2001,SEQN:,TARG:,ATTR:20,TRG1:3072,TRG2:,TRG3:,TRG4:,TRG5:;">>
-line([<< ?SRC_PREFIX, Source/binary>> = Pos | Fields], Acc=#{<<"sources">> := Srcs}) ->
+line([<< ?SRC_PREFIX, _Source/binary>> = Pos | Fields], Acc=#{<<"sources">> := Srcs}) ->
    NewMap = line_src_e_pp(Pos, Fields),
    Acc#{<<"sources">> => [NewMap|Srcs]};
 
 %% line with target definition
-line([<< ?TARG_PREFIX, Target/binary>> = Pos |Fields], Acc = #{<<"targets">> := Targets}) ->
+line([<< ?TARG_PREFIX, _Target/binary>> = Pos |Fields], Acc = #{<<"targets">> := Targets}) ->
    NewMap = line_tgt_it_dp(Pos, Fields),
    Acc#{<<"targets">> => [NewMap|Targets]};
 %% line with IT definition
 %% IT1,TRAC:3062,SCAN:,TEMP:,SEQN:,CASE:,ATTR:0
-line([<< ?IT_PREFIX, IT/binary>> = Pos |Fields], Acc = #{<<"targets">> := Targets}) ->
+line([<< ?IT_PREFIX, _IT/binary>> = Pos |Fields], Acc = #{<<"targets">> := Targets}) ->
    NewMap = line_tgt_it_dp(Pos, Fields),
    Acc#{<<"targets">> => [NewMap|Targets]};
 %% line with DP definition
 %% DP1,TRAC:3068,SCAN:3068,TEMP:,SEQN:1,CASE:3100,ATTR:0
-line([<< ?DP_PREFIX, DP/binary>> = Pos |Fields], Acc = #{<<"targets">> := Targets}) ->
+line([<< ?DP_PREFIX, _DP/binary>> = Pos |Fields], Acc = #{<<"targets">> := Targets}) ->
    NewMap = line_tgt_it_dp(Pos, Fields),
    Acc#{<<"targets">> => [NewMap|Targets]};
 %% line with E definition
 %% E01,TRAC:,SCAN:,SEQN:,TARG:,ATTR:0,TRG1:,TRG2:,TRG3:,TRG4:,TRG5:;
-line([<< ?E_PREFIX, E/binary>> = Pos| Fields], Acc=#{<<"sources">> := Srcs}) ->
+line([<< ?E_PREFIX, _E/binary>> = Pos| Fields], Acc=#{<<"sources">> := Srcs}) ->
    NewMap = line_src_e_pp(Pos, Fields),
    Acc#{<<"sources">> => [NewMap|Srcs]};
 %% line with PP definition
 %% PP1,TRAC:2071,SCAN:2071,SEQN:1,TARG:1,ATTR:16,TRG1:3068,TRG2:,TRG3:,TRG4:,TRG5:;
-line([<< ?PP_PREFIX, PP/binary>> = Pos| Fields], Acc=#{<<"sources">> := Srcs}) ->
+line([<< ?PP_PREFIX, _PP/binary>> = Pos| Fields], Acc=#{<<"sources">> := Srcs}) ->
    NewMap = line_src_e_pp(Pos, Fields),
    Acc#{<<"sources">> => [NewMap|Srcs]}.
 
