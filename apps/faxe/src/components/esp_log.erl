@@ -9,7 +9,7 @@
 
 -behavior(df_component).
 %% API
--export([init/3, process/3, options/0]).
+-export([init/3, process/3, options/0, check_options/0]).
 
 -record(state, {
    file :: list()
@@ -17,6 +17,9 @@
 
 options() ->
    [{file, string}].
+
+check_options() ->
+   [{not_empty, [file]}].
 
 init(_NodeId, _Inputs, #{file := File}) ->
    {ok, F} = file:open(File, [write]),

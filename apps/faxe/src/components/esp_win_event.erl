@@ -5,7 +5,7 @@
 %% this window holds "period" events and emits every "every" incomming event
 %% with the "fill_period" option given, the window will only emit full windows
 %%
--module(esp_win_event_q).
+-module(esp_win_event).
 -author("Alexander Minichmair").
 
 -behaviour(df_component).

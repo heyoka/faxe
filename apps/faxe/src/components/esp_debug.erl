@@ -1,7 +1,7 @@
 %% Date: 30.12.16 - 23:01
 %% Ⓒ 2019 heyoka
 %%
-%% the debug node just logs the incomming message with lager
+%% the debug node just logs the incoming message with lager
 %% and emits it without touching it in any way
 %%
 -module(esp_debug).

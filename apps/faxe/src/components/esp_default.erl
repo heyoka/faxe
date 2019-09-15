@@ -1,7 +1,7 @@
 %% Date: 28.01.17 - 14:11
 %% Ⓒ 2017 heyoka
 %% @doc
-%% Add a field and/or a tag if it does not already exist for a datapoint
+%% Add a field and/or a tag if it does not already exist
 %% @end
 -module(esp_default).
 -author("Alexander Minichmair").
@@ -11,7 +11,7 @@
 
 -include("faxe.hrl").
 %% API
--export([init/3, process/3, options/0]).
+-export([init/3, process/3, options/0, check_options/0]).
 
 -record(state, {
    node_id,
@@ -26,6 +26,11 @@ options() -> [
    {field_values, list, []},
    {tags, binary_list, []},
    {tag_values, binary_list, []}].
+
+check_options() ->
+   [
+      {same_length, [fields, field_values]}, {same_length, [tags, tag_values]}
+   ].
 
 init(NodeId, _Ins, #{fields := Fields, tags := Tags,
    tag_values := TagV, field_values := FieldV}) ->

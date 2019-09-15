@@ -6,6 +6,9 @@ def v1 =
     .parser(parser)
     .min_length(61)
 
+    |win_event()
+    .period(5s)
+
     |mqtt_publish()
     .host('10.14.204.3')
     .port(1883)

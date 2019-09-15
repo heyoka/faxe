@@ -11,7 +11,7 @@
 
 -include("faxe.hrl").
 %% API
--export([init/3, process/3, options/0]).
+-export([init/3, process/3, options/0, check_options/0]).
 
 
 -record(state, {
@@ -22,6 +22,11 @@
 }).
 
 options() -> [{lambdas, lambda_list}, {as, string_list}, {tags, string_list, []}].
+
+check_options() ->
+   [
+      {same_length, [lambdas, as]}
+   ].
 
 init(NodeId, _Ins, #{lambdas := LambdaFuns, as := As, tags := Tags}) ->
 %%   lager:notice("~p init:node~n~p",[NodeId, Ps]),

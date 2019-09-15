@@ -9,7 +9,7 @@
 %%
 %% when the fill_period option is given, the window will not emit before "period" time has elapsed
 %%
--module(esp_win_clock_new).
+-module(esp_win_clock).
 -author("Alexander Minichmair").
 
 -behaviour(df_component).
@@ -31,7 +31,11 @@
 }).
 
 options() ->
-   [{period, duration}, {every, duration}, {align, is_set, false}, {fill_period, is_set, false}].
+   [
+      {period, duration}, %% window length
+      {every, duration}, %% output window contents every
+      {align, is_set, false}, %% align window to 'every' unit
+      {fill_period, is_set, false}]. %% fill full window period before first output
 
 init(_NodeId, _Inputs, #{period := Period, every := Every, align := Align, fill_period := Fill}) ->
    NUnit =

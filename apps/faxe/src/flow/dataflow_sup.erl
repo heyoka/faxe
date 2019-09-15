@@ -51,8 +51,8 @@ start_link() ->
    {error, Reason :: term()}).
 init([]) ->
    RestartStrategy = one_for_one,
-   MaxRestarts = 30,
-   MaxSecondsBetweenRestarts = 80,
+   MaxRestarts = 10,
+   MaxSecondsBetweenRestarts = 20,
    Procs = [
       {graph_sup,
          {graph_sup, start_link, []},

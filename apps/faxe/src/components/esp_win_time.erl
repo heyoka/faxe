@@ -2,9 +2,9 @@
 %% Ⓒ 2017 heyoka
 %% @doc window which refers it's timing to the timestamp contained in the incoming data-items
 %% rewrite with queue module instead of lists
-%% @todo setup timeout where points get evicted even though there a timestamps missing ?
+%% @todo setup timeout where points get evicted even though there a timestamps missing ? yes!
 %%
--module(esp_win_time_q).
+-module(esp_win_time).
 -author("Alexander Minichmair").
 
 -behaviour(df_component).
@@ -17,7 +17,7 @@
 -record(state, {
    every,
    period,
-   window,
+   window, %% queue 
    ts_list = [], %% list of inserted Timestamps
    at,
    mark,
@@ -56,17 +56,17 @@ accumulate(Point = #data_point{ts = Ts}, State = #state{window = Win, ts_list = 
 
 tick(State = #state{mark = undefined}) ->
    State;
-tick(State = #state{mark = Mark, at = At, window = Win, period = Interval,
-      every = Every, ts_list = TsList, fill_period = Fill}) ->
+tick(State = #state{at = At, window = Win, period = Interval, ts_list = TsList}) ->
 
    {KeepTsList, NewWindow, HasEvicted} = evict(TsList, Win, At, Interval),
    NewAt = lists:last(KeepTsList),
-   case check_emit(NewAt, Mark, Every, Fill, (HasEvicted orelse State#state.has_emitted)) of
+   case check_emit(NewAt, State, (HasEvicted orelse State#state.has_emitted)) of
       true ->
          Batch = #data_batch{points = queue:to_list(NewWindow)},
 %%         lager:warning("~n ~p emitting: ~p",[?MODULE, length(Batch#data_batch.points)]),
          dataflow:emit(Batch),
-         State#state{mark = NewAt, at = NewAt, window = NewWindow, ts_list = KeepTsList, has_emitted = true};
+         State#state{mark = NewAt, at = NewAt, window = NewWindow,
+            ts_list = KeepTsList, has_emitted = true};
       false ->
          State#state{window = NewWindow, ts_list = KeepTsList, at = NewAt}
    end.
@@ -78,7 +78,7 @@ evict(TimestampList, Window, At, Interval) ->
    {KeepTimestamps, win_util:sync_q(Window, Evict), length(Evict) > 0}.
 
 
-check_emit(At, Mark, Every, Fill, EvictedOrEmitted) ->
+check_emit(At, #state{mark = Mark, every = Every, fill_period = Fill}, EvictedOrEmitted) ->
    case At - Mark >= Every of
       true -> case Fill of
                  true -> EvictedOrEmitted;

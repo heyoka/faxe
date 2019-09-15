@@ -76,7 +76,6 @@ options() -> [
 check_options() ->
    [
       {same_length, [function, from, count, as, output, signed]}
-%%      {not_empty, [every]}
    ].
 
 init(_NodeId, _Ins, #{} = Opts) ->

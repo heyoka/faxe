@@ -19,7 +19,7 @@
    offset
 }).
 
-options() -> [{offset, duration, <<"30s">>}].
+options() -> [{offset, duration, <<"-30s">>}].
 
 init(NodeId, _Ins, #{offset := Offset}) ->
    {ok, all, #state{node_id = NodeId, offset = Offset}}.

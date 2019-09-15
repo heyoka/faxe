@@ -9,7 +9,7 @@ def in =
 def extracted =
 in
     |extract_path()
-    .path('val.val', 'pi.pa.pup')
+    .path('val_root.val', 'pi.pa.pup')
     .as('gurk', 'value')
 
 

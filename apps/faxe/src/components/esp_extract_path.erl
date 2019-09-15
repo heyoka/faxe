@@ -12,7 +12,7 @@
 
 -behavior(df_component).
 %% API
--export([init/3, process/3, shutdown/1, options/0, extract/4]).
+-export([init/3, process/3, shutdown/1, options/0, extract/4, check_options/0]).
 
 -record(state, {
    nodeid,
@@ -23,6 +23,9 @@
 
 options() ->
    [{path, binary_list}, {as, binary_list}, {default, any, 0}].
+
+check_options() ->
+   [{same_length, [path, as]}].
 
 init(NodeId, _Inputs, #{path := Paths, as := As, default := Def} = _Args) ->
    {ok, all, #state{paths = Paths, as = As, default = Def, nodeid = NodeId}}.

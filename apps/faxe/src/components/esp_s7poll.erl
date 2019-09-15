@@ -15,7 +15,7 @@
 
 -include("faxe.hrl").
 %% API
--export([init/3, process/3, options/0, handle_info/2, shutdown/1, maybe_emit/4]).
+-export([init/3, process/3, options/0, handle_info/2, shutdown/1, maybe_emit/4, check_options/0]).
 
 -record(state, {
   ip,
@@ -40,6 +40,9 @@ options() -> [
   {vars, string_list}, %% s7 addressing, ie: DB2024,Int16.1224
   {as, binary_list},
   {diff, is_set}].
+
+check_options() ->
+  [{same_length, [vars, as]}].
 
 init(_NodeId, _Ins,
     #{ip := Ip,

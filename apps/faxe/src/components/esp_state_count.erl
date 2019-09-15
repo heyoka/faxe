@@ -8,8 +8,8 @@
 %%
 %% The state count will be added as an additional int64 field to each point.
 %% If the expression evaluates to false, the value will be -1.
-%% If the expression generates an error during evaluation, the point is discarded,
-%% and does not affect the state duration.
+%% If the expression generates an error during evaluation, the point is discarded
+%% and does not affect the state count.
 %%
 -module(esp_state_count).
 -author("Alexander Minichmair").
