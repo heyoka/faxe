@@ -31,6 +31,6 @@ convert(Data, As, _Extract, Parser) ->
 %%   Struct = maps:to_list(Map), lager:warning("Struct from Map: ~p",[Struct]),
    NewPoint = flowdata:set_field(#data_point{ts = faxe_time:now()}, As, Map),
    NewPoint1 = flowdata:set_field(NewPoint, <<"df">>, DataFormat),
-   lager:notice("[~p] parser time: ~p",[?MODULE, T]),
+%%   lager:notice("[~p] parser time: ~p",[?MODULE, T]),
    flowdata:set_field(NewPoint1, <<"vs">>, Vers).
 %%   convert(Parsed, As, Extract, undefined).

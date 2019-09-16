@@ -1,0 +1,16 @@
+
+def path_perc =
+    |value_emitter()
+    .every(1s)
+    .type(point)
+    .format(ejson)
+
+    | win_time()
+    .every(5s)
+    .period(5s)
+
+    |range()
+    .field('val')
+    .as('val.val.range')
+
+    |debug()

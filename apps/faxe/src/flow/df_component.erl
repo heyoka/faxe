@@ -277,17 +277,17 @@ handle_info({item, {Inport, Value}},
 
    folsom_metrics:notify({NId, 1}),
    %gen_event:notify(dfevent_component, {item, State#c_state.node_id, {Inport, Value}}),
-   Result = (Module:process(Inport, Value, CBState)),
-%%   case catch (Module:process(Inport, Value, CBState)) of
-%%      {'EXIT', {Reason,Stacktrace}} ->
-%%         lager:error("'error' ~p in component ~p caught when processing item: ~p -- ~p",
-%%         [Reason, State#c_state.component, {Inport, Value}, Stacktrace]),
+%%   Result = (Module:process(Inport, Value, CBState)),
+   case catch (Module:process(Inport, Value, CBState)) of
+      {'EXIT', {Reason,Stacktrace}} ->
+         lager:error("'error' ~p in component ~p caught when processing item: ~p -- ~p",
+         [Reason, State#c_state.component, {Inport, Value}, Stacktrace]),
 %%         folsom_metrics:notify({<< NId/binary, "_processing_errors" >>,
 %%            io_lib:format("'error' ~p in component ~p caught when processing item: ~p -- ~p",
 %%            [Reason, State#c_state.component, {Inport, Value}, Stacktrace])}),
-%%         {noreply, State};
-%%
-%%      Result ->
+         {noreply, State};
+
+      Result ->
          {NewState, Requested, REmitted} = handle_process_result(Result, State),
          case FMode == pull of
             true -> case {Requested, AR, REmitted} of
@@ -299,9 +299,9 @@ handle_info({item, {Inport, Value}},
                     end;
             false -> ok
          end,
-   handle_ls_mem(Value, State),
+         handle_ls_mem(Value, State),
          {noreply, NewState}
-%%   end
+   end
    ;
 
 handle_info({emit, {Outport, Value}}, State=#c_state{subscriptions = Ss, node_id = _NId,
@@ -416,7 +416,6 @@ eval_args(A = #{}, State) ->
    {LsMemFields, A1} = maps:take(ls_mem_field, A0),
    {LsMemTTL, Args} = maps:take(ls_mem_ttl, A1),
    NewState = State#c_state{ls_mem = LsMem, ls_mem_field = LsMemFields, ls_mem_ttl = LsMemTTL},
-%%   lager:warning("LSMEM: ~p", [NewState]),
    {Args, NewState}.
 
 
@@ -429,12 +428,6 @@ handle_ls_mem(P = #data_point{}, #c_state{ls_mem = MemKey, ls_mem_field = MemFie
    case ets:lookup(ls_mem, MemKey) of
       [] -> sets:new();
       [{MemKey, List}] -> sets:from_list(List)
-
    end,
    Set = sets:add_element(flowdata:field(P, MemField), Set0),
-%%   lager:warning("~p memfields: ~p", [State#c_state.component, MemField]),
    ets:insert(ls_mem, {MemKey, sets:to_list(Set)}).
-%%   [
-%%      ets:insert(ls_mem, {<<MemKey/binary, "_", FieldName/binary>>, flowdata:field(P, FieldName)})
-%%      || FieldName <- MemFields
-%%   ].
