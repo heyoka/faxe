@@ -1,29 +1,15 @@
 def whid = 'ab33zr83489urf34r43j'
 def device_id = 'DV0025LM33'
+def mqtt_broker = '127.0.0.1'
 
 def energy =
-    |modbus()
-    .ip('127.0.0.1')
-    .port(8899)
-    .device(255)
-    .every(1s)
+    |value_emitter()
+    .every(2s)
+    .type(point)
 
-    .function('coils', 'hregs', 'iregs')
-    .from(2127, 3008, 104)
-    .count(1, 2, 2)
-    .as('Energy.ActiveEnergyConsumption', 'Energy.MaximalCurrentValue', 'Energy.BlindEnergyDelivered')
-    .output('int16', 'float32', 'float32')
-    .signed(true, true, false)
-
-%% add some tags
-    |default()
-    .tags('name', 'warehouse_id', 'device_id')
-    .tag_values('persistent_publisher', whid, device_id)
-
-%% publish to mqtt broker
 %%
     |mqtt_publish()
-    .host('10.14.204.3')
+    .host(mqtt_broker)
     .port(1883)
     .qos(1)
     .topic('ttgw/m1')
