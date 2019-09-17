@@ -85,7 +85,7 @@ handle_info({tcp_error, Socket, _}, State) ->
 handle_info(do_reconnect, State=#state{ip = Ip, port = Port}) ->
   case connect(Ip, Port) of
     {ok, Socket} -> inet:setopts(Socket, [{active, once}]), {ok, State#state{socket = Socket}};
-    {error, Error} -> lager:error("[~p] Error connecting: ~p",[?MODULE, Error]), try_reconnect(State)
+    {error, Error} -> lager:error("[~p] Error connecting to ~p: ~p",[?MODULE, {Ip, Port},Error]), try_reconnect(State)
   end;
 handle_info(_E, S) ->
   {ok, S}.

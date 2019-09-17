@@ -67,7 +67,7 @@ init(_NodeId, _Ins,
       retained := Retained, ssl := UseSSL, qos := Qos}) ->
    Host = binary_to_list(Host0),
    {ok, Client} = emqtt:start_link([{host, Host}, {port, Port}]),
-   emqtt:connect(Client),
+   {ok, _ } = emqtt:connect(Client),
    {ok,
       #direct_state{host = Host, port = Port, topic = Topic,
          retained = Retained, ssl = UseSSL, qos = Qos}}.
@@ -92,11 +92,11 @@ process(_Inport, #data_point{} = Point, State = #save_state{queue = Q}) ->
    {ok, State}.
 
 handle_info({mqttc, C, connected}, State=#direct_state{}) ->
-   lager:debug("mqtt client connected!!"),
+   lager:info("mqtt client connected!!"),
    NewState = State#direct_state{client = C, connected = true},
    {ok, NewState};
 handle_info({mqttc, _C,  disconnected}, State=#direct_state{}) ->
-   lager:debug("mqtt client disconnected!!"),
+   lager:info("mqtt client disconnected!!"),
    {ok, State#direct_state{connected = false, client = undefined}};
 handle_info(_E, S) ->
    {ok, S}.
@@ -109,7 +109,7 @@ shutdown(#direct_state{client = C}) ->
 
 publish(Msg, #direct_state{retained = Ret, qos = Qos, client = C, topic = Topic})
    when is_binary(Msg); is_list(Msg)->
-%%   lager:notice("publish ~s on topic ~p ~n",[Msg, Topic]),
+   lager:notice("publish ~s on topic ~p ~n",[Msg, Topic]),
    {ok, _PacketId} = emqtt:publish(C, Topic, Msg, [{qos, Qos}, {retained, Ret}])
 %%   ,
 %%   lager:notice("sent msg and got PacketId: ~p",[PacketId])

@@ -1,5 +1,6 @@
 def whid = 'ab33zr83489urf34r43j'
 def device_id = 'DV0025LM33'
+def mqtt_broker = '10.14.204.3'
 
 def energy =
     |modbus()
@@ -16,14 +17,15 @@ def energy =
     .signed(true, true, false)
 
 %% add some tags
+
     |default()
-    .tags('name', 'warehouse_id', 'device_id')
-    .tag_values('persistent_publisher', whid, device_id)
+    .fields('id', 'vs', 'df')
+    .field_values('cd999999999', 1, '01.010')
 
 %% publish to mqtt broker
-%%
+
     |mqtt_publish()
-    .host('10.14.204.3')
+    .host(mqtt_broker)
     .port(1883)
     .qos(1)
     .topic('ttgw/m1')
