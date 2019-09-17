@@ -43,6 +43,7 @@
    port,
    qos,
    topic,
+   queue,
    retained = false,
    ssl = false
 }).
@@ -67,34 +68,36 @@ init(_NodeId, _Ins,
       retained := Retained, ssl := UseSSL, qos := Qos}) ->
    process_flag(trap_exit, true),
    Host = binary_to_list(Host0),
-   {ok, Client} = emqtt:start_link([{host, Host}, {port, Port}]),
-   {ok, _ } = emqtt:connect(Client),
+   erlang:send_after(0, self(), reconnect),
    {ok,
-      #direct_state{host = Host, port = Port, topic = Topic, client = Client, connected = true,
-         retained = Retained, ssl = UseSSL, qos = Qos}}.
+      #direct_state{host = Host, port = Port, topic = Topic, connected = true,
+         retained = Retained, ssl = UseSSL, qos = Qos, queue = queue:new()}}.
 
-process(_In, #data_batch{} = Batch, State = #direct_state{}) ->
-   Json = flowdata:to_json(Batch),
+%% direct state
+process(_In, Item, State = #direct_state{connected = true}) ->
+   lager:alert("connected!!"),
+   Json = flowdata:to_json(Item),
    publish(Json, State),
    {ok, State};
-process(_Inport, #data_point{} = Point, State = #direct_state{}) ->
-   Json = flowdata:to_json(Point),
-   publish(Json, State),
-   {ok, State};
+process(_Inport, Item, State = #direct_state{connected = false, queue = Q}) ->
+   lager:alert("not connected!!"),
+   Json = flowdata:to_json(Item),
+   Q1 = queue:in(Json, Q),
+   {ok, State#direct_state{queue = Q1}};
+%% save state
 process(_In, #data_batch{} = Batch, State = #save_state{queue = Q}) ->
    Json = flowdata:to_json(Batch),
    esq:enq(Json, Q),
-%%   lager:info("enqueued: ~p :: ~p",[Json, Q]),
    {ok, State};
 process(_Inport, #data_point{} = Point, State = #save_state{queue = Q}) ->
    Json = flowdata:to_json(Point),
    esq:enq(Json, Q),
-%%   lager:info("enqueued: ~p :: ~p",[Json, Q]),
    {ok, State}.
 
-handle_info({mqttc, C, connected}, State=#direct_state{}) ->
-   lager:info("mqtt client connected!!"),
-   NewState = State#direct_state{client = C, connected = true},
+handle_info({mqttc, C, connected}, State=#direct_state{queue = Q}) ->
+   lager:info("mqtt client connected, resend : ~p!!",[queue:to_list(Q)]),
+   [publish(J, State) || J <- queue:to_list(Q)],
+   NewState = State#direct_state{client = C, connected = true, queue = queue:new()},
    {ok, NewState};
 handle_info({mqttc, _C,  disconnected}, State=#direct_state{}) ->
    lager:warning("mqtt client disconnected!!"),
@@ -103,7 +106,7 @@ handle_info(reconnect, State = #direct_state{}) ->
    NewState = do_connect(State),
    {ok, NewState};
 handle_info({'EXIT', Client, Reason}, State = #direct_state{client = Client}) ->
-   lager:warning("MQTT Client died: ~p", [Reason]),
+   lager:notice("MQTT Client died: ~p", [Reason]),
    erlang:send_after(1000, self(), reconnect),
    {ok, State#direct_state{connected = false, client = undefined}};
 handle_info(_E, S) ->
@@ -112,7 +115,7 @@ handle_info(_E, S) ->
 shutdown(#save_state{publisher = P}) ->
    catch (P);
 shutdown(#direct_state{client = C}) ->
-   lager:notice("shutdown: ~p", [?MODULE]),
+   lager:debug("shutdown: ~p", [?MODULE]),
    catch (emqtt:disconnect(C)).
 
 
@@ -128,7 +131,7 @@ do_connect(#direct_state{host = Host, port = Port} = State) ->
    {ok, Client} = emqtt:start_link([{host, Host}, {port, Port}]),
    case catch(emqtt:connect(Client)) of
       {ok, _} -> State#direct_state{client = Client, connected = true};
-      _Other -> lager:notice("Error connecting to mqtt_broker: ~p", [{Host, Port}]),
+      _Other -> lager:notice("Error connecting to mqtt_broker: ~p ~p", [{Host, Port}, _Other]),
          erlang:send_after(2000, self(), reconnect), State
    end.
 
