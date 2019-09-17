@@ -65,11 +65,12 @@ init(_NodeId, _Ins, #{save := true, host := Host0}=Opts) ->
 init(_NodeId, _Ins,
    #{save := false, host := Host0, port := Port, topic := Topic,
       retained := Retained, ssl := UseSSL, qos := Qos}) ->
+   process_flag(trap_exit, true),
    Host = binary_to_list(Host0),
    {ok, Client} = emqtt:start_link([{host, Host}, {port, Port}]),
    {ok, _ } = emqtt:connect(Client),
    {ok,
-      #direct_state{host = Host, port = Port, topic = Topic,
+      #direct_state{host = Host, port = Port, topic = Topic, client = Client, connected = true,
          retained = Retained, ssl = UseSSL, qos = Qos}}.
 
 process(_In, #data_batch{} = Batch, State = #direct_state{}) ->
@@ -96,7 +97,14 @@ handle_info({mqttc, C, connected}, State=#direct_state{}) ->
    NewState = State#direct_state{client = C, connected = true},
    {ok, NewState};
 handle_info({mqttc, _C,  disconnected}, State=#direct_state{}) ->
-   lager:info("mqtt client disconnected!!"),
+   lager:warning("mqtt client disconnected!!"),
+   {ok, State#direct_state{connected = false, client = undefined}};
+handle_info(reconnect, State = #direct_state{}) ->
+   NewState = do_connect(State),
+   {ok, NewState};
+handle_info({'EXIT', Client, Reason}, State = #direct_state{client = Client}) ->
+   lager:warning("MQTT Client died: ~p", [Reason]),
+   erlang:send_after(1000, self(), reconnect),
    {ok, State#direct_state{connected = false, client = undefined}};
 handle_info(_E, S) ->
    {ok, S}.
@@ -104,6 +112,7 @@ handle_info(_E, S) ->
 shutdown(#save_state{publisher = P}) ->
    catch (P);
 shutdown(#direct_state{client = C}) ->
+   lager:notice("shutdown: ~p", [?MODULE]),
    catch (emqtt:disconnect(C)).
 
 
@@ -114,4 +123,12 @@ publish(Msg, #direct_state{retained = Ret, qos = Qos, client = C, topic = Topic}
 %%   ,
 %%   lager:notice("sent msg and got PacketId: ~p",[PacketId])
 .
+
+do_connect(#direct_state{host = Host, port = Port} = State) ->
+   {ok, Client} = emqtt:start_link([{host, Host}, {port, Port}]),
+   case catch(emqtt:connect(Client)) of
+      {ok, _} -> State#direct_state{client = Client, connected = true};
+      _Other -> lager:notice("Error connecting to mqtt_broker: ~p", [{Host, Port}]),
+         erlang:send_after(2000, self(), reconnect), State
+   end.
 
