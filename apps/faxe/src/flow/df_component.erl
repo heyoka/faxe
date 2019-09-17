@@ -198,7 +198,7 @@ outports(Module) ->
    {stop, Reason :: term()} | ignore).
 init([Component, NodeId, Inports, _Outports, Args]) ->
    code:ensure_loaded(Component),
-   lager:info("init component ~p",[Component]),
+   lager:debug("init component ~p",[Component]),
    InputPorts = lists:map(fun({_Pid, Port}) -> Port end, Inports),
    {ok, #c_state{component = Component, node_id = NodeId, subscriptions = [],
       inports = InputPorts, cb_state = Args}};
@@ -210,9 +210,7 @@ handle_call({start, Inputs, Subscriptions, FlowMode}, _From,
     State=#c_state{component = CB, cb_state = CBState, node_id = NId}) ->
 
    %gen_event:notify(dfevent_component, {start, State#c_state.node_id, FlowMode}),
-
-%%   {ok, AutoRequest, NewCBState} = CB:init(NId, Inputs, dataflow:build_options(CB, CBState)),
-   lager:warning("before build options; ~p", [{CB, CBState}]),
+   lager:debug("component ~p starts with options; ~p", [{CB, CBState}]),
    Opts = dataflow:build_options(CB, CBState),
    {NewCBOpts, NewState} = eval_args(Opts, State),
    {AReq, NewCBState} =
@@ -246,7 +244,7 @@ handle_call(stats, _From, State=#c_state{node_id = NId, component = Comp}) ->
    {reply, Res, State}
 ;
 handle_call(_What, _From, State) ->
-   lager:warning("~p:handl_call with ~p",[?MODULE, _What]),
+   lager:info("~p: unexpected handle_call with ~p",[?MODULE, _What]),
    {reply, error, State}
 .
 
@@ -270,10 +268,6 @@ handle_info({item, {Inport, Value}},
        cb_state = CBState, component = Module, flow_mode = FMode, auto_request = AR, node_id = NId}) ->
 
 %%   lager:notice("stats for ~p: ~p",[NId, folsom_metrics:get_histogram_statistics(NId)]),
-%%   case State#c_state.ls_mem of
-%%      undefined -> ok;
-%%      _ -> lager:notice("after handle_ls_mem ~p",[ets:tab2list(ls_mem)])
-%%   end,
 
    folsom_metrics:notify({NId, 1}),
    %gen_event:notify(dfevent_component, {item, State#c_state.node_id, {Inport, Value}}),
@@ -309,6 +303,7 @@ handle_info({emit, {Outport, Value}}, State=#c_state{subscriptions = Ss, node_id
 
 %%   lager:notice("stats for ~p: ~p",[NId, folsom_metrics:get_histogram_statistics(NId)]),
    %gen_event:notify(dfevent_component, {emitting, State#c_state.node_id, {Outport, Value}}),
+   lager:debug("Component: ~p emitting: ~p on port ~p", [State#c_state.node_id, Value, Outport]),
 
    NewSubs = df_subscription:output(Ss, Value, Outport),
    NewState = State#c_state{subscriptions = NewSubs},
@@ -322,18 +317,17 @@ handle_info(pull, State=#c_state{inports = Ins}) ->
    lists:foreach(fun({Port, Pid}) -> dataflow:request_items(Port, [Pid]) end, Ins),
    {noreply, State}
 ;
-handle_info(stop, State=#c_state{node_id = _N, component = Mod, cb_state = CBState}) ->
+handle_info(stop, State=#c_state{node_id = N, component = Mod, cb_state = CBState}) ->
 
    %gen_event:notify(dfevent_component, {stopping, N, Mod}),
    case erlang:function_exported(Mod, shutdown, 1) of
       true -> Mod:shutdown(CBState);
       false -> ok
    end,
-   lager:notice("--- stopped: ~p", [{_N, Mod}]),
+   lager:debug("--- stopped: ~p", [{N, Mod}]),
    {stop, normal, State}
 ;
 handle_info(Req, State=#c_state{component = Module, cb_state = CB, cb_handle_info = true}) ->
-%%   lager:notice("INFO for Callback module: ~p",[Req]),
    NewCB = case Module:handle_info(Req, CB) of
               {ok, CB0} -> CB0;
               {error, _Reason} -> error

@@ -99,7 +99,7 @@ init([Id, #{nodes := Nodes, edges := Edges}]=_T) ->
                            build_node(Graph, E) end, Nodes),
    lists:foreach(fun(E) -> %gen_event:notify(dfevent_graph, {add_edge, Id, E}),
                            build_edge(Graph, E) end, Edges),
-   erlang:send_after(0, self(), {start, push}),
+%%   erlang:send_after(0, self(), {start, push}),
    {ok, #state{graph = Graph, id = Id}}
 ;
 init([Id, _Params]) ->
@@ -246,6 +246,7 @@ build_subscriptions(Graph, Node, Nodes, FlowMode) ->
 %% @doc
 %% creates the graph processes and starts the computation
 %%
+-spec start(atom(), #state{}) -> #state{}.
 start(FlowMode, State=#state{graph = G, id = _Id}) ->
    Nodes0 = digraph:vertices(G),
 

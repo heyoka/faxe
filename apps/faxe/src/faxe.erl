@@ -211,15 +211,20 @@ start_task(TaskId) ->
 start_task(TaskId, Permanent) ->
    start_task(TaskId, push, Permanent).
 -spec start_task(integer()|binary(), atom(), true|false) -> ok|{error, term()}.
-start_task(TaskId, _GraphRunMode, Permanent) ->
+start_task(TaskId, GraphRunMode, Permanent) ->
    case faxe_db:get_task(TaskId) of
       {error, not_found} -> {error, task_not_found};
       T = #task{definition = GraphDef, name = Name} ->
          case dataflow:create_graph(Name, GraphDef) of
             {ok, Graph} ->
-               faxe_db:save_task(T#task{pid = Graph,
-                  last_start = faxe_time:now_date(), permanent = Permanent}),
-               {ok, Graph};
+               try dataflow:start_graph(Graph, GraphRunMode) of
+                  ok ->
+                     faxe_db:save_task(T#task{pid = Graph,
+                        last_start = faxe_time:now_date(), permanent = Permanent}),
+                     {ok, Graph}
+               catch
+                  _:E = E -> {error, graph_start_error}
+               end;
             {error, {already_started, _Pid}} -> {error, already_started}
          end
    end.

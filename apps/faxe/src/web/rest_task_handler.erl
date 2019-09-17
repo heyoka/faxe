@@ -133,7 +133,20 @@ from_update_to_json(Req, State=#state{task_id = TaskId}) ->
          {false, Req3, State}
    end.
 
+%% @todo figure out, how to make the commented code work
 start_to_json(Req, State = #state{task_id = Id}) ->
+%%   case faxe:start_task(Id, is_permanent(Req)) of
+%%      {ok, _Graph} ->
+%%         Req1 = cowboy_req:reply(200, #{
+%%            <<"content-type">> => <<"application/json">>
+%%         }, jsx:encode(#{<<"ok">> => <<"started">>}), Req),
+%%         {<<>>, Req1, State};
+%%      {error, Error} ->
+%%         Req1 = cowboy_req:reply(500, #{
+%%            <<"content-type">> => <<"application/json">>
+%%         }, jsx:encode(#{<<"error">> => rest_helper:to_bin(Error)}), Req),
+%%         {<<>>, Req1, State}
+%%   end.
    case faxe:start_task(Id, is_permanent(Req)) of
       {ok, _Graph} ->
          {jsx:encode(#{<<"ok">> => <<"started">>}), Req, State};

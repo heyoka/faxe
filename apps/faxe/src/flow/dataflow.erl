@@ -46,7 +46,7 @@ add_edge({NodeOut, PortOut, NodeIn, PortIn, Params}, Defs = #{edges := Edges}) -
 %% @doc start a new df_graph process
 -spec create_graph(any(), graph_definition()) -> {ok, pid()} | {error, Reason::any()}.
 create_graph(Id, Definitions) when is_map(Definitions) ->
-   lager:notice("start/create graph: ~p", [Id]),
+   lager:debug("start/create graph: ~p", [Id]),
    graph_sup:new(Id, Definitions).
 %%   create_graph(Id, Definitions, 1).
 %create_graph(Id, Definitions, _RepFactor) when is_list(Id), is_map(Definitions) ->
