@@ -42,4 +42,4 @@ list_json(Req, State=#state{mode = Mode}) ->
              list_running -> L = lists:flatten(faxe:list_running_tasks()),
                 [rest_helper:task_to_map(T) || T <- L]
           end,
-   {jsx:encode(Maps), Req, State}.
+   {jiffy:encode(Maps), Req, State}.

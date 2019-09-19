@@ -38,7 +38,7 @@ do_register(Req, State, Type) ->
    Dfs = proplists:get_value(<<"dfs">>, Result),
    lager:notice("name: ~p: dfs: ~p, type:~p",[TaskName, Dfs, Type]),
    case reg_fun(Dfs, TaskName, Type) of
-      ok -> Req4 = cowboy_req:set_resp_body(jsx:encode(#{success => true, name => TaskName}), Req3),
+      ok -> Req4 = cowboy_req:set_resp_body(jiffy:encode(#{success => true, name => TaskName}), Req3),
          {true, Req4, State};
       {error, Error} ->
          Add =
@@ -47,7 +47,7 @@ do_register(Req, State, Type) ->
                _ -> "-template"
             end,
          lager:warning("Error occured when registering faxe-flow"++Add++": ~p",[Error]),
-         Req4 = cowboy_req:set_resp_body(jsx:encode(#{success => false, error => to_bin(Error)}), Req3),
+         Req4 = cowboy_req:set_resp_body(jiffy:encode(#{success => false, error => to_bin(Error)}), Req3),
          {false, Req4, State}
    end.
 

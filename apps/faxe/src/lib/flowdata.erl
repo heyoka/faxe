@@ -121,7 +121,7 @@ extract_map(P = #data_point{fields = Fields}, Map) when is_map(Map) ->
 expand_json_field(P = #data_point{}, FieldName) ->
    JSONVal = field(P, FieldName),
    P0 = delete_field(P, FieldName),
-   Map = jsx:decode(JSONVal),
+   Map = jiffy:decode(JSONVal, [return_maps]),
    P0#data_point{fields = P0#data_point.fields ++ Map}.
 
 %% @doc

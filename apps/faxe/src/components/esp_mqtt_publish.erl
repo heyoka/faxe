@@ -75,12 +75,12 @@ init(_NodeId, _Ins,
 
 %% direct state
 process(_In, Item, State = #direct_state{connected = true}) ->
-   lager:alert("connected!!"),
+%%   lager:alert("connected!!"),
    Json = flowdata:to_json(Item),
    publish(Json, State),
    {ok, State};
 process(_Inport, Item, State = #direct_state{connected = false, queue = Q}) ->
-   lager:alert("not connected!!"),
+%%   lager:alert("not connected!!"),
    Json = flowdata:to_json(Item),
    Q1 = queue:in(Json, Q),
    {ok, State#direct_state{queue = Q1}};
