@@ -86,11 +86,11 @@ delete_resource(Req, State=#state{template_id = TaskId}) ->
       ok ->
          RespMap = #{success => true, message =>
          iolist_to_binary([<<"Template ">>, TaskId, <<" successfully deleted.">>])},
-         Req2 = cowboy_req:set_resp_body(jsx:encode(RespMap), Req),
+         Req2 = cowboy_req:set_resp_body(jiffy:encode(RespMap), Req),
          {true, Req2, State};
       {error, Error} ->
          lager:info("Error occured when deleting template: ~p",[Error]),
-         Req3 = cowboy_req:set_resp_body(jsx:encode(#{success => false, error => rest_helper:to_bin(Error)}), Req),
+         Req3 = cowboy_req:set_resp_body(jiffy:encode(#{success => false, error => rest_helper:to_bin(Error)}), Req),
          {false, Req3, State}
    end.
 
@@ -99,7 +99,7 @@ delete_resource(Req, State=#state{template_id = TaskId}) ->
 
 get_to_json(Req, State=#state{template = Task}) ->
    Map = rest_helper:template_to_map(Task),
-   {jsx:encode(Map), Req, State}.
+   {jiffy:encode(Map), Req, State}.
 
 from_register_template(Req, State) ->
    rest_helper:do_register(Req, State, template).
@@ -108,16 +108,16 @@ from_totask(Req, State=#state{template_id = TId}) ->
    TaskName = cowboy_req:binding(task_name, Req),
    {ok, Result, Req2} = cowboy_req:read_urlencoded_body(Req),
    Json = proplists:get_value(<<"vars">>, Result, <<"[]">>),
-   Vars = jsx:decode(Json),
+   Vars = jiffy:decode(Json),
    lager:notice("Body: ~p, Vars: ~p",[Result, Vars]),
    case faxe:task_from_template(binary_to_integer(TId), TaskName, Vars) of
       ok ->
-         Req3 = cowboy_req:set_resp_body(jsx:encode(#{success => true, name => TaskName}), Req2),
+         Req3 = cowboy_req:set_resp_body(jiffy:encode(#{success => true, name => TaskName}), Req2),
          {true, Req3, State};
       {error, Error} ->
          lager:info("Error occured when generating flow from template: ~p",[Error]),
          Req3 = cowboy_req:set_resp_body(
-            jsx:encode(#{success => false, error => rest_helper:to_bin(Error)}), Req),
+            jiffy:encode(#{success => false, error => rest_helper:to_bin(Error)}), Req),
          {false, Req3, State}
    end.
 

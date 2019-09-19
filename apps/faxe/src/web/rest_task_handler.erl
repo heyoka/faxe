@@ -96,12 +96,12 @@ delete_resource(Req, State=#state{task_id = TaskId}) ->
       ok ->
          RespMap = #{success => true, message =>
             iolist_to_binary([<<"Task ">>, TaskId, <<" successfully deleted.">>])},
-         Req2 = cowboy_req:set_resp_body(jsx:encode(RespMap), Req),
+         Req2 = cowboy_req:set_resp_body(jiffy:encode(RespMap), Req),
          {true, Req2, State};
       {error, Error} ->
          lager:info("Error occured when deleting flow: ~p",[Error]),
          Req3 = cowboy_req:set_resp_body(
-            jsx:encode(#{success => false, error => rest_helper:to_bin(Error)}), Req),
+            jiffy:encode(#{success => false, error => rest_helper:to_bin(Error)}), Req),
          {false, Req3, State}
    end.
 
@@ -113,7 +113,7 @@ delete_resource(Req, State=#state{task_id = TaskId}) ->
 
 get_to_json(Req, State=#state{task = Task}) ->
    Map = rest_helper:task_to_map(Task),
-   {jsx:encode(Map), Req, State}.
+   {jiffy:encode(Map), Req, State}.
 
 from_register_task(Req, State) ->
    rest_helper:do_register(Req, State, task).
@@ -125,11 +125,11 @@ from_update_to_json(Req, State=#state{task_id = TaskId}) ->
    lager:info("update ~p with dfs: ~p",[TaskId, Dfs]),
    case faxe:update_string_task(Dfs, binary_to_integer(TaskId)) of
       ok ->
-         Req4 = cowboy_req:set_resp_body(jsx:encode(#{success => true, id => TaskId}), Req1),
+         Req4 = cowboy_req:set_resp_body(jiffy:encode(#{success => true, id => TaskId}), Req1),
          {true, Req4, State};
       {error, Error} ->
          Req3 = cowboy_req:set_resp_body(
-            jsx:encode(#{success => false, error => rest_helper:to_bin(Error)}), Req1),
+            jiffy:encode(#{success => false, error => rest_helper:to_bin(Error)}), Req1),
          {false, Req3, State}
    end.
 
@@ -139,27 +139,27 @@ start_to_json(Req, State = #state{task_id = Id}) ->
 %%      {ok, _Graph} ->
 %%         Req1 = cowboy_req:reply(200, #{
 %%            <<"content-type">> => <<"application/json">>
-%%         }, jsx:encode(#{<<"ok">> => <<"started">>}), Req),
+%%         }, jiffy:encode(#{<<"ok">> => <<"started">>}), Req),
 %%         {<<>>, Req1, State};
 %%      {error, Error} ->
 %%         Req1 = cowboy_req:reply(500, #{
 %%            <<"content-type">> => <<"application/json">>
-%%         }, jsx:encode(#{<<"error">> => rest_helper:to_bin(Error)}), Req),
+%%         }, jiffy:encode(#{<<"error">> => rest_helper:to_bin(Error)}), Req),
 %%         {<<>>, Req1, State}
 %%   end.
    case faxe:start_task(Id, is_permanent(Req)) of
       {ok, _Graph} ->
-         {jsx:encode(#{<<"ok">> => <<"started">>}), Req, State};
+         {jiffy:encode(#{<<"ok">> => <<"started">>}), Req, State};
       {error, Error} ->
-         {jsx:encode(#{<<"error">> => rest_helper:to_bin(Error)}), Req, State}
+         {jiffy:encode(#{<<"error">> => rest_helper:to_bin(Error)}), Req, State}
    end.
 
 stop_to_json(Req, State = #state{task_id = Id}) ->
    case faxe:stop_task(Id, is_permanent(Req)) of
       ok ->
-         {jsx:encode(#{<<"ok">> => <<"stopped">>}), Req, State};
+         {jiffy:encode(#{<<"ok">> => <<"stopped">>}), Req, State};
       {error, Error} ->
-         {jsx:encode(#{<<"error">> => rest_helper:to_bin(Error)}), Req, State}
+         {jiffy:encode(#{<<"error">> => rest_helper:to_bin(Error)}), Req, State}
    end.
 
 create_to_json(Req, State) ->

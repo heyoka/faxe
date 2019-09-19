@@ -16,4 +16,4 @@
 
 
 parse(BinData) ->
-   jsx:decode(BinData).
+   BinData.

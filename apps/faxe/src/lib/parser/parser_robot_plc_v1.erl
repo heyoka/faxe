@@ -51,7 +51,6 @@ parse(BinData) ->
       ?SUCC2 => #{},
       ?SUCC3 => #{}},
    {?TGW_DATAFORMAT, ?PARSER_VERSION, pos1(BinData, Acc)}.
-%%   jsx:encode(pos1(BinData, Acc)).
 
 %% we parse the data in chunks ...
 %% first 20 bytes
@@ -248,7 +247,7 @@ pos1_test() ->
    Wurst = iolist_to_binary([Pos1, Pos2, Pos21, Pos22, Pos3, Pos4, Pos5, Pos6, Pos7, Motor, Bools, Last]),
    {T, Res} = timer:tc(?MODULE, parse, [Wurst]),
    lager:warning("Time needed: ~p~nResult: ~p~nJSON: ~s~nWurst: ~p~nByteSize:~p",
-      [T, Res, jsx:encode(Res), Wurst, byte_size(Wurst)]).
+      [T, Res, jiffy:encode(Res), Wurst, byte_size(Wurst)]).
 
 make_reals(Num) ->
    L = part_list(Num, fun(I) -> faxe_lambda_lib:random_real(I) end),
