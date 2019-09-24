@@ -129,10 +129,10 @@ seventh(
 
    NewAcc = set_axis_val(<<"err">>,
       [ErrorID_X, ErrorID_Y, ErrorID_Z, ErrorID_Yaw, ErrorID_Pitch], Acc),
-   eighth(Eigth, NewAcc#{<<"errcode">> => ErrorID}).
+   eigth(Eigth, NewAcc#{<<"errcode">> => ErrorID}).
 
 %% 1 byte
-eighth(
+eigth(
     <<XAxisRefState:?BOOL,
        YAxisRefState:?BOOL,
        ZAxisRefState:?BOOL,

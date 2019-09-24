@@ -131,7 +131,9 @@ do_connect(#direct_state{host = Host, port = Port} = State) ->
    {ok, Client} = emqtt:start_link([{host, Host}, {port, Port}]),
    case catch(emqtt:connect(Client)) of
       {ok, _} -> State#direct_state{client = Client, connected = true};
-      _Other -> lager:notice("Error connecting to mqtt_broker: ~p ~p", [{Host, Port}, _Other]),
+      _Other ->
+         catch emqtt:stop(Client),
+         lager:notice("Error connecting to mqtt_broker: ~p ~p", [{Host, Port}, _Other]),
          erlang:send_after(2000, self(), reconnect), State
    end.
 

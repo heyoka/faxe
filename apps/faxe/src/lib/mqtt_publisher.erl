@@ -73,6 +73,7 @@ start_link(Opts, Queue) ->
    {ok, State :: #state{}} | {ok, State :: #state{}, timeout() | hibernate} |
    {stop, Reason :: term()} | ignore).
 init([#{host := Host, port := Port, topic := Topic, retained := Retained, ssl := UseSSL, qos := Qos}, Queue]) ->
+
    {ok, Client} = emqtt:start_link([{host, Host}, {port, Port}%, {logger, info}
    ]),
    {ok, _} = emqtt:connect(Client),
