@@ -97,7 +97,7 @@ RUN apk add --no-cache openssl && \
 ENV RELX_REPLACE_OS_VARS true
 
 # Install the released application
-COPY --from=alpine /buildroot/faxe/_build/prod/rel/faxe /faxe
+COPY --from=alpine /buildroot/faxe/_build/balena/rel/faxe /faxe
 # cleanup
 RUN rm -rf /buildroot
 
