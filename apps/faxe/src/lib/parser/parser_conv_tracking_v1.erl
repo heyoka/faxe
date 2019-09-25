@@ -12,7 +12,7 @@
 -behavior(tcp_msg_parser).
 
 %% API
--export([parse/1, test_bitmask/1]).
+-export([parse/1, test_bitmask/1, parse_datetime/1]).
 
 -ifdef(TEST).
 -include_lib("eunit/include/eunit.hrl").
@@ -21,7 +21,7 @@
 -define(PARSER_VERSION, 1).
 -define(TGW_DATAFORMAT, <<"03.002">>).
 
-%% bit-length of timestamp inserted by the PLC
+%% byte-length of timestamp inserted by the PLC
 -define(PLC_DATETIME_LENGTH, 24).
 
 
@@ -169,6 +169,15 @@ bitm(<<Bit:1, Rest/bitstring>>, [Item | Others], Gathered) ->
    NextR = if Bit band 1 /= 0 -> [Item | Gathered]; true -> Gathered end,
    bitm(Rest, Others, NextR).
 
+-spec parse_datetime(binary()) -> faxe_time:timestamp().
+parse_datetime(DTBin) ->
+   Parts =
+      binary:split(DTBin, [<<".">>, <<":">>, <<",">>,<<"  ">>], [global, trim_all]),
+   [Year, Month, Day, Hour, Minute, Second, Milli] =
+      lists:map(fun(E) -> binary_to_integer(E) end, Parts),
+   DtParts = {{2000 + Year, Month, Day},{Hour, Minute, Second, Milli}},
+   faxe_time:to_ms(DtParts).
+
 %%%%%%%%%%%%%%%%%% end %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 -ifdef(TEST).
 %% test
@@ -224,7 +233,6 @@ def1() -> iolist_to_binary([
          <<"E01,TRAC:,SCAN:,SEQN:,TARG:,ATTR:0,TRG1:,TRG2:0000000000E8,TRG3:,TRG4:,TRG5:;">>,
          <<"PP2,TRAC:2058,SCAN:2058,SEQN:2,TARG:1,ATTR:16,TRG1:2051,TRG2:,TRG3:,TRG4:,TRG5:;">>]
    ).
-
 
 res_new() -> #{<<"sources">> =>
 [#{<<"attr">> => [<<"source_processed">>],
