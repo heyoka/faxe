@@ -1,9 +1,9 @@
-%% Date: 05.01.17 - 14:11
-%% Ⓒ 2017 heyoka
+%% Ⓒ 2019 heyoka
 %%
 %% @doc
 %% The time_diff node adds a field to the current data-item
 %% containing the difference between the timestamps of the consecutive items
+%% To make it clear, this node will measure the arrival time difference of consecutive data-items.
 %%
 %% With the 'as' option, the name of the output field can be changed.
 %%
