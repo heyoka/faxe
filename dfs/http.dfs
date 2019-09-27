@@ -8,4 +8,8 @@ def s =
     .fields('id', 'df', 'vs')
     .field_values('oi23u4oi23u4oi32u34oi2u3', '02.005', 1)
 
-    @cratedb()
+    |http_post()
+    .host('http://devat-cw-ds.tgwdev.internal')
+    .port(4201)
+    .path('_sql')
+    .key('stmt')
