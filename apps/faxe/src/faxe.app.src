@@ -6,6 +6,7 @@
   {applications,
    [kernel,
     stdlib,
+    inets,
     xmerl,
     mnesia,
     erl_lib,
@@ -23,7 +24,8 @@
     dfs,
     qdate,
     bear,
-    folsom
+    folsom,
+    fusco
    ]},
   {env,[]},
   {modules, [esp_stats]},

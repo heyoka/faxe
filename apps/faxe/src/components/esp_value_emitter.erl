@@ -48,8 +48,9 @@ init(NodeId, _Inputs,
 process(_Inport, _Value, State) ->
    {ok, State}.
 
-handle_info(values, State=#state{every = Every}) ->
-   erlang:send_after(Every, self(), values),
+handle_info(values, State=#state{every = Every,jitter = JT}) ->
+   After = Every+(round(rand:uniform()*JT)),
+   erlang:send_after(After, self(), values),
    Msg = build_msg(State),
 %%   lager:info("~p emitting; ~p",[?MODULE, Msg]),
    dataflow:emit(Msg),

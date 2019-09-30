@@ -70,16 +70,18 @@ process(_Inport, #data_batch{} = Batch, State = #state{callback_module = Mod, py
    cb_object = Obj, callback_class = Class}) ->
    lager:notice("from batch to list of maps: ~p",[flowdata:to_map(Batch)]),
    Data = flowdata:to_map(Batch),
-   Res = python:call(Python, Mod, build_class_call(Class, ?PYTHON_BATCH_CALL), [Obj, Data]),
-   lager:info("~p emitting: ~p",[Mod, Res]),
+%%   Res = python:call(Python, Mod, build_class_call(Class, ?PYTHON_BATCH_CALL), [Obj, Data]),
+   {T, Res} = timer:tc(python, call, [Python, Mod, build_class_call(Class, ?PYTHON_BATCH_CALL), [Obj, Data]]),
+   lager:info("~p emitting: ~p after: ~p",[Mod, Res, T]),
    {emit, Res, State}
 ;
 process(_Inport, #data_point{} = Point, State = #state{python_instance = Python, callback_module = Mod,
    cb_object = Obj, callback_class = Class}) ->
 
-   Data = flowdata:to_map(Point),
-   Res = python:call(Python, Mod, build_class_call(Class, ?PYTHON_POINT_CALL), [Obj, Data]),
-   lager:info("~p emitting: ~p",[Mod, Res]),
+   Data = to_data_mapstruct(Point),
+   lager:notice("DataPoint data: ~p",[Data]),
+   {T, Res} = timer:tc(python, call, [Python, Mod, build_class_call(Class, ?PYTHON_POINT_CALL), [Obj, Data]]),
+   lager:info("~p emitting: ~p after: ~p",[Mod, Res, T]),
    {emit, Res, State}.
 
 handle_info(Request, State) ->
@@ -99,3 +101,23 @@ get_python() ->
 build_class_call(Class, Func) when is_atom(Class), is_list(Func) ->
    SMod = atom_to_list(Class) ++ "." ++ Func,
    list_to_atom(SMod).
+
+
+-define(DEFAULT_ID, <<"00000">>).
+-define(DEFAULT_VS, 1).
+-define(DEFAULT_DF, <<"00.000">>).
+
+to_data_mapstruct(P=#data_point{ts = Ts, fields = Fields, tags = _Tags}) ->
+   DataFields =
+      case maps:get(<<"data">>, Fields, nil) of
+         nil -> maps:without([<<"id">>,<<"vs">>,<<"df">>], Fields);
+         Data -> Data
+      end,
+%%   ML = maps:to_list(DataFields),
+%%   Cleaned = maps:from_list([{binary_to_list(Key), Val} || {Key, Val} <- ML]),
+%%   lager:info("Datafields for JSON: ~p", [DataFields]),
+   #{<<"ts">> => Ts,
+      <<"id">> => flowdata:field(P ,<<"id">>, ?DEFAULT_ID),
+      <<"vs">> => flowdata:field(P, <<"vs">>, ?DEFAULT_VS),
+      <<"df">> => flowdata:field(P, <<"df">>, ?DEFAULT_DF),
+      <<"data">> => DataFields}.
