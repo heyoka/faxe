@@ -22,7 +22,7 @@
 %%% one of ['int16', 'int32', 'float32', 'coils', 'ascii', 'binary']
 %%% + signed(bool_list) a list of true/false values indicating if values should be signed or not
 %%%
-%%% Note that, if given, all parameter function must have the same length, this mean if you have two
+%%% Note that, if given, all parameter functions must have the same length, this means if you have two
 %%% values you want to read -> .function('coils', 'hregs') all corresponding param-functions must have the same length
 %%% -> .as('val1', 'val2').output(int16, float32).from(1,2).count(2,4).signed(true, true)
 %%%

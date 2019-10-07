@@ -103,7 +103,7 @@ handle_info({'DOWN', _MonitorRef, _Type, Client, Info},
   lager:warning("Snap7 Client process is DOWN with : ~p ! ", [Info]),
   NewClient = connect(Ip, Rack, Slot),
   {ok, State#state{client = NewClient}};
-%% old DOWN message from alread restarted client process
+%% old DOWN message from already restarted client process
 handle_info({'DOWN', _MonitorRef, _Type, _Object, _Info}, State) ->
   {ok, State};
 handle_info(_E, S) ->

@@ -60,7 +60,7 @@
 %%
 %% :: emit and request a value
 %% {emit_request, OutPort :: port(), Value :: term(), ReqPort :: port(), ReqPid :: pid(), cbstate()}
-%%
+%% @end
 %%
 -callback process(Inport :: non_neg_integer(), Value :: #data_point{} | #data_batch{}, State :: cbstate())
        ->
@@ -92,7 +92,7 @@
 %% for an optional parameter, provide Default term
 %%
 %% options with no 'Default' value, will be treated as mandatory
-%%
+%% @end
  -callback options() ->
  list(
     {Name :: atom(), Type :: dataflow:option_value(), Default :: dataflow:option_value()} |
