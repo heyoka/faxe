@@ -15,6 +15,8 @@
 -module(faxe_time).
 -author("Alexander Minichmair").
 
+
+-include("faxe.hrl").
 %% type 'timestamp' will stand for sec and ms precision unix timestamp
 -export_type([timestamp/0, unit/0, interval/0, duration/0, date/0]).
 
@@ -49,6 +51,14 @@
    now_aligned/1,
    now_aligned/2,
    to_htime/1, send_at/2, to_iso8601/1]).
+
+%% Timer API
+-export([
+   timer_new/2,
+   timer_start/2,
+   timer_next/1,
+   timer_cancel/1
+]).
 
 %%% @doc
 %%% get "now" in milliseconds,
@@ -334,3 +344,34 @@ r_mod(0,_Y) -> 0.
 
 interval(V) when is_integer(V) andalso V /= 0 -> V;
 interval(_) -> 1.
+
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%% timer %%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+timer_new(Interval, Message) ->
+   #faxe_timer{
+      interval = Interval,
+      message = Message
+   }.
+
+timer_start(Interval, Message) ->
+   T = timer_new(Interval, Message),
+   Now = faxe_time:now(),
+   lager:debug("timer start for: ~p" ,[Now]),
+   TRef = erlang:send_after(0, self(), Message),
+   T#faxe_timer{last_time = Now, timer_ref = TRef}.
+
+timer_next(Timer = #faxe_timer{interval = Interval, message = Message, last_time = Last}) ->
+   NewAt = Last + Interval,
+   lager:notice("timer next send in: ~p ms for :~p || ~p",[NewAt-faxe_time:now(), NewAt, Timer]),
+   TRef = send_at(NewAt, Message),
+%%      erlang:send_after(NewAt, self(), Message, [{abs, true}]),
+   Timer#faxe_timer{last_time = NewAt, timer_ref = TRef}.
+
+timer_cancel(Timer = #faxe_timer{timer_ref = undefined}) ->
+   Timer;
+timer_cancel(Timer = #faxe_timer{timer_ref = TRef}) ->
+   lager:notice("timer cancel: ~p", [Timer]),
+   catch erlang:cancel_timer(TRef),
+   Timer#faxe_timer{timer_ref = undefined}.
+
+

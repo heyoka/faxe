@@ -61,7 +61,12 @@
 }).
 
 
-
+-record(faxe_timer, {
+   last_time = 0 :: non_neg_integer(),
+   interval,
+   message = poll,
+   timer_ref
+}).
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %%

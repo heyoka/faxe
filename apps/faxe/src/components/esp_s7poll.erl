@@ -28,7 +28,8 @@
   diff,
   timer_ref,
   vars, var_types :: list(),
-  last_values = [] :: list()
+  last_values = [] :: list(),
+  timer :: #faxe_timer{}
 }).
 
 options() -> [
@@ -65,7 +66,7 @@ init(_NodeId, _Ins,
 
 %%  lager:notice("ParameterList from Addresses string: ~p ~n~n~p ~n~n~p~n~n~p",[ParamList, Splitted, TypeList, PList]),
   Interval = faxe_time:duration_to_ms(Dur),
-  TRef = poll(0),
+  Timer = faxe_time:timer_start(Interval, poll),
   {ok, all,
     #state{
       ip = Ip,
@@ -75,7 +76,7 @@ init(_NodeId, _Ins,
       rack = Rack,
       client = Client,
       interval = Interval,
-      timer_ref = TRef,
+    timer = Timer,
       diff = Diff,
       vars = PList,
       var_types = TypeList}}.
@@ -86,7 +87,7 @@ process(_Inport, #data_point{} = _Point, State = #state{}) ->
   {ok, State}.
 
 handle_info(poll,
-    State=#state{client = Client, interval = Interval, as = Aliases,
+    State=#state{client = Client, interval = Interval, as = Aliases, timer = Timer,
       vars = Opts, diff = Diff, last_values = LastList, ip = Ip, rack = Rack, slot = Slot}) ->
   NewState =
   case (catch snapclient:read_multi_vars(Client, Opts)) of
@@ -95,8 +96,8 @@ handle_info(poll,
       maybe_emit(Diff, Res, Aliases, LastList), State#state{last_values = Res};
     _Other -> NewClient = connect(Ip, Rack, Slot), State#state{client = NewClient}
   end,
-  TRef = poll(Interval),
-  {ok, NewState#state{timer_ref = TRef}};
+  NewTimer = faxe_time:timer_next(Timer),
+  {ok, NewState#state{timer = NewTimer}};
 %% client process is down, we match the Object field from the DOWN message against the current client pid
 handle_info({'DOWN', _MonitorRef, _Type, Client, Info},
     State=#state{client = Client, ip = Ip, rack = Rack, slot = Slot}) ->
@@ -109,14 +110,9 @@ handle_info({'DOWN', _MonitorRef, _Type, _Object, _Info}, State) ->
 handle_info(_E, S) ->
   {ok, S#state{}}.
 
-shutdown(#state{client = Client, timer_ref = Timer}) ->
-  catch (erlang:cancel_timer(Timer)),
+shutdown(#state{client = Client, timer = Timer}) ->
+  catch (faxe_time:timer_cancel(Timer)),
   catch (snapclient:disconnect(Client)).
-
-poll(Interval) ->
-%%  lager:notice("new poll timeout with interval: ~p",[Interval]),
-  erlang:send_after(Interval, self(), poll).
-
 
 -spec maybe_emit(Diff :: true|false, ResultList :: list(), Aliases :: list(), LastResults :: list()) -> ok | term().
 %% no diff flag -> emit
