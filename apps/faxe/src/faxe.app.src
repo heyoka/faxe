@@ -25,7 +25,8 @@
     qdate,
     bear,
     folsom,
-    fusco
+    fusco,
+    epgsql
    ]},
   {env,[]},
   {modules, [esp_stats]},
