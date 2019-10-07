@@ -9,11 +9,11 @@ def v1 =
     .extract()
 
 %% publish to mqtt broker
-%    |mqtt_publish()
-%    .host('10.14.204.3')
-%    .port(1883)
-%    .qos(1)
-%    .topic('ttgw/conveyor_tracking')
-%    .retained()
+    |mqtt_publish()
+    .host('10.14.204.3')
+    .port(1883)
+    .qos(1)
+    .topic('ttgw/conveyor_tracking/helix')
+    .retained()
 
 
