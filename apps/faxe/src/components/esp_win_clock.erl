@@ -7,7 +7,7 @@
 %% when every is 5s and an event comes into the window at time 15:03:27, this event will be member of the window
 %% that starts at 15:03:25, otherwise the window would start at 15:03:27
 %%
-%% when the fill_period option is given, the window will not emit before "period" time has elapsed
+%% when the fill_period option is given, the window will not emit before "period" time has elapsed (for the first time)
 %%
 -module(esp_win_clock).
 -author("Alexander Minichmair").

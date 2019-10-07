@@ -8,13 +8,13 @@
 %% API
 -export([start_script/2, do/0, do/1, do/2, compile/1, file/2, data/2, make_lambda_fun/3]).
 
-%% for now the only user defineable component-type is python(3)
+%% for now the only user definable component-type is python(3)
 -define(USER_COMPONENT, c_python).
 -define(USER_NODE_PREFIX, "@").
 -define(USER_COMPONENT_MODULE, cb_module).
 -define(USER_COMPONENT_CLASS, cb_class).
 
-%% define a list of lambda libary modules for use in lambda expressions
+%% define a list of lambda library modules for use in lambda expressions
 -define(LAMBDA_LIBS, [faxe_lambda_lib, mathex]).
 
 do() ->

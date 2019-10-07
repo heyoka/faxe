@@ -462,12 +462,3 @@ extract_array_index(Bin) ->
       [Bin] = Out -> Out;
       [Part1, BinIndex] -> [Part1, binary_to_integer(BinIndex)]
    end.
-%%   ,
-%%
-%%
-%%   case re:run(Bin, <<".*\\[(\\d+)\\]">>, [global,{capture,[0],binary}]) of
-%%      nomatch -> Bin;
-%%      {match, [[BinMatch]]} -> [BinIndex] =
-%%         binary:split(BinMatch, [<<"[">>,<<"]">>], [global, trim_all]),
-%%         {Bin, binary_to_integer(BinIndex)}
-%%   end.

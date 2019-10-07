@@ -9,7 +9,9 @@
 %%% read multiple values with possibly different functions at once
 %%%
 %%% parameters are:
-%%% + every(duration) interval for reading values from a modbus device
+%%% + ip
+%%% + port, defaults to 502
+%%% + every(duration) interval for reading values from a modbus device, defaults to 1s
 %%% + device(integer) the modbus device id
 %%% // mandatory read params:
 %%% + function(string_list) a list of read functions
@@ -52,9 +54,8 @@
    interval,
    as,
    signed,
-   timer_ref,
    requests,
-   last_poll_time
+   timer
 }).
 
 -define(FUNCTIONS, [<<"coils">>, <<"hregs">>, <<"iregs">>, <<"inputs">>, <<"memory">>]).
@@ -64,7 +65,7 @@
 options() -> [
    {ip, string},
    {port, integer, 502},
-   {every, duration, "1s"},
+   {every, duration, <<"1s">>},
    {device, integer, 255},
    {function, binary_list},
    {from, integer_list},
@@ -89,9 +90,9 @@ init(_NodeId, _Ins, #{} = Opts) ->
          [] -> [ [] || _X <- lists:seq(1, erlang:length(Req0))];
          L when is_list(L) -> L
       end,
-
+   Timer = faxe_time:timer_new(State#state.interval, poll),
    Requests = lists:zip(Req0, ReqOpts),
-   NewState = State#state{client = Modbus, requests = Requests},
+   NewState = State#state{client = Modbus, requests = Requests, timer = Timer},
    {ok, all, NewState}.
 
 init_opts([{ip, Ip0}|Opts], State) ->
@@ -122,46 +123,38 @@ process(_In, #data_batch{points = _Points} = _Batch, State = #state{}) ->
 process(_Inport, #data_point{} = _Point, State = #state{}) ->
    {ok, State}.
 
-handle_info(poll, State=#state{client = Modbus, requests = Requests, interval = _Interval}) ->
+handle_info(poll, State=#state{client = Modbus, requests = Requests, timer = Timer}) ->
    {_Time, Res} = timer:tc(?MODULE, read, [Modbus, Requests]),
    NewState =
       case Res of
          {error, stop} ->
-            State#state{timer_ref = undefined};
+            State#state{timer = faxe_time:timer_cancel(Timer)};
          {ok, OutPoint} ->
             dataflow:emit(OutPoint),
-            poll(State)
+            State#state{timer = faxe_time:timer_next(Timer)}
       end,
    {ok, NewState};
-handle_info({'DOWN', _MonitorRef, process, _Object, Info}, State=#state{ip = Ip, port = Port, device_address = Device}) ->
+handle_info({'DOWN', _MonitorRef, process, _Object, Info},
+    State=#state{ip = Ip, port = Port, device_address = Device, timer = Timer}) ->
+   NewTimer = faxe_time:timer_cancel(Timer),
    lager:warning("Modbus process is DOWN with : ~p !", [Info]),
    {ok, Modbus} = modbus:connect([{host, Ip}, {port,Port}, {unit_id, Device}, {max_retries, 7}]),
    erlang:monitor(process, Modbus),
-   {ok, State#state{client = Modbus}};
-handle_info({modbus, _From, connected}, S) ->
+   {ok, State#state{client = Modbus, timer = NewTimer}};
+handle_info({modbus, _From, connected}, S = #state{timer = Timer}) ->
 %%   lager:notice("Modbus is connected, lets start polling ..."),
-   NewState = poll_now(S),
+   NewState = S#state{timer = faxe_time:timer_now(Timer)},
    {ok, NewState};
 %% if disconnected, we just wait for a connected message and stop polling in the mean time
-handle_info({modbus, _From, disconnected}, State=#state{timer_ref = TRef}) ->
+handle_info({modbus, _From, disconnected}, State=#state{timer = Timer}) ->
    lager:notice("Modbus is disconnected!!, stop polling ...."),
-   cancel_timer(TRef),
-   {ok, State#state{timer_ref = undefined}};
+   {ok, State#state{timer = faxe_time:timer_cancel(Timer)}};
 handle_info(_E, S) ->
    {ok, S#state{}}.
 
-shutdown(#state{client = Modbus, timer_ref = Timer}) ->
-   catch (cancel_timer(Timer)),
+shutdown(#state{client = Modbus, timer = Timer}) ->
+   catch (faxe_time:timer_cancel(Timer)),
    catch (modbus:disconnect(Modbus)).
-
-poll_now(State=#state{}) ->
-   TRef = erlang:send_after(0, self(), poll),
-   State#state{timer_ref = TRef, last_poll_time = faxe_time:now()}.
-
-poll(State=#state{last_poll_time = LPT, interval = Interval}) ->
-   At = LPT + Interval,
-   NewTRef = faxe_time:send_at(At, poll),
-   State#state{timer_ref = NewTRef, last_poll_time = At}.
 
 %% @doc build request lists
 build(#state{function = Fs, starts = Ss, counts = Cs, as = Ass}) ->
@@ -210,10 +203,6 @@ read(Client, Point, [{{Fun, Start, Count, As}, Opts} | Reqs]) ->
          NewPoint = flowdata:set_field(Point, As, FData),
          read(Client, NewPoint, Reqs)
    end.
-
-
-cancel_timer(TRef) when is_reference(TRef) -> erlang:cancel_timer(TRef);
-cancel_timer(_) -> ok.
 
 func(BinString) ->
    %% make sure atoms are known at this point

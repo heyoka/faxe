@@ -2,7 +2,7 @@
 %% Ⓒ 2019 heyoka
 %% @doc
 %% Filter points and batches with a lambda expression, which returns a boolean value;
-%% for boolean value evaluation, see @see dfs_std_lib:bool/1
+%% for boolean value evaluation, @see dfs_std_lib:bool/1
 %%
 -module(esp_where).
 -author("Alexander Minichmair").

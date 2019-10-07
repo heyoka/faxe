@@ -1,7 +1,7 @@
 faxe
 =====
 
-    Flow based data collector/ timeseries processor
+    Flow based data collector/ time-centric data processor
    
     
 Status

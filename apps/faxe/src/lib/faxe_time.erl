@@ -58,7 +58,7 @@
    timer_start/2,
    timer_next/1,
    timer_cancel/1
-]).
+   , timer_now/1]).
 
 %%% @doc
 %%% get "now" in milliseconds,
@@ -179,7 +179,7 @@ now_aligned(Unit, Interval) ->
    now_aligned({Unit, Interval}).
 
 %% @doc
-%% get a timestamp, where the unit is set to the nearest past interval occurance
+%% get a timestamp, where the unit is set to the nearest past interval occurrence
 %% @end
 -spec align(timestamp(), duration()) -> timestamp().
 align(Ts, {Unit, Interval} = _Granularity) ->
@@ -347,19 +347,30 @@ interval(_) -> 1.
 
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%% timer %%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%% @doc create a new timer instance
+-spec timer_new(non_neg_integer(), term()) -> #faxe_timer{}.
 timer_new(Interval, Message) ->
    #faxe_timer{
       interval = Interval,
       message = Message
    }.
 
+%% @doc create a timer and immediately send the timeout message without waiting for the first interval to elapse
+-spec timer_start(non_neg_integer(), term()) -> #faxe_timer{}.
 timer_start(Interval, Message) ->
    T = timer_new(Interval, Message),
+   timer_now(T).
+
+%% @doc sends the timeout message with timeout 0
+-spec timer_now(#faxe_timer{}) -> #faxe_timer{}.
+timer_now(Timer = #faxe_timer{message = Message}) ->
    Now = faxe_time:now(),
    lager:debug("timer start for: ~p" ,[Now]),
    TRef = erlang:send_after(0, self(), Message),
-   T#faxe_timer{last_time = Now, timer_ref = TRef}.
+   Timer#faxe_timer{last_time = Now, timer_ref = TRef}.
 
+%% @doc sends the timeout message in interval milliseconds
+-spec timer_next(#faxe_timer{}) -> #faxe_timer{}.
 timer_next(Timer = #faxe_timer{interval = Interval, message = Message, last_time = Last}) ->
    NewAt = Last + Interval,
    lager:notice("timer next send in: ~p ms for :~p || ~p",[NewAt-faxe_time:now(), NewAt, Timer]),
@@ -367,6 +378,8 @@ timer_next(Timer = #faxe_timer{interval = Interval, message = Message, last_time
 %%      erlang:send_after(NewAt, self(), Message, [{abs, true}]),
    Timer#faxe_timer{last_time = NewAt, timer_ref = TRef}.
 
+%% @doc cancel a running timer
+-spec timer_cancel(#faxe_timer{}) -> #faxe_timer{}.
 timer_cancel(Timer = #faxe_timer{timer_ref = undefined}) ->
    Timer;
 timer_cancel(Timer = #faxe_timer{timer_ref = TRef}) ->

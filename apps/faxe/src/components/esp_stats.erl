@@ -46,8 +46,8 @@ process(_Inport, #data_batch{} = Batch, State = #state{modules = Mod, module_sta
 process(_Inport, #data_point{ts = Ts_Buffer} = Point,
     State = #state{field = F, buffer_time = Ts_Buffer}) ->
    State#state{buffer = [{Ts_Buffer, flowdata:field(Point, F)}|State#state.buffer]};
-process(_Inport, #data_point{ts = Ts} = Point, State = #state{as = As, modules = Mod, module_state = MState, field = F}) ->
-%%   Val = flowdata:field(Point, F),
+process(_Inport, #data_point{ts = Ts} = Point,
+    State = #state{as = As, modules = Mod, module_state = MState, field = F}) ->
    lager:info("~p buffertime: ~p", [?MODULE, State#state.buffer_time]),
    NewState =
       case Ts > State#state.buffer_time of
