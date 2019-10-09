@@ -76,7 +76,7 @@ init(_NodeId, _Ins,
       rack = Rack,
       client = Client,
       interval = Interval,
-    timer = Timer,
+      timer = Timer,
       diff = Diff,
       vars = PList,
       var_types = TypeList}}.

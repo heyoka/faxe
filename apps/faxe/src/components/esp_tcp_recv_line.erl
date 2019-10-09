@@ -26,7 +26,9 @@
   line_delimiter,
   reconnector,
   parser = undefined :: undefined|atom(), %% parser module
-  min_length
+  min_length,
+  changes = false,
+  prev_crc32
 }).
 
 -define(SOCKOPTS,
@@ -51,18 +53,19 @@ options() -> [
   %% "extract" will always override "as"
   {line_delimiter, binary, $\n}, %% not used at the moment
   {parser, atom, undefined}, %% parser module to use
-  {min_length, integer, 61} %% lines shorter than min_length bytes will be ignored
+  {min_length, integer, 61}, %% lines shorter than min_length bytes will be ignored
+  {changed, is_set}
 ].
 
 
 init(_NodeId, _Ins,
-    #{ip := Ip, port := Port, as := As, extract := Extract,
+    #{ip := Ip, port := Port, as := As, extract := Extract, changed := Changed,
       line_delimiter := Delimit, parser := Parser, min_length := MinL}) ->
   Reconnector = modbus_reconnector:new({?RECON_MIN_INTERVAL, ?RECON_MAX_INTERVAL, ?RECON_MAX_RETRIES}),
   {ok, Reconnector1} = modbus_reconnector:execute(Reconnector, do_reconnect),
   {ok, all,
     #state{ip = Ip, port = Port, as = As, extract = Extract, parser = Parser, min_length = MinL,
-      reconnector = Reconnector1, line_delimiter = Delimit}}.
+      reconnector = Reconnector1, line_delimiter = Delimit, changes = Changed}}.
 
 process(_In, #data_batch{points = _Points} = _Batch, State = #state{}) ->
   {ok, State};
@@ -74,12 +77,11 @@ handle_info({tcp, Socket, Data}, State=#state{min_length = Min}) when byte_size(
   inet:setopts(Socket, [{active, once}]),
   lager:notice("message dropped: ~p :: ~p",[byte_size(Data), Data]),
   {ok, State};
-handle_info({tcp, Socket, Data0}, State=#state{as = As, extract = Extract, parser = Parser}) ->
+handle_info({tcp, Socket, Data0}, State=#state{}) ->
   Data = string:chomp(Data0),
-  P = tcp_msg_parser:convert(Data, As, Extract, Parser),
-  dataflow:emit(P),
+  NewState = maybe_emit(Data, State),
   inet:setopts(Socket, [{active, once}]),
-  {ok, State};
+  {ok, NewState};
 handle_info({tcp_closed, _S}, S=#state{}) ->
   try_reconnect(S#state{socket = undefined});
 handle_info({tcp_error, Socket, _}, State) ->
@@ -108,5 +110,23 @@ try_reconnect(State=#state{reconnector = Reconnector}) ->
 
 connect(Ip, Port, _LineDelimiter) ->
    gen_tcp:connect(binary_to_list(Ip), Port, ?SOCKOPTS).
+
+maybe_emit(Data, State = #state{changes = false}) -> do_emit(Data, State);
+maybe_emit(Data, State = #state{changes = true, prev_crc32 = undefined}) ->
+  {T, DataCheckSum} = timer:tc(erlang,crc32, [Data]),
+  NewState = State#state{prev_crc32 = DataCheckSum},
+  do_emit(Data, NewState);
+maybe_emit(Data, State = #state{changes = true, prev_crc32 = PrevCheckSum}) ->
+  {T, DataCheckSum} = timer:tc(erlang,crc32, [Data]),
+  NewState = State#state{prev_crc32 = DataCheckSum},
+  case  DataCheckSum /= PrevCheckSum of
+    true -> do_emit(Data, NewState);
+    false -> NewState
+  end.
+
+do_emit(Data, State = #state{as = As, parser = Parser, extract = Extract}) ->
+  P = tcp_msg_parser:convert(Data, As, Extract, Parser),
+  dataflow:emit(P),
+  State.
 
 
