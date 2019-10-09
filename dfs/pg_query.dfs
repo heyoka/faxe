@@ -1,0 +1,14 @@
+def host = '127.0.0.1'
+def port = 5432
+def sql = <<< SELECT COUNT(*) FROM table WERE id > 33 ORDER BY time DESC LIMIT 100 >>>
+def user = 'crate'
+def database = 'doc'
+
+|postgresql_query()
+.host(host)
+.port(port)
+.database(database)
+.user(user)
+.query(sql)
+
+%def database = 'no db'
