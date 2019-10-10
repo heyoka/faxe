@@ -84,7 +84,7 @@ process(_Inport, #data_point{} = _Point, State = #state{}) ->
   {ok, State}.
 
 handle_info(poll,
-    State=#state{client = Client, interval = Interval, as = Aliases, timer = Timer,
+    State=#state{client = Client, as = Aliases, timer = Timer,
       vars = Opts, diff = Diff, last_values = LastList, ip = Ip, rack = Rack, slot = Slot}) ->
   NewState =
   case (catch snapclient:read_multi_vars(Client, Opts)) of

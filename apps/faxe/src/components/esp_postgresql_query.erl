@@ -22,9 +22,10 @@
    client_ref,
    stmt,
    db_opts,
-   timer,
-   from_mark,
-   to_mark
+   every,
+   period,
+   align = false,
+   timer
 }).
 
 -define(DB_OPTIONS, #{
@@ -44,6 +45,7 @@ options() ->
       {time_field, string, <<"ts">>},
       {every, duration, <<"5s">>},
       {period, duration, <<"1h">>},
+      {align, is_set},
       {group_by_time, duration, <<"2m">>},
       {group_by, string_list, []},
       {limit, string, <<"30">>}].
@@ -51,14 +53,17 @@ options() ->
 %%check_options() ->
 %%   [{not_empty, [file]}].
 
-init(_NodeId, _Inputs, #{host := Host0, port := Port, user := User, every := Every,
-      pass := Pass, database := DB, query := Q}) ->
+init(_NodeId, _Inputs, #{host := Host0, port := Port, user := User, every := Every, period := Period,
+      pass := Pass, database := DB, query := Q, align := Align, group_by_time := TimeGroup, time_field := TimeField,
+   group_by := GroupBys}) ->
+   process_flag(trap_exit, true),
    Host = binary_to_list(Host0),
    Opts = #{host => Host, port => Port, username => User, pass => Pass, database => DB},
    DBOpts = maps:merge(?DB_OPTIONS, Opts),
-   Timer = faxe_time:timer_new(faxe_time:duration_to_ms(Every), query),
-   State = #state{host = Host, port = Port, user = User,
-      pass = Pass, database = DB, query = Q, db_opts = DBOpts, timer = Timer},
+   Query = build_query(Q, TimeGroup, TimeField, GroupBys),
+   lager:warning("the QUERY: ~p",[Query]),
+   State = #state{host = Host, port = Port, user = User, pass = Pass, database = DB, query = Q,
+      db_opts = DBOpts, every = Every, period = faxe_time:duration_to_ms(Period), align = Align},
    NewState = connect(State),
    {ok, all, NewState}.
 
@@ -68,26 +73,30 @@ process(_In, _B = #data_batch{}, State = #state{}) ->
    {ok, State}.
 
 
-handle_info(query, State = #state{timer = Timer, client = C, stmt = Q}) ->
+handle_info(query, State = #state{timer = Timer, client = C, stmt = Q, period = Period}) ->
+   QueryMark = Timer#faxe_timer.last_time,
+   lager:notice("query: ~p", [[QueryMark-Period, QueryMark]]),
    NewTimer = faxe_time:timer_next(Timer),
-   %% do query here
-   _Ref   = epgsqla:prepared_query(C, Q, []),
+   %% do query
+   _Ref   = epgsqla:prepared_query(C, Q, [QueryMark-Period, QueryMark]),
    {ok, State#state{timer = NewTimer}};
-handle_info({C, _Ref, connected},
-    State=#state{timer = Timer, query = Sql}) ->
-   NewTimer = faxe_time:timer_now(Timer),
+handle_info({C, _Ref, connected}, State=#state{query = Sql}) ->
    %% connected
    lager:notice("epgsql connected!"),
+   %% prepare statement
    {ok, Statement} = epgsql:parse(C, "stmt", Sql, []),
-   {ok, State#state{timer = NewTimer, client = C, stmt = Statement}};
-handle_info({C, Ref, Error = {error, _}}, State) ->
-   lager:error("~p Error: ~p", [?MODULE, Error]),
-   {ok, State#state{}};
-%%   {ok, State#state{client_ref = undefined, client = undefined}};
-handle_info({'EXIT', _C, _Reason}, State) ->
-   lager:notice("EXIT epgsql"),
-   NewState = connect(State),
+   NewState = init_timer(State#state{client = C, stmt = Statement}),
    {ok, NewState};
+handle_info({C, Ref, Error = {error, _}}, State = #state{timer = Timer}) ->
+   lager:error("~p Error: ~p", [?MODULE, Error]),
+   NewTimer = cancel_timer(Timer),
+   {ok, State#state{timer = NewTimer}};
+%%   {ok, State#state{client_ref = undefined, client = undefined}};
+handle_info({'EXIT', _C, _Reason}, State = #state{timer = Timer}) ->
+   lager:notice("EXIT epgsql"),
+   NewTimer = cancel_timer(Timer),
+   NewState = connect(State),
+   {ok, NewState#state{timer = NewTimer}};
 %% query result
 handle_info({_C, _Ref, Result}, State) ->
    {ok, Columns, Rows} = Result,
@@ -114,7 +123,7 @@ build_query(<<"SELECT ", Query/binary>>, TimeGroup, TimeField, GroupBys) ->
    <<
       "SELECT ", GroupTimeStatement/binary, ", ", Query/binary, TimeRangeClause/binary,
       " GROUP BY ", TimeField/binary,
-      GroupByClause/binary
+      GroupByClause/binary, " ORDER BY ", TimeField/binary, " DESC"
    >>.
 
 time_group(GroupTimeOption, TimeField) ->
@@ -142,7 +151,19 @@ build_group_bys([GroupField|R], GroupClause) ->
    Acc = <<GroupClause/binary, ", ", GroupField/binary>>,
    build_group_bys(R, Acc).
 
+init_timer(S = #state{align = Align, every = Every}) ->
+   Now = faxe_time:now(),
+   NewTs =
+   case Align of
+      true -> faxe_time:align(Now, faxe_time:binary_to_duration(Every));
+      false -> Now
+   end,
+   TRef = faxe_time:send_at(NewTs, query),
+   Timer = #faxe_timer{interval = faxe_time:duration_to_ms(Every),
+      message = query, last_time = NewTs, timer_ref = TRef},
+   S#state{timer = Timer}.
 
+%% result handling
 
 columns([], ColumnNames) ->
    lists:reverse(ColumnNames);
@@ -166,7 +187,12 @@ row_to_datapoint([C|Columns], [Val|Row], Point) ->
    P = flowdata:set_field(Point, C, Val),
    row_to_datapoint(Columns, Row, P).
 
-
+-spec cancel_timer(#faxe_timer{}|undefined) -> #faxe_timer{}|undefined.
+cancel_timer(Timer) ->
+   case catch (faxe_time:timer_cancel(Timer)) of
+      T = #faxe_timer{} -> T;
+      _ -> Timer
+   end.
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%% TESTS %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 -ifdef(TEST).
