@@ -55,8 +55,6 @@ init(_NodeId, _Ins,
       as := As,
       diff := Diff}) ->
 
-%%  lager:notice("++++ ~p ~ngot opts: ~p ~n",[_NodeId, Opts]),
-
   Client = connect(Ip, Rack, Slot),
 
   ParamList = [s7addr:parse(Address) || Address <- Addresses],
@@ -64,7 +62,6 @@ init(_NodeId, _Ins,
   TypeList = [K || {K, _P} <- Splitted],
   PList = [P || {_K, P} <- Splitted],
 
-%%  lager:notice("ParameterList from Addresses string: ~p ~n~n~p ~n~n~p~n~n~p",[ParamList, Splitted, TypeList, PList]),
   Interval = faxe_time:duration_to_ms(Dur),
   Timer = faxe_time:timer_start(Interval, poll),
   {ok, all,

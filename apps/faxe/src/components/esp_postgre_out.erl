@@ -11,6 +11,11 @@
 %% API
 -export([init/3, process/3, options/0, handle_info/2]).
 
+-define(DB_OPTIONS, #{
+   codecs => [{faxe_epgsql_codec, nil}],
+   timeout => 5000
+   }).
+
 -record(state, {
    host :: string(),
    port :: non_neg_integer(),
@@ -19,7 +24,8 @@
    database,
    table,
    client,
-   client_ref
+   client_ref,
+   db_opts
 }).
 
 options() ->
@@ -36,7 +42,10 @@ options() ->
 %%   [{not_empty, [file]}].
 
 init(_NodeId, _Inputs, #{host := Host, port := Port, user := User, pass := Pass, database := DB, table := Table}) ->
-   State = #state{host = Host, port = Port, user = User, pass = Pass, database = DB, table = Table},
+   Opts = #{host => Host, port => Port, username => User, pass => Pass, database => DB},
+   DBOpts = maps:merge(?DB_OPTIONS, Opts),
+   State = #state{host = Host, port = Port, user = User, pass = Pass, database = DB, table = Table,
+      db_opts = DBOpts},
    NewState = connect(State),
    {ok, all, NewState}.
 
@@ -67,7 +76,7 @@ send(Item, #state{client = C}) ->
 %%   io:format(Host, "~s~n", [binary_to_list(flowdata:to_json(Item))]).
 ok.
 
-connect(State = #state{host = Host, port = Port, user = User, pass = Pass, database = DB}) ->
+connect(State = #state{db_opts = Opts}) ->
    {ok, C} = epgsqla:start_link(),
-   Ref = epgsqla:connect(C, #{host => Host, port => Port, username => User, pass => Pass, database => DB}),
+   Ref = epgsqla:connect(C, Opts),
    State#state{client = C, client_ref = Ref}.

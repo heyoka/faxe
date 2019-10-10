@@ -9,7 +9,7 @@
 
 -behavior(df_component).
 %% API
--export([init/3, process/3, options/0, handle_info/2]).
+-export([init/3, process/3, options/0, handle_info/2, to_flowdata/2, time_group/2, build_query/4]).
 
 -record(state, {
    host :: string(),
@@ -20,65 +20,129 @@
    database :: iodata(),
    client,
    client_ref,
-   stmt
+   stmt,
+   db_opts,
+   timer,
+   from_mark,
+   to_mark
 }).
+
+-define(DB_OPTIONS, #{
+   codecs => [{faxe_epgsql_codec, nil}, {epgsql_codec_json, {jiffy, [], [return_maps]}}],
+   timeout => 5000
+}).
+
 
 options() ->
    [
       {host, string},
       {port, integer},
-      {query, string, <<"">>},
       {user, string},
       {pass, string, <<>>},
-      {database, string}].
+      {database, string},
+      {query, string},
+      {time_field, string, <<"ts">>},
+      {every, duration, <<"5s">>},
+      {period, duration, <<"1h">>},
+      {group_by_time, duration, <<"2m">>},
+      {group_by, string_list, []},
+      {limit, string, <<"30">>}].
 
 %%check_options() ->
 %%   [{not_empty, [file]}].
 
-init(_NodeId, _Inputs, #{host := Host, port := Port, user := User,
+init(_NodeId, _Inputs, #{host := Host0, port := Port, user := User, every := Every,
       pass := Pass, database := DB, query := Q}) ->
-   State = #state{host = binary_to_list(Host), port = Port, user = User,
-      pass = Pass, database = DB, query = Q},
+   Host = binary_to_list(Host0),
+   Opts = #{host => Host, port => Port, username => User, pass => Pass, database => DB},
+   DBOpts = maps:merge(?DB_OPTIONS, Opts),
+   Timer = faxe_time:timer_new(faxe_time:duration_to_ms(Every), query),
+   State = #state{host = Host, port = Port, user = User,
+      pass = Pass, database = DB, query = Q, db_opts = DBOpts, timer = Timer},
    NewState = connect(State),
    {ok, all, NewState}.
 
 process(_In, _P = #data_point{}, State = #state{}) ->
-
    {ok, State};
 process(_In, _B = #data_batch{}, State = #state{}) ->
-
    {ok, State}.
 
-handle_info({_C, _Ref, connected},
-    State=#state{client_ref = _Ref, client = C, query = Q}) ->
+
+handle_info(query, State = #state{timer = Timer, client = C, stmt = Q}) ->
+   NewTimer = faxe_time:timer_next(Timer),
+   %% do query here
+   _Ref   = epgsqla:prepared_query(C, Q, []),
+   {ok, State#state{timer = NewTimer}};
+handle_info({C, _Ref, connected},
+    State=#state{timer = Timer, query = Sql}) ->
+   NewTimer = faxe_time:timer_now(Timer),
    %% connected
    lager:notice("epgsql connected!"),
-   {C, _Ref1, {ok, Stmt}} = epgsqla:parse(C, "stmt", Q, []),
-   lager:notice("stmt: ~p",[Stmt]),
-   Result = epgsqla:equery(C, Stmt, []),
-   lager:warning("Result from CrateDB for query: ~p ===> ~n~p",[Stmt, Result]),
-   {ok, State#state{stmt = Stmt}};
+   {ok, Statement} = epgsql:parse(C, "stmt", Sql, []),
+   {ok, State#state{timer = NewTimer, client = C, stmt = Statement}};
 handle_info({C, Ref, Error = {error, _}}, State) ->
    lager:error("~p Error: ~p", [?MODULE, Error]),
-   {ok, State#state{client_ref = undefined, client = undefined}};
+   {ok, State#state{}};
+%%   {ok, State#state{client_ref = undefined, client = undefined}};
 handle_info({'EXIT', _C, _Reason}, State) ->
    lager:notice("EXIT epgsql"),
    NewState = connect(State),
    {ok, NewState};
+%% query result
+handle_info({_C, _Ref, Result}, State) ->
+   {ok, Columns, Rows} = Result,
+   lager:notice("Columns: ~p",[Columns]),
+   ColumnNames = columns(Columns, []),
+   lager:notice("ColumnName: ~p",[ColumnNames]),
+   {T, Batch} = timer:tc(?MODULE, to_flowdata, [ColumnNames, Rows]),
+   lager:notice("Batch in ~p my: ~n~p",[T,Batch]),
+   {ok, State};
 handle_info(What, State) ->
    lager:warning("++other info : ~p",[What]),
    {ok, State}.
 
-connect(State = #state{host = Host, port = Port, user = User, pass = Pass, database = DB, query = Q}) ->
-   {ok, C} = epgsql:connect(#{host => Host, port => Port, username => User, pass => Pass, database => DB}),
-%%   Ref = epgsqla:connect(#{host => Host, port => Port, username => User, pass => Pass, database => DB}),
-   {ok, Columns, Rows} = epgsql:equery(C, Q),
-   lager:warning("connect and Query: ~p",[Q]),
-   ColumnNames = columns(Columns, []),
-   lager:notice("ColumnName: ~p",[ColumnNames]),
-   Batch = to_flowdata(ColumnNames, Rows),
-   lager:notice("Batch:: ~p",[Batch]),
-   State#state{client = C}.
+connect(State = #state{db_opts = Opts, query = Q}) ->
+   lager:warning("db opts: ~p",[Opts]),
+   Ref = epgsqla:connect(Opts),
+   State#state{client_ref = Ref}.
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+build_query(<<"SELECT ", Query/binary>>, TimeGroup, TimeField, GroupBys) ->
+   GroupTimeStatement = time_group(TimeGroup, TimeField),
+   GroupByClause = build_group_bys(GroupBys),
+   TimeRangeClause = time_range(TimeField, Query),
+   <<
+      "SELECT ", GroupTimeStatement/binary, ", ", Query/binary, TimeRangeClause/binary,
+      " GROUP BY ", TimeField/binary,
+      GroupByClause/binary
+   >>.
+
+time_group(GroupTimeOption, TimeField) ->
+   Dur0 = round(faxe_time:duration_to_ms(GroupTimeOption)/1000),
+   Dur = list_to_binary(integer_to_list(Dur0)),
+   <<
+      "floor(extract(epoch from ", TimeField/binary, ")/", Dur/binary, ")*", Dur/binary, " as ",
+      TimeField/binary
+   >>.
+
+time_range(TimeField, Query) ->
+   B0 =
+      case binary:match(Query, <<"WHERE">>) of
+         nomatch -> <<" WHERE ">>;
+         _        -> <<" AND ">>
+      end,
+   << B0/binary, TimeField/binary, " >= $1 AND ", TimeField/binary, " =< $2" >>
+.
+
+build_group_bys(GroupByList) ->
+   build_group_bys(GroupByList, <<>>).
+build_group_bys([], GroupClause) ->
+   GroupClause;
+build_group_bys([GroupField|R], GroupClause) ->
+   Acc = <<GroupClause/binary, ", ", GroupField/binary>>,
+   build_group_bys(R, Acc).
+
+
 
 columns([], ColumnNames) ->
    lists:reverse(ColumnNames);
@@ -92,7 +156,8 @@ to_flowdata(Columns, ValueRows) ->
 to_flowdata(_C, [], Batch=#data_batch{}) ->
    Batch;
 to_flowdata([<<"ts">>|Columns]=C, [[Ts|ValRow]|Values], Batch=#data_batch{points = Points}) ->
-   Point = row_to_datapoint(Columns, ValRow, #data_point{ts = Ts}),
+   Point = row_to_datapoint(Columns, ValRow,
+      #data_point{ts = faxe_epgsql_codec:decode(Ts, timestamp, nil)}),
    to_flowdata(C, Values, Batch#data_batch{points = [Point|Points]}).
 
 row_to_datapoint([], [], Point) ->
@@ -100,3 +165,18 @@ row_to_datapoint([], [], Point) ->
 row_to_datapoint([C|Columns], [Val|Row], Point) ->
    P = flowdata:set_field(Point, C, Val),
    row_to_datapoint(Columns, Row, P).
+
+
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%% TESTS %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+-ifdef(TEST).
+time_group_test() ->
+   Expected = <<"floor(extract(epoch from ts)/420)*420 as ts">>,
+   ?assertEqual(Expected,time_group(<<"7m">>, <<"ts">>)).
+
+build_simple_query_test() ->
+   Expected = <<"SELECT floor(extract(epoch from time)/300)*300 as time, COUNT(*) FROM table ",
+   "WHERE tag1 = 'test' AND time >= $1 AND time =< $2 GROUP BY time, a, b">>,
+   Query = <<"SELECT COUNT(*) FROM table WHERE tag1 = 'test'">>,
+   ?assertEqual(Expected, build_query(Query, <<"5m">>, <<"time">>, [<<"a">>,<<"b">>])).
+-endif.
