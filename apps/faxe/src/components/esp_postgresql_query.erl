@@ -9,7 +9,7 @@
 
 -behavior(df_component).
 %% API
--export([init/3, process/3, options/0, handle_info/2, to_flowdata/2, time_group/2, build_query/4]).
+-export([init/3, process/3, options/0, handle_info/2, to_flowdata/2]).
 
 -record(state, {
    host :: string(),
