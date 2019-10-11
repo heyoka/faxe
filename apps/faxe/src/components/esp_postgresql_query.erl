@@ -33,6 +33,8 @@
    timeout => 5000
 }).
 
+-define(STMT, "stmt").
+
 
 options() ->
    [
@@ -54,18 +56,26 @@ options() ->
 %%   [{not_empty, [file]}].
 
 init(_NodeId, _Inputs, #{host := Host0, port := Port, user := User, every := Every, period := Period,
-      pass := Pass, database := DB, query := Q, align := Align, group_by_time := TimeGroup, time_field := TimeField,
+      pass := Pass, database := DB, query := Q0, align := Align, group_by_time := TimeGroup, time_field := TimeField,
    group_by := GroupBys}) ->
    process_flag(trap_exit, true),
    Host = binary_to_list(Host0),
    Opts = #{host => Host, port => Port, username => User, pass => Pass, database => DB},
    DBOpts = maps:merge(?DB_OPTIONS, Opts),
+
+   lager:warning("the QUERY before: ~p",[Q0]),
+   Q = clean_query(Q0),
    Query = build_query(Q, TimeGroup, TimeField, GroupBys),
    lager:warning("the QUERY: ~p",[Query]),
-   State = #state{host = Host, port = Port, user = User, pass = Pass, database = DB, query = Q,
+   State = #state{host = Host, port = Port, user = User, pass = Pass, database = DB, query = Query,
       db_opts = DBOpts, every = Every, period = faxe_time:duration_to_ms(Period), align = Align},
    NewState = connect(State),
    {ok, all, NewState}.
+
+
+clean_query(QueryBin) when is_binary(QueryBin) ->
+   Q0 = re:replace(QueryBin, "\n|\t|\r|;", " ",[global, {return, binary}]),
+   re:replace(Q0, "(\s){2,}", " ", [global, {return, binary}]).
 
 process(_In, _P = #data_point{}, State = #state{}) ->
    {ok, State};
@@ -75,18 +85,25 @@ process(_In, _B = #data_batch{}, State = #state{}) ->
 
 handle_info(query, State = #state{timer = Timer, client = C, stmt = Q, period = Period}) ->
    QueryMark = Timer#faxe_timer.last_time,
-   lager:notice("query: ~p", [[QueryMark-Period, QueryMark]]),
+   lager:notice("query: ~p with ~p", [Q, [QueryMark-Period, QueryMark]]),
    NewTimer = faxe_time:timer_next(Timer),
    %% do query
-   _Ref   = epgsqla:prepared_query(C, Q, [QueryMark-Period, QueryMark]),
+   Ref = epgsqla:bind(C, Q, [{timestamp, QueryMark-Period}, {timestamp, QueryMark}]),
+   receive
+      {C, Ref, ok} -> epgsqla:execute(C, Q);
+      {error, Reason} -> lager:error("Binding error: ~p", [Reason])
+   end,
+%%   _Ref   = epgsqla:prepared_query(C, Q, [{timestamp, QueryMark-Period}, {timestamp, QueryMark}]),
    {ok, State#state{timer = NewTimer}};
 handle_info({C, _Ref, connected}, State=#state{query = Sql}) ->
    %% connected
    lager:notice("epgsql connected!"),
    %% prepare statement
-   {ok, Statement} = epgsql:parse(C, "stmt", Sql, []),
-   NewState = init_timer(State#state{client = C, stmt = Statement}),
-   {ok, NewState};
+   lager:notice("prepare: ~p ", [Sql]),
+%%   {ok, Statement} = epgsql:parse(C, Sql),
+   epgsqla:parse(C, Sql, [timestamp, timestamp]),
+%%   NewState = init_timer(State#state{client = C}),
+   {ok, State#state{client_ref = C}};
 handle_info({C, Ref, Error = {error, _}}, State = #state{timer = Timer}) ->
    lager:error("~p Error: ~p", [?MODULE, Error]),
    NewTimer = cancel_timer(Timer),
@@ -98,9 +115,15 @@ handle_info({'EXIT', _C, _Reason}, State = #state{timer = Timer}) ->
    NewState = connect(State),
    {ok, NewState#state{timer = NewTimer}};
 %% query result
+handle_info({_C, _Ref, {ok, Statement}}, State = #state{}) ->
+   lager:warning("statement parse OK"),
+   NewState = init_timer(State#state{stmt = Statement}),
+   {ok, NewState};
 handle_info({_C, _Ref, Result}, State) ->
    {ok, Columns, Rows} = Result,
    lager:notice("Columns: ~p",[Columns]),
+   lager:notice("Rows: ~p",[Rows]),
+
    ColumnNames = columns(Columns, []),
    lager:notice("ColumnName: ~p",[ColumnNames]),
    {T, Batch} = timer:tc(?MODULE, to_flowdata, [ColumnNames, Rows]),
@@ -116,22 +139,22 @@ connect(State = #state{db_opts = Opts, query = Q}) ->
    State#state{client_ref = Ref}.
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-build_query(<<"SELECT ", Query/binary>>, TimeGroup, TimeField, GroupBys) ->
+build_query(<<"SELECT", Query/binary>>, TimeGroup, TimeField, GroupBys) ->
    GroupTimeStatement = time_group(TimeGroup, TimeField),
    GroupByClause = build_group_bys(GroupBys),
    TimeRangeClause = time_range(TimeField, Query),
    <<
-      "SELECT ", GroupTimeStatement/binary, ", ", Query/binary, TimeRangeClause/binary,
-      " GROUP BY ", TimeField/binary,
-      GroupByClause/binary, " ORDER BY ", TimeField/binary, " DESC"
+      "SELECT ", GroupTimeStatement/binary, ", ", (string:trim(Query))/binary, TimeRangeClause/binary,
+      " GROUP BY ", TimeField/binary, "_gb",
+      GroupByClause/binary, " ORDER BY ", TimeField/binary, "_gb DESC"
    >>.
 
 time_group(GroupTimeOption, TimeField) ->
    Dur0 = round(faxe_time:duration_to_ms(GroupTimeOption)/1000),
    Dur = list_to_binary(integer_to_list(Dur0)),
    <<
-      "floor(extract(epoch from ", TimeField/binary, ")/", Dur/binary, ")*", Dur/binary, " as ",
-      TimeField/binary
+      "floor(EXTRACT(epoch FROM ", TimeField/binary, ")/", Dur/binary, ")*", Dur/binary, " AS ",
+      TimeField/binary, "_gb"
    >>.
 
 time_range(TimeField, Query) ->
@@ -140,7 +163,7 @@ time_range(TimeField, Query) ->
          nomatch -> <<" WHERE ">>;
          _        -> <<" AND ">>
       end,
-   << B0/binary, TimeField/binary, " >= $1 AND ", TimeField/binary, " =< $2" >>
+   << B0/binary, TimeField/binary, " >= $1 AND ", TimeField/binary, " <= $2" >>
 .
 
 build_group_bys(GroupByList) ->
@@ -176,7 +199,7 @@ to_flowdata(Columns, ValueRows) ->
 
 to_flowdata(_C, [], Batch=#data_batch{}) ->
    Batch;
-to_flowdata([<<"ts">>|Columns]=C, [[Ts|ValRow]|Values], Batch=#data_batch{points = Points}) ->
+to_flowdata([<<"ts_gb">>|Columns]=C, [[Ts|ValRow]|Values], Batch=#data_batch{points = Points}) ->
    Point = row_to_datapoint(Columns, ValRow,
       #data_point{ts = faxe_epgsql_codec:decode(Ts, timestamp, nil)}),
    to_flowdata(C, Values, Batch#data_batch{points = [Point|Points]}).
@@ -197,12 +220,12 @@ cancel_timer(Timer) ->
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%% TESTS %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 -ifdef(TEST).
 time_group_test() ->
-   Expected = <<"floor(extract(epoch from ts)/420)*420 as ts">>,
+   Expected = <<"floor(extract(epoch from ts)/420)*420 as ts_gb">>,
    ?assertEqual(Expected,time_group(<<"7m">>, <<"ts">>)).
 
 build_simple_query_test() ->
-   Expected = <<"SELECT floor(extract(epoch from time)/300)*300 as time, COUNT(*) FROM table ",
-   "WHERE tag1 = 'test' AND time >= $1 AND time =< $2 GROUP BY time, a, b">>,
+   Expected = <<"SELECT floor(extract(epoch from time)/300)*300 as time_gb, COUNT(*) FROM table ",
+   "WHERE tag1 = 'test' AND time >= $1 AND time <= $2 GROUP BY time_gb, a, b ORDER BY time_gb DESC">>,
    Query = <<"SELECT COUNT(*) FROM table WHERE tag1 = 'test'">>,
    ?assertEqual(Expected, build_query(Query, <<"5m">>, <<"time">>, [<<"a">>,<<"b">>])).
 -endif.
