@@ -1,0 +1,292 @@
+%% Date: 14.03.16 - 15:46
+%% Ⓒ 2016 LineMetrics GmbH
+
+-module(rmq).
+-author("Alexander Minichmair").
+
+-behaviour(gen_server).
+
+-include("../include/api.hrl").
+
+%% API
+-export([start_monitor/3, handle_values/3, send/3, send/1, ensure_send/1]).
+
+%% gen_server callbacks
+-export([init/1,
+   handle_call/3,
+   handle_cast/2,
+   handle_info/2,
+   terminate/2,
+   code_change/3]).
+
+
+-define(MAX_RETRIES, 1).
+
+%% time to wait, when all msgs have been 'sent' and there are still unacked messages in the list
+-define(PENDING_TIMEOUT, 15000).
+-define(INLINE_PENDING_TIMEOUT, 12000).
+
+-record(state, {items = [], pending_items = [], pending_timeout, acc_id, device_id}).
+
+%%%===================================================================
+%%% API
+%%%===================================================================
+
+ensure_send(#data_item{} = M) ->
+   case send(M) of
+      {ok, sent}  -> ok;
+      _Other      ->
+                     Message = rabbitmq:dataitem_to_struct(M),
+                     ets:insert(rmq_buffer, {erlang:now(), Message}),
+                     ok
+   end.
+
+
+-spec send(#data_item{}) -> {ok, sent} | {error, timeout} | {error, term()}.
+send(#data_item{} = Message) ->
+   Struct = rabbitmq:dataitem_to_struct(Message),
+   send(Struct, Message#data_item.account_id, Message#data_item.device_id).
+
+
+%% Message is a struct
+send(Message, AccountId, DeviceId) when is_tuple(Message) ->
+%%   lager:notice("the single Struct: ~p",[Message]),
+   handle_values([Message], AccountId, DeviceId).
+
+
+
+%% DataList is a list of structs
+-spec handle_values(list(), binary(), binary()) -> {ok,sent} | {error, term()} | {ok, pid()}.
+handle_values(DataList, AccountId, DeviceId) when is_list(DataList) ->
+   case length(DataList) > ?RMQ_MAX_INLINE_VALS of
+      true  -> %lager:notice("start process to handle: ~p Values",[length(DataList)]),
+               start_monitor(DataList, AccountId, DeviceId);
+      false -> %lager:notice("handle: ~p Values INLINE",[length(DataList)]),
+               handle_inline(DataList, AccountId, DeviceId)
+   end.
+
+
+handle_inline(DataList, AccountId, DeviceId) ->
+   %% 'send' values and collect delivery-tags
+   case send_inline(DataList, AccountId, DeviceId) of
+      {ok, Tickets} -> %% now collect the acked d-tags with a timeout
+         Timer = erlang:send_after(?INLINE_PENDING_TIMEOUT, self(), {error, pending_timeout}),
+         handle_inline_acks(Tickets, Timer);
+      {error, _What} = E -> lager:error("rmq Sending ERROR"), E
+   end.
+
+send_inline(DataList, AccountId, DeviceId) ->
+   send_inline(DataList, AccountId, DeviceId, {ok, nil}, []).
+
+%% all Items done, return Tickets
+send_inline([], _AccountId, _DeviceId, _, Tickets) ->
+   {ok, Tickets};
+%% last send attempt was not successful, return error
+send_inline(_, _AccountId, _DeviceId, undefined, _) ->
+   {error, not_all_sent};
+%% send item and take Ticket ;)
+send_inline([Item|R], AccountId, DeviceId, {ok, _LastTicket}, Tickets) ->
+   case send_item(Item, AccountId, DeviceId) of
+      {ok, Ticket} = T ->
+         api_db:put_seen_item(struct:get_value(<<"sid">>, Item), struct:get_value(<<"ts">>,Item)),
+         send_inline(R, AccountId, DeviceId, T, [{Ticket, Item} | Tickets]);
+      _Error -> lager:error("rmq Sending ERROR"), undefined
+   end.
+
+handle_inline_acks([], Timer) ->
+   catch erlang:cancel_timer(Timer),
+   {ok, sent};
+handle_inline_acks(Tickets, Timer) when is_list(Tickets) ->
+   receive
+      {publisher_ack, DTag}   ->    NewList = handle_ack(DTag, Tickets),
+                                    handle_inline_acks(NewList, Timer);
+
+      {error, pending_timeout} ->   lager:warning("Timeout collecting pending Items!"),
+                                    {error, timeout}
+   end
+.
+%%--------------------------------------------------------------------
+%% @doc
+%% Starts the server
+%%
+%% @end
+%%--------------------------------------------------------------------
+-spec(start_monitor(list(), binary(), binary()) ->
+   {ok, Pid :: pid()} | ignore | {error, Reason :: term()}).
+start_monitor(DataList, AccountId, DeviceId) when is_list(DataList) ->
+   case gen_server:start(?MODULE, [DataList,AccountId, DeviceId], []) of
+      {ok, Pid} -> erlang:monitor(process, Pid), {ok, Pid};
+      Error -> Error
+   end.
+
+%%%===================================================================
+%%% gen_server callbacks
+%%%===================================================================
+
+%%--------------------------------------------------------------------
+%% @private
+%% @doc
+%% Initializes the server
+%%
+%% @spec init(list()) -> {ok, State} |
+%%                     {ok, State, Timeout} |
+%%                     ignore |
+%%                     {stop, Reason}
+%% @end
+%%--------------------------------------------------------------------
+-spec(init(Args::list()) ->
+   {ok, State :: #state{}} | {ok, State :: #state{}, timeout() | hibernate} |
+   {stop, Reason :: term()} | ignore).
+init([Items, AccountId, DeviceId]) ->
+   erlang:send_after(0, self(), send),
+   {ok, #state{items = Items, acc_id = AccountId, device_id = DeviceId}}.
+
+%%--------------------------------------------------------------------
+%% @private
+%% @doc
+%% Handling call messages
+%%
+%% @end
+%%--------------------------------------------------------------------
+-spec(handle_call(Request :: term(), From :: {pid(), Tag :: term()},
+    State :: #state{}) ->
+   {reply, Reply :: term(), NewState :: #state{}} |
+   {reply, Reply :: term(), NewState :: #state{}, timeout() | hibernate} |
+   {noreply, NewState :: #state{}} |
+   {noreply, NewState :: #state{}, timeout() | hibernate} |
+   {stop, Reason :: term(), Reply :: term(), NewState :: #state{}} |
+   {stop, Reason :: term(), NewState :: #state{}}).
+handle_call(_Request, _From, State) ->
+   {reply, ok, State}.
+
+%%--------------------------------------------------------------------
+%% @private
+%% @doc
+%% Handling cast messages
+%%
+%% @end
+%%--------------------------------------------------------------------
+-spec(handle_cast(Request :: term(), State :: #state{}) ->
+   {noreply, NewState :: #state{}} |
+   {noreply, NewState :: #state{}, timeout() | hibernate} |
+   {stop, Reason :: term(), NewState :: #state{}}).
+handle_cast(_Request, State) ->
+   {noreply, State}.
+
+%%--------------------------------------------------------------------
+%% @private
+%% @doc
+%% Handling all non call/cast messages
+%%
+%% @spec handle_info(Info, State) -> {noreply, State} |
+%%                                   {noreply, State, Timeout} |
+%%                                   {stop, Reason, State}
+%% @end
+%%--------------------------------------------------------------------
+-spec(handle_info(Info :: timeout() | term(), State :: #state{}) ->
+   {noreply, NewState :: #state{}} |
+   {noreply, NewState :: #state{}, timeout() | hibernate} |
+   {stop, Reason :: term(), NewState :: #state{}}).
+handle_info(send, State=#state{items = [], pending_items = []}) ->
+   {stop, normal, State};
+handle_info(send, State=#state{items = [ItemStruct|Rest], acc_id = AccountId, device_id = DeviceId}) ->
+   case send_item(ItemStruct, AccountId, DeviceId) of
+      {ok, SeqNo}       ->
+         api_db:put_seen_item(struct:get_value(<<"sid">>, ItemStruct), struct:get_value(<<"ts">>,ItemStruct)),
+         erlang:send_after(0, self(), send),
+         {noreply,
+            State#state{items = Rest, pending_items = [{SeqNo, ItemStruct} | State#state.pending_items]}};
+
+      _Error   -> {stop, not_sent, State}
+   end
+;
+handle_info(send, State=#state{items = [], pending_items = [_Item|_Rest], pending_timeout = PT}) ->
+%%   lager:notice("rmq All Messages sent, start pending timeout"),
+   NewState =
+   case PT of
+      undefined   -> Timeout = erlang:send_after(?PENDING_TIMEOUT, self(), pending_timeout),
+                     State#state{pending_timeout = Timeout};
+      _Other      -> State
+   end,
+   {noreply, NewState}
+;
+
+handle_info({publisher_ack, DTag}, State=#state{items = []}) ->
+%%   lager:notice("lease released, when all items where sent :: ~p~n", [DTag]),
+   NewList = handle_ack(DTag, State#state.pending_items),
+   case NewList of
+      []    -> catch erlang:cancel_timer(State#state.pending_timeout),
+%%               lager:notice("Done collecting pending ACKs"),
+               {stop, normal, State};
+
+      _List -> {noreply, State#state{pending_items = NewList}}
+   end
+   ;
+
+handle_info({publisher_ack, DTag}, State=#state{items = [_S|_R]}) ->
+   NewList = handle_ack(DTag, State#state.pending_items),
+   {noreply, State#state{pending_items = NewList}}
+;
+
+handle_info(pending_timeout, #state{pending_items = [_I|_R] = Items}=State) ->
+   lager:warning("pending value timeout with ~p pending Items !",[length(Items)]),
+   {stop, not_sent, State}
+;
+handle_info(pending_timeout, #state{pending_items = []}=State) ->
+   lager:info("pending value timeout, no pending items left !"),
+   {stop, normal, State}
+;
+
+
+handle_info(_Info, State) ->
+   lager:warning("unknown message :: ~n~p~n", [_Info]),
+   {noreply, State}.
+
+%%--------------------------------------------------------------------
+%% @private
+%% @doc
+%% This function is called by a gen_server when it is about to
+%% terminate. It should be the opposite of Module:init/1 and do any
+%% necessary cleaning up. When it returns, the gen_server terminates
+%% with Reason. The return value is ignored.
+%%
+%% @spec terminate(Reason, State) -> void()
+%% @end
+%%--------------------------------------------------------------------
+-spec(terminate(Reason :: (normal | shutdown | {shutdown, term()} | term()),
+    State :: #state{}) -> term()).
+terminate(_Reason, _State) ->
+   ok.
+
+%%--------------------------------------------------------------------
+%% @private
+%% @doc
+%% Convert process state when code is changed
+%%
+%% @spec code_change(OldVsn, State, Extra) -> {ok, NewState}
+%% @end
+%%--------------------------------------------------------------------
+-spec(code_change(OldVsn :: term() | {down, term()}, State :: #state{},
+    Extra :: term()) ->
+   {ok, NewState :: #state{}} | {error, Reason :: term()}).
+code_change(_OldVsn, State, _Extra) ->
+   {ok, State}.
+
+%%%===================================================================
+%%% Internal functions
+%%%===================================================================
+handle_ack(Ticket, OldPendingList) ->
+   proplists:delete(Ticket, OldPendingList)
+   .
+
+send_item(ItemStruct, AccountId, DeviceId) ->
+%%   lager:notice("send item to RMQ: ~p",[ItemStruct]),
+   send(ItemStruct, AccountId, DeviceId, ?MAX_RETRIES, not_sent).
+
+send(_Item, _AccountId, _DeviceId, 0, LastError) ->
+   LastError;
+send(Item, AccountId, DeviceId, Retries, _LastError) ->
+   case rabbitmq:send(Item, AccountId, DeviceId) of
+      {ok, SeqNo}    -> {ok, SeqNo};
+      Error -> send(Item, AccountId, DeviceId, Retries -1, Error)
+   end.
