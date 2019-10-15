@@ -1,5 +1,5 @@
 {application, faxe,
- [{description, "An OTP application"},
+ [{description, "Flow based data collector/ time-centric data processor"},
   {vsn, "0.1.0"},
   {registered, []},
   {mod, { faxe_app, []}},
@@ -26,7 +26,8 @@
     bear,
     folsom,
     fusco,
-    epgsql
+    epgsql,
+    carrot
    ]},
   {env,[]},
   {modules, [esp_stats]},

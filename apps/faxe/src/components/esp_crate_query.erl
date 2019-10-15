@@ -197,11 +197,11 @@ cancel_timer(Timer) ->
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%% TESTS %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 -ifdef(TEST).
 time_group_test() ->
-   Expected = <<"floor(extract(epoch from ts)/420)*420 as ts_gb">>,
+   Expected = <<"floor(EXTRACT(epoch FROM ts)/420)*420 AS ts_gb">>,
    ?assertEqual(Expected,time_group(<<"7m">>, <<"ts">>)).
 
 build_simple_query_test() ->
-   Expected = <<"SELECT floor(extract(epoch from time)/300)*300 as time_gb, COUNT(*) FROM table ",
+   Expected = <<"SELECT floor(EXTRACT(epoch FROM time)/300)*300 AS time_gb, COUNT(*) FROM table ",
    "WHERE tag1 = 'test' AND time >= $1 AND time <= $2 GROUP BY time_gb, a, b ORDER BY time_gb DESC">>,
    Query = <<"SELECT COUNT(*) FROM table WHERE tag1 = 'test'">>,
    ?assertEqual(Expected, build_query(Query, <<"5m">>, <<"time">>, [<<"a">>,<<"b">>])).

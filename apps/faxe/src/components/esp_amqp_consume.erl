@@ -19,7 +19,7 @@
 %% API
 -export([init/3, process/3, options/0, handle_info/2, shutdown/1]).
 
--define(DEFAULT_PORT, 1883).
+-define(DEFAULT_PORT, 5672).
 -define(DEFAULT_SSL_PORT, 8883).
 
 %% state for direct publish mode
@@ -33,7 +33,8 @@
    exchange,
    routing_key = false,
    prefetch,
-   ssl = false
+   ssl = false,
+   opts
 }).
 
 options() -> [
@@ -48,13 +49,14 @@ options() -> [
 
 
 init(_NodeId, _Ins,
-   #{ host := Host0, port := Port, vhost := VHost, queue := Q, exchange := Ex, prefetch := Prefetch,
-      routing_key := RoutingKey, ssl := UseSSL} = Opts) ->
+   #{ host := Host0, port := _Port, vhost := _VHost, queue := _Q,
+      exchange := _Ex, prefetch := _Prefetch, routing_key := _RoutingKey, ssl := _UseSSL}
+      = Opts0) ->
+
    Host = binary_to_list(Host0),
-   {ok, Pid, _NewConsumer} = rmq_consumer:start_monitor(self(), consumer_config(Opts)),
-   {ok,
-      #state{host = Host, port = Port, vhost = VHost, queue = Q, prefetch = Prefetch,
-         routing_key = RoutingKey, exchange = Ex, ssl = UseSSL, consumer = Pid}}.
+   Opts = Opts0#{host => Host},
+   State = start_consumer(#state{opts = Opts}),
+   {ok, State}.
 
 process(_In, _, State = #state{}) ->
    {ok, State}.
@@ -66,29 +68,35 @@ handle_info({ {DTag, RKey}, {Payload, _Headers}, From}, State) ->
    process(RKey, Payload),
    carrot:ack(From, DTag),
    {ok, State};
-%%handle_info({ {#'basic.deliver'{delivery_tag = DTag, routing_key = RKey},
-%%   #'amqp_msg'{payload = Payload, props = #'P_basic'{headers = _Headers}}}, From}, State) ->
-%%   process(RKey, Payload),
-%%   carrot:ack(From, DTag),
-%%   {ok, State};
-handle_info({'DOWN', _MonitorRef, process, Consumer, _Info}, #state{consumer = Consumer} = State) ->
 
+handle_info({'DOWN', _MonitorRef, process, Consumer, _Info}, #state{consumer = Consumer} = State) ->
    lager:notice("MQ-Consumer ~p is 'DOWN'",[Consumer]),
-   {ok, Pid, NewConsumer} = rmq_consumer:start_monitor(self(), consumer_config(State)),
-   {ok, State#state{}}.
+   {ok, start_consumer(State)}.
 
 shutdown(#state{consumer = C}) ->
    catch (emqtt:disconnect(C)).
 
-
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %%% internal
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
--spec consumer_config(Opts :: map()) -> list().
-consumer_config(_Opts = #{vhost := _VHost, queue := Q, prefetch := Prefetch,
-   exchange := XChange, routing_key := RoutingKey}) ->
+start_consumer(State = #state{opts = ConsumerOpts}) ->
+   {ok, Pid, _NewConsumer} =
+      rmq_consumer:start_monitor(self(), consumer_config(ConsumerOpts)),
+   State#state{consumer = Pid}.
 
-   {ok, HostParams} = application:get_env(carrot, broker),
+
+-spec consumer_config(Opts :: map()) -> list().
+consumer_config(_Opts = #{vhost := VHost, queue := Q, prefetch := Prefetch,
+   exchange := XChange, routing_key := RoutingKey, host := Host, port := Port}) ->
+
+   HostParams = %% connection parameters
+   [
+      {hosts, [ {Host, Port} ]},
+      {user, "admin"},
+      {pass, "admin"},
+      {reconnect_timeout, 2000},
+      {ssl_options, none} % Optional. Can be 'none' or [ssl_option()]
+   ],
    Config =
       [
          {workers, 1},  % Number of connections, but not relevant here,
@@ -96,6 +104,7 @@ consumer_config(_Opts = #{vhost := _VHost, queue := Q, prefetch := Prefetch,
          {callback, self()},
          {setup_type, permanent},
          {prefetch_count, Prefetch},
+         {vhost, VHost},
          {setup,
             [
                {queue, [
@@ -111,11 +120,14 @@ consumer_config(_Opts = #{vhost := _VHost, queue := Q, prefetch := Prefetch,
 
 
       ],
-   carrot_util:proplists_merge(HostParams, Config).
+   Props = carrot_util:proplists_merge(HostParams, Config),
+   lager:warning("giving carrot these Configs: ~p", [Props]),
+   Props.
 
 process(RKey, Payload) ->
    Msg0 = flowdata:from_json(Payload),
-   DataPoint = Msg0#data_point{id = RKey},
-   dataflow:emit(DataPoint).
+   lager:notice("DATA: ~p ::: ~p ", [RKey, Payload]).
+%%   DataPoint = Msg0#data_point{id = RKey},
+%%   dataflow:emit(DataPoint).
 
 
