@@ -368,7 +368,9 @@ bind_lambda_param(PName, BinRef) ->
 
 
 parse_fun(S) ->
+   lager:notice("parse_fun(~p)",[S]),
    {ok, Ts, _} = erl_scan:string(S),
+   lager:warning("parse tokens: ~p",[Ts]),
    {ok, Exprs} = erl_parse:parse_exprs(Ts),
    {value, Fun, _} = erl_eval:exprs(Exprs, []),
    Fun.
