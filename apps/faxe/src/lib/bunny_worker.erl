@@ -9,7 +9,6 @@
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %%% Types.
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
--include("../include/api.hrl").
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %%% Required Types.
@@ -226,7 +225,10 @@ check_for_channel(#state{} = State) ->
 connect(Config) ->
    Get = fun
       ({s, X}) ->
-         list_to_binary(proplists:get_value(X, Config));
+         case proplists:get_value(X, Config) of
+            Val when is_list(Val) -> list_to_binary(Val);
+            Bin -> Bin
+         end;
       (X) ->
          proplists:get_value(X, Config) end,
    GetWithDefault = fun(X, Default) ->
@@ -236,9 +238,8 @@ connect(Config) ->
       end
    end,
    RabbbitHosts = Get(hosts),
-   {A,B,C} = erlang:now(),
-   random:seed(A,B,C),
-   Index = random:uniform(length(RabbbitHosts)),
+   rand:seed(exs1024s),
+   Index = rand:uniform(length(RabbbitHosts)),
    {Host, Port} = lists:nth(Index,RabbbitHosts),
    Connection = amqp_connection:start(#amqp_params_network{
       username = Get({s, user}),

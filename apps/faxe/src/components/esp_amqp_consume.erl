@@ -3,6 +3,7 @@
 %%% @copyright (C) 2019, <COMPANY>
 %%% @doc
 %%% Consume data from an amqp-broker like rabbitmq.
+%%% When prefetch is given and is > 1, then this node will emit a data_batch record instead of a data_point
 %%%
 %%% port() is 5672 default
 %%% ssl() is false by default
