@@ -42,7 +42,7 @@ process(_In, #data_batch{points = Points} = Batch,
     State = #state{fields = FName, field_values = FValue, tags = TName, tag_values = TValue}) ->
    NewPoints = lists:map(
       fun(P) ->
-         NewPoint = set_fields(P, FValue, FName),
+         NewPoint = set_fields(P, FName, FValue),
          set_tags(NewPoint, TName, TValue)
       end,
       Points

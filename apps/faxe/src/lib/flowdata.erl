@@ -62,7 +62,7 @@
    expand_json_field/2, extract_map/2, extract_field/3,
    field/3, to_s_msgpack/1, from_json/1,
    to_map/1, set_fields/3, set_tags/3, fields/2,
-   delete_fields/2, delete_tags/2, path/1, paths/1, set_fields/2, to_mapstruct/1]).
+   delete_fields/2, delete_tags/2, path/1, paths/1, set_fields/2, to_mapstruct/1, from_json/2]).
 
 
 -define(DEFAULT_ID, <<"00000">>).
@@ -93,6 +93,11 @@ to_mapstruct(_B=#data_batch{points = Points}) ->
 -spec to_s_msgpack(P :: #data_point{}|#data_batch{}) -> binary() | {error, {badarg, term()}}.
 to_s_msgpack(P) when is_record(P, data_point) orelse is_record(P, data_batch) ->
    msgpack:pack(to_mapstruct(P), [{map_format, jiffy}]).
+
+from_json(JSONMessage, _FieldMapping) ->
+   Map = from_json(JSONMessage),
+   Data = maps:without([<<"id">>, <<"vs">>, <<"df">>, <<"ts">>], Map),
+   set_field(#data_point{}, <<"data">>, Data).
 
 
 from_json(Message) ->
@@ -209,6 +214,10 @@ set_ts(P=#data_point{}, NewTs) ->
 %% If a field named Key does exist, it will be overwritten.
 %% @end
 -spec set_field(#data_point{}, jsonpath:path(), any()) -> #data_point{}.
+%% special version timestamp field
+set_field(P = #data_point{}, <<"ts">>, Value) ->
+   P#data_point{ts = Value}
+;
 set_field(P = #data_point{fields = Fields}, Key, Value) ->
 %%   lager:notice("set_field(~p, ~p, ~p)", [Fields, Key, Value]),
    NewFields = set(Key, Value, Fields),
