@@ -4,7 +4,7 @@
 %%% @doc
 %%% Consume data from an amqp-broker like rabbitmq.
 %%%
-%%% port() is 7062 default
+%%% port() is 5672 default
 %%% ssl() is false by default
 %%% @end
 %%% Created : 27. May 2019 09:00

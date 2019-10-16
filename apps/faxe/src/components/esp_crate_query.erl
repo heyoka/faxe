@@ -30,7 +30,7 @@
 
 -define(DB_OPTIONS, #{
    codecs => [{faxe_epgsql_codec, nil}, {epgsql_codec_json, {jiffy, [], [return_maps]}}],
-   timeout => 5000
+   timeout => 3000
 }).
 
 -define(STMT, "stmt").
@@ -88,7 +88,6 @@ handle_info(query, State = #state{timer = Timer, client = C, stmt = Q, period = 
    lager:notice("query: ~p with ~p", [Q, [QueryMark-Period, QueryMark]]),
    NewTimer = faxe_time:timer_next(Timer),
    %% do query
-%%   ok = epgsql:bind(C, Q, [{timestamp, QueryMark-Period}, {timestamp, QueryMark}]),
    {ok, Columns, Rows} = epgsql:prepared_query(C, ?STMT, [QueryMark-Period, QueryMark]),
    lager:notice("Columns: ~p",[Columns]),
    lager:notice("Rows: ~p",[Rows]),
