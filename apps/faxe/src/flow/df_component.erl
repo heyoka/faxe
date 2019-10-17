@@ -23,6 +23,8 @@
    code_change/3]).
 
 
+-define(MSG_Q_LENGTH_HIGH_WATERMARK, 3).
+
 -type auto_request()    :: 'all' | 'emit' | 'none'.
 
 -type df_port()         :: non_neg_integer().
@@ -267,8 +269,12 @@ handle_info({item, {Inport, Value}},
     State=#c_state{
        cb_state = CBState, component = Module, flow_mode = FMode, auto_request = AR, node_id = NId}) ->
 
-%%   MsgQueueLength = erlang:process_info(self(), message_queue_len),
-%%   lager:notice("[~p] Process-Q-Length: ~p", [Module, MsgQueueLength]),
+   {message_queue_len, MsgQueueLength} = erlang:process_info(self(), message_queue_len),
+   case MsgQueueLength > ?MSG_Q_LENGTH_HIGH_WATERMARK of
+      true -> lager:warning("[~p] Process-Q-Length: ~p", [Module, MsgQueueLength]);
+      false -> ok
+   end,
+%%
 %%   lager:notice("stats for ~p: ~p",[NId, folsom_metrics:get_histogram_statistics(NId)]),
 
    folsom_metrics:notify({NId, 1}),

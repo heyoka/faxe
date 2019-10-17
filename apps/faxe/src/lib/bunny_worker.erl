@@ -38,7 +38,7 @@
 %%% Exports.
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %%% Public API.
--export([deliver/4, start_link/1]).
+-export([deliver/2, start_link/1, stop/1]).
 
 %%% gen_server/worker_pool callbacks.
 -export([
@@ -53,19 +53,26 @@
 start_link(Args) ->
    gen_server:start_link(?MODULE, Args, []).
 
-%% @doc confirmation required from the mq.
--spec deliver(binary(), binary(), binary(), list()) -> ok|term().
-deliver(Exchange, Key, Payload, Args) ->
-   ensure_deliver(Exchange, Key, Payload, Args, ?TRY_MAX_WORKERS).
+stop(Server) ->
+   Server ! stop.
 
-ensure_deliver(Exchange, Key, Payload, Args, 0) ->
-   wpool:call(?MODULE, {deliver, {Exchange, Key, Payload, Args, self()}}, next_worker);
-ensure_deliver(Exchange, Key, Payload, Args, Tries) ->
-   case wpool:call(?MODULE, {deliver, {Exchange, Key, Payload, Args, self()}}, next_worker) of
-      not_available ->  lager:notice("bunny-worker not available, try next worker ..."),
-                        ensure_deliver(Exchange, Key, Payload, Args, Tries-1);
-      Other -> Other
-   end.
+-spec deliver(pid(), tuple()) -> {ok, reference()}|{error, term()}.
+deliver(Server, {Exchange, Key, Payload, Args}) ->
+   gen_server:call(Server, {deliver, {Exchange, Key, Payload, Args, self()}}).
+
+%% @doc confirmation required from the mq.
+%%-spec deliver(binary(), binary(), binary(), list()) -> ok|term().
+%%deliver(Exchange, Key, Payload, Args) ->
+%%   ensure_deliver(Exchange, Key, Payload, Args, ?TRY_MAX_WORKERS).
+%%
+%%ensure_deliver(Exchange, Key, Payload, Args, 0) ->
+%%   wpool:call(?MODULE, {deliver, {Exchange, Key, Payload, Args, self()}}, next_worker);
+%%ensure_deliver(Exchange, Key, Payload, Args, Tries) ->
+%%   case wpool:call(?MODULE, {deliver, {Exchange, Key, Payload, Args, self()}}, next_worker) of
+%%      not_available ->  lager:notice("bunny-worker not available, try next worker ..."),
+%%                        ensure_deliver(Exchange, Key, Payload, Args, Tries-1);
+%%      Other -> Other
+%%   end.
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %%% gen_server API.
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -148,6 +155,9 @@ handle_info(#'connection.unblocked'{}, State) ->
 handle_info(report_pendinglist_length, #state{pending_acks = P} = State) ->
    lager:notice("Bunny-Worker PendingList-length: ~p", [{self(), length(P)}]),
    {noreply, State};
+handle_info(stop, State) ->
+   lager:notice("Bunny-Worker got stop msg"),
+   {stop, normal, State};
 handle_info(Msg, State) ->
    lager:notice("Bunny-Worker got unexpected msg: ~p", [Msg]),
    {noreply, State}.
@@ -218,7 +228,6 @@ check_for_channel(#state{} = State) ->
                                          end;
          _ -> Connect()
       end,
-%%    lager:notice("new channelpid is ~p",[Channel]),
    Available = is_pid(Channel),
    {Available, Channel, Conn}.
 
@@ -261,7 +270,6 @@ new_channel(Error) ->
 
 configure_channel({ok, Channel}) ->
    ok = amqp_channel:register_flow_handler(Channel, self()),
-%%   ok = amqp_channel:re
    ok = amqp_channel:register_confirm_handler(Channel, self()),
    ok = amqp_channel:register_return_handler(Channel, self()),
 
