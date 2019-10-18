@@ -61,6 +61,7 @@ init(_NodeId, _Ins,
   Splitted = [maps:take(dtype, Map) || Map <- ParamList],
   TypeList = [K || {K, _P} <- Splitted],
   PList = [P || {_K, P} <- Splitted],
+  lager:notice("Addresses parsed: ~p", [PList]),
 
   Interval = faxe_time:duration_to_ms(Dur),
   Timer = faxe_time:timer_start(Interval, poll),

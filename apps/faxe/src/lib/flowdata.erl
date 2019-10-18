@@ -62,7 +62,7 @@
    expand_json_field/2, extract_map/2, extract_field/3,
    field/3, to_s_msgpack/1, from_json/1,
    to_map/1, set_fields/3, set_tags/3, fields/2,
-   delete_fields/2, delete_tags/2, path/1, paths/1, set_fields/2, to_mapstruct/1, from_json/2]).
+   delete_fields/2, delete_tags/2, path/1, paths/1, set_fields/2, to_mapstruct/1, from_json/2, from_json_struct/1]).
 
 
 -define(DEFAULT_ID, <<"00000">>).
@@ -98,6 +98,15 @@ from_json(JSONMessage, _FieldMapping) ->
    Map = from_json(JSONMessage),
    Data = maps:without([<<"id">>, <<"vs">>, <<"df">>, <<"ts">>], Map),
    set_field(#data_point{}, <<"data">>, Data).
+
+from_json_struct(JSON) ->
+   StdFields = [<<"id">>, <<"vs">>, <<"df">>, <<"ts">>],
+   Map = from_json(JSON),
+   Ts = maps:get(<<"ts">>, Map, faxe_time:now()),
+   Data = maps:without(StdFields, Map),
+   Fields = maps:remove(<<"ts">>, maps:with(StdFields, Map)),
+   Point = #data_point{ts = Ts, fields = Data},
+   set_fields(Point, maps:to_list(Fields)).
 
 
 from_json(Message) ->

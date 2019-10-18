@@ -70,8 +70,9 @@ handle_info({mqttc, _C,  disconnected}, State=#state{}) ->
    lager:debug("mqtt client disconnected!!"),
    {ok, State#state{connected = false, client = undefined}};
 handle_info({publish, #{payload := Payload, topic := Topic} }, S=#state{}) ->
-   P0 = flowdata:set_field(#data_point{ts = faxe_time:now()}, <<"topic">>, Topic),
-   P = flowdata:set_field(P0, <<"payload">>, flowdata:from_json(Payload)),
+   P = flowdata:from_json_struct(Payload),
+%%   P0 = flowdata:set_field(#data_point{ts = faxe_time:now()}, <<"topic">>, Topic),
+%%   P = flowdata:set_field(P0, <<"payload">>, flowdata:from_json(Payload)),
    dataflow:emit(P),
    {ok, S}.
 
