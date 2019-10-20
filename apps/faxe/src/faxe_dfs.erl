@@ -86,7 +86,7 @@ eval({Nodes, Connections}) ->
             {Component, NOpts} =
             case NodeName of
                << ?USER_NODE_PREFIX, Callback/binary>> ->
-                  Class = estr:str_capitalize(Callback),
+                  Class = string:titlecase(Callback),
                   {?USER_COMPONENT,
                      [
                         {?USER_COMPONENT_MODULE,list_to_atom(binary_to_list(Callback))},
@@ -111,7 +111,7 @@ eval({Nodes, Connections}) ->
                            end;
                _        ->  case erlang:function_exported(Component, options, 0) of
                                true -> Component:options();
-                               false -> throw("Component '" ++ binary_to_list(NodeName) ++ ";options' not found")
+                               false -> throw("Component '" ++ binary_to_list(NodeName) ++ ":options' not found")
                             end
             end,
             %% add ls_mem options as optional
@@ -121,11 +121,11 @@ eval({Nodes, Connections}) ->
             NOptions = convert_options(CompOptions, lists:flatten(Options ++ ParamOptions)),
             NodeOptions = NOptions ++ NOpts,
             lager:notice("~n~p wants options : ~p~n has options: ~p~n~n NodeParameters: ~p",
-               [Component, Component:options(), Options ++ ParamOptions, NodeOptions]),
+               [Component, CompOptions0, Options ++ ParamOptions, NodeOptions]),
 
             %% check options with the components option definition
             %% any errors raised here, would be caught in the surrounding call
-            dataflow:build_options(Component, NodeOptions),
+            dataflow:build_options(Component, NodeOptions), %, CompOptions),
 
             NodeId = node_id(N),
             lager:info("all options for node ~p: ~p", [N, NodeOptions]),

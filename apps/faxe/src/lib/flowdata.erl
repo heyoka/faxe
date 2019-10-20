@@ -43,6 +43,7 @@
 -author("Alexander Minichmair").
 
 -include("faxe.hrl").
+
 %% API
 -export([
    %% batch and point
@@ -62,12 +63,16 @@
    expand_json_field/2, extract_map/2, extract_field/3,
    field/3, to_s_msgpack/1, from_json/1,
    to_map/1, set_fields/3, set_tags/3, fields/2,
-   delete_fields/2, delete_tags/2, path/1, paths/1, set_fields/2, to_mapstruct/1, from_json/2, from_json_struct/1]).
+   delete_fields/2, delete_tags/2, path/1, paths/1, set_fields/2,
+   to_mapstruct/1, from_json/2, from_json_struct/1, from_json_struct/3]).
 
 
 -define(DEFAULT_ID, <<"00000">>).
 -define(DEFAULT_VS, 1).
 -define(DEFAULT_DF, <<"00.000">>).
+
+-define(DEFAULT_FIELDS, [<<"id">>, <<"vs">>, <<"df">>, <<"ts">>]).
+-define(DEFAULT_TS_FIELD, <<"ts">>).
 
 
 to_json(P) when is_record(P, data_point) orelse is_record(P, data_batch) ->
@@ -81,7 +86,7 @@ to_mapstruct(P=#data_point{ts = Ts, fields = Fields, tags = _Tags}) ->
       Data -> Data
    end,
 %%   lager:info("Datafields for JSON: ~p", [DataFields]),
-   #{<<"ts">> => Ts,
+   #{?DEFAULT_TS_FIELD => Ts,
       <<"id">> => field(P ,<<"id">>, ?DEFAULT_ID),
       <<"vs">> => field(P, <<"vs">>, ?DEFAULT_VS),
       <<"df">> => field(P, <<"df">>, ?DEFAULT_DF),
@@ -96,22 +101,40 @@ to_s_msgpack(P) when is_record(P, data_point) orelse is_record(P, data_batch) ->
 
 from_json(JSONMessage, _FieldMapping) ->
    Map = from_json(JSONMessage),
-   Data = maps:without([<<"id">>, <<"vs">>, <<"df">>, <<"ts">>], Map),
+   Data = maps:without(?DEFAULT_FIELDS, Map),
    set_field(#data_point{}, <<"data">>, Data).
 
+-spec from_json_struct(binary()) -> #data_point{}|#data_batch{}.
 from_json_struct(JSON) ->
-   StdFields = [<<"id">>, <<"vs">>, <<"df">>, <<"ts">>],
-   Map = from_json(JSON),
-   Ts = maps:get(<<"ts">>, Map, faxe_time:now()),
-   Data = maps:without(StdFields, Map),
-   Fields = maps:remove(<<"ts">>, maps:with(StdFields, Map)),
+   from_json_struct(JSON, ?DEFAULT_TS_FIELD, ?TF_TS_MILLI).
+
+-spec from_json_struct(binary(), binary(), binary()) -> #data_point{}|#data_batch{}.
+from_json_struct(JSON, TimeField, TimeFormat) ->
+   Struct = from_json(JSON),
+   case Struct of
+      Map when is_map(Map) ->
+         point_from_json_map(Map, TimeField, TimeFormat);
+      List when is_list(List) ->
+         Points = [point_from_json_map(PMap, TimeField, TimeFormat) || PMap <- List],
+         #data_batch{points = Points}
+   end.
+
+-spec point_from_json_map(map(), binary(), binary()) -> #data_point{}.
+point_from_json_map(Map, TimeField, TimeFormat) ->
+   Ts0 = maps:get(TimeField, Map),
+   Ts =
+      case Ts0 of
+         undefined -> faxe_time:now();
+         Timestamp -> time_format:convert(Timestamp, TimeFormat)
+      end,
+   Data = maps:without(?DEFAULT_FIELDS, Map),
+   Fields = maps:remove(?DEFAULT_TS_FIELD, maps:with(?DEFAULT_FIELDS, Map)),
    Point = #data_point{ts = Ts, fields = Data},
    set_fields(Point, maps:to_list(Fields)).
 
-
 from_json(Message) ->
    try jiffy:decode(Message, [return_maps, dedupe_keys]) of
-      Json when is_map(Json) -> Json
+      Json when is_map(Json) orelse is_list(Json) -> Json
    catch
       _:_ -> #{}
    end.
@@ -272,13 +295,6 @@ set_fields(P = #data_point{fields = Fields}, KeysValues) when is_list(KeysValues
 -spec set(jsonpath:path(), term(), list()) -> list().
 set(Key, Value, FieldList) ->
    jsn:set(Key, FieldList, Value).
-%%   {Res} =
-%%   case jsonpath:search(Key, Struct) of
-%%      undefined -> lager:warning("jsonpath:update(~p, ~p, ~p)",[Key, Value, Struct]),jsonpath:update(Key, Value, Struct);
-%%      _ -> jsonpath:replace(Key, Value, Struct)
-%%   end,
-%%   lager:info("after set: ~p", [Res]),
-%%   Res.
 
 -spec tag(#data_point{}|#data_batch{}, jsonpath:path()) -> undefined | term() | list(term()|undefined).
 %%% @doc

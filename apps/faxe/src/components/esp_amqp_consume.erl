@@ -36,6 +36,8 @@
    prefetch,
    ssl = false,
    opts,
+   dt_field,
+   dt_format,
    collected = 0,
    points = queue:new()
 }).
@@ -43,22 +45,27 @@
 options() -> [
    {host, binary},
    {port, integer, ?DEFAULT_PORT},
+   {ssl, bool, false},
    {vhost, binary, <<"/">>},
    {routing_key, binary},
    {queue, binary},
    {exchange, binary},
    {prefetch, integer, 1},
-   {ssl, bool, false}].
+   {dt_field, string, <<"ts">>},
+   {dt_format, string, ?TF_TS_MILLI}
+].
 
 
 init(_NodeId, _Ins,
    #{ host := Host0, port := _Port, vhost := _VHost, queue := _Q,
-      exchange := _Ex, prefetch := Prefetch, routing_key := _RoutingKey, ssl := _UseSSL}
+      exchange := _Ex, prefetch := Prefetch, routing_key := _RoutingKey, dt_field := DTField,
+      dt_format := DTFormat, ssl := _UseSSL}
       = Opts0) ->
 
    Host = binary_to_list(Host0),
    Opts = Opts0#{host => Host},
-   State = start_consumer(#state{opts = Opts, prefetch = Prefetch}),
+   State = start_consumer(#state{opts = Opts, prefetch = Prefetch,
+      dt_field = DTField, dt_format = DTFormat}),
    {ok, State}.
 
 process(_In, _, State = #state{}) ->
@@ -68,7 +75,7 @@ process(_In, _, State = #state{}) ->
 %% new queue-message arrives ...
 %%
 handle_info({ {DTag, RKey}, {Payload, _Headers}, From}, State=#state{prefetch = 1}) ->
-   Msg0 = flowdata:from_json(Payload, []),
+   Msg0 = flowdata:from_json_struct(Payload, State#state.dt_field, State#state.dt_format),
    DataPoint = Msg0#data_point{id = RKey},
    dataflow:emit(DataPoint),
    carrot:ack(From, DTag),
@@ -76,7 +83,7 @@ handle_info({ {DTag, RKey}, {Payload, _Headers}, From}, State=#state{prefetch = 
 
 handle_info({ {DTag, RKey}, {Payload, _Headers}, From},
     State=#state{collected = NumCollected, points = Batch}) ->
-   Msg0 = flowdata:from_json(Payload, []),
+   Msg0 = flowdata:from_json_struct(Payload, State#state.dt_field, State#state.dt_format),
    DataPoint = Msg0#data_point{id = RKey},
    NewState = State#state{points = queue:in(DataPoint, Batch), collected = NumCollected+1},
    maybe_emit(DTag, From, NewState);
@@ -91,9 +98,9 @@ shutdown(#state{consumer = C}) ->
 maybe_emit(DTag, From, State = #state{prefetch = Prefetch, collected = Prefetch, points = Points}) ->
    DataBatch = #data_batch{points = queue:to_list(Points)},
    NewState = State#state{points = queue:new(), collected = 0},
-   carrot:ack_multiple(From, DTag),
    lager:notice("emit: ~p",[Prefetch]),
    dataflow:emit(DataBatch),
+   carrot:ack_multiple(From, DTag),
    {ok, NewState};
 maybe_emit(_DTag, _From, State = #state{}) ->
    {ok, State}.
@@ -145,11 +152,5 @@ consumer_config(_Opts = #{vhost := VHost, queue := Q, prefetch := Prefetch,
    Props = carrot_util:proplists_merge(HostParams, Config),
    lager:warning("giving carrot these Configs: ~p", [Props]),
    Props.
-
-process(RKey, Payload) ->
-   Msg0 = flowdata:from_json(Payload, []),
-%%   lager:notice("DATA: ~p ::: ~p ", [RKey, Payload]).
-   DataPoint = Msg0#data_point{id = RKey},
-   dataflow:emit(DataPoint).
 
 

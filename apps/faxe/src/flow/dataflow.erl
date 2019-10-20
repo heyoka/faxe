@@ -33,7 +33,8 @@ new_graph() ->
 -spec add_node({any(), atom()} | {any(), atom(), list()}, graph_definition()) -> graph_definition().
 add_node({NodeName, Component}, Defs) when is_atom(Component), is_map(Defs) ->
    add_node({NodeName, Component, []}, Defs);
-add_node({NodeName, Component, Params}, Defs=#{nodes := Nodes}) when is_atom(Component), is_map(Defs), is_list(Params) ->
+add_node({NodeName, Component, Params}, Defs=#{nodes := Nodes})
+      when is_atom(Component), is_map(Defs), is_list(Params) ->
    Defs#{nodes := [{NodeName, Component, Params} | Nodes]}.
 
 %% @doc add a new edge to #{nodes := Nodes, edges := Edges}
@@ -180,8 +181,6 @@ list_val(Val, Fun, Type, OptName) ->
 
 %% further options checks
 maybe_check_opts(Opts, Module) when is_map(Opts), is_atom(Module) ->
-%%   lager:debug("function exported ~p: ~p", [[Module, check_options, 0],
-%%      erlang:function_exported(Module, check_options, 0)]),
    case erlang:function_exported(Module, check_options, 0) of
       true -> check_options(Module:check_options(), Opts, Module);
       false -> Opts

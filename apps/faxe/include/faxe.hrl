@@ -6,6 +6,7 @@
 -endif.
 
 -include("dataflow.hrl").
+-include("timeformats.hrl").
 
 -export_type([window_state/0, window_events/0]).
 

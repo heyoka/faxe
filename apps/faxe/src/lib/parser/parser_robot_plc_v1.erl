@@ -227,7 +227,7 @@ to_gramms(V) -> round(V*1000).
 -ifdef(TEST).
 
 %% test the macro
-test() ->
+flag_test() ->
    <<Flag:?BOOL>> = <<0:1/integer>>,
    Flag.
 

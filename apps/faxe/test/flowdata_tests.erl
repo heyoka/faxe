@@ -11,6 +11,7 @@
 
 %% API
 -include("faxe.hrl").
+
 -ifdef(TEST).
 -compile(nowarn_export_all).
 -compile([export_all]).
@@ -337,6 +338,79 @@ batch_to_json_test() ->
             <<"id">> => <<"ioi2u34oiu23oi4u2oi4u2">>,
             <<"ts">> => 1568029516598,<<"vs">> => 2}]
 
+   ).
+
+from_json_basic_test() ->
+   M = #{<<"ts">> => 1568029511598, <<"id">> => <<"ioi2u34oiu23oi4u2oi4u2">>,
+      <<"df">> => <<"01.002">>, <<"vs">> => 2, <<"value1">> => 2323422, <<"value2">> => <<"savoi">>,
+      <<"data">> => #{<<"value1">> => 323424, <<"value2">> => <<"somestringvalue">>}},
+   JSON = jiffy:encode(M),
+   ?assertEqual(flowdata:from_json_struct(JSON),
+      #data_point{ts=1568029511598, fields = #{<<"id">> => <<"ioi2u34oiu23oi4u2oi4u2">>,
+   <<"df">> => <<"01.002">>, <<"vs">> => 2, <<"value1">> => 2323422, <<"value2">> => <<"savoi">>,
+   <<"data">> => #{<<"value1">> => 323424, <<"value2">> => <<"somestringvalue">>}}
+      }
+      ).
+
+from_json_basic2_test() ->
+   M = #{<<"UTC-Time">> => <<"1568029511.598123">>, <<"id-string">> => <<"ioi2u34oiu23oi4u2oi4u2">>,
+      <<"raw">> => <<"01002">>, <<"vsdtg">> => 22, <<"value1">> => 2323422, <<"value2">> => <<"savoi">>,
+      <<"value1">> => 323424, <<"value2">> => <<"somestringvalue">>},
+   JSON = jiffy:encode(M),
+   lager:notice("~s",[JSON]),
+   ?assertEqual(
+      #data_point{ts=1568029511598, fields = #{<<"UTC-Time">> => <<"1568029511.598123">>,
+         <<"id-string">> => <<"ioi2u34oiu23oi4u2oi4u2">>,
+         <<"raw">> => <<"01002">>,
+         <<"value1">> => 323424,
+         <<"value2">> => <<"somestringvalue">>,
+         <<"vsdtg">> => 22}
+      }, flowdata:from_json_struct(JSON, <<"UTC-Time">>, ?TF_TS_FLOAT_MICRO)
+   ).
+
+from_json_basic3_test() ->
+   M = #{<<"datetime">> => <<"2019-10-05T14:48:01.023Z">>, <<"id-string">> => <<"ioi2u34oiu23oi4u2oi4u2">>,
+      <<"raw">> => <<"01002">>, <<"vsdtg">> => 22, <<"value1">> => 2323422, <<"value2">> => <<"savoi">>,
+      <<"value1">> => 323424, <<"value2">> => #{<<"key12">> => #{<<"anotherkey">> => <<"somestringvalue">>}}
+   },
+   JSON = jiffy:encode(M),
+   lager:notice("~s",[JSON]),
+   ?assertEqual(
+      #data_point{ts=1570286881023,
+         fields = #{<<"datetime">> =>
+         <<"2019-10-05T14:48:01.023Z">>,
+            <<"id-string">> => <<"ioi2u34oiu23oi4u2oi4u2">>,
+            <<"raw">> => <<"01002">>,
+            <<"value1">> => 323424,
+            <<"value2">> =>
+            #{<<"key12">> =>
+               #{<<"anotherkey">> =>
+                  <<"somestringvalue">>}},
+            <<"vsdtg">> => 22}
+      }, flowdata:from_json_struct(JSON, <<"datetime">>, ?TF_ISO8601)
+   ).
+
+from_json_list_test() ->
+   M = [#{<<"datetime">> => <<"2019-10-05T14:48:01.023Z">>, <<"id-string">> => <<"ioi2u34oiu23oi4u2oi4u2">>,
+      <<"raw">> => <<"01002">>, <<"vsdtg">> => 22, <<"value1">> => 2323422, <<"value2">> => <<"savoi">>,
+      <<"value1">> => 323424, <<"value2">> => #{<<"key12">> => #{<<"anotherkey">> => <<"somestringvalue">>}}
+   }],
+   JSON = jiffy:encode(M),
+   lager:notice("~s",[JSON]),
+   ?assertEqual(
+      #data_batch{points = [#data_point{
+         ts=1570286881023,
+         fields = #{<<"datetime">> =>
+         <<"2019-10-05T14:48:01.023Z">>,
+            <<"id-string">> => <<"ioi2u34oiu23oi4u2oi4u2">>,
+            <<"raw">> => <<"01002">>,
+            <<"value1">> => 323424,
+            <<"value2">> =>
+            #{<<"key12">> =>
+            #{<<"anotherkey">> =>
+            <<"somestringvalue">>}},
+            <<"vsdtg">> => 22}}]
+      }, flowdata:from_json_struct(JSON, <<"datetime">>, ?TF_ISO8601)
    ).
 
 msgpack_basic_test() ->

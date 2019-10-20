@@ -7,7 +7,7 @@
 %% API
 -behavior(df_component).
 %% API
--export([init/3, process/3, handle_info/2, options/0, call_options/2, get_python/0]).
+-export([init/3, process/3, handle_info/2, options/0, call_options/2, get_python/0, shutdown/1]).
 
 -callback execute(tuple(), term()) -> tuple().
 
@@ -55,9 +55,10 @@ init(NodeId, _Ins, #{cb_module := Callback, cb_class := CBClass} = Args) ->
    lager:notice("ARgs for ~p: ~p", [Callback, Args]),
    PInstance = get_python(),
    %% create an instance of the callback class
-   {'$erlport.opaque', python, ClassInstance} = python:call(PInstance, Callback, CBClass, []),
+   {'$erlport.opaque', python, ClassInstance} = python:call(PInstance, Callback, CBClass, [Args]),
    %% call "init" on that instance
-   _InitRes = python:call(PInstance, Callback, build_class_call(CBClass, ?PYTHON_INIT_CALL), [Args]),
+%%   _InitRes = python:call(PInstance, Callback, build_class_call(CBClass, ?PYTHON_INIT_CALL), [Args]),
+%%   lager:notice("python init gives us: ~p",[_InitRes]),
    State = #state{
       callback_module = Callback,
       callback_class =  CBClass,
@@ -72,7 +73,7 @@ process(_Inport, #data_batch{} = Batch, State = #state{callback_module = Mod, py
    Data = flowdata:to_map(Batch),
 %%   Res = python:call(Python, Mod, build_class_call(Class, ?PYTHON_BATCH_CALL), [Obj, Data]),
    {T, Res} = timer:tc(python, call, [Python, Mod, build_class_call(Class, ?PYTHON_BATCH_CALL), [Obj, Data]]),
-   lager:info("~p emitting: ~p after: ~p",[Mod, Res, T]),
+   lager:notice("~p emitting: ~p after: ~p",[Mod, Res, T]),
    {emit, Res, State}
 ;
 process(_Inport, #data_point{} = Point, State = #state{python_instance = Python, callback_module = Mod,
@@ -88,7 +89,8 @@ handle_info(Request, State) ->
    io:format("~p request: ~p~n", [State, Request]),
    {ok, State}.
 
-
+shutdown(#state{python_instance = Python}) ->
+   python:stop(Python).
 %%%%%%%%%%%%%%%%%%%% internal %%%%%%%%%%%%
 
 get_python() ->

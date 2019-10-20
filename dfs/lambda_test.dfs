@@ -1,0 +1,15 @@
+|value_emitter()
+.every(5s)
+.type(point)
+
+|eval()
+.lambdas(
+    lambda: int(str_concat(string(int("val")),string(int("val"))))
+    )
+.as('concat_string')
+
+@mirror()
+.foo('bar')
+.baz(55.78577)
+
+|debug()

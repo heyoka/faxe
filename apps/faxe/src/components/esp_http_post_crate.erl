@@ -66,7 +66,7 @@ handle_info({'DOWN', _MonitorRef, _Type, Pid, _Info}, State = #state{client = Pi
    {ok, State#state{client = C}}.
 
 %%% DATA OUT
-send(Item, State = #state{client = Client, query = Q, faxe_fields = Fields, database = Schema}) ->
+send(Item, State = #state{query = Q, faxe_fields = Fields, database = Schema}) ->
    {Headers, Query} = build(Item, Q, Schema, Fields),
    NewState = do_send(Query, Headers, 0, State),
    NewState.

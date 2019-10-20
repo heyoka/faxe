@@ -92,7 +92,7 @@ build_query(ValueList0, Table) when is_list(ValueList0) ->
    Q = <<Q0/binary, " (", Fields/binary, ") VALUES">>,
    Q.
 
-build_value_stmt(B = #data_batch{points = Points}, Fields) ->
+build_value_stmt(#data_batch{points = Points}, Fields) ->
    build_batch(Points, Fields, <<>>);
 build_value_stmt(P = #data_point{ts = Ts}, Fields) ->
    DataList0 = flowdata:fields(P, Fields),

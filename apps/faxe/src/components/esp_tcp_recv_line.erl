@@ -113,11 +113,11 @@ connect(Ip, Port, _LineDelimiter) ->
 
 maybe_emit(Data, State = #state{changes = false}) -> do_emit(Data, State);
 maybe_emit(Data, State = #state{changes = true, prev_crc32 = undefined}) ->
-  {T, DataCheckSum} = timer:tc(erlang,crc32, [Data]),
+  {_T, DataCheckSum} = timer:tc(erlang,crc32, [Data]),
   NewState = State#state{prev_crc32 = DataCheckSum},
   do_emit(Data, NewState);
 maybe_emit(Data, State = #state{changes = true, prev_crc32 = PrevCheckSum}) ->
-  {T, DataCheckSum} = timer:tc(erlang,crc32, [Data]),
+  {_T, DataCheckSum} = timer:tc(erlang,crc32, [Data]),
   NewState = State#state{prev_crc32 = DataCheckSum},
   case  DataCheckSum /= PrevCheckSum of
     true -> do_emit(Data, NewState);

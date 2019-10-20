@@ -4,6 +4,10 @@ import erlport.erlterms
 # Mirrors all points it receives back to faxe
 class Mirror:
 
+    def __init__(self, args):
+        self.args = args
+        print("init mirror with ", args)
+
     @staticmethod
     def info():
         print("info called")
@@ -11,7 +15,7 @@ class Mirror:
         return li
 
     def init(self, init_req=None):
-        print("hey you called init ?!")
+        print("hey you called init with : ", init_req)
         ret = {"eins": erlport.erlterms.List([1, 2, 3, 4]), "zwei": 2, "drei": {"view": 3}}
         return erlport.erlterms.Map(ret)
 

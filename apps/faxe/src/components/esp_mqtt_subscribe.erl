@@ -36,6 +36,8 @@
    qos,
    topic,
    retained = false,
+   dt_field,
+   dt_format,
    ssl = false,
    topics_seen = []
 }).
@@ -45,17 +47,20 @@ options() -> [
    {qos, integer, 1},
    {topic, binary},
    {retained, is_set},
+   {dt_field, string, <<"ts">>},
+   {dt_format, string, ?TF_TS_MILLI},
    {ssl, bool, false}].
 
 
 init(_NodeId, _Ins,
-   #{ host := Host0, port := Port, topic := Topic,
+   #{ host := Host0, port := Port, topic := Topic, dt_field := DTField,
+      dt_format := DTFormat,
       retained := Retained, ssl := UseSSL, qos := Qos} = _Opts) ->
    Host = binary_to_list(Host0),
    {ok, Client} = emqtt:start_link([{host, Host}, {port, Port}]),
    emqtt:connect(Client),
    {ok,
-      #state{host = Host, port = Port, topic = Topic,
+      #state{host = Host, port = Port, topic = Topic, dt_field = DTField, dt_format = DTFormat,
          retained = Retained, ssl = UseSSL, qos = Qos}}.
 
 process(_In, _, State = #state{}) ->
@@ -69,10 +74,9 @@ handle_info({mqttc, C, connected}, State=#state{}) ->
 handle_info({mqttc, _C,  disconnected}, State=#state{}) ->
    lager:debug("mqtt client disconnected!!"),
    {ok, State#state{connected = false, client = undefined}};
-handle_info({publish, #{payload := Payload, topic := Topic} }, S=#state{}) ->
-   P = flowdata:from_json_struct(Payload),
+handle_info({publish, #{payload := Payload, topic := _Topic} }, S=#state{dt_field = DTField, dt_format = DTFormat}) ->
+   P = flowdata:from_json_struct(Payload, DTField, DTFormat),
 %%   P0 = flowdata:set_field(#data_point{ts = faxe_time:now()}, <<"topic">>, Topic),
-%%   P = flowdata:set_field(P0, <<"payload">>, flowdata:from_json(Payload)),
    dataflow:emit(P),
    {ok, S}.
 
@@ -80,6 +84,5 @@ shutdown(#state{client = C}) ->
    catch (emqtt:disconnect(C)).
 
 subscribe(#state{qos = Qos, client = C, topic = Topic}) when is_binary(Topic) ->
-%%   lager:notice("subscribe to topic ~p ~n",[Topic]),
    {ok, _, _} = emqtt:subscribe(C, {Topic, Qos}).
 
