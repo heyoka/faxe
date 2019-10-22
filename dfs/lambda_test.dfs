@@ -6,7 +6,7 @@
 .lambdas(
     lambda: int(str_concat(string(int("val")),string(int("val"))))
     )
-.as('concat_string')
+.as('concat_string.int')
 
 @mirror()
 .foo('bar')

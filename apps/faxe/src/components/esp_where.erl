@@ -2,6 +2,7 @@
 %% Ⓒ 2019 heyoka
 %% @doc
 %% Filter points and batches with a lambda expression, which returns a boolean value;
+%% Data-items for which the lambda expression evaluates as false, will be discarded
 %% for boolean value evaluation, @see dfs_std_lib:bool/1
 %%
 -module(esp_where).
