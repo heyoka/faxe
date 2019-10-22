@@ -24,7 +24,7 @@ def s7 =
     .tags('name', 'warehouse_id', 'device_id')
     .tag_values('measurement1', whid, device_id)
 
-    |win_event_q()
+    |win_event()
     .every(10)
     .period(10)
 

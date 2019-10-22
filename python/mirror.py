@@ -7,6 +7,8 @@ class Mirror:
     def __init__(self, args):
         self.args = args
         print("init mirror with ", args)
+        print("foo is ", args[b'foo'])
+        print("this is my info() ", Mirror.info())
 
     @staticmethod
     def info():

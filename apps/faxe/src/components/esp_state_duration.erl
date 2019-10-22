@@ -2,7 +2,7 @@
 %% Ⓒ 2019 heyoka
 %% @doc
 %% Computes the duration of a given state. The state is defined via a lambda expression.
-%% For each consecutive point for which the expression evaluates as true,
+%% For each consecutive point for which the lambda expression evaluates as true,
 %% the state duration will be incremented by the duration between points.
 %% When a point evaluates as false, the state duration is reset.
 %%

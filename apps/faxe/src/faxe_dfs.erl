@@ -89,8 +89,8 @@ eval({Nodes, Connections}) ->
                   Class = string:titlecase(Callback),
                   {?USER_COMPONENT,
                      [
-                        {?USER_COMPONENT_MODULE,list_to_atom(binary_to_list(Callback))},
-                        {?USER_COMPONENT_CLASS, list_to_atom(binary_to_list(Class))}
+                        {?USER_COMPONENT_MODULE, atom, list_to_atom(binary_to_list(Callback))},
+                        {?USER_COMPONENT_CLASS, atom, list_to_atom(binary_to_list(Class))}
                      ]
                   };
                _ ->
@@ -104,8 +104,8 @@ eval({Nodes, Connections}) ->
             case Component of
                ?USER_COMPONENT -> case erlang:function_exported(?USER_COMPONENT, call_options, 2) of
                               true ->
-                                 Callb = proplists:get_value(?USER_COMPONENT_MODULE, NOpts),
-                                 ClassName = proplists:get_value(?USER_COMPONENT_CLASS, NOpts),
+                                 {_, atom, Callb} = lists:keyfind(?USER_COMPONENT_MODULE, 1, NOpts),
+                                 {_, atom, ClassName} = lists:keyfind(?USER_COMPONENT_CLASS, 1, NOpts),
                                  ?USER_COMPONENT:call_options(Callb, ClassName);
                               false -> []
                            end;
@@ -120,19 +120,17 @@ eval({Nodes, Connections}) ->
             %% handle all other params and options
             NOptions = convert_options(CompOptions, lists:flatten(Options ++ ParamOptions)),
             NodeOptions = NOptions ++ NOpts,
-            lager:notice("~n~p wants options : ~p~n has options: ~p~n~n NodeParameters: ~p",
-               [Component, CompOptions0, Options ++ ParamOptions, NodeOptions]),
+%%            lager:notice("~n~p wants options : ~p~n has options: ~p~n~n NodeParameters: ~p",
+%%               [Component, CompOptions, Options ++ ParamOptions, NodeOptions]),
 
             %% check options with the components option definition
             %% any errors raised here, would be caught in the surrounding call
-            dataflow:build_options(Component, NodeOptions), %, CompOptions),
+            FinalOpts = dataflow:build_options(Component, NodeOptions, CompOptions++NOpts),
 
             NodeId = node_id(N),
-            lager:info("all options for node ~p: ~p", [N, NodeOptions]),
-%%            dataflow:maybe_check_opts(Component, Options ++ ParamOptions),
-
+            lager:info("all options for node ~p: ~p", [N, FinalOpts]),
             {
-               dataflow:add_node({NodeId, Component, NodeOptions}, Def0),
+               dataflow:add_node({NodeId, Component, FinalOpts}, Def0),
                   Conns ++ NewConns
             }
          end,

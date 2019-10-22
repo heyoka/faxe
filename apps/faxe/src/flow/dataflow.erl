@@ -6,7 +6,7 @@
 -export([new_graph/0, create_graph/2, start_graph/1, start_graph/2,
    add_node/2, add_edge/2, add_debug_handler/0, remove_debug_handler/0]).
 
--export([request_items/2, emit/1, build_options/2, maybe_check_opts/2, option_check/2]).
+-export([request_items/2, emit/1, build_options/3, maybe_check_opts/2]).
 
 %%====================================================================
 %% CALLBACK API functions
@@ -34,7 +34,7 @@ new_graph() ->
 add_node({NodeName, Component}, Defs) when is_atom(Component), is_map(Defs) ->
    add_node({NodeName, Component, []}, Defs);
 add_node({NodeName, Component, Params}, Defs=#{nodes := Nodes})
-      when is_atom(Component), is_map(Defs), is_list(Params) ->
+      when is_atom(Component), is_map(Defs), is_map(Params) ->
    Defs#{nodes := [{NodeName, Component, Params} | Nodes]}.
 
 %% @doc add a new edge to #{nodes := Nodes, edges := Edges}
@@ -74,27 +74,10 @@ emit(Port, Value) ->
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %%%
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
--spec option_check(atom(), list()) -> ok|{error, term()}.
-option_check(Component, VarList) ->
-   try build_options(Component, VarList) of
-      Map when is_map(Map) ->
-         ok;
-      {error, What} -> {error, What}
-   catch
-      throw:Err -> {error, Err};
-      exit:Err -> {error, Err};
-      error:Err -> {error, Err};
-      _:_      -> {error, unknown}
-   end.
 
--spec build_options(atom(), list( {atom(), option_value()} )) -> map().
-build_options(Component, L) ->
-   %% add ls_mem options as optional
-   LsMem = [{ls_mem, binary, undefined}, {ls_mem_field, binary, <<>>}, {ls_mem_ttl, integer, 0}],
-   Opts = case erlang:function_exported(Component, options, 0) of
-             true -> Component:options() ++ LsMem;
-             false -> LsMem
-          end,
+-spec build_options(atom(), list( {atom(), option_value()} ), map()) -> map().
+build_options(Component, L, Opts) ->
+%%   lager:notice("build options for: ~p :: ~p -------------- ~p", [Component, L, Opts]),
    case catch(do_build_options(Opts, L)) of
       Opts0 when is_map(Opts0) -> maybe_check_opts(Opts0, Component);
       {error, What} -> erlang:error({bad_option, {Component, What}});
@@ -227,7 +210,6 @@ option_error(OptType, Given, Should, Name) ->
       io_lib:format("~w",[Given]), <<"'), should be: ">>, atom_to_binary(Should, utf8)]).
 
 format_error(Type, Component, Error) ->
-%%   io_lib:format("~s for ~s: ~s",[Type, Component, Error]).
    iolist_to_binary(
    [atom_to_binary(Type, utf8), <<" for node ">>, atom_to_binary(Component, utf8), <<": ">>] ++ Error
    ).

@@ -213,7 +213,7 @@ handle_call({start, Inputs, Subscriptions, FlowMode}, _From,
 
    %gen_event:notify(dfevent_component, {start, State#c_state.node_id, FlowMode}),
    lager:debug("component ~p starts with options; ~p", [{CB, CBState}]),
-   Opts = dataflow:build_options(CB, CBState),
+   Opts = CBState,
    {NewCBOpts, NewState} = eval_args(Opts, State),
    {AReq, NewCBState} =
    case CB:init(NId, Inputs, NewCBOpts) of
