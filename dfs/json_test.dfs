@@ -2,7 +2,6 @@
 .type(point)
 .every(5s)
 
-%% overwrite the above values for testing purposes
     |eval()
     .lambdas(lambda: random_real(4))
     .as('data.mt[1].ccRdy')

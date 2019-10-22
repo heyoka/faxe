@@ -167,7 +167,7 @@ set_field_deep_test() ->
 set_field_array_test() ->
    faxe_ets:start_link(),
    P = #data_point{ts = 1234567891234},
-   Path = <<"data.mr[].value">>,
+   Path = <<"data.mr[1].value">>,
    SetP = set_field(P, Path, 33),
    ?assertEqual(
       #{<<"data">> => #{<<"mr">> => [#{<<"value">> => 33}]}},
