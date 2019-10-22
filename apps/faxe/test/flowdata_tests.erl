@@ -148,9 +148,9 @@ set_field_kv_test() ->
       fields = #{<<"val">> => <<"somestring">>, <<"var">> => 44}},
    Path = <<"value">>,
    SetP = set_field(P, Path, <<"new">>),
-   ?assertEqual(SetP#data_point.fields,
-      #{<<"val">> => <<"somestring">>,
-         <<"var">> => 44, <<"value">> => <<"new">>}).
+   ?assertEqual(#{<<"val">> => <<"somestring">>,
+         <<"var">> => 44, <<"value">> => <<"new">>},
+      SetP#data_point.fields).
 
 set_field_deep_test() ->
    P = #data_point{ts = 1234567891234, id = <<"324392i09i329i2df4">>,
@@ -164,7 +164,18 @@ set_field_deep_test() ->
                #{<<"deep">> => <<"new">>}}}
    ).
 
+set_field_array_test() ->
+   faxe_ets:start_link(),
+   P = #data_point{ts = 1234567891234},
+   Path = <<"data.mr[].value">>,
+   SetP = set_field(P, Path, 33),
+   ?assertEqual(
+      #{<<"data">> => #{<<"mr">> => [#{<<"value">> => 33}]}},
+      SetP#data_point.fields
+   ).
+
 set_multiple_fields_test() ->
+   faxe_ets:start_link(),
    P = #data_point{ts = 1234567891234, id = <<"324392i09i329i2df4">>,
       fields = #{<<"val">> => <<"somestring">>, <<"var">> => 44}},
    Keys = [<<"simple">>, <<"value.into.deep">>],

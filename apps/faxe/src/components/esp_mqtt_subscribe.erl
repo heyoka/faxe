@@ -57,15 +57,20 @@ init(_NodeId, _Ins,
       dt_format := DTFormat,
       retained := Retained, ssl := UseSSL, qos := Qos} = _Opts) ->
    Host = binary_to_list(Host0),
-   {ok, Client} = emqtt:start_link([{host, Host}, {port, Port}]),
-   emqtt:connect(Client),
-   {ok,
-      #state{host = Host, port = Port, topic = Topic, dt_field = DTField, dt_format = DTFormat,
-         retained = Retained, ssl = UseSSL, qos = Qos}}.
+   process_flag(trap_exit, true),
+   erlang:send_after(0, self(), connect),
+   State = #state{host = Host, port = Port, topic = Topic, dt_field = DTField, dt_format = DTFormat,
+      retained = Retained, ssl = UseSSL, qos = Qos},
+   connect(State),
+   {ok, State}.
 
 process(_In, _, State = #state{}) ->
    {ok, State}.
 
+
+handle_info(connect, State) ->
+   connect(State),
+   {ok, State};
 handle_info({mqttc, C, connected}, State=#state{}) ->
    lager:debug("mqtt client connected!!"),
    NewState = State#state{client = C, connected = true},
@@ -74,14 +79,28 @@ handle_info({mqttc, C, connected}, State=#state{}) ->
 handle_info({mqttc, _C,  disconnected}, State=#state{}) ->
    lager:debug("mqtt client disconnected!!"),
    {ok, State#state{connected = false, client = undefined}};
-handle_info({publish, #{payload := Payload, topic := _Topic} }, S=#state{dt_field = DTField, dt_format = DTFormat}) ->
-   P = flowdata:from_json_struct(Payload, DTField, DTFormat),
-%%   P0 = flowdata:set_field(#data_point{ts = faxe_time:now()}, <<"topic">>, Topic),
+handle_info({publish, #{payload := Payload, topic := Topic} }, S=#state{dt_field = DTField, dt_format = DTFormat}) ->
+   P0 = flowdata:from_json_struct(Payload, DTField, DTFormat),
+   P = flowdata:set_field(P0, <<"topic">>, Topic),
    dataflow:emit(P),
-   {ok, S}.
+   {ok, S};
+handle_info({disconnected,shutdown,tcp_closed}=M, State = #state{host = Host, port = Port}) ->
+   lager:warning("emqtt : ~p", [M]),
+   {ok, State};
+handle_info({'EXIT', _C, _Reason}, State) ->
+   lager:warning("EXIT emqtt"),
+   connect(State),
+   {ok, State};
+handle_info(What, State) ->
+   lager:warning("~p handle_info: ~p", [?MODULE, What]),
+   {ok, State}.
 
 shutdown(#state{client = C}) ->
    catch (emqtt:disconnect(C)).
+
+connect(_State = #state{host = Host, port = Port}) ->
+   {ok, Client} = emqtt:start_link([{host, Host}, {port, Port},{keepalive, 25}]),
+   emqtt:connect(Client).
 
 subscribe(#state{qos = Qos, client = C, topic = Topic}) when is_binary(Topic) ->
    {ok, _, _} = emqtt:subscribe(C, {Topic, Qos}).

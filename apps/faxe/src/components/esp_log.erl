@@ -32,5 +32,7 @@ process(_In, B = #data_batch{points = Ps}, State = #state{file = F}) ->
    [do_log(P, F) || P <- Ps],
    {emit, B, State}.
 
+do_log(P, File) when is_list(P) ->
+   lager:warning("Point is a LIST!: ~p",[P]);
 do_log(P, File) ->
    io:format(File, "~s~n", [binary_to_list(flowdata:to_json(P))]).

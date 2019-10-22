@@ -60,6 +60,7 @@ process_points(Points, Last, As) ->
 -ifdef(TEST).
 
 process_point_first_test() ->
+   faxe_ets:start_link(),
    Points = [
       #data_point{ts=1569483988616,fields=#{<<"val">> => 8.00511212301019}},
       #data_point{ts=1569483985616,fields=#{<<"val">> => 1.378982487661966}},
@@ -77,6 +78,7 @@ process_point_first_test() ->
    ?assertEqual({OutPoints, 1569483988616}, process_points(Points, undefined, <<"timediff">>)).
 
 process_points_test() ->
+   faxe_ets:start_link(),
    Points = [
       #data_point{ts=1569483988616,fields=#{<<"val">> => 8.00511212301019}},
       #data_point{ts=1569483985616,fields=#{<<"val">> => 1.378982487661966}},

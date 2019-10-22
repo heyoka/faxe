@@ -77,7 +77,10 @@
 
 to_json(P) when is_record(P, data_point) orelse is_record(P, data_batch) ->
 %%   lager:notice("MapStruct: ~p", [to_mapstruct(P)]),
-   jiffy:encode(to_mapstruct(P), []).
+   case jiffy:encode(to_mapstruct(P), []) of
+      Bin when is_binary(Bin) -> Bin;
+      IoList when is_list(IoList) -> iolist_to_binary(IoList)
+   end.
 %%
 to_mapstruct(P=#data_point{ts = Ts, fields = Fields, tags = _Tags}) ->
    DataFields =
@@ -252,7 +255,7 @@ set_field(P = #data_point{}, <<"ts">>, Value) ->
 ;
 set_field(P = #data_point{fields = Fields}, Key, Value) ->
 %%   lager:notice("set_field(~p, ~p, ~p)", [Fields, Key, Value]),
-   NewFields = set(Key, Value, Fields),
+   NewFields = set(path(Key), Value, Fields),
    P#data_point{fields = NewFields}
 ;
 %%%

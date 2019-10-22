@@ -271,7 +271,7 @@ handle_info({item, {Inport, Value}},
 
    {message_queue_len, MsgQueueLength} = erlang:process_info(self(), message_queue_len),
    case MsgQueueLength > ?MSG_Q_LENGTH_HIGH_WATERMARK of
-      true -> lager:warning("[~p] Process-Q-Length: ~p", [Module, MsgQueueLength]);
+      true -> ok;  %lager:warning("[~p] Process-Q-Length: ~p", [Module, MsgQueueLength]);
       false -> ok
    end,
 %%
