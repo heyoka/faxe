@@ -15,12 +15,15 @@
 
 -include("faxe.hrl").
 %% API
--export([init/3, process/3, options/0, handle_info/2, shutdown/1, maybe_emit/4, check_options/0]).
+-export([init/3, process/3, options/0, handle_info/2, shutdown/1, maybe_emit/4, check_options/0, split/2]).
+
+
+-define(MAX_READ_ITEMS, 5).
 
 -record(state, {
   ip,
   port,
-  client,
+  clients,
   slot,
   rack,
   interval,
@@ -38,7 +41,7 @@ options() -> [
   {every, duration, "1s"},
   {slot, integer, 0},
   {rack, integer, 0},
-  {vars, string_list}, %% s7 addressing, ie: DB2024,Int16.1224
+  {vars, string_list}, %% s7 addressing, ie: DB2024,Int16.1224 | DB2024.DBX12.2
   {as, binary_list},
   {diff, is_set}].
 
@@ -55,29 +58,28 @@ init(_NodeId, _Ins,
       as := As,
       diff := Diff}) ->
 
-  Client = connect(Ip, Rack, Slot),
-
-  ParamList = [s7addr:parse(Address) || Address <- Addresses],
-  Splitted = [maps:take(dtype, Map) || Map <- ParamList],
-  TypeList = [K || {K, _P} <- Splitted],
-  PList = [P || {_K, P} <- Splitted],
-  lager:notice("Addresses parsed: ~p", [PList]),
+%%  Client = connect(Ip, Rack, Slot),
+  {PList, TypeList} = build_addresses(Addresses),
+  AsTypes = split(lists:zip(As, TypeList), ?MAX_READ_ITEMS),
 
   Interval = faxe_time:duration_to_ms(Dur),
-  Timer = faxe_time:timer_start(Interval, poll),
-  {ok, all,
-    #state{
-      ip = Ip,
-      port = Port,
-      as = lists:zip(As, TypeList),
-      slot = Slot,
-      rack = Rack,
-      client = Client,
+  %% connect clients
+  Clients = [connect(Ip, Rack, Slot) || _X <- lists:seq(1, length(PList))],
+%%  Timer = faxe_time:timer_start(Interval, poll),
+  State = #state{
+    ip = Ip,
+    port = Port,
+    as = lists:zip(As, TypeList), %AsTypes,
+    slot = Slot,
+    rack = Rack,
+    clients = Clients,
       interval = Interval,
-      timer = Timer,
-      diff = Diff,
-      vars = PList,
-      var_types = TypeList}}.
+%%      timer = Timer,
+    diff = Diff,
+    vars = PList,
+    var_types = TypeList},
+  lager:notice("State is :~p~nVarTypesAs:~n~p",[State, State#state.as]),
+  {ok, all, State}.
 
 process(_In, #data_batch{points = _Points} = _Batch, State = #state{}) ->
   {ok, State};
@@ -85,32 +87,49 @@ process(_Inport, #data_point{} = _Point, State = #state{}) ->
   {ok, State}.
 
 handle_info(poll,
-    State=#state{client = Client, as = Aliases, timer = Timer,
+    State=#state{clients = Clients, as = Aliases, timer = Timer,
       vars = Opts, diff = Diff, last_values = LastList, ip = Ip, rack = Rack, slot = Slot}) ->
   NewState =
   case (catch snapclient:read_multi_vars(Client, Opts)) of
     {ok, Res} ->
 %%      lager:info("Result from snap7 polling ~p : ~p",[Opts, Res]),
       maybe_emit(Diff, Res, Aliases, LastList), State#state{last_values = Res};
-    _Other -> NewClient = connect(Ip, Rack, Slot), State#state{client = NewClient}
+    _Other -> lager:warning("Error when reading S7 Vars: ~p", [_Other]),
+      NewClient = connect(Ip, Rack, Slot), State#state{clients = NewClient}
   end,
   NewTimer = faxe_time:timer_next(Timer),
   {ok, NewState#state{timer = NewTimer}};
 %% client process is down, we match the Object field from the DOWN message against the current client pid
 handle_info({'DOWN', _MonitorRef, _Type, Client, Info},
-    State=#state{client = Client, ip = Ip, rack = Rack, slot = Slot}) ->
+    State=#state{clients = Client, ip = Ip, rack = Rack, slot = Slot}) ->
   lager:warning("Snap7 Client process is DOWN with : ~p ! ", [Info]),
   NewClient = connect(Ip, Rack, Slot),
-  {ok, State#state{client = NewClient}};
+  {ok, State#state{clients = NewClient}};
 %% old DOWN message from already restarted client process
 handle_info({'DOWN', _MonitorRef, _Type, _Object, _Info}, State) ->
   {ok, State};
 handle_info(_E, S) ->
   {ok, S#state{}}.
 
-shutdown(#state{client = Client, timer = Timer}) ->
+shutdown(#state{clients = Client, timer = Timer}) ->
   catch (faxe_time:timer_cancel(Timer)),
   catch (snapclient:disconnect(Client)).
+
+read_vars([], [], Result) ->
+  Result;
+read_vars([Client|Clients], [Vars|Variables], Result) ->
+  Res = read(Client, Vars),
+  read_vars(Clients, Variables, Result++Res).
+
+read(Client, Opts) ->
+  case (catch snapclient:read_multi_vars(Client, Opts)) of
+    {ok, Res} -> Res,
+%%      lager:info("Result from snap7 polling ~p : ~p",[Opts, Res]),
+      maybe_emit(Diff, Res, Aliases, LastList), State#state{last_values = Res};
+    _Other -> lager:warning("Error when reading S7 Vars: ~p", [_Other]),
+      NewClient = connect(Ip, Rack, Slot), State#state{clients = NewClient}
+  end,
+
 
 -spec maybe_emit(Diff :: true|false, ResultList :: list(), Aliases :: list(), LastResults :: list()) -> ok | term().
 %% no diff flag -> emit
@@ -138,6 +157,24 @@ maybe_emit(true, Result, Aliases, LastList) ->
   Out = build_point(ResValues, ResAliases),
 %%  lager:notice("~p emitting diff: ~p ",[?MODULE, Out]),
   dataflow:emit(Out).
+
+
+
+build_addresses(InList) ->
+  ParamList = [s7addr:parse(Address) || Address <- InList],
+  Splitted = [maps:take(dtype, Map) || Map <- ParamList],
+  TypeList = [K || {K, _P} <- Splitted],
+  PList = [P || {_K, P} <- Splitted],
+  SplitRes = split(PList, ?MAX_READ_ITEMS),
+  {SplitRes, TypeList}.
+%%  lager:notice("Addresses parsed and SPLIT into ~p parts: ~p", [length(SplitRes), SplitRes]),
+%%  lager:notice("TypeList SPLIT into ~p parts: ~p", [length(TypeList), TypeList]).
+
+split([], _) -> [];
+split(L, N) when length(L) < N -> [L];
+split(L, N) ->
+  {A, B} = lists:split(N, L),
+  [A | split(B, N)].
 
 
 build_point(ResultList, AliasList) when is_list(ResultList), is_list(AliasList) ->

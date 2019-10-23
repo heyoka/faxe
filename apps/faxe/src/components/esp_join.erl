@@ -36,7 +36,7 @@ inports() ->
 
 options() -> [
    {joined, nodes, {ports, [2,3,4,5]}},
-   {prefix,     string_list, [<<"val">>]},
+   {prefix,     string_list, [<<"val1">>, <<"val2">>]},
    %% @todo maybe this should be aligned to wall clock ?
    %% a wall-clock timeout will be set up per time unit to collect all values,
    %% values that do not arrive within the given timeout will be treated as missing, in ms
@@ -118,8 +118,26 @@ handle_info({tick, Ts}, State = #state{buffer = Buffer, prefix = As, timers = TL
    end,
    {ok, State#state{buffer = NewBuffer, timers = proplists:delete(Ts, TList)}}.
 
+
+join(RowData, Ts, _) ->
+   NewPoint =
+      lists:foldl(
+         fun({_Port, #data_point{fields = #{<<"data">> := DataMap}}},
+               P=#data_point{fields = #{<<"data">> := AccDataMap}}) ->
+
+            NewData = maps:merge(AccDataMap, DataMap),
+%%               [{<<Prefix/binary, FName/binary>>, Val} ||
+%%                  {FName, Val} <- maps:to_list(Fields)],
+            P#data_point{fields = #{<<"data">> => NewData}}
+         end,
+         #data_point{ts = Ts, fields = #{<<"data">> => #{}}},
+         RowData
+      ),
+%%   lager:info("join OUT at ~p: ~p",[faxe_time:to_date(Ts),NewPoint]),
+   NewPoint.
+
 %% actually join the buffer rows
-join(RowData, Ts, Prefixes) ->
+join_(RowData, Ts, Prefixes) ->
    NewPoint =
    lists:foldl(
       fun({Port, #data_point{fields = Fields}}, P=#data_point{}) ->

@@ -215,8 +215,10 @@ handle_call({start, Inputs, Subscriptions, FlowMode}, _From,
    lager:debug("component ~p starts with options; ~p", [{CB, CBState}]),
    Opts = CBState,
    {NewCBOpts, NewState} = eval_args(Opts, State),
+   Inited = CB:init(NId, Inputs, NewCBOpts),
+   lager:warning("CB:init gives: ~p",[Inited]),
    {AReq, NewCBState} =
-   case CB:init(NId, Inputs, NewCBOpts) of
+   case Inited of
 
       {ok, ARequest, NCBState}      -> {ARequest, NCBState};
       {ok, NCBState}                -> {all, NCBState};
@@ -276,7 +278,7 @@ handle_info({item, {Inport, Value}},
    end,
 %%
 %%   lager:notice("stats for ~p: ~p",[NId, folsom_metrics:get_histogram_statistics(NId)]),
-
+lager:warning("cb state is: ~p",[CBState]),
    folsom_metrics:notify({NId, 1}),
    %gen_event:notify(dfevent_component, {item, State#c_state.node_id, {Inport, Value}}),
 %%   Result = (Module:process(Inport, Value, CBState)),

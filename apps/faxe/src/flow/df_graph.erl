@@ -258,7 +258,7 @@ start(FlowMode, State=#state{graph = G, id = _Id}) ->
             = Label,
          {ok, Pid} = df_component:start_link(Component, NodeId, Inports, OutPorts, Metadata),
          {E, Pid}
-      end, Nodes0),
+      end, lists:reverse(Nodes0)),
    %% Inports and Subscriptions
    Subscriptions = lists:foldl(fun({NId, _N}, Acc) ->
       [{NId, build_subscriptions(G, NId, Nodes, FlowMode)}|Acc]
