@@ -9,7 +9,8 @@
 .as('concat_string.int')
 
 @mirror()
-.foo('bar')
-.baz(55.78577)
+.foo('some string')
+%.bar(55.78577)
+.baz(1256)
 
 |debug()

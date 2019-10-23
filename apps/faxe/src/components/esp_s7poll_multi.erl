@@ -7,7 +7,7 @@
 %%% @end
 %%% Created : 14. June 2019 11:32:22
 %%%-------------------------------------------------------------------
--module(esp_s7poll).
+-module(esp_s7poll_multi).
 -author("heyoka").
 
 %% API
@@ -19,6 +19,7 @@
 
 
 -define(MAX_READ_ITEMS, 5).
+-define(READ_TIMEOUT, 3000).
 
 -record(state, {
   ip,
@@ -69,7 +70,7 @@ init(_NodeId, _Ins,
   State = #state{
     ip = Ip,
     port = Port,
-    as = lists:zip(As, TypeList), %AsTypes,
+    as = AsTypes,
     slot = Slot,
     rack = Rack,
     clients = Clients,
@@ -87,18 +88,22 @@ process(_Inport, #data_point{} = _Point, State = #state{}) ->
   {ok, State}.
 
 handle_info(poll,
-    State=#state{clients = Clients, as = Aliases, timer = Timer,
-      vars = Opts, diff = Diff, last_values = LastList, ip = Ip, rack = Rack, slot = Slot}) ->
-  NewState =
-  case (catch snapclient:read_multi_vars(Client, Opts)) of
-    {ok, Res} ->
-%%      lager:info("Result from snap7 polling ~p : ~p",[Opts, Res]),
-      maybe_emit(Diff, Res, Aliases, LastList), State#state{last_values = Res};
-    _Other -> lager:warning("Error when reading S7 Vars: ~p", [_Other]),
-      NewClient = connect(Ip, Rack, Slot), State#state{clients = NewClient}
+    State=#state{clients = Clients, as = Aliases, timer = Timer,diff = Diff, last_values = LastList}) ->
+  [Reader ! read || Reader <- Clients],
+  case collect_results(Clients, []) of
+    [] -> ok;
+    ResultList when is_list(ResultList) -> maybe_emit(Diff, ResultList, Aliases, LastList)
   end,
+%%  NewState =
+%%  case (catch snapclient:read_multi_vars(Client, Opts)) of
+%%    {ok, Res} ->
+%%%%      lager:info("Result from snap7 polling ~p : ~p",[Opts, Res]),
+%%      maybe_emit(Diff, Res, Aliases, LastList), State#state{last_values = Res};
+%%    _Other -> lager:warning("Error when reading S7 Vars: ~p", [_Other]),
+%%      NewClient = connect(Ip, Rack, Slot), State#state{clients = NewClient}
+%%  end,
   NewTimer = faxe_time:timer_next(Timer),
-  {ok, NewState#state{timer = NewTimer}};
+  {ok, State#state{timer = NewTimer}};
 %% client process is down, we match the Object field from the DOWN message against the current client pid
 handle_info({'DOWN', _MonitorRef, _Type, Client, Info},
     State=#state{clients = Client, ip = Ip, rack = Rack, slot = Slot}) ->
@@ -115,24 +120,22 @@ shutdown(#state{clients = Client, timer = Timer}) ->
   catch (faxe_time:timer_cancel(Timer)),
   catch (snapclient:disconnect(Client)).
 
-read_vars([], [], Result) ->
+
+collect_results([], Result) ->
   Result;
-read_vars([Client|Clients], [Vars|Variables], Result) ->
-  Res = read(Client, Vars),
-  read_vars(Clients, Variables, Result++Res).
+collect_results(Readers, Res) ->
+  receive
+    {read_ok, Reader, Result} ->
+      NewRes = [Result|Res],
+      collect_results(lists:delete(Reader, Readers), NewRes);
+    {read_error, _, _} -> []
 
-read(Client, Opts) ->
-  case (catch snapclient:read_multi_vars(Client, Opts)) of
-    {ok, Res} -> Res,
-%%      lager:info("Result from snap7 polling ~p : ~p",[Opts, Res]),
-      maybe_emit(Diff, Res, Aliases, LastList), State#state{last_values = Res};
-    _Other -> lager:warning("Error when reading S7 Vars: ~p", [_Other]),
-      NewClient = connect(Ip, Rack, Slot), State#state{clients = NewClient}
-  end,
+  after ?READ_TIMEOUT -> []
+  end.
 
 
--spec maybe_emit(Diff :: true|false, ResultList :: list(), Aliases :: list(), LastResults :: list()) -> ok | term().
 %% no diff flag -> emit
+-spec maybe_emit(Diff :: true|false, ResultList :: list(), Aliases :: list(), LastResults :: list()) -> ok | term().
 maybe_emit(false, Res, Aliases, _) ->
   Out = build_point(Res, Aliases),
 %%  lager:notice("~p emitting no diff (or empty last list): ~p ",[?MODULE, Out]),
