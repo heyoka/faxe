@@ -55,7 +55,8 @@
    as,
    signed,
    requests,
-   timer
+   timer,
+   align = false
 }).
 
 -define(FUNCTIONS, [<<"coils">>, <<"hregs">>, <<"iregs">>, <<"inputs">>, <<"memory">>]).
@@ -66,6 +67,7 @@ options() -> [
    {ip, string},
    {port, integer, 502},
    {every, duration, <<"1s">>},
+   {align, is_set, false},
    {device, integer, 255},
    {function, binary_list},
    {from, integer_list},
@@ -90,9 +92,8 @@ init(_NodeId, _Ins, #{} = Opts) ->
          [] -> [ [] || _X <- lists:seq(1, erlang:length(Req0))];
          L when is_list(L) -> L
       end,
-   Timer = faxe_time:timer_new(State#state.interval, poll),
    Requests = lists:zip(Req0, ReqOpts),
-   NewState = State#state{client = Modbus, requests = Requests, timer = Timer},
+   NewState = State#state{client = Modbus, requests = Requests},
    {ok, all, NewState}.
 
 init_opts([{ip, Ip0}|Opts], State) ->
@@ -102,7 +103,7 @@ init_opts([{port, Port}|Opts], State) ->
 init_opts([{device, DevId}|Opts], State) ->
    init_opts(Opts, State#state{device_address = DevId});
 init_opts([{every, Dur}|Opts], State) ->
-   init_opts(Opts, State#state{interval = faxe_time:duration_to_ms(Dur)});
+   init_opts(Opts, State#state{interval = Dur});
 init_opts([{function, Functions}|Opts], State) ->
    init_opts(Opts, State#state{function = [func(Fun) || Fun <- Functions]});
 init_opts([{from, Starts}|Opts], State) ->
@@ -115,6 +116,8 @@ init_opts([{output, Outputs}|Opts], State) ->
    init_opts(Opts, State#state{outputs = Outputs});
 init_opts([{signed, Flags}|Opts], State) ->
    init_opts(Opts, State#state{signed = Flags});
+init_opts([{align, Align}|Opts], State) ->
+   init_opts(Opts, State#state{align = Align});
 init_opts(_O, State) ->
    State.
 
@@ -141,9 +144,10 @@ handle_info({'DOWN', _MonitorRef, process, _Object, Info},
    {ok, Modbus} = modbus:connect([{host, Ip}, {port,Port}, {unit_id, Device}, {max_retries, 7}]),
    erlang:monitor(process, Modbus),
    {ok, State#state{client = Modbus, timer = NewTimer}};
-handle_info({modbus, _From, connected}, S = #state{timer = Timer}) ->
+handle_info({modbus, _From, connected}, S = #state{}) ->
 %%   lager:notice("Modbus is connected, lets start polling ..."),
-   NewState = S#state{timer = faxe_time:timer_now(Timer)},
+   Timer = faxe_time:init_timer(S#state.align, S#state.interval, poll),
+   NewState = S#state{timer = Timer},
    {ok, NewState};
 %% if disconnected, we just wait for a connected message and stop polling in the mean time
 handle_info({modbus, _From, disconnected}, State=#state{timer = Timer}) ->
