@@ -58,7 +58,7 @@
    timer_start/2,
    timer_next/1,
    timer_cancel/1
-   , timer_now/1]).
+   , timer_now/1, init_timer/3]).
 
 %%% @doc
 %%% get "now" in milliseconds,
@@ -347,6 +347,24 @@ interval(_) -> 1.
 
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%% timer %%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%% @doc
+%% init and start a timer, possibly aligned to a multiple of Interval
+%% note that Interval is a duration() / binary here, ie: 15s
+%% if Align is given as false, this function has the same behaviour as the "timer_start" function
+%%
+-spec init_timer(true|false, duration(), term()) -> #faxe_timer{}.
+init_timer(Align, Interval, Message) when is_atom(Align), is_binary(Interval) ->
+   Now = faxe_time:now(),
+   NewTs =
+      case Align of
+         true -> faxe_time:align(Now, faxe_time:binary_to_duration(Interval));
+         false -> Now
+      end,
+   TRef = faxe_time:send_at(NewTs, Message),
+   Timer = #faxe_timer{interval = faxe_time:duration_to_ms(Interval),
+      message = Message, last_time = NewTs, timer_ref = TRef},
+   Timer.
+
 %% @doc create a new timer instance
 -spec timer_new(non_neg_integer(), term()) -> #faxe_timer{}.
 timer_new(Interval, Message) ->
@@ -374,8 +392,7 @@ timer_now(Timer = #faxe_timer{message = Message}) ->
 timer_next(Timer = #faxe_timer{interval = Interval, message = Message, last_time = Last}) ->
    NewAt = Last + Interval,
    lager:notice("timer next send in: ~p ms for :~p || ~p",[NewAt-faxe_time:now(), NewAt, Timer]),
-   TRef = send_at(NewAt, Message),
-%%      erlang:send_after(NewAt, self(), Message, [{abs, true}]),
+   TRef = faxe_time:send_at(NewAt, Message),
    Timer#faxe_timer{last_time = NewAt, timer_ref = TRef}.
 
 %% @doc cancel a running timer

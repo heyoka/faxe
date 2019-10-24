@@ -151,15 +151,7 @@ build_group_bys([GroupField|R], GroupClause) ->
    build_group_bys(R, Acc).
 
 init_timer(S = #state{align = Align, every = Every}) ->
-   Now = faxe_time:now(),
-   NewTs =
-   case Align of
-      true -> faxe_time:align(Now, faxe_time:binary_to_duration(Every));
-      false -> Now
-   end,
-   TRef = faxe_time:send_at(NewTs, query),
-   Timer = #faxe_timer{interval = faxe_time:duration_to_ms(Every),
-      message = query, last_time = NewTs, timer_ref = TRef},
+   Timer = faxe_time:init_timer(Align, Every, query),
    S#state{timer = Timer}.
 
 %% result handling
