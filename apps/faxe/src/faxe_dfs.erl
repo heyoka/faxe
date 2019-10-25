@@ -220,17 +220,20 @@ node_conn_params({NodeName, _Id}=N, NodeParams) ->
             ({connect, {_NodeName, _CNodeId}=CNode}, {Cs, Params, Index}) ->
                CParams = faxe_node_params:params(NodeName),
                NewConnections =
-               case catch(lists:nth(Index, CParams)) of
-                  {all, NPort} -> [{N, CNode, NPort}|Cs];
+               case CParams of
+                  {all, new_port, StartPort} -> [{N, CNode, StartPort+Index}|Cs];
+                  _ -> case catch(lists:nth(Index, CParams)) of
+                          {all, NPort} -> [{N, CNode, NPort}|Cs];
 
 
-                  {Index, NPort} -> [{N, CNode, NPort}|Cs];
+                          {Index, NPort} -> [{N, CNode, NPort}|Cs];
 
-                  _Error ->
-                     throw("Illegal or missing Connection Parameter " ++
-                     integer_to_list(Index) ++ " for node '" ++ binary_to_list(NodeName)++"'" )
-               end
-               ,
+                          _Error ->
+                             throw("Illegal or missing Connection Parameter " ++
+                                integer_to_list(Index) ++ " for node '"
+                                ++ binary_to_list(NodeName)++"'" )
+                       end
+               end,
                {NewConnections, Params, Index+1};
             (Par, {Cs0, Params0, Index0}) -> {Cs0, [Par]++Params0, Index0+1}
          end,

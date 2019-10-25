@@ -268,8 +268,9 @@ start(FlowMode, State=#state{graph = G, id = _Id}) ->
    lists:foreach(
       fun({NodeId, NPid}) ->
          {Inputs, Subs} = proplists:get_value(NodeId, Subscriptions),
-         NodeStart = df_component:start_node(NPid, Inputs, Subs, FlowMode),
-         lager:debug("NodeStart for ~p gives: ~p",[NodeId, NodeStart] )
+         df_component:start_async(NPid, Inputs, Subs, FlowMode)
+%%         NodeStart = df_component:start_node(NPid, Inputs, Subs, FlowMode),
+%%         lager:debug("NodeStart for ~p gives: ~p",[NodeId, NodeStart] )
       end,
       Nodes),
    %% if in pull mode initially let all components send requests to their producers

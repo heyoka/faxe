@@ -202,6 +202,20 @@ do_check({not_empty, Keys}, Opts, Mod) ->
          _ -> ok
       end
       end,
+   lists:foreach(F, Keys);
+
+do_check({max_param_count, Keys, Max}, Opts, Mod) ->
+   F = fun(KeyE) ->
+         case maps:get(KeyE, Opts, undefined) of
+            undefined -> ok; %% should not happen
+            Params -> case erlang:length(Params) > Max of
+                         true -> erlang:error(format_error(too_many_items, Mod,
+                            [<<"Max param count: '">>, Max, <<" for ">>,
+                               atom_to_binary(KeyE, utf8), <<"'">>]));
+                         false -> ok
+                      end
+         end
+       end,
    lists:foreach(F, Keys).
 
 option_error(OptType, Given, Should, Name) ->

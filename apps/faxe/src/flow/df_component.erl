@@ -9,7 +9,7 @@
 
 %% API
 -export([start_link/5]).
--export([start_node/4, inports/1, outports/1]).
+-export([start_node/4, inports/1, outports/1, start_async/4]).
 
 %% Callback API
 %%-export([request_items/2, emit/1, emit/2]).
@@ -163,6 +163,9 @@ start_link(Component, NodeId, Inports, Outports, Args) ->
 start_node(Server, Inputs, Subscriptions, FlowMode) ->
    gen_server:call(Server, {start, Inputs, Subscriptions, FlowMode}).
 
+start_async(Server, Inputs, Subscriptions, FlowMode) ->
+   Server ! {start, Inputs, Subscriptions, FlowMode}.
+
 inports(Module) ->
    case erlang:function_exported(Module, inports, 0) of
       true -> Module:inports();
@@ -216,7 +219,7 @@ handle_call({start, Inputs, Subscriptions, FlowMode}, _From,
    Opts = CBState,
    {NewCBOpts, NewState} = eval_args(Opts, State),
    Inited = CB:init(NId, Inputs, NewCBOpts),
-   lager:warning("CB:init gives: ~p",[Inited]),
+%%   lager:warning("CB:init gives: ~p",[Inited]),
    {AReq, NewCBState} =
    case Inited of
 
@@ -259,10 +262,44 @@ handle_cast(_Request, State) ->
 %% @doc
 %% these are the messages from and to other dataflow nodes
 %% do not use these tags in your callback 'handle_info' functions :
-%% 'request' | 'item' | 'emit' | 'pull' | 'stop'
+%% 'start' | 'request' | 'item' | 'emit' | 'pull' | 'stop'
 %% you will not receive the info message in the callback with these
 %%
 %% @end
+handle_info({start, Inputs, Subscriptions, FlowMode},
+    State=#c_state{component = CB, cb_state = CBState, node_id = NId}) ->
+
+   %gen_event:notify(dfevent_component, {start, State#c_state.node_id, FlowMode}),
+   lager:debug("component ~p starts with options; ~p", [{CB, CBState}]),
+   Opts = CBState,
+   {NewCBOpts, NewState} = eval_args(Opts, State),
+   Inited = CB:init(NId, Inputs, NewCBOpts),
+%%   lager:warning("CB:init gives: ~p",[Inited]),
+   {AReq, NewCBState} =
+      case Inited of
+
+         {ok, ARequest, NCBState}      -> {ARequest, NCBState};
+         {ok, NCBState}                -> {all, NCBState};
+         {error_options, Message}      -> erlang:error(Message);
+         {error, What}                 -> erlang:error(What)
+      end,
+
+   AR = case FlowMode of pull -> AReq; push -> none end,
+   CallbackHandlesInfo = erlang:function_exported(CB, handle_info, 2),
+   %% metrics
+   folsom_metrics:new_histogram(NId, slide, 60),
+   folsom_metrics:new_history(<< NId/binary, "_processing_errors" >>, 24),
+   {noreply,
+      NewState#c_state{
+         subscriptions = Subscriptions,
+         inports = Inputs,
+         auto_request = AR,
+         cb_state = NewCBState,
+         flow_mode = FlowMode,
+         cb_handle_info = CallbackHandlesInfo}}
+;
+
+
 handle_info({request, ReqPid, ReqPort}, State=#c_state{subscriptions = Ss}) ->
    NewSubs = df_subscription:request(Ss, ReqPid, ReqPort),
    {noreply, State#c_state{subscriptions =  NewSubs}};
@@ -278,7 +315,7 @@ handle_info({item, {Inport, Value}},
    end,
 %%
 %%   lager:notice("stats for ~p: ~p",[NId, folsom_metrics:get_histogram_statistics(NId)]),
-lager:warning("cb state is: ~p",[CBState]),
+%%lager:warning("cb state is: ~p",[CBState]),
    folsom_metrics:notify({NId, 1}),
    %gen_event:notify(dfevent_component, {item, State#c_state.node_id, {Inport, Value}}),
 %%   Result = (Module:process(Inport, Value, CBState)),

@@ -1,11 +1,14 @@
 %% Date: 05.01.17 - 14:11
 %% Ⓒ 2017 heyoka
 %% @doc
-%% Join Datapoints from two or more nodes
+%% Join Datapoints from two or more nodes, given a list of prefixes, for each row
+%% If the 'field_merge' parameter is given, the node will merge the field given from every in-node, instead of
+%% joining.
 %% When considering the "fill" option, the following rules apply:
 %% * none - (default) skip rows where a point is missing, inner join.
 %% * null - fill missing points with null, full outer join.
 %% * Any numerical value - fill fields with given value, full outer join.
+%% Note, that this node will produce a completely new value.
 %% @end
 -module(esp_join).
 -author("Alexander Minichmair").
@@ -24,8 +27,9 @@
    lookup = [] :: list(), %% buffer-keys
    buffer, %% orddict with timstamps as keys
    prefix,
+   field_merge,
    tolerance,
-   granularity = {minute, 5}, %% if given, means: align the joining to the time-interval
+   %granularity = {minute, 5}, %% if given, means: align the joining to the time-interval
    m_timeout,
    timers = []
 }).
@@ -37,6 +41,7 @@ inports() ->
 options() -> [
    {joined, nodes, {ports, [2,3,4,5]}},
    {prefix,     string_list, [<<"val1">>, <<"val2">>]},
+   {field_merge, string, undefined},
    %% @todo maybe this should be aligned to wall clock ?
    %% a wall-clock timeout will be set up per time unit to collect all values,
    %% values that do not arrive within the given timeout will be treated as missing, in ms
@@ -47,12 +52,18 @@ options() -> [
    {fill,   any,     none} %% none, null, any numerical value
 ].
 
-init(NodeId, Ins, #{prefix := Prefix, missing_timeout := MTimeOut, tolerance := Tol}) ->
+init(NodeId, Ins,
+    #{prefix := Prefix, missing_timeout := MTimeOut, tolerance := Tol, field_merge := FMerge}) ->
    RowLength = length(Ins),
-  Prefix1 = lists:zip(lists:seq(1,RowLength), Prefix),
-%%   io:format("~p init:node :: ~p~n",[NodeId, Ins]),
+   Prefix1 =
+   case FMerge of
+      undefined -> lists:zip(lists:seq(1,RowLength), Prefix);
+      _ -> nil
+   end,
+
+   lager:notice("~p init:node :: ~p~n",[NodeId, Ins]),
    {ok, all,
-      #state{node_id = NodeId, prefix = Prefix1, row_length = length(Ins),
+      #state{node_id = NodeId, prefix = Prefix1, field_merge = FMerge, row_length = length(Ins),
       tolerance = faxe_time:duration_to_ms(Tol),
       m_timeout = faxe_time:duration_to_ms(MTimeOut)}}.
 
@@ -63,7 +74,7 @@ process(Inport, #data_point{ts = Ts} = Point, State = #state{buffer = undefined,
    NewBuffer = orddict:store(Ts, [{Inport, Point}], Buffer),
    {ok, State#state{buffer = NewBuffer, timers = NewList}};
 process(Inport, #data_point{ts = Ts} = Point, State = #state{buffer = Buffer, timers = TList,
-   prefix = As, m_timeout = MTimeout, row_length = RowLength, tolerance = Tolerance}) ->
+   prefix = As, field_merge = FMerge, m_timeout = MTimeout, row_length = RowLength, tolerance = Tolerance}) ->
 %%   lager:notice("In on port : ~p",[Inport]),
    TsList = orddict:fetch_keys(Buffer),
 %%   lager:info("new TsList in Buffer: ~p",[TsList]),
@@ -84,7 +95,7 @@ process(Inport, #data_point{ts = Ts} = Point, State = #state{buffer = Buffer, ti
    {NewBuffer, NewTimerList} =
    case length(NewRow) == RowLength of
       true ->
-         dataflow:emit(join(NewRow, NewTs, As)),
+         dataflow:emit(conflate(NewRow, NewTs, As, FMerge)),
          {orddict:erase(NewTs, Buffer), clear_timeout(NewTs, TList)};
 
       false ->
@@ -106,38 +117,44 @@ process(Inport, #data_point{ts = Ts} = Point, State = #state{buffer = Buffer, ti
 handle_info({tick, Ts}, State = #state{buffer = [], timers = TList}) ->
 %%   lager:warning("~p empty buffer when ticked",[?MODULE]),
    {ok, State#state{timers = proplists:delete(Ts, TList), buffer = undefined}};
-handle_info({tick, Ts}, State = #state{buffer = Buffer, prefix = As, timers = TList}) ->
+handle_info({tick, Ts},
+    State = #state{buffer = Buffer, prefix = As, field_merge = FMerge, timers = TList}) ->
 %%   lager:warning("~p ticks missing timeout :: ~p",[?MODULE, Buffer]),
    NewBuffer =
    case lists:member(Ts, orddict:fetch_keys(Buffer)) of
       true ->
             {Row, NewDict} = orddict:take(Ts, Buffer),
-            dataflow:emit(join(Row, Ts, As)),
+            dataflow:emit(conflate(Row, Ts, As, FMerge)),
             NewDict;
       false -> Buffer
    end,
    {ok, State#state{buffer = NewBuffer, timers = proplists:delete(Ts, TList)}}.
 
+%% conflate the rows in buffer
+conflate(RowData, Ts, Prefixes, undefined) ->
+   join(RowData, Ts, Prefixes);
+conflate(RowData, Ts, _Prefixes, FieldMerge) ->
+   merge(RowData, Ts, FieldMerge).
 
-join(RowData, Ts, _) ->
+merge(RowData, Ts, MergeField) ->
+   lager:notice("MERGE ROWS: ~p~n", [length(RowData)]),
+   [lager:notice("~p~n", [Port]) || {Port, _Row} <- RowData],
    NewPoint =
       lists:foldl(
-         fun({_Port, #data_point{fields = #{<<"data">> := DataMap}}},
-               P=#data_point{fields = #{<<"data">> := AccDataMap}}) ->
+         fun({_Port, #data_point{fields = #{MergeField := DataMap}}},
+               P=#data_point{fields = #{MergeField := AccDataMap}}) ->
 
             NewData = maps:merge(AccDataMap, DataMap),
-%%               [{<<Prefix/binary, FName/binary>>, Val} ||
-%%                  {FName, Val} <- maps:to_list(Fields)],
-            P#data_point{fields = #{<<"data">> => NewData}}
+            P#data_point{fields = #{MergeField => NewData}}
          end,
-         #data_point{ts = Ts, fields = #{<<"data">> => #{}}},
+         #data_point{ts = Ts, fields = #{MergeField => #{}}},
          RowData
       ),
 %%   lager:info("join OUT at ~p: ~p",[faxe_time:to_date(Ts),NewPoint]),
    NewPoint.
 
 %% actually join the buffer rows
-join_(RowData, Ts, Prefixes) ->
+join(RowData, Ts, Prefixes) ->
    NewPoint =
    lists:foldl(
       fun({Port, #data_point{fields = Fields}}, P=#data_point{}) ->

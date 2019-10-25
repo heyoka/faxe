@@ -11,7 +11,7 @@
 
 %% [{param_number, port_number}]
 params(<<"combine">>) -> [{1, 2}];
-params(<<"join">>) -> [{all, 2}].
+params(<<"join">>) -> {all, new_port, 1}.
 
 options(<<"deadman">>) -> [{1, <<"interval">>, duration},{2, <<"threshold">>, int}];
 options(<<"shift">>) -> [{1, <<"offset">>, duration}];
