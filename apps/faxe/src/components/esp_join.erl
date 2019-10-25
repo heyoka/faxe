@@ -136,18 +136,19 @@ conflate(RowData, Ts, Prefixes, undefined) ->
 conflate(RowData, Ts, _Prefixes, FieldMerge) ->
    merge(RowData, Ts, FieldMerge).
 
-merge(RowData, Ts, MergeField) ->
+merge(RowData, Ts, MField) ->
+   MergeField = flowdata:path(MField),
    lager:notice("MERGE ROWS: ~p~n", [length(RowData)]),
    [lager:notice("~p~n", [Port]) || {Port, _Row} <- RowData],
    NewPoint =
       lists:foldl(
-         fun({_Port, #data_point{fields = #{MergeField := DataMap}}},
-               P=#data_point{fields = #{MergeField := AccDataMap}}) ->
-
-            NewData = maps:merge(AccDataMap, DataMap),
-            P#data_point{fields = #{MergeField => NewData}}
+         fun({_Port, OP=#data_point{}}, P=#data_point{}) ->
+            M1 = flowdata:field(OP, MergeField), M2 = flowdata:field(P, MergeField),
+            NewData = maps:merge(M1, M2),
+            flowdata:set_field(P, MergeField, NewData)
+%%            P#data_point{fields = #{MergeField => NewData}}
          end,
-         #data_point{ts = Ts, fields = #{MergeField => #{}}},
+         flowdata:set_field(#data_point{ts = Ts}, MergeField, #{}),
          RowData
       ),
 %%   lager:info("join OUT at ~p: ~p",[faxe_time:to_date(Ts),NewPoint]),

@@ -476,7 +476,9 @@ first_ts(#data_batch{points = P}) ->
 paths(Paths) when is_list(Paths) ->
    [path(Path) || Path <- Paths].
 
--spec path(binary()) -> binary()|tuple().
+
+-spec path(binary()|tuple()) -> binary()|tuple().
+path(Path) when is_tuple(Path) -> Path;
 path(Path) when is_binary(Path) ->
    case ets:lookup(field_paths, Path) of
       [] -> Ret = convert_path(Path), ets:insert(field_paths, {Path, Ret}), Ret;
