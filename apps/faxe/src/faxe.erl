@@ -28,7 +28,7 @@
    start_permanent_tasks/0,
    get_stats/1,
    update_file_task/2,
-   update_string_task/2, update_task/3, update/3]).
+   update_string_task/2, update_task/3, update/3, get_errors/1]).
 
 %%iso1006_header_decode(<<3:8,_Reserved:8, PLength:16/integer-unsigned>>) ->
 %%   PLength.
@@ -289,6 +289,18 @@ get_stats(TaskId) ->
       #task{pid = Graph} when is_pid(Graph) ->
          case is_process_alive(Graph) of
             true -> df_graph:get_stats(Graph);
+            false -> {error, task_not_running}
+         end;
+      #task{} -> faxe_db:delete_task(TaskId)
+   end.
+
+get_errors(TaskId) ->
+   T = faxe_db:get_task(TaskId),
+   case T of
+      {error, not_found} -> {error, not_found};
+      #task{pid = Graph} when is_pid(Graph) ->
+         case is_process_alive(Graph) of
+            true -> df_graph:get_errors(Graph);
             false -> {error, task_not_running}
          end;
       #task{} -> faxe_db:delete_task(TaskId)

@@ -83,12 +83,13 @@ to_json(P) when is_record(P, data_point) orelse is_record(P, data_batch) ->
    end.
 %%
 to_mapstruct(P=#data_point{ts = Ts, fields = Fields, tags = _Tags}) ->
+
+   AllDataFields = maps:without([<<"id">>,<<"vs">>,<<"df">>], Fields),
    DataFields =
-   case maps:get(<<"data">>, Fields, nil) of
-      nil -> maps:without([<<"id">>,<<"vs">>,<<"df">>], Fields);
-      Data -> Data
-   end,
-%%   lager:info("Datafields for JSON: ~p", [DataFields]),
+      case maps:get(<<"data">>, AllDataFields, nil) of
+         nil -> AllDataFields;
+         Data -> maps:merge(maps:without([<<"data">>], AllDataFields), Data)
+      end,
    #{?DEFAULT_TS_FIELD => Ts,
       <<"id">> => field(P ,<<"id">>, ?DEFAULT_ID),
       <<"vs">> => field(P, <<"vs">>, ?DEFAULT_VS),

@@ -71,7 +71,7 @@ init(NodeId, _Ins, #{cb_module := Callback, cb_class := CBClass} = Args) ->
 process(_Inport, #data_batch{} = Batch, State = #state{callback_module = Mod, python_instance = Python,
    cb_object = Obj, callback_class = Class}) ->
    lager:notice("from batch to list of maps: ~p",[flowdata:to_map(Batch)]),
-   Data = flowdata:to_map(Batch),
+   Data = flowdata:to_mapstruct(Batch),
 %%   Res = python:call(Python, Mod, build_class_call(Class, ?PYTHON_BATCH_CALL), [Obj, Data]),
    {Call, NewState} = build_class_call(Class, ?PYTHON_BATCH_CALL, State),
    {T, Res} =
@@ -82,7 +82,7 @@ process(_Inport, #data_batch{} = Batch, State = #state{callback_module = Mod, py
 process(_Inport, #data_point{} = Point, State = #state{python_instance = Python, callback_module = Mod,
    cb_object = Obj, callback_class = Class}) ->
 
-   Data = to_data_mapstruct(Point),
+   Data = flowdata:to_mapstruct(Point),
    lager:notice("DataPoint data: ~p",[Data]),
    {Call, NewState} = build_class_call(Class, ?PYTHON_POINT_CALL, State),
    {T, Res} =
@@ -113,24 +113,3 @@ build_class_call(Class, Func, State = #state{func_calls = Calls}) when is_atom(C
          {Call, State#state{func_calls = [{Func,Call} | Calls]}};
       FuncCall -> {FuncCall, State}
    end.
-
-
-
--define(DEFAULT_ID, <<"00000">>).
--define(DEFAULT_VS, 1).
--define(DEFAULT_DF, <<"00.000">>).
-
-to_data_mapstruct(P=#data_point{ts = Ts, fields = Fields, tags = _Tags}) ->
-   DataFields =
-      case maps:get(<<"data">>, Fields, nil) of
-         nil -> maps:without([<<"id">>,<<"vs">>,<<"df">>], Fields);
-         Data -> Data
-      end,
-%%   ML = maps:to_list(DataFields),
-%%   Cleaned = maps:from_list([{binary_to_list(Key), Val} || {Key, Val} <- ML]),
-%%   lager:info("Datafields for JSON: ~p", [DataFields]),
-   #{<<"ts">> => Ts,
-      <<"id">> => flowdata:field(P ,<<"id">>, ?DEFAULT_ID),
-      <<"vs">> => flowdata:field(P, <<"vs">>, ?DEFAULT_VS),
-      <<"df">> => flowdata:field(P, <<"df">>, ?DEFAULT_DF),
-      <<"data">> => DataFields}.

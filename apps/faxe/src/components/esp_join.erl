@@ -138,8 +138,6 @@ conflate(RowData, Ts, _Prefixes, FieldMerge) ->
 
 merge(RowData, Ts, MField) ->
    MergeField = flowdata:path(MField),
-   lager:notice("MERGE ROWS: ~p~n", [length(RowData)]),
-   [lager:notice("~p~n", [Port]) || {Port, _Row} <- RowData],
    NewPoint =
       lists:foldl(
          fun({_Port, OP=#data_point{}}, P=#data_point{}) ->

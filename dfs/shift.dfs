@@ -5,7 +5,10 @@ def s =
     .type(point)
 
     |default()
-    .fields('id', 'df', 'vs')
-    .field_values('oi23u4oi23u4oi32u34oi2u3', '02.005', 1)
+    .fields('id', 'df', 'vs', 'data.mac[1]')
+    .field_values('oi23u4oi23u4oi32u34oi2u3', '02.005', 1, 'somoly')
 
-    @cratedb()
+    @mirror()
+    .foo('sefooo')
+    .bar(12.5)
+    .baz(55)

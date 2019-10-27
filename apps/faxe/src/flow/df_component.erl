@@ -3,7 +3,7 @@
 -module(df_component).
 -author("Alexander Minichmair").
 
--include("dataflow.hrl").
+-include("faxe.hrl").
 
 -behaviour(gen_server).
 
@@ -233,7 +233,7 @@ handle_call({start, Inputs, Subscriptions, FlowMode}, _From,
    CallbackHandlesInfo = erlang:function_exported(CB, handle_info, 2),
    %% metrics
    folsom_metrics:new_histogram(NId, slide, 60),
-   folsom_metrics:new_history(<< NId/binary, "_processing_errors" >>, 24),
+   folsom_metrics:new_history(<< NId/binary, ?FOLSOM_ERROR_HISTORY >>, 24),
    {reply, ok,
       NewState#c_state{
          subscriptions = Subscriptions,
@@ -245,9 +245,13 @@ handle_call({start, Inputs, Subscriptions, FlowMode}, _From,
 ;
 handle_call(stats, _From, State=#c_state{node_id = NId, component = Comp}) ->
    Res = {Comp,#{
-      <<"processing_errors">> => folsom_metrics:get_history_values(<< NId/binary, "_processing_errors" >>, 24),
+      <<"processing_errors">> => folsom_metrics:get_history_values(<< NId/binary, ?FOLSOM_ERROR_HISTORY >>, 24),
       <<"items processed">> => folsom_metrics:get_histogram_statistics(NId)
    }},
+   {reply, Res, State}
+;
+handle_call(errors, _From, State=#c_state{node_id = NId, component = Comp}) ->
+   Res = {Comp, folsom_metrics:get_history_values(<< NId/binary, ?FOLSOM_ERROR_HISTORY >>, 24)},
    {reply, Res, State}
 ;
 handle_call(_What, _From, State) ->
@@ -260,6 +264,7 @@ handle_cast(_Request, State) ->
 
 
 %% @doc
+%% start the node asynchronously
 %% these are the messages from and to other dataflow nodes
 %% do not use these tags in your callback 'handle_info' functions :
 %% 'start' | 'request' | 'item' | 'emit' | 'pull' | 'stop'
@@ -288,7 +293,7 @@ handle_info({start, Inputs, Subscriptions, FlowMode},
    CallbackHandlesInfo = erlang:function_exported(CB, handle_info, 2),
    %% metrics
    folsom_metrics:new_histogram(NId, slide, 60),
-   folsom_metrics:new_history(<< NId/binary, "_processing_errors" >>, 24),
+   folsom_metrics:new_history(<< NId/binary, ?FOLSOM_ERROR_HISTORY >>, 24),
    {noreply,
       NewState#c_state{
          subscriptions = Subscriptions,
@@ -319,13 +324,15 @@ handle_info({item, {Inport, Value}},
    folsom_metrics:notify({NId, 1}),
    %gen_event:notify(dfevent_component, {item, State#c_state.node_id, {Inport, Value}}),
 %%   Result = (Module:process(Inport, Value, CBState)),
-   case    (Module:process(Inport, Value, CBState)) of
+   case  catch(Module:process(Inport, Value, CBState)) of
       {'EXIT', {Reason,Stacktrace}} ->
          lager:error("'error' ~p in component ~p caught when processing item: ~p -- ~p",
          [Reason, State#c_state.component, {Inport, Value}, Stacktrace]),
-%%         folsom_metrics:notify({<< NId/binary, "_processing_errors" >>,
+         folsom_metrics:notify({<< NId/binary, ?FOLSOM_ERROR_HISTORY >>,
 %%            io_lib:format("'error' ~p in component ~p caught when processing item: ~p -- ~p",
-%%            [Reason, State#c_state.component, {Inport, Value}, Stacktrace])}),
+            [time_format:to_iso8601(faxe_time:now()), Reason, State#c_state.component, {Inport, Value}, Stacktrace]
+%%         )}
+         }),
          {noreply, State};
 
       Result ->

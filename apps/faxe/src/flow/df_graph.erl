@@ -5,7 +5,7 @@
 
 -behaviour(gen_server).
 
--include("dataflow.hrl").
+-include("faxe.hrl").
 
 %% API
 -export([start_link/2]).
@@ -29,7 +29,7 @@
    handle_cast/2,
    handle_info/2,
    terminate/2,
-   code_change/3]).
+   code_change/3, get_errors/1]).
 
 -record(state, {
    id                   :: non_neg_integer() | string(),
@@ -83,6 +83,9 @@ source_nodes(Graph) ->
 
 get_stats(Graph) ->
    gen_server:call(Graph, {stats}).
+
+get_errors(Graph) ->
+   gen_server:call(Graph, {get_errors}).
 
 %%%===================================================================
 %%% gen_server callbacks
@@ -146,7 +149,18 @@ handle_call({stop}, _From, State) ->
    do_stop(State),
    {stop, normal, State};
 handle_call({stats}, _From, State=#state{nodes = Nodes}) ->
+
    Res = [{NodeId, gen_server:call(NPid, stats)} || {NodeId, NPid} <- Nodes],
+   {reply, Res, State};
+handle_call({get_errors}, _From, State=#state{nodes = Nodes}) ->
+   GetHistory =
+      fun(NodeId) ->
+         {NodeId, #{
+            <<"processing_errors">> =>
+            folsom_metrics:get_history_values(<< NodeId/binary, ?FOLSOM_ERROR_HISTORY >>, 24)}
+         }
+      end,
+   Res = [GetHistory(NodeId) || {NodeId, _NPid} <- Nodes],
    {reply, Res, State}.
 
 

@@ -10,6 +10,7 @@
 
 -export_type([window_state/0, window_events/0]).
 
+-define(FOLSOM_ERROR_HISTORY, "_processing_errors").
 
 -define(OPT_TYPES, [
    is_set,

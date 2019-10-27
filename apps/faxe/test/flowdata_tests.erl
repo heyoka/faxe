@@ -264,6 +264,20 @@ json_basic_vs_test() ->
 
    ).
 
+json_basic_datamap_test() ->
+   P = #data_point{ts = 1568029511598, fields = #{<<"id">> => <<"ioi2u34oiu23oi4u2oi4u2">>,
+      <<"df">> => <<"01.002">>, <<"vs">> => 2, <<"value1">> => 323424,
+      <<"data">> => #{<<"value2">> => <<"somestringvalue">>}}
+   },
+   ?assertEqual(jiffy:decode(to_json(P), [return_maps]),
+      #{<<"ts">> =>1568029511598,
+         <<"id">> => <<"ioi2u34oiu23oi4u2oi4u2">>,
+         <<"vs">> => 2,
+         <<"df">> => <<"01.002">>,
+         <<"data">> => #{<<"value1">> => 323424, <<"value2">> => <<"somestringvalue">>}}
+
+   ).
+
 json_basic_default_test() ->
    P = #data_point{ts = 1568029511598,
       fields = #{<<"value1">> => 323424, <<"value2">> => <<"somestringvalue">>}},
