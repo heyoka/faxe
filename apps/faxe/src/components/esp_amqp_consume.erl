@@ -143,7 +143,13 @@ consumer_config(_Opts = #{vhost := VHost, queue := Q, prefetch := Prefetch,
 %%                     ,
 %%                  {bindings, StreamIds}
 
-               ]}
+               ]},
+               {exchange, [
+                         {exchange, XChange},
+                         {type, <<"topic">>},
+                         {source, <<"x_lm_fanout">>}
+                         ]
+                      }
             ]
          }
 

@@ -132,7 +132,8 @@ build_query(ValueList0, Table) when is_list(ValueList0) ->
 
 -spec handle_response(tuple()) -> ok|{error, invalid}|{failed, term()}.
 handle_response({ok,{{<<"200">>,<<"OK">>}, _Hdrs, _BodyJSON, _S, _T}}) -> ok;
-handle_response({ok,{{<<"4", _/binary>>,_}, _Hdrs, _BodyJSON, _S, _T}}) -> {error, invalid};
+handle_response({ok,{{<<"4", _/binary>>,_}, _Hdrs, _BodyJSON, _S, _T}}) ->
+   lager:error("Error 400: ~p",[_BodyJSON]), {error, invalid};
 handle_response({ok,{{<<"503">>,_}, _Hdrs, _BodyJSON, _S, _T}}) -> {failed, not_available};
 handle_response({ok,{{<<"5", _/binary>>,_}, _Hdrs, _BodyJSON, _S, _T}}) -> {failed, server_error};
 handle_response({error, What}) -> {failed, What}.

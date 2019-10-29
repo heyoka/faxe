@@ -120,9 +120,9 @@ handle_info({'EXIT', MQPid, Reason}, State=#state{channel = MQPid} ) ->
 handle_info(#'basic.ack'{delivery_tag = DTag, multiple = Multiple}, State) ->
    Tags =
    case Multiple of
-      true -> lager:notice("RabbitMQ confirmed MULTIPLE Tags till ~p",[DTag]),
+      true -> lager:warning("RabbitMQ confirmed MULTIPLE Tags till ~p",[DTag]),
                lists:seq(State#state.last_confirmed_dtag + 1, DTag);
-      false -> [DTag]
+      false -> lager:notice("RabbitMQ confirmed Tag ~p",[DTag]),[DTag]
    end,
 %%   lager:notice("bunny_worker ~p has pending_acks: ~p",[self(), State#state.pending_acks]),
    NewPendingList = handle_ack(Tags, State#state.pending_acks),

@@ -136,17 +136,20 @@ conflate(RowData, Ts, Prefixes, undefined) ->
 conflate(RowData, Ts, _Prefixes, FieldMerge) ->
    merge(RowData, Ts, FieldMerge).
 
-merge(RowData, Ts, MField) ->
+merge([RowData], _Ts, _MField) -> RowData;
+merge([{_Port, FirstRow}|RowData], Ts, MField) ->
    MergeField = flowdata:path(MField),
    NewPoint =
       lists:foldl(
          fun({_Port, OP=#data_point{}}, P=#data_point{}) ->
             M1 = flowdata:field(OP, MergeField), M2 = flowdata:field(P, MergeField),
-            NewData = maps:merge(M1, M2),
+%%            lager:notice("merge: ~p ~nand ~p",[M1, M2]),
+            NewData = merge(M1, M2),
             flowdata:set_field(P, MergeField, NewData)
 %%            P#data_point{fields = #{MergeField => NewData}}
          end,
-         flowdata:set_field(#data_point{ts = Ts}, MergeField, #{}),
+         FirstRow#data_point{ts = Ts},
+%%         flowdata:set_field(#data_point{ts = Ts}, MergeField, #{}),
          RowData
       ),
 %%   lager:info("join OUT at ~p: ~p",[faxe_time:to_date(Ts),NewPoint]),
@@ -202,6 +205,12 @@ clear_timeout(Ts, TimerList) ->
       undefined -> TimerList
    end
    .
+
+
+merge(M1, M2) when is_map(M1), is_map(M2) -> maps:merge(M1, M2);
+merge(M1, M2) when is_list(M1), is_list(M2) -> lists:merge(M1, M2);
+merge(_, _) -> error(cannot_merge_different_datatypes).
+
 
 -ifdef(TEST).
 %%   basic_test() -> ?assertEqual(16.6, execute([1,3,8,16,55], #{field => <<"val">>})).

@@ -164,6 +164,7 @@ split(L, N) ->
 
 
 build_point(ResultList, AliasList) when is_list(ResultList), is_list(AliasList) ->
+%%  flowdata:set_fields(#data_point{ts = faxe_time:now()}, ResultList, AliasList).
   build(#data_point{ts=faxe_time:now()}, ResultList, AliasList).
 
 build(Point=#data_point{}, [], []) ->

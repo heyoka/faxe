@@ -383,7 +383,7 @@ timer_start(Interval, Message) ->
 -spec timer_now(#faxe_timer{}) -> #faxe_timer{}.
 timer_now(Timer = #faxe_timer{message = Message}) ->
    Now = faxe_time:now(),
-   lager:debug("timer start for: ~p" ,[Now]),
+%%   lager:debug("timer start for: ~p" ,[Now]),
    TRef = erlang:send_after(0, self(), Message),
    Timer#faxe_timer{last_time = Now, timer_ref = TRef}.
 
@@ -391,7 +391,7 @@ timer_now(Timer = #faxe_timer{message = Message}) ->
 -spec timer_next(#faxe_timer{}) -> #faxe_timer{}.
 timer_next(Timer = #faxe_timer{interval = Interval, message = Message, last_time = Last}) ->
    NewAt = Last + Interval,
-   lager:notice("timer next send in: ~p ms for :~p || ~p",[NewAt-faxe_time:now(), NewAt, Timer]),
+%%   lager:notice("timer next send in: ~p ms for :~p || ~p",[NewAt-faxe_time:now(), NewAt, Timer]),
    TRef = faxe_time:send_at(NewAt, Message),
    Timer#faxe_timer{last_time = NewAt, timer_ref = TRef}.
 
@@ -400,7 +400,7 @@ timer_next(Timer = #faxe_timer{interval = Interval, message = Message, last_time
 timer_cancel(Timer = #faxe_timer{timer_ref = undefined}) ->
    Timer;
 timer_cancel(Timer = #faxe_timer{timer_ref = TRef}) ->
-   lager:notice("timer cancel: ~p", [Timer]),
+%%   lager:notice("timer cancel: ~p", [Timer]),
    catch erlang:cancel_timer(TRef),
    Timer#faxe_timer{timer_ref = undefined}.
 

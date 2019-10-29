@@ -2,7 +2,8 @@
 %%% @author heyoka
 %%% @copyright (C) 2019, <COMPANY>
 %%% @doc
-%%%
+%%% experimental merging of 2 nested maps, also merges lists of maps contained in maps
+%%% note: top level structures must be maps
 %%% @end
 %%% Created : 25. Oct 2019 12:23
 %%%-------------------------------------------------------------------
@@ -10,7 +11,19 @@
 -author("heyoka").
 
 %% API
--export([merge/3, test/0]).
+-export([merge/3, test/0, merge/2]).
+
+-define(MFUN, fun
+                 F(_K, {left, V}) -> {ok, V};
+                 F(_K, {right, V}) -> {ok, V};
+                 F(_K, {both, L, R}) when is_map(L), is_map(R) -> {ok, merge(F, L, R)};
+                 F(_K, {both, [L], [R]}) when is_map(L), is_map(R) -> {ok, [merge(F, L, R)]}; %% arbitrary choice
+                 F(_K, {both, L, R}) when is_list(L), is_list(R) -> {ok, L++R}; %% arbitrary choice
+                 F(_K, {both, L, R}) -> {ok, [L, R]} %% arbitrary choice
+              end).
+
+merge(L, R) ->
+   merge(?MFUN, L, R).
 
 merge(F, L, R) ->
    L1 = lists:sort(maps:to_list(L)),
@@ -32,13 +45,6 @@ merge(F, [{KX, VX}|Xs] = Left, [{KY,VY}|Ys] = Right, Acc) ->
 f(_K, undefined, Acc) -> Acc;
 f(K, {ok, R}, Acc) -> [{K, R} | Acc].
 
--define(MFUN, fun
-   F(_K, {left, V}) -> {ok, V};
-   F(_K, {right, V}) -> {ok, V};
-   F(_K, {both, L, R}) when is_map(L), is_map(R) -> {ok, merge(F, L, R)};
-   F(_K, {both, L, R}) when is_list(L), is_list(R) -> {ok, L++R}; %% arbitrary choice
-   F(_K, {both, L, R}) -> {ok, [L, R]} %% arbitrary choice
-end).
 
 test() ->
    M1 =

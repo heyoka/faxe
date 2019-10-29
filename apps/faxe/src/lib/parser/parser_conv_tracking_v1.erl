@@ -118,20 +118,20 @@ line([<< ?PP_PREFIX, _PP/binary>> = Pos| Fields], Acc=#{<<"sources">> := Srcs}) 
 line_src_e_pp(Pos, Fields)  ->
 
    [<<"TRAC:", Trac/binary>>,
-   <<"SCAN:", Scan/binary>>,
-   <<"SEQN:", SeqN/binary>>,
-   <<"TARG:", _Targ/binary>>,
-   <<"ATTR:", Attr/binary>>,
-   <<"TRG1:", Targ1/binary>>,
-   <<"TRG2:", Targ2/binary>>,
-   <<"TRG3:", Targ3/binary>>,
-   <<"TRG4:", Targ4/binary>>,
-   <<"TRG5:", Targ5/binary>>] = Fields,
-      #{<<"pos">> => Pos,
-         <<"trac">> => Trac,
-         <<"scan">> => Scan, <<"seqn">> => int_or_empty(SeqN),
-         <<"attr">> => eval_bitarray(int_or_empty(Attr), ?SOURCE_BITMASK_VAL),
-         <<"targ">> => lists:filter(fun(E) -> E /= <<>> end, [Targ1, Targ2, Targ3, Targ4, Targ5])}.
+      <<"SCAN:", Scan/binary>>,
+      <<"SEQN:", SeqN/binary>>,
+      <<"TARG:", _Targ/binary>>,
+      <<"ATTR:", Attr/binary>>,
+      <<"TRG1:", Targ1/binary>>,
+      <<"TRG2:", Targ2/binary>>,
+      <<"TRG3:", Targ3/binary>>,
+      <<"TRG4:", Targ4/binary>>,
+      <<"TRG5:", Targ5/binary>>] = Fields,
+   #{<<"pos">> => Pos,
+      <<"trac">> => Trac,
+      <<"scan">> => Scan, <<"seqn">> => int_or_null(SeqN),
+      <<"attr">> => eval_bitarray(int_or_empty(Attr), ?SOURCE_BITMASK_VAL),
+      <<"targ">> => lists:filter(fun(E) -> E /= <<>> end, [Targ1, Targ2, Targ3, Targ4, Targ5])}.
 
 %% TARGET, IT, DP lines
 line_tgt_it_dp(Pos, Fields) ->
@@ -143,8 +143,11 @@ line_tgt_it_dp(Pos, Fields) ->
       <<"ATTR:", Attr/binary>>] = Fields,
    #{<<"pos">> => Pos, <<"trac">> => Trac,
       <<"scan">> => Scan, <<"temp">> => Temp,
-      <<"seqn">> => int_or_empty(SeqN), <<"case">> => int_or_empty(Case),
+      <<"seqn">> => int_or_null(SeqN), <<"case">> => int_or_null(Case),
       <<"attr">> => eval_bitarray(int_or_empty(Attr), ?TARGET_BITMASK_VAL)}.
+
+int_or_null(<<>>) -> null;
+int_or_null(Int) when is_binary(Int) -> binary_to_integer(Int).
 
 int_or_empty(<<>>) -> <<>>;
 int_or_empty(Int) -> binary_to_integer(Int).
@@ -219,20 +222,20 @@ def() ->
          <<"PP2,TRAC:2058,SCAN:2058,SEQN:2,TARG:1,ATTR:16,TRG1:2051,TRG2:,TRG3:,TRG4:,TRG5:;">>]).
 
 def1() -> iolist_to_binary([
-         <<"19.08.01  17:35:44,899  ">>,
-         <<"T00,TRAC:3072,SCAN:3072,TEMP:,SEQN:,CASE:,ATTR:8;">>,
-         <<"T09,TRAC:,SCAN:,TEMP:,SEQN:,CASE:6,ATTR:0;">>,
-         <<"T10,TRAC:3062,SCAN:,TEMP:,SEQN:7,CASE:9999,ATTR:0;">>,
-         <<"T15,TRAC:2057,SCAN:2057,TEMP:,SEQN:,CASE:1,ATTR:16;">>,
-         <<"IT1,TRAC:3062,SCAN:,TEMP:,SEQN:,CASE:,ATTR:0;">>,
-         <<"DP1,TRAC:3068,SCAN:3068,TEMP:,SEQN:1,CASE:3100,ATTR:0;">>,
-         <<"DP2,TRAC:2051,SCAN:2051,TEMP:,SEQN:2,CASE:,ATTR:0;">>,
-         <<"S00,TRAC:2001,SCAN:2001,SEQN:,TARG:,ATTR:20,TRG1:3072,TRG2:,TRG3:,TRG4:,TRG5:;">>,
-         <<"S10,TRAC:3064,SCAN:,SEQN:9,TARG:1,ATTR:16,TRG1:2057,TRG2:,TRG3:,TRG4:,TRG5:;">>,
-         <<"S11,TRAC:,SCAN:,SEQN:,TARG:,ATTR:0,TRG1:,TRG2:,TRG3:,TRG4:,TRG5:;">>,
-         <<"E01,TRAC:,SCAN:,SEQN:,TARG:,ATTR:0,TRG1:,TRG2:0000000000E8,TRG3:,TRG4:,TRG5:;">>,
-         <<"PP2,TRAC:2058,SCAN:2058,SEQN:2,TARG:1,ATTR:16,TRG1:2051,TRG2:,TRG3:,TRG4:,TRG5:;">>]
-   ).
+   <<"19.08.01  17:35:44,899  ">>,
+   <<"T00,TRAC:3072,SCAN:3072,TEMP:,SEQN:,CASE:,ATTR:8;">>,
+   <<"T09,TRAC:,SCAN:,TEMP:,SEQN:,CASE:6,ATTR:0;">>,
+   <<"T10,TRAC:3062,SCAN:,TEMP:,SEQN:7,CASE:9999,ATTR:0;">>,
+   <<"T15,TRAC:2057,SCAN:2057,TEMP:,SEQN:,CASE:1,ATTR:16;">>,
+   <<"IT1,TRAC:3062,SCAN:,TEMP:,SEQN:,CASE:,ATTR:0;">>,
+   <<"DP1,TRAC:3068,SCAN:3068,TEMP:,SEQN:1,CASE:3100,ATTR:0;">>,
+   <<"DP2,TRAC:2051,SCAN:2051,TEMP:,SEQN:2,CASE:,ATTR:0;">>,
+   <<"S00,TRAC:2001,SCAN:2001,SEQN:,TARG:,ATTR:20,TRG1:3072,TRG2:,TRG3:,TRG4:,TRG5:;">>,
+   <<"S10,TRAC:3064,SCAN:,SEQN:9,TARG:1,ATTR:16,TRG1:2057,TRG2:,TRG3:,TRG4:,TRG5:;">>,
+   <<"S11,TRAC:,SCAN:,SEQN:,TARG:,ATTR:0,TRG1:,TRG2:,TRG3:,TRG4:,TRG5:;">>,
+   <<"E01,TRAC:,SCAN:,SEQN:,TARG:,ATTR:0,TRG1:,TRG2:0000000000E8,TRG3:,TRG4:,TRG5:;">>,
+   <<"PP2,TRAC:2058,SCAN:2058,SEQN:2,TARG:1,ATTR:16,TRG1:2051,TRG2:,TRG3:,TRG4:,TRG5:;">>]
+).
 
 res_new() -> #{<<"sources">> =>
 [#{<<"attr">> => [<<"source_processed">>],
@@ -240,44 +243,52 @@ res_new() -> #{<<"sources">> =>
    <<"seqn">> => 2,
    <<"targ">> => [<<"2051">>],
    <<"trac">> => <<"2058">>},
-   #{<<"attr">> => [],<<"pos">> => <<"E01">>,<<"scan">> => <<>>,
-      <<"seqn">> => <<>>,
+   #{<<"attr">> => [],<<"pos">> => <<"E01">>,
+      <<"scan">> => <<>>,<<"seqn">> => null,
       <<"targ">> => [<<"0000000000E8">>],
       <<"trac">> => <<>>},
-   #{<<"attr">> => [],<<"pos">> => <<"S11">>,<<"scan">> => <<>>,
-      <<"seqn">> => <<>>,<<"targ">> => [],<<"trac">> => <<>>},
+   #{<<"attr">> => [],<<"pos">> => <<"S11">>,
+      <<"scan">> => <<>>,<<"seqn">> => null,
+      <<"targ">> => [],<<"trac">> => <<>>},
    #{<<"attr">> => [<<"source_processed">>],
-      <<"pos">> => <<"S10">>,<<"scan">> => <<>>,<<"seqn">> => 9,
+      <<"pos">> => <<"S10">>,<<"scan">> => <<>>,
+      <<"seqn">> => 9,
       <<"targ">> => [<<"2057">>],
       <<"trac">> => <<"3064">>},
-   #{<<"attr">> => [<<"source_processed">>,<<"goto_exit">>],
+   #{<<"attr">> =>
+   [<<"source_processed">>,<<"goto_exit">>],
       <<"pos">> => <<"S00">>,<<"scan">> => <<"2001">>,
-      <<"seqn">> => <<>>,
+      <<"seqn">> => null,
       <<"targ">> => [<<"3072">>],
       <<"trac">> => <<"2001">>}],
    <<"targets">> =>
-   [#{<<"attr">> => [],<<"case">> => <<>>,<<"pos">> => <<"DP2">>,
-      <<"scan">> => <<"2051">>,<<"seqn">> => 2,<<"temp">> => <<>>,
+   [#{<<"attr">> => [],<<"case">> => null,
+      <<"pos">> => <<"DP2">>,<<"scan">> => <<"2051">>,
+      <<"seqn">> => 2,<<"temp">> => <<>>,
       <<"trac">> => <<"2051">>},
-      #{<<"attr">> => [],<<"case">> => 3100,<<"pos">> => <<"DP1">>,
-         <<"scan">> => <<"3068">>,<<"seqn">> => 1,<<"temp">> => <<>>,
+      #{<<"attr">> => [],<<"case">> => 3100,
+         <<"pos">> => <<"DP1">>,<<"scan">> => <<"3068">>,
+         <<"seqn">> => 1,<<"temp">> => <<>>,
          <<"trac">> => <<"3068">>},
-      #{<<"attr">> => [],<<"case">> => <<>>,<<"pos">> => <<"IT1">>,
-         <<"scan">> => <<>>,<<"seqn">> => <<>>,<<"temp">> => <<>>,
+      #{<<"attr">> => [],<<"case">> => null,
+         <<"pos">> => <<"IT1">>,<<"scan">> => <<>>,
+         <<"seqn">> => null,<<"temp">> => <<>>,
          <<"trac">> => <<"3062">>},
       #{<<"attr">> => [<<"no_source">>],
          <<"case">> => 1,<<"pos">> => <<"T15">>,
-         <<"scan">> => <<"2057">>,<<"seqn">> => <<>>,
+         <<"scan">> => <<"2057">>,<<"seqn">> => null,
          <<"temp">> => <<>>,<<"trac">> => <<"2057">>},
-      #{<<"attr">> => [],<<"case">> => 9999,<<"pos">> => <<"T10">>,
-         <<"scan">> => <<>>,<<"seqn">> => 7,<<"temp">> => <<>>,
+      #{<<"attr">> => [],<<"case">> => 9999,
+         <<"pos">> => <<"T10">>,<<"scan">> => <<>>,
+         <<"seqn">> => 7,<<"temp">> => <<>>,
          <<"trac">> => <<"3062">>},
-      #{<<"attr">> => [],<<"case">> => 6,<<"pos">> => <<"T09">>,
-         <<"scan">> => <<>>,<<"seqn">> => <<>>,<<"temp">> => <<>>,
+      #{<<"attr">> => [],<<"case">> => 6,
+         <<"pos">> => <<"T09">>,<<"scan">> => <<>>,
+         <<"seqn">> => null,<<"temp">> => <<>>,
          <<"trac">> => <<>>},
       #{<<"attr">> => [<<"goto_sequencer">>],
-         <<"case">> => <<>>,<<"pos">> => <<"T00">>,
-         <<"scan">> => <<"3072">>,<<"seqn">> => <<>>,
+         <<"case">> => null,<<"pos">> => <<"T00">>,
+         <<"scan">> => <<"3072">>,<<"seqn">> => null,
          <<"temp">> => <<>>,<<"trac">> => <<"3072">>}]}
 .
 
