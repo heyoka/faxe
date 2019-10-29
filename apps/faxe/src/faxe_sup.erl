@@ -32,12 +32,16 @@ init([]) ->
 %%        {faxe_peer_manager,
 %%            {faxe_peer_manager, start_link, []},
 %%            permanent, 5000, worker, []},
+
+        {dataflow_sup,
+            {dataflow_sup, start_link, []},
+            permanent, infinity, supervisor, [dataflow_sup]},
         {faxe_ets,
             {faxe_ets, start_link, []},
             permanent, 5000, worker, []},
-        {dataflow_sup,
-            {dataflow_sup, start_link, []},
-            permanent, infinity, supervisor, [dataflow_sup]}
+        {initial_task_starter,
+            {initial_task_starter, start_link, []},
+            permanent, 5000, worker, []}
     ],
     {ok, { {one_for_one, 5, 10}, Procs} }.
 

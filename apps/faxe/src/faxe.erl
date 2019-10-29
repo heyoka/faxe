@@ -28,14 +28,11 @@
    start_permanent_tasks/0,
    get_stats/1,
    update_file_task/2,
-   update_string_task/2, update_task/3, update/3, get_errors/1]).
-
-%%iso1006_header_decode(<<3:8,_Reserved:8, PLength:16/integer-unsigned>>) ->
-%%   PLength.
+   update_string_task/2, update_task/3, update/3, get_errors/1, list_permanent_tasks/0]).
 
 start_permanent_tasks() ->
    Tasks = faxe_db:get_permanent_tasks(),
-   [start_task(T, true) || T <- Tasks].
+   [start_task(T#task.id, true) || T <- Tasks].
 
 start_many(FileName, TaskName, Num) when is_binary(TaskName), is_integer(Num) ->
    ok = register_template_file(FileName, TaskName),
@@ -67,6 +64,9 @@ list_templates() ->
 list_running_tasks() ->
    Graphs = supervisor:which_children(graph_sup),
    faxe_db:get_tasks_by_pids(Graphs).
+
+list_permanent_tasks() ->
+   faxe_db:get_permanent_tasks().
 
 -spec register_file_task(list()|binary(), any()) -> any().
 register_file_task(DfsScript, Name) ->

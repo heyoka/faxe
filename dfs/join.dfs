@@ -9,11 +9,11 @@ def v2 =
     |value_emitter()
     .every(5s)
     .type(point)
-   % .align()
+    .align()
 
 v1
     |join(v2)
-    .as('v1.joined', 'v2.joined')
+    .prefix('v1.joined', 'v2.joined')
     .tolerance(3s)
     .missing_timeout(3s)
     .fill(none)

@@ -1,6 +1,5 @@
-%% Date: 18.04.18 - 21:18
-%% Ⓒ 2018 heyoka
--module(faxe_ets).
+%% Ⓒ 2019 TGW Group
+-module(initial_task_starter).
 -author("Alexander Minichmair").
 
 -behaviour(gen_server).
@@ -54,15 +53,8 @@ start_link() ->
    {ok, State :: #state{}} | {ok, State :: #state{}, timeout() | hibernate} |
    {stop, Reason :: term()} | ignore).
 init([]) ->
-   ok = new_table(up_nodes, ordered_set),
-   ok = new_table(ls_mem, set),
-   ok = new_table(field_paths, set),
+   erlang:send_after(0, self(), start_tasks),
    {ok, #state{}}.
-
-
-new_table(NameAtom, Type) ->
-   ets:new(NameAtom, [Type, public, named_table, {read_concurrency,true},{heir, self(), NameAtom} ]),
-   ok.
 
 %%--------------------------------------------------------------------
 %% @private
@@ -110,6 +102,10 @@ handle_cast(_Request, State) ->
    {noreply, NewState :: #state{}} |
    {noreply, NewState :: #state{}, timeout() | hibernate} |
    {stop, Reason :: term(), NewState :: #state{}}).
+handle_info(start_tasks, State) ->
+   lager:notice("starting permanent tasks ... "),
+   faxe:start_permanent_tasks(),
+   {noreply, State};
 handle_info(_Info, State) ->
    {noreply, State}.
 
