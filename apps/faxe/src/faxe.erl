@@ -291,9 +291,10 @@ get_stats(TaskId) ->
             true -> df_graph:get_stats(Graph);
             false -> {error, task_not_running}
          end;
-      #task{} -> faxe_db:delete_task(TaskId)
+      #task{} -> {ok, []}
    end.
 
+-spec get_errors(integer()|binary()) -> {error, term()} | {ok, term()}.
 get_errors(TaskId) ->
    T = faxe_db:get_task(TaskId),
    case T of
@@ -303,7 +304,7 @@ get_errors(TaskId) ->
             true -> df_graph:get_errors(Graph);
             false -> {error, task_not_running}
          end;
-      #task{} -> faxe_db:delete_task(TaskId)
+      #task{} -> {ok, []}
    end.
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 template_to_task(#template{dfs = DFS}, TaskName, Vars) ->

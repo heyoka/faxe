@@ -31,6 +31,7 @@ start(_StartType, _StartArgs) ->
           {"/v1/tasks/running", rest_tasks_handler, [{op, list_running}]},
 
           {"/v1/task/stats/:task_id", rest_task_handler, [{op, stats}]},
+          {"/v1/task/errors/:task_id", rest_task_handler, [{op, errors}]},
           {"/v1/task/register", rest_task_handler, [{op, register}]},
           {"/v1/task/:task_id", rest_task_handler, [{op, get}]},
           {"/v1/task/update/:task_id", rest_task_handler, [{op, update}]},

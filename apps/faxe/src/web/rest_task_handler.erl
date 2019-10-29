@@ -20,7 +20,7 @@
 %% Additional callbacks
 -export([
    from_register_task/2, get_to_json/2
-   , from_update_to_json/2, create_to_json/2, start_to_json/2, stop_to_json/2]).
+   , from_update_to_json/2, create_to_json/2, start_to_json/2, stop_to_json/2, errors_to_json/2]).
 
 -include("faxe.hrl").
 
@@ -39,6 +39,10 @@ allowed_methods(Req, State=#state{mode = update}) ->
 allowed_methods(Req, State=#state{mode = start}) ->
    {[<<"GET">>, <<"OPTIONS">>], Req, State};
 allowed_methods(Req, State=#state{mode = stop}) ->
+   {[<<"GET">>, <<"OPTIONS">>], Req, State};
+allowed_methods(Req, State=#state{mode = stats}) ->
+   {[<<"GET">>, <<"OPTIONS">>], Req, State};
+allowed_methods(Req, State=#state{mode = errors}) ->
    {[<<"GET">>, <<"OPTIONS">>], Req, State};
 allowed_methods(Req, State=#state{mode = delete}) ->
    {[<<"DELETE">>], Req, State};
@@ -68,6 +72,11 @@ content_types_provided(Req, State=#state{mode = stop}) ->
       {{<<"application">>, <<"json">>, []}, stop_to_json},
       {{<<"text">>, <<"html">>, []}, stop_to_json}
    ], Req, State};
+content_types_provided(Req0 = #{method := _Method}, State=#state{mode = errors}) ->
+   {[
+      {{<<"application">>, <<"json">>, []}, errors_to_json},
+      {{<<"text">>, <<"html">>, []}, errors_to_json}
+   ], Req0, State};
 content_types_provided(Req0 = #{method := _Method}, State=#state{mode = _Mode}) ->
    {[
       {{<<"application">>, <<"json">>, []}, create_to_json},
@@ -160,6 +169,14 @@ stop_to_json(Req, State = #state{task_id = Id}) ->
          {jiffy:encode(#{<<"ok">> => <<"stopped">>}), Req, State};
       {error, Error} ->
          {jiffy:encode(#{<<"error">> => rest_helper:to_bin(Error)}), Req, State}
+   end.
+
+errors_to_json(Req, State = #state{task_id = Id}) ->
+   case faxe:get_errors(Id) of
+      {ok, Errors} ->
+         {jiffy:encode(#{<<"error">> => rest_helper:to_bin(Errors)}), Req, State};
+      {error, What} ->
+         {jiffy:encode(#{<<"error">> => rest_helper:to_bin(What)}), Req, State}
    end.
 
 create_to_json(Req, State) ->

@@ -1,7 +1,7 @@
 def parser = parser_conv_tracking_v1
-def mqtt_host = '10.14.204.3'
-def plc_host = '10.44.60.23'
-def topic = 'ttgw/conveyor_tracking/petzoldstr'
+%def mqtt_host = '10.14.204.3'
+def plc_host = '10.44.60.30'
+%def topic = 'ttgw/conveyor_tracking/petzoldstr'
 def plc_port = 2008
 
 def v1 =
@@ -11,10 +11,19 @@ def v1 =
     .parser(parser)
     .min_length(61)
 
-    |mqtt_publish()
-        .host(mqtt_host)
-        .port(1883)
-        .qos(1)
-        .topic(topic)
-        .retained()
+    |http_post_crate()
+        .host(<<< http://devat-cw-ds.tgwdev.internal >>>)
+        .port(4201)
+        .database('doc')
+        .table('conveyortracking_parted ')
+        .db_fields('id', 'df', 'vs', 'data_obj')
+        .faxe_fields('id', 'df', 'vs', 'data')
+
+
+    %|mqtt_publish()
+    %    .host(mqtt_host)
+    %    .port(1883)
+    %    .qos(1)
+    %    .topic(topic)
+    %    .retained()
 

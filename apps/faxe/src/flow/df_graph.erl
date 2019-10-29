@@ -161,7 +161,7 @@ handle_call({get_errors}, _From, State=#state{nodes = Nodes}) ->
          }
       end,
    Res = [GetHistory(NodeId) || {NodeId, _NPid} <- Nodes],
-   {reply, Res, State}.
+   {reply, {ok, Res}, State}.
 
 
 

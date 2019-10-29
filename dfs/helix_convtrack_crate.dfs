@@ -1,6 +1,6 @@
 def host = '10.14.204.3'
 def port = 5672
-def routing_key = 'ttgw.conveyor_tracking.helix'
+def routing_key = 'ttgw.conveyor_tracking.petzold_test'
 
 |amqp_consume()
     .host(host)
@@ -18,8 +18,8 @@ def routing_key = 'ttgw.conveyor_tracking.helix'
 %    .min_length(61)
 %    .extract()
 
-    |log()
-    .file('helix_conv_track.txt')
+    %|log()
+    %.file('helix_conv_track.txt')
 
     |http_post_crate()
     .host(<<< http://devat-cw-ds.tgwdev.internal >>>)
