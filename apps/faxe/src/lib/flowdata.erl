@@ -62,7 +62,7 @@
    rename_fields/3, rename_tags/3,
    expand_json_field/2, extract_map/2, extract_field/3,
    field/3, to_s_msgpack/1, from_json/1,
-   to_map/1, set_fields/3, set_tags/3, fields/2,
+   to_map/1, set_fields/3, set_tags/3, fields/2, tags/2,
    delete_fields/2, delete_tags/2, path/1, paths/1, set_fields/2,
    to_mapstruct/1, from_json/2, from_json_struct/1, from_json_struct/3]).
 
@@ -125,7 +125,7 @@ from_json_struct(JSON, TimeField, TimeFormat) ->
 
 -spec point_from_json_map(map(), binary(), binary()) -> #data_point{}.
 point_from_json_map(Map, TimeField, TimeFormat) ->
-   Ts0 = maps:get(TimeField, Map),
+   Ts0 = maps:get(TimeField, Map, undefined),
    Ts =
       case Ts0 of
          undefined -> faxe_time:now();
@@ -309,6 +309,10 @@ tag(#data_point{tags = Fields}, F) ->
 ;
 tag(#data_batch{points = Points}, F) ->
    [tag(Point, F) || Point <- Points].
+
+%% @doc get a list of field-values with a list of keys/paths
+tags(#data_point{tags = Tags}, PathList) when is_list(PathList) ->
+   jsn:get_list(PathList, Tags).
 
 %% @doc
 %% get the id from the given data_point or data_batch
