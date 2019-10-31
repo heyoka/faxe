@@ -64,7 +64,7 @@
    field/3, to_s_msgpack/1, from_json/1,
    to_map/1, set_fields/3, set_tags/3, fields/2, tags/2,
    delete_fields/2, delete_tags/2, path/1, paths/1, set_fields/2,
-   to_mapstruct/1, from_json/2, from_json_struct/1, from_json_struct/3]).
+   to_mapstruct/1, from_json/2, from_json_struct/1, from_json_struct/3, to_map_except/2]).
 
 
 -define(DEFAULT_ID, <<"00000">>).
@@ -143,13 +143,17 @@ from_json(Message) ->
       _:_ -> #{}
    end.
 
-%% return a pure map representation from a data_point/data_batch
+%% return a pure map representation from a data_point/data_batch, adds a timestamp as <<"ts">>
 -spec to_map(#data_point{}|#data_batch{}) -> map()|list(map()).
 to_map(#data_point{ts = Ts, fields = Fields, tags = Tags}) ->
    M = maps:merge(Fields, Tags),
    M#{<<"ts">> => Ts};
 to_map(#data_batch{points = Points}) ->
    [to_map(P) || P <- Points].
+
+%% return a map representation of #data_point without the given keys
+to_map_except(P=#data_point{}, Without) when is_list(Without) ->
+   maps:without([[<<"ts">>]|Without], to_map(P)).
 
 %% extract a given map into the fields-list in data_point P
 %% return the updated data_point

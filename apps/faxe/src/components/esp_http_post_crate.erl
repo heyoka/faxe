@@ -22,6 +22,7 @@
    query,
    db_fields,
    faxe_fields,
+   remaining_fields_as,
    failed_retries,
    tries
 }).
@@ -40,19 +41,20 @@ options() ->
       {table, string},
       {database, string, <<"doc">>},
       {db_fields, string_list},
-      {faxe_fields, string_list}].
+      {faxe_fields, string_list},
+      {remaining_fields_as, string, undefined}].
 
 init(_NodeId, _Inputs,
     #{host := Host0, port := Port, database := DB, table := Table,
-       db_fields := DBFields, faxe_fields := FaxeFields}) ->
+       db_fields := DBFields, faxe_fields := FaxeFields, remaining_fields_as := RemFieldsAs}) ->
 
    Host = binary_to_list(Host0)++":"++integer_to_list(Port),
    {ok, C} = fusco:start(Host, []),
    erlang:monitor(process, C),
-   Query = build_query(DBFields, Table),
+   Query = build_query(DBFields, Table, RemFieldsAs),
 %%   lager:notice("Query: ~p", [Query]),
    {ok, all, #state{host = Host, port = Port, client = C, database = DB,
-      failed_retries = ?FAILED_RETRIES,
+      failed_retries = ?FAILED_RETRIES, remaining_fields_as = RemFieldsAs,
       table = Table, query = Query, db_fields = DBFields, faxe_fields = FaxeFields}}.
 
 %%% DATA IN
@@ -66,13 +68,14 @@ handle_info({'DOWN', _MonitorRef, _Type, Pid, _Info}, State = #state{client = Pi
    {ok, State#state{client = C}}.
 
 %%% DATA OUT
-send(Item, State = #state{query = Q, faxe_fields = Fields, database = Schema}) ->
-   {Headers, Query} = build(Item, Q, Schema, Fields),
+send(Item, State = #state{query = Q, faxe_fields = Fields, remaining_fields_as = RemFieldsAs,
+      database = Schema}) ->
+   {Headers, Query} = build(Item, Q, Schema, Fields, RemFieldsAs),
    NewState = do_send(Query, Headers, 0, State),
    NewState.
 
-build(Item, Query, Schema, Fields) ->
-   BulkArgs0 = build_value_stmt(Item, Fields),
+build(Item, Query, Schema, Fields, RemFieldsAs) ->
+   BulkArgs0 = build_value_stmt(Item, Fields, RemFieldsAs),
    BulkArgs =
       case Item of
          #data_point{} -> [BulkArgs0];
@@ -108,21 +111,31 @@ do_send(Body, Headers, Retries, S = #state{client = Client}) ->
    end.
 
 
-build_value_stmt(_B = #data_batch{points = Points}, Fields) ->
-   build_batch(Points, Fields, []);
-build_value_stmt(P = #data_point{ts = Ts}, Fields) ->
+build_value_stmt(_B = #data_batch{points = Points}, Fields, RemFieldsAs) ->
+   build_batch(Points, Fields, RemFieldsAs, []);
+build_value_stmt(P = #data_point{ts = Ts}, Fields, undefined) ->
    DataList0 = [Ts| flowdata:fields(P, Fields)],
-   DataList0.
+   DataList0;
+build_value_stmt(P = #data_point{}, Fields, _RemFieldsAs) ->
+   DataList = build_value_stmt(P, Fields, undefined),
+   Rem = flowdata:to_map_except(P, Fields),
+   lager:notice("REM: ~p~n DataList: ~p",[Rem, DataList]),
+   DataList ++ [Rem].
 
-build_batch([], _FieldList, Acc) ->
+build_batch([], _FieldList, _RemFieldsAs, Acc) ->
    Acc;
-build_batch([Point|Points], FieldList, Acc) ->
-   NewAcc = [build_value_stmt(Point, FieldList) | Acc],
-   build_batch(Points, FieldList, NewAcc).
+build_batch([Point|Points], FieldList, RemFieldsAs, Acc) ->
+   NewAcc = [build_value_stmt(Point, FieldList, RemFieldsAs) | Acc],
+   build_batch(Points, FieldList, RemFieldsAs, NewAcc).
 
-build_query(ValueList0, Table) when is_list(ValueList0) ->
+build_query(ValueList0, Table, RemFieldsAs) when is_list(ValueList0) ->
    Q0 = <<"INSERT INTO ", Table/binary>>,
-   ValueList = [<<"ts">>|ValueList0],
+   ValueList1 = [<<"ts">>|ValueList0],
+   ValueList =
+   case RemFieldsAs of
+      undefined -> ValueList1;
+      AsName -> ValueList1 ++ [AsName]
+   end,
    Fields = iolist_to_binary(lists:join(<<", ">>, ValueList)),
    Q1 = <<Q0/binary, " (", Fields/binary, ") VALUES ">>,
    QMarks = iolist_to_binary(lists:join(<<", ">>, lists:duplicate(length(ValueList), "?"))),
@@ -131,9 +144,13 @@ build_query(ValueList0, Table) when is_list(ValueList0) ->
 
 
 -spec handle_response(tuple()) -> ok|{error, invalid}|{failed, term()}.
-handle_response({ok,{{<<"200">>,<<"OK">>}, _Hdrs, _BodyJSON, _S, _T}}) -> ok;
+handle_response({ok,{{<<"200">>,<<"OK">>}, _Hdrs, _BodyJSON, _S, _T}}) ->
+   ok;
 handle_response({ok,{{<<"4", _/binary>>,_}, _Hdrs, _BodyJSON, _S, _T}}) ->
    lager:error("Error 400: ~p",[_BodyJSON]), {error, invalid};
-handle_response({ok,{{<<"503">>,_}, _Hdrs, _BodyJSON, _S, _T}}) -> {failed, not_available};
-handle_response({ok,{{<<"5", _/binary>>,_}, _Hdrs, _BodyJSON, _S, _T}}) -> {failed, server_error};
-handle_response({error, What}) -> {failed, What}.
+handle_response({ok,{{<<"503">>,_}, _Hdrs, _BodyJSON, _S, _T}}) ->
+   {failed, not_available};
+handle_response({ok,{{<<"5", _/binary>>,_}, _Hdrs, _BodyJSON, _S, _T}}) ->
+   lager:error("Error 400: ~p",[_BodyJSON]), {failed, server_error};
+handle_response({error, What}) ->
+   {failed, What}.

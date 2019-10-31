@@ -75,16 +75,14 @@ process(_In, _, State = #state{}) ->
 %% new queue-message arrives ...
 %%
 handle_info({ {DTag, RKey}, {Payload, _Headers}, From}, State=#state{prefetch = 1}) ->
-   Msg0 = flowdata:from_json_struct(Payload, State#state.dt_field, State#state.dt_format),
-   DataPoint = Msg0#data_point{id = RKey},
+   DataPoint = build_point(Payload, RKey, State#state.dt_field, State#state.dt_format),
    dataflow:emit(DataPoint),
    carrot:ack(From, DTag),
    {ok, State};
 
 handle_info({ {DTag, RKey}, {Payload, _Headers}, From},
     State=#state{collected = NumCollected, points = Batch}) ->
-   Msg0 = flowdata:from_json_struct(Payload, State#state.dt_field, State#state.dt_format),
-   DataPoint = Msg0#data_point{id = RKey},
+   DataPoint = build_point(Payload, RKey, State#state.dt_field, State#state.dt_format),
    NewState = State#state{points = queue:in(DataPoint, Batch), collected = NumCollected+1},
    maybe_emit(DTag, From, NewState);
 
@@ -108,6 +106,10 @@ maybe_emit(_DTag, _From, State = #state{}) ->
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %%% internal
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+build_point(Payload, RKey, DTField, DTFormat) ->
+   Msg0 = flowdata:from_json_struct(Payload, DTField, DTFormat),
+   flowdata:set_field(Msg0, <<"topic">>, RKey).
+
 start_consumer(State = #state{opts = ConsumerOpts}) ->
    {ok, Pid, _NewConsumer} =
       rmq_consumer:start_monitor(self(), consumer_config(ConsumerOpts)),
