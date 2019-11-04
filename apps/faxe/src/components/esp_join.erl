@@ -141,7 +141,7 @@ merge([{_Port, FirstRow}|RowData], Ts, MField) ->
    MergeField = flowdata:path(MField),
    NewPoint =
       lists:foldl(
-         fun({_Port, OP=#data_point{}}, P=#data_point{}) ->
+         fun({_Port0, OP=#data_point{}}, P=#data_point{}) ->
             M1 = flowdata:field(OP, MergeField), M2 = flowdata:field(P, MergeField),
 %%            lager:notice("merge: ~p ~nand ~p",[M1, M2]),
             NewData = merge(M1, M2),

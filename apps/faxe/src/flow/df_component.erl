@@ -109,9 +109,7 @@
 %% optional
 %% provide a list of inports for the component :
 %%
-%% -callback inports()  -> {ok, list()}.
-%%
-%%
+ -callback inports()  -> {ok, list()}.
 
 
 
@@ -121,9 +119,8 @@
 %% optional
 %% provide a list of outports for the component:
 %%
-%% -callback outports() -> {ok, list()}.
-%%
-%%
+ -callback outports() -> {ok, list()}.
+
 
 
 %% @doc
@@ -132,9 +129,9 @@
 %% optional
 %% handle other messages that will be sent to this process :
 %%
-%% -callback handle_info(Request :: term(), State :: cbstate())
-%% -> {ok, NewCallbackState :: cbstate()} | {error, Reason :: term()}.
 %% @end
+ -callback handle_info(Request :: term(), State :: cbstate())
+ -> {ok, NewCallbackState :: cbstate()} | {error, Reason :: term()}.
 
 
 %% @doc
@@ -143,11 +140,12 @@
 %% optional
 %% called when component process is about to stop :
 %%
-%% -callback shutdown(State :: cbstate())
-%% -> any().
 %% @end
+-callback shutdown(State :: cbstate())
+    -> any().
 
-%%-optional_callbacks([inports/0, outports/0, handle_info/2, shutdown/1]). %% erlang 18+
+%% these are optional
+-optional_callbacks([options/0, inports/0, outports/0, handle_info/2, shutdown/1]). %% erlang 18+
 
 
 
