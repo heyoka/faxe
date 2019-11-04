@@ -58,6 +58,7 @@ options() ->
 init(_NodeId, _Inputs, #{host := Host0, port := Port, user := User, every := Every, period := Period,
       pass := Pass, database := DB, query := Q0, align := Align, group_by_time := TimeGroup, time_field := TimeField,
    group_by := GroupBys}) ->
+
    process_flag(trap_exit, true),
    Host = binary_to_list(Host0),
    Opts = #{host => Host, port => Port, username => User, pass => Pass, database => DB},

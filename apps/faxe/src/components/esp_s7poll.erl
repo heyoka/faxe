@@ -15,7 +15,8 @@
 
 -include("faxe.hrl").
 %% API
--export([init/3, process/3, options/0, handle_info/2, shutdown/1, maybe_emit/4, check_options/0, split/2, build_addresses/1, build_point/2]).
+-export([init/3, process/3, options/0, handle_info/2, shutdown/1, maybe_emit/4,
+  check_options/0, split/2, build_addresses/1, build_point/2]).
 
 -define(MAX_READ_ITEMS, 19).
 

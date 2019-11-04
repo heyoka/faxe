@@ -14,3 +14,12 @@
 .baz(1256)
 
 |debug()
+
+
+%%%%%%%%
+def n =
+    |eval()
+    .lambdas(lambda: "data.axis.z.tor" - "data.axis.y.tor")
+    .as('diff_tor')
+
+    |debug()

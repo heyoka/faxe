@@ -19,6 +19,8 @@
 
 -record(state, {}).
 
+-define(START_DELAY_MS, 200).
+
 %%%===================================================================
 %%% API
 %%%===================================================================
@@ -53,7 +55,7 @@ start_link() ->
    {ok, State :: #state{}} | {ok, State :: #state{}, timeout() | hibernate} |
    {stop, Reason :: term()} | ignore).
 init([]) ->
-   erlang:send_after(0, self(), start_tasks),
+   erlang:send_after(?START_DELAY_MS, self(), start_tasks),
    {ok, #state{}}.
 
 %%--------------------------------------------------------------------

@@ -1,6 +1,6 @@
 %% Ⓒ 2019
 %% @doc
-%% Keep only those value(s) with the given fieldnames or tagnames from data_point and data_batch
+%% Keep only those value(s) with the given field or tag paths from data_point and data_batch
 %% @end
 -module(esp_keep).
 -author("Alexander Minichmair").

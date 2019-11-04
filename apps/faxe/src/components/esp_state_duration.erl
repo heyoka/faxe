@@ -8,7 +8,7 @@
 %%
 %% The state duration will be added as an additional field to each point.
 %% If the expression evaluates to false, the value will be -1.
-%% If the lambda expression generates an error during evaluation, the point is discarded
+%% When the lambda expression generates an error during evaluation, the point is discarded
 %% and does not affect the state duration.
 %%
 -module(esp_state_duration).
