@@ -12,7 +12,7 @@
 -behavior(tcp_msg_parser).
 
 %% API
--export([parse/1, test_bitmask/1, parse_datetime/1]).
+-export([parse/1, test_bitmask/1, parse_datetime/1, do/0]).
 
 -ifdef(TEST).
 -include_lib("eunit/include/eunit.hrl").
@@ -57,6 +57,8 @@
    <<"recirculate">>]).
 
 parse(BinData) ->
+   ets:insert(parser_prev, ets:tab2list(parser)),
+   ets:delete_all_objects(parser),
    %% split lines
    LinesAll = to_lines(BinData),
    %% remove timestamp
@@ -64,8 +66,12 @@ parse(BinData) ->
    DataLines = [FirstLine|RLines],
    %% parse the lines
    Res = parse_lines(DataLines),
-   %% convert to json
+   %%
+   lager:notice("parser: ~p",[ets:tab2list(parser)]),
    {?TGW_DATAFORMAT, ?PARSER_VERSION, Res}.
+
+disambiguate() ->
+   TList = ets:tab2list(parser).
 
 to_lines(BinData) ->
    binary:split(BinData, ?LINE_DELIMITER, [global, trim_all]).
@@ -127,6 +133,7 @@ line_src_e_pp(Pos, Fields)  ->
       <<"TRG3:", Targ3/binary>>,
       <<"TRG4:", Targ4/binary>>,
       <<"TRG5:", Targ5/binary>>] = Fields,
+   ets:insert(parser, {Pos, Trac}),
    #{<<"pos">> => Pos,
       <<"trac">> => Trac,
       <<"scan">> => Scan, <<"seqn">> => int_or_null(SeqN),
@@ -141,6 +148,7 @@ line_tgt_it_dp(Pos, Fields) ->
       <<"SEQN:", SeqN/binary>>, %% empty or int
       <<"CASE:", Case/binary>>, %% emtpy or int
       <<"ATTR:", Attr/binary>>] = Fields,
+   ets:insert(parser, {Pos, Trac}),
    #{<<"pos">> => Pos, <<"trac">> => Trac,
       <<"scan">> => Scan, <<"temp">> => Temp,
       <<"seqn">> => int_or_null(SeqN), <<"case">> => int_or_null(Case),
@@ -182,7 +190,8 @@ parse_datetime(DTBin) ->
    faxe_time:to_ms(DtParts).
 
 %%%%%%%%%%%%%%%%%% end %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
--ifdef(TEST).
+do() -> parse(def()).
+%%-ifdef(TEST).
 %% test
 def() ->
    iolist_to_binary(
@@ -195,7 +204,7 @@ def() ->
          <<"T04,TRAC:,SCAN:,TEMP:,SEQN:,CASE:4031,ATTR:0;">>,
          <<"T05,TRAC:,SCAN:,TEMP:,SEQN:,CASE:5021,ATTR:0;">>,
          <<"T06,TRAC:2022,SCAN:2022,TEMP:,SEQN:5,CASE:9999,ATTR:0;">>,
-         <<"T07,TRAC:,SCAN:,TEMP:,SEQN:,CASE:6,ATTR:0;">>,
+         <<"T07,TRAC:2022,SCAN:,TEMP:,SEQN:,CASE:6,ATTR:0;">>,
          <<"T08,TRAC:2064,SCAN:2064,TEMP:,SEQN:6,CASE:9999,ATTR:0;">>,
          <<"T09,TRAC:,SCAN:,TEMP:,SEQN:,CASE:6,ATTR:0;">>,
          <<"T10,TRAC:3062,SCAN:,TEMP:,SEQN:7,CASE:9999,ATTR:0;">>,
@@ -298,6 +307,7 @@ i_test() ->
    {T1, Res1} = timer:tc(?MODULE, parse, [def1()]),
    lager:info("Time (micros) needed: ~p~nJSON: ~s",[T1, Res1]).
 
+-ifdef(TEST).
 parse_test() ->
    ?assertEqual(parse(def1()), {?TGW_DATAFORMAT, ?PARSER_VERSION, res_new()}).
 
