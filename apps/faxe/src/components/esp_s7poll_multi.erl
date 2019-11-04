@@ -205,7 +205,7 @@ decode(d_int, Data) ->
   <<Res:32/integer-signed>> = Data,
   Res;
 decode(word, Data) ->
-  <<Res:16/float-unsigned>> = Data,
+  <<Res:16/unsigned>> = Data,
   Res;
 decode(d_word, Data) ->
   <<Res:32/float-unsigned>> = Data,

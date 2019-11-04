@@ -5,6 +5,7 @@
 
 -include("faxe.hrl").
 %% API
+
 -behavior(df_component).
 %% API
 -export([init/3, process/3, handle_info/2, get_options/0]).

@@ -73,10 +73,11 @@ handle_info(read,
     State=#state{client = Client, vars = Opts, ip = Ip, rack = Rack, slot = Slot, parent = Parent}) ->
       NewState =
          case (catch snapclient:read_multi_vars(Client, Opts)) of
-            {ok, Res} -> Parent ! {read_ok, self(), Res};
+            {ok, Res} -> Parent ! {read_ok, self(), Res}, State;
             _Other -> lager:warning("Error when reading S7 Vars: ~p", [_Other]),
-               NewClient = connect(Ip, Rack, Slot), State#state{client = NewClient},
-               State#state{client = NewClient}, Parent ! {read_error, self(), []}
+               NewClient = connect(Ip, Rack, Slot),
+               Parent ! {read_error, self(), []},
+               State#state{client = NewClient}
 
          end,
    {noreply, NewState};

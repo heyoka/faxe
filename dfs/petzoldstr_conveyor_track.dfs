@@ -11,6 +11,9 @@ def v1 =
     .parser(parser)
     .min_length(61)
 
+    |default()
+    .fields('topic')
+    .field_values(topic)
 
     |mqtt_publish()
         .host(mqtt_host)

@@ -379,7 +379,7 @@ from_json_basic_test() ->
 
 from_json_basic2_test() ->
    M = #{<<"UTC-Time">> => <<"1568029511.598123">>, <<"id-string">> => <<"ioi2u34oiu23oi4u2oi4u2">>,
-      <<"raw">> => <<"01002">>, <<"vsdtg">> => 22, <<"value1">> => 2323422, <<"value2">> => <<"savoi">>,
+      <<"raw">> => <<"01002">>, <<"vsdtg">> => 22,
       <<"value1">> => 323424, <<"value2">> => <<"somestringvalue">>},
    JSON = jiffy:encode(M),
    lager:notice("~s",[JSON]),
@@ -395,7 +395,7 @@ from_json_basic2_test() ->
 
 from_json_basic3_test() ->
    M = #{<<"datetime">> => <<"2019-10-05T14:48:01.023Z">>, <<"id-string">> => <<"ioi2u34oiu23oi4u2oi4u2">>,
-      <<"raw">> => <<"01002">>, <<"vsdtg">> => 22, <<"value1">> => 2323422, <<"value2">> => <<"savoi">>,
+      <<"raw">> => <<"01002">>, <<"vsdtg">> => 22,
       <<"value1">> => 323424, <<"value2">> => #{<<"key12">> => #{<<"anotherkey">> => <<"somestringvalue">>}}
    },
    JSON = jiffy:encode(M),
@@ -417,7 +417,7 @@ from_json_basic3_test() ->
 
 from_json_list_test() ->
    M = [#{<<"datetime">> => <<"2019-10-05T14:48:01.023Z">>, <<"id-string">> => <<"ioi2u34oiu23oi4u2oi4u2">>,
-      <<"raw">> => <<"01002">>, <<"vsdtg">> => 22, <<"value1">> => 2323422, <<"value2">> => <<"savoi">>,
+      <<"raw">> => <<"01002">>, <<"vsdtg">> => 22,
       <<"value1">> => 323424, <<"value2">> => #{<<"key12">> => #{<<"anotherkey">> => <<"somestringvalue">>}}
    }],
    JSON = jiffy:encode(M),

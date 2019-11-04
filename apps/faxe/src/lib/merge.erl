@@ -22,8 +22,8 @@
                  F(_K, {both, L, R}) -> {ok, [L, R]} %% arbitrary choice
               end).
 
-merge(L, R) ->
-   merge(?MFUN, L, R).
+merge(Left, Right) ->
+   merge(?MFUN, Left, Right).
 
 merge(F, L, R) ->
    L1 = lists:sort(maps:to_list(L)),
