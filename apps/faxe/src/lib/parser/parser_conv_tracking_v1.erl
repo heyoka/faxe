@@ -12,7 +12,7 @@
 -behavior(tcp_msg_parser).
 
 %% API
--export([parse/1, test_bitmask/1, parse_datetime/1, do/0]).
+-export([parse/1, test_bitmask/1, parse_datetime/1, maybe_disambiguate/1]).
 
 -ifdef(TEST).
 -include_lib("eunit/include/eunit.hrl").
@@ -57,8 +57,9 @@
    <<"recirculate">>]).
 
 parse(BinData) ->
-   ets:insert(parser_prev, ets:tab2list(parser)),
-   ets:delete_all_objects(parser),
+   ets:insert(parser_prev_table(), ets:tab2list(parser_table())),
+   ets:delete_all_objects(parser_table()),
+%%   lager:info("parser_prev: ~p",[ets:tab2list(parser_prev)]),
    %% split lines
    LinesAll = to_lines(BinData),
    %% remove timestamp
@@ -66,12 +67,68 @@ parse(BinData) ->
    DataLines = [FirstLine|RLines],
    %% parse the lines
    Res = parse_lines(DataLines),
-   %%
-   lager:notice("parser: ~p",[ets:tab2list(parser)]),
-   {?TGW_DATAFORMAT, ?PARSER_VERSION, Res}.
+   %% no check for inconsistencies
+   DisambRes = maybe_disambiguate(Res),
 
-disambiguate() ->
-   TList = ets:tab2list(parser).
+   {?TGW_DATAFORMAT, ?PARSER_VERSION, DisambRes}.
+
+maybe_disambiguate(Result) ->
+   case ets:tab2list(parser_prev_table()) of
+      [] -> Result;
+      _L ->
+         TList = lists:filter(fun({_P, T}) -> T /= <<>> end, ets:tab2list(parser_table())),
+         {_Positions, Tracs} = lists:unzip(TList),
+         case length(Tracs) == length(lists:usort(Tracs)) of
+            true -> Result;
+            false -> disambiguate(Result, TList)
+         end
+   end.
+
+disambiguate(ResMap, TList) ->
+   LastTime = ets:tab2list(parser_prev_table()),
+   F =
+   fun({_Pos, Trac}, {Seen, Doubles}) ->
+      NewDoubles =
+      case lists:member(Trac, Seen) of
+         true -> %% we have a second entry here -> check if we have an entry in prev vals
+            [Trac|Doubles];
+         false -> Doubles
+      end,
+      {[Trac|Seen], NewDoubles}
+   end,
+   {_Seen, Doubles} = lists:foldl(F, {[], []}, TList),
+   TheDoubles = lists:filter(fun({_Po, Tr}) -> lists:member(Tr, Doubles) end, TList),
+
+   FunEval =
+   fun({DPos, DTrac}, Acc) ->
+      case proplists:get_value(DPos, LastTime) of
+         DTrac -> %% we were here last time, and we know we are double, so set entry to <<>>
+            ets:delete_object(parser_table(), {DPos, DTrac}),
+            [DPos|Acc];
+         _Else -> %% undefined or other entry
+            Acc
+      end
+   end,
+   Actions = lists:foldl(FunEval, [], TheDoubles),
+%%   lager:notice("The Actions are: ~p",[Actions]),
+   #{<<"sources">> := Sources, <<"targets">> := Targets} = ResMap,
+   AllPos = lists:concat([Sources, Targets]),
+   Disamb =
+   fun(#{<<"pos">> := Pos} = El, #{<<"sources">> := Srcs, <<"targets">> := Trgts} = Acc) ->
+      NewEntry =
+      case lists:member(Pos, Actions) of
+         true  ->
+            El#{<<"trac">> => <<>>, <<"scan">> => <<>>};
+         false ->
+            El
+      end,
+      case maps:is_key(<<"targ">>, NewEntry) of
+         true -> Acc#{<<"sources">> => [NewEntry|Srcs]};
+         false -> Acc#{<<"targets">> => [NewEntry|Trgts]}
+      end
+   end,
+   lists:foldl(Disamb, #{<<"sources">> => [], <<"targets">> => []}, AllPos).
+
 
 to_lines(BinData) ->
    binary:split(BinData, ?LINE_DELIMITER, [global, trim_all]).
@@ -133,7 +190,7 @@ line_src_e_pp(Pos, Fields)  ->
       <<"TRG3:", Targ3/binary>>,
       <<"TRG4:", Targ4/binary>>,
       <<"TRG5:", Targ5/binary>>] = Fields,
-   ets:insert(parser, {Pos, Trac}),
+   ets:insert(parser_table(), {Pos, Trac}),
    #{<<"pos">> => Pos,
       <<"trac">> => Trac,
       <<"scan">> => Scan, <<"seqn">> => int_or_null(SeqN),
@@ -148,7 +205,7 @@ line_tgt_it_dp(Pos, Fields) ->
       <<"SEQN:", SeqN/binary>>, %% empty or int
       <<"CASE:", Case/binary>>, %% emtpy or int
       <<"ATTR:", Attr/binary>>] = Fields,
-   ets:insert(parser, {Pos, Trac}),
+   ets:insert(parser_table(), {Pos, Trac}),
    #{<<"pos">> => Pos, <<"trac">> => Trac,
       <<"scan">> => Scan, <<"temp">> => Temp,
       <<"seqn">> => int_or_null(SeqN), <<"case">> => int_or_null(Case),
@@ -189,10 +246,28 @@ parse_datetime(DTBin) ->
    DtParts = {{2000 + Year, Month, Day},{Hour, Minute, Second, Milli}},
    faxe_time:to_ms(DtParts).
 
+
+%%%%%%%%%%%%%%%%%%% parser tables %%%%%%%%%%%%%%%%%%%%%%
+parser_table() ->
+   case get(parser) of
+      undefined ->
+         Tab = ets:new(parser, [bag]),
+         put(parser, Tab), Tab;
+      Val -> Val
+   end.
+
+parser_prev_table() ->
+   case get(parser_prev) of
+      undefined ->
+         Tab = ets:new(parser_prev, [set]),
+         put(parser_prev, Tab), Tab;
+      Val -> Val
+   end.
+
 %%%%%%%%%%%%%%%%%% end %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-do() -> parse(def()).
-%%-ifdef(TEST).
+-ifdef(TEST).
 %% test
+do() -> parse(def()), parse(defnew()), parse(def()), parse(defnew()), parse(defnew()).
 def() ->
    iolist_to_binary(
       [
@@ -203,8 +278,44 @@ def() ->
          <<"T03,TRAC:2066,SCAN:2066,TEMP:,SEQN:4,CASE:3220,ATTR:0;">>,
          <<"T04,TRAC:,SCAN:,TEMP:,SEQN:,CASE:4031,ATTR:0;">>,
          <<"T05,TRAC:,SCAN:,TEMP:,SEQN:,CASE:5021,ATTR:0;">>,
-         <<"T06,TRAC:2022,SCAN:2022,TEMP:,SEQN:5,CASE:9999,ATTR:0;">>,
+         <<"T06,TRAC:,SCAN:,TEMP:,SEQN:5,CASE:9999,ATTR:0;">>,
          <<"T07,TRAC:2022,SCAN:,TEMP:,SEQN:,CASE:6,ATTR:0;">>,
+         <<"T08,TRAC:2064,SCAN:2064,TEMP:,SEQN:6,CASE:9999,ATTR:0;">>,
+         <<"T09,TRAC:,SCAN:,TEMP:,SEQN:,CASE:6,ATTR:0;">>,
+         <<"T10,TRAC:3062,SCAN:,TEMP:,SEQN:7,CASE:9999,ATTR:0;">>,
+         <<"T11,TRAC:,SCAN:,TEMP:,SEQN:,CASE:16,ATTR:0;">>,
+         <<"T12,TRAC:,SCAN:,TEMP:,SEQN:,CASE:4,ATTR:0;">>,
+         <<"T13,TRAC:,SCAN:,TEMP:,SEQN:,CASE:3,ATTR:0;">>,
+         <<"T14,TRAC:2004,SCAN:2004,TEMP:,SEQN:8,CASE:9999,ATTR:0;">>,
+         <<"T15,TRAC:2057,SCAN:2057,TEMP:,SEQN:,CASE:1,ATTR:16;">>,
+         <<"IT1,TRAC:,SCAN:,TEMP:,SEQN:,CASE:,ATTR:0;">>,
+         <<"DP1,TRAC:3068,SCAN:3068,TEMP:,SEQN:1,CASE:3100,ATTR:0;">>,
+         <<"DP2,TRAC:2051,SCAN:2051,TEMP:,SEQN:2,CASE:,ATTR:0;">>,
+         <<"S00,TRAC:2001,SCAN:2001,SEQN:,TARG:,ATTR:20,TRG1:3072,TRG2:,TRG3:,TRG4:,TRG5:;">>,
+         <<"S01,TRAC:2053,SCAN:,SEQN:3,TARG:1,ATTR:16,TRG1:2005,TRG2:,TRG3:,TRG4:,TRG5:;">>,
+         <<"S02,TRAC:,SCAN:,SEQN:,TARG:,ATTR:0,TRG1:,TRG2:,TRG3:,TRG4:,TRG5:;">>,
+         <<"S03,TRAC:2017,SCAN:,SEQN:4,TARG:1,ATTR:16,TRG1:2066,TRG2:,TRG3:,TRG4:,TRG5:;">>,
+         <<"S06,TRAC:3061,SCAN:,SEQN:5,TARG:1,ATTR:16,TRG1:2022,TRG2:,TRG3:,TRG4:,TRG5:;">>,
+         <<"S07,TRAC:2012,SCAN:,SEQN:6,TARG:1,ATTR:16,TRG1:2064,TRG2:,TRG3:,TRG4:,TRG5:;">>,
+         <<"S08,TRAC:3074,SCAN:,SEQN:7,TARG:1,ATTR:16,TRG1:3062,TRG2:,TRG3:,TRG4:,TRG5:;">>,
+         <<"S09,TRAC:2069,SCAN:,SEQN:8,TARG:1,ATTR:16,TRG1:2004,TRG2:,TRG3:,TRG4:,TRG5:;">>,
+         <<"S10,TRAC:3064,SCAN:,SEQN:9,TARG:1,ATTR:16,TRG1:2057,TRG2:,TRG3:,TRG4:,TRG5:;">>,
+         <<"S11,TRAC:,SCAN:,SEQN:,TARG:,ATTR:0,TRG1:,TRG2:,TRG3:,TRG4:,TRG5:;">>,
+         <<"E01,TRAC:,SCAN:,SEQN:,TARG:,ATTR:0,TRG1:,TRG2:,TRG3:,TRG4:,TRG5:;">>,
+         <<"PP1,TRAC:2071,SCAN:2071,SEQN:1,TARG:1,ATTR:16,TRG1:3068,TRG2:,TRG3:,TRG4:,TRG5:;">>,
+         <<"PP2,TRAC:2058,SCAN:2058,SEQN:2,TARG:1,ATTR:16,TRG1:2051,TRG2:,TRG3:,TRG4:,TRG5:;">>]).
+defnew() ->
+   iolist_to_binary(
+      [
+         <<"19.08.01  17:33:44,867  ">>, %% utc plc send-time
+         <<"T00,TRAC:3072,SCAN:3072,TEMP:,SEQN:,CASE:,ATTR:8;">>,
+         <<"T01,TRAC:2005,SCAN:2005,TEMP:,SEQN:3,CASE:,ATTR:0;">>,
+         <<"T02,TRAC:,SCAN:,TEMP:,SEQN:,CASE:,ATTR:0;">>,
+         <<"T03,TRAC:2066,SCAN:2066,TEMP:,SEQN:4,CASE:3220,ATTR:0;">>,
+         <<"T04,TRAC:,SCAN:,TEMP:,SEQN:,CASE:4031,ATTR:0;">>,
+         <<"T05,TRAC:,SCAN:,TEMP:,SEQN:,CASE:5021,ATTR:0;">>,
+         <<"T06,TRAC:2022,SCAN:2022,TEMP:,SEQN:5,CASE:9999,ATTR:0;">>,
+         <<"T07,TRAC:2022,SCAN:2022,TEMP:,SEQN:,CASE:6,ATTR:0;">>,
          <<"T08,TRAC:2064,SCAN:2064,TEMP:,SEQN:6,CASE:9999,ATTR:0;">>,
          <<"T09,TRAC:,SCAN:,TEMP:,SEQN:,CASE:6,ATTR:0;">>,
          <<"T10,TRAC:3062,SCAN:,TEMP:,SEQN:7,CASE:9999,ATTR:0;">>,
@@ -246,60 +357,207 @@ def1() -> iolist_to_binary([
    <<"PP2,TRAC:2058,SCAN:2058,SEQN:2,TARG:1,ATTR:16,TRG1:2051,TRG2:,TRG3:,TRG4:,TRG5:;">>]
 ).
 
-res_new() -> #{<<"sources">> =>
-[#{<<"attr">> => [<<"source_processed">>],
-   <<"pos">> => <<"PP2">>,<<"scan">> => <<"2058">>,
-   <<"seqn">> => 2,
-   <<"targ">> => [<<"2051">>],
-   <<"trac">> => <<"2058">>},
-   #{<<"attr">> => [],<<"pos">> => <<"E01">>,
-      <<"scan">> => <<>>,<<"seqn">> => null,
-      <<"targ">> => [<<"0000000000E8">>],
-      <<"trac">> => <<>>},
-   #{<<"attr">> => [],<<"pos">> => <<"S11">>,
-      <<"scan">> => <<>>,<<"seqn">> => null,
-      <<"targ">> => [],<<"trac">> => <<>>},
-   #{<<"attr">> => [<<"source_processed">>],
-      <<"pos">> => <<"S10">>,<<"scan">> => <<>>,
-      <<"seqn">> => 9,
-      <<"targ">> => [<<"2057">>],
-      <<"trac">> => <<"3064">>},
-   #{<<"attr">> =>
+res_new() ->
+   #{<<"sources">> =>
+   [#{<<"attr">> =>
    [<<"source_processed">>,<<"goto_exit">>],
       <<"pos">> => <<"S00">>,<<"scan">> => <<"2001">>,
       <<"seqn">> => null,
       <<"targ">> => [<<"3072">>],
-      <<"trac">> => <<"2001">>}],
-   <<"targets">> =>
-   [#{<<"attr">> => [],<<"case">> => null,
-      <<"pos">> => <<"DP2">>,<<"scan">> => <<"2051">>,
-      <<"seqn">> => 2,<<"temp">> => <<>>,
-      <<"trac">> => <<"2051">>},
-      #{<<"attr">> => [],<<"case">> => 3100,
-         <<"pos">> => <<"DP1">>,<<"scan">> => <<"3068">>,
-         <<"seqn">> => 1,<<"temp">> => <<>>,
-         <<"trac">> => <<"3068">>},
-      #{<<"attr">> => [],<<"case">> => null,
-         <<"pos">> => <<"IT1">>,<<"scan">> => <<>>,
-         <<"seqn">> => null,<<"temp">> => <<>>,
-         <<"trac">> => <<"3062">>},
-      #{<<"attr">> => [<<"no_source">>],
-         <<"case">> => 1,<<"pos">> => <<"T15">>,
-         <<"scan">> => <<"2057">>,<<"seqn">> => null,
-         <<"temp">> => <<>>,<<"trac">> => <<"2057">>},
-      #{<<"attr">> => [],<<"case">> => 9999,
-         <<"pos">> => <<"T10">>,<<"scan">> => <<>>,
-         <<"seqn">> => 7,<<"temp">> => <<>>,
-         <<"trac">> => <<"3062">>},
-      #{<<"attr">> => [],<<"case">> => 6,
-         <<"pos">> => <<"T09">>,<<"scan">> => <<>>,
-         <<"seqn">> => null,<<"temp">> => <<>>,
+      <<"trac">> => <<"2001">>},
+      #{<<"attr">> => [<<"source_processed">>],
+         <<"pos">> => <<"S10">>,<<"scan">> => <<>>,
+         <<"seqn">> => 9,
+         <<"targ">> => [<<"2057">>],
+         <<"trac">> => <<"3064">>},
+      #{<<"attr">> => [],<<"pos">> => <<"S11">>,
+         <<"scan">> => <<>>,<<"seqn">> => null,
+         <<"targ">> => [],<<"trac">> => <<>>},
+      #{<<"attr">> => [],<<"pos">> => <<"E01">>,
+         <<"scan">> => <<>>,<<"seqn">> => null,
+         <<"targ">> => [<<"0000000000E8">>],
          <<"trac">> => <<>>},
-      #{<<"attr">> => [<<"goto_sequencer">>],
+      #{<<"attr">> => [<<"source_processed">>],
+         <<"pos">> => <<"PP2">>,<<"scan">> => <<"2058">>,
+         <<"seqn">> => 2,
+         <<"targ">> => [<<"2051">>],
+         <<"trac">> => <<"2058">>}],
+      <<"targets">> =>
+      [#{<<"attr">> => [<<"goto_sequencer">>],
          <<"case">> => null,<<"pos">> => <<"T00">>,
          <<"scan">> => <<"3072">>,<<"seqn">> => null,
-         <<"temp">> => <<>>,<<"trac">> => <<"3072">>}]}
+         <<"temp">> => <<>>,<<"trac">> => <<"3072">>},
+         #{<<"attr">> => [],<<"case">> => 6,
+            <<"pos">> => <<"T09">>,<<"scan">> => <<>>,
+            <<"seqn">> => null,<<"temp">> => <<>>,
+            <<"trac">> => <<>>},
+         #{<<"attr">> => [],<<"case">> => 9999,
+            <<"pos">> => <<"T10">>,<<"scan">> => <<>>,
+            <<"seqn">> => 7,<<"temp">> => <<>>,
+            <<"trac">> => <<>>},
+         #{<<"attr">> => [<<"no_source">>],
+            <<"case">> => 1,<<"pos">> => <<"T15">>,
+            <<"scan">> => <<"2057">>,<<"seqn">> => null,
+            <<"temp">> => <<>>,<<"trac">> => <<"2057">>},
+         #{<<"attr">> => [],<<"case">> => null,
+            <<"pos">> => <<"IT1">>,<<"scan">> => <<>>,
+            <<"seqn">> => null,<<"temp">> => <<>>,
+            <<"trac">> => <<>>},
+         #{<<"attr">> => [],<<"case">> => 3100,
+            <<"pos">> => <<"DP1">>,<<"scan">> => <<"3068">>,
+            <<"seqn">> => 1,<<"temp">> => <<>>,
+            <<"trac">> => <<"3068">>},
+         #{<<"attr">> => [],<<"case">> => null,
+            <<"pos">> => <<"DP2">>,<<"scan">> => <<"2051">>,
+            <<"seqn">> => 2,<<"temp">> => <<>>,
+            <<"trac">> => <<"2051">>}]}
+
 .
+
+
+res2() ->
+   #{<<"sources">> =>
+   [#{<<"attr">> =>
+   [<<"source_processed">>,<<"goto_exit">>],
+      <<"pos">> => <<"S00">>,<<"scan">> => <<"2001">>,
+      <<"seqn">> => null,
+      <<"targ">> => [<<"3072">>],
+      <<"trac">> => <<"2001">>},
+      #{<<"attr">> => [<<"source_processed">>],
+         <<"pos">> => <<"S01">>,<<"scan">> => <<>>,
+         <<"seqn">> => 3,
+         <<"targ">> => [<<"2005">>],
+         <<"trac">> => <<"2053">>},
+      #{<<"attr">> => [],<<"pos">> => <<"S02">>,
+         <<"scan">> => <<>>,<<"seqn">> => null,
+         <<"targ">> => [],<<"trac">> => <<>>},
+      #{<<"attr">> => [<<"source_processed">>],
+         <<"pos">> => <<"S03">>,<<"scan">> => <<>>,
+         <<"seqn">> => 4,
+         <<"targ">> => [<<"2066">>],
+         <<"trac">> => <<"2017">>},
+      #{<<"attr">> => [<<"source_processed">>],
+         <<"pos">> => <<"S06">>,<<"scan">> => <<>>,
+         <<"seqn">> => 5,
+         <<"targ">> => [<<"2022">>],
+         <<"trac">> => <<"3061">>},
+      #{<<"attr">> => [<<"source_processed">>],
+         <<"pos">> => <<"S07">>,<<"scan">> => <<>>,
+         <<"seqn">> => 6,
+         <<"targ">> => [<<"2064">>],
+         <<"trac">> => <<"2012">>},
+      #{<<"attr">> => [<<"source_processed">>],
+         <<"pos">> => <<"S08">>,<<"scan">> => <<>>,
+         <<"seqn">> => 7,
+         <<"targ">> => [<<"3062">>],
+         <<"trac">> => <<"3074">>},
+      #{<<"attr">> => [<<"source_processed">>],
+         <<"pos">> => <<"S09">>,<<"scan">> => <<>>,
+         <<"seqn">> => 8,
+         <<"targ">> => [<<"2004">>],
+         <<"trac">> => <<"2069">>},
+      #{<<"attr">> => [<<"source_processed">>],
+         <<"pos">> => <<"S10">>,<<"scan">> => <<>>,
+         <<"seqn">> => 9,
+         <<"targ">> => [<<"2057">>],
+         <<"trac">> => <<"3064">>},
+      #{<<"attr">> => [],<<"pos">> => <<"S11">>,
+         <<"scan">> => <<>>,<<"seqn">> => null,
+         <<"targ">> => [],<<"trac">> => <<>>},
+      #{<<"attr">> => [],<<"pos">> => <<"E01">>,
+         <<"scan">> => <<>>,<<"seqn">> => null,
+         <<"targ">> => [],<<"trac">> => <<>>},
+      #{<<"attr">> => [<<"source_processed">>],
+         <<"pos">> => <<"PP1">>,<<"scan">> => <<"2071">>,
+         <<"seqn">> => 1,
+         <<"targ">> => [<<"3068">>],
+         <<"trac">> => <<"2071">>},
+      #{<<"attr">> => [<<"source_processed">>],
+         <<"pos">> => <<"PP2">>,<<"scan">> => <<"2058">>,
+         <<"seqn">> => 2,
+         <<"targ">> => [<<"2051">>],
+         <<"trac">> => <<"2058">>}],
+      <<"targets">> =>
+      [#{<<"attr">> => [<<"goto_sequencer">>],
+         <<"case">> => null,<<"pos">> => <<"T00">>,
+         <<"scan">> => <<"3072">>,<<"seqn">> => null,
+         <<"temp">> => <<>>,<<"trac">> => <<"3072">>},
+         #{<<"attr">> => [],<<"case">> => null,
+            <<"pos">> => <<"T01">>,<<"scan">> => <<"2005">>,
+            <<"seqn">> => 3,<<"temp">> => <<>>,
+            <<"trac">> => <<"2005">>},
+         #{<<"attr">> => [],<<"case">> => null,
+            <<"pos">> => <<"T02">>,<<"scan">> => <<>>,
+            <<"seqn">> => null,<<"temp">> => <<>>,
+            <<"trac">> => <<>>},
+         #{<<"attr">> => [],<<"case">> => 3220,
+            <<"pos">> => <<"T03">>,<<"scan">> => <<"2066">>,
+            <<"seqn">> => 4,<<"temp">> => <<>>,
+            <<"trac">> => <<"2066">>},
+         #{<<"attr">> => [],<<"case">> => 4031,
+            <<"pos">> => <<"T04">>,<<"scan">> => <<>>,
+            <<"seqn">> => null,<<"temp">> => <<>>,
+            <<"trac">> => <<>>},
+         #{<<"attr">> => [],<<"case">> => 5021,
+            <<"pos">> => <<"T05">>,<<"scan">> => <<>>,
+            <<"seqn">> => null,<<"temp">> => <<>>,
+            <<"trac">> => <<>>},
+         #{<<"attr">> => [],<<"case">> => 9999,
+            <<"pos">> => <<"T06">>,<<"scan">> => <<"2022">>,
+            <<"seqn">> => 5,<<"temp">> => <<>>,
+            <<"trac">> => <<"2022">>},
+         #{<<"attr">> => [],<<"case">> => 6,
+            <<"pos">> => <<"T07">>,<<"scan">> => <<>>,
+            <<"seqn">> => null,<<"temp">> => <<>>,
+            <<"trac">> => <<>>},
+         #{<<"attr">> => [],<<"case">> => 9999,
+            <<"pos">> => <<"T08">>,<<"scan">> => <<"2064">>,
+            <<"seqn">> => 6,<<"temp">> => <<>>,
+            <<"trac">> => <<"2064">>},
+         #{<<"attr">> => [],<<"case">> => 6,
+            <<"pos">> => <<"T09">>,<<"scan">> => <<>>,
+            <<"seqn">> => null,<<"temp">> => <<>>,
+            <<"trac">> => <<>>},
+         #{<<"attr">> => [],<<"case">> => 9999,
+            <<"pos">> => <<"T10">>,<<"scan">> => <<>>,
+            <<"seqn">> => 7,<<"temp">> => <<>>,
+            <<"trac">> => <<>>},
+         #{<<"attr">> => [],<<"case">> => 16,
+            <<"pos">> => <<"T11">>,<<"scan">> => <<>>,
+            <<"seqn">> => null,<<"temp">> => <<>>,
+            <<"trac">> => <<>>},
+         #{<<"attr">> => [],<<"case">> => 4,
+            <<"pos">> => <<"T12">>,<<"scan">> => <<>>,
+            <<"seqn">> => null,<<"temp">> => <<>>,
+            <<"trac">> => <<>>},
+         #{<<"attr">> => [],<<"case">> => 3,
+            <<"pos">> => <<"T13">>,<<"scan">> => <<>>,
+            <<"seqn">> => null,<<"temp">> => <<>>,
+            <<"trac">> => <<>>},
+         #{<<"attr">> => [],<<"case">> => 9999,
+            <<"pos">> => <<"T14">>,<<"scan">> => <<"2004">>,
+            <<"seqn">> => 8,<<"temp">> => <<>>,
+            <<"trac">> => <<"2004">>},
+         #{<<"attr">> => [<<"no_source">>],
+            <<"case">> => 1,<<"pos">> => <<"T15">>,
+            <<"scan">> => <<"2057">>,<<"seqn">> => null,
+            <<"temp">> => <<>>,<<"trac">> => <<"2057">>},
+         #{<<"attr">> => [],<<"case">> => null,
+            <<"pos">> => <<"IT1">>,<<"scan">> => <<>>,
+            <<"seqn">> => null,<<"temp">> => <<>>,
+            <<"trac">> => <<"3062">>},
+         #{<<"attr">> => [],<<"case">> => 3100,
+            <<"pos">> => <<"DP1">>,<<"scan">> => <<"3068">>,
+            <<"seqn">> => 1,<<"temp">> => <<>>,
+            <<"trac">> => <<"3068">>},
+         #{<<"attr">> => [],<<"case">> => null,
+            <<"pos">> => <<"DP2">>,<<"scan">> => <<"2051">>,
+            <<"seqn">> => 2,<<"temp">> => <<>>,
+            <<"trac">> => <<"2051">>}]}
+.
+
+
+
 
 i_test() ->
    {T, Res} = timer:tc(?MODULE, parse, [def()]),
@@ -307,9 +565,13 @@ i_test() ->
    {T1, Res1} = timer:tc(?MODULE, parse, [def1()]),
    lager:info("Time (micros) needed: ~p~nJSON: ~s",[T1, Res1]).
 
--ifdef(TEST).
 parse_test() ->
    ?assertEqual(parse(def1()), {?TGW_DATAFORMAT, ?PARSER_VERSION, res_new()}).
+
+parse_disambiguate_test() ->
+   parse(def()),
+   ?assertEqual(parse(defnew()),
+      {?TGW_DATAFORMAT, ?PARSER_VERSION, res2()}).
 
 test_bin_lines() -> <<" 1;2;;34;35,767,67; /4365;0:">>.
 test_bin_fields() -> <<"ARG:4,BRG:3, ,, SomeField:,AnotherField:hello,KKKRF">>.

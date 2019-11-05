@@ -122,8 +122,8 @@ maybe_emit(Data, State = #state{changes = true, prev_crc32 = PrevCheckSum}) ->
     false -> NewState
   end.
 
-do_emit(Data, State = #state{as = As, parser = Parser, extract = Extract}) ->
-  P = tcp_msg_parser:convert(Data, As, Extract, Parser),
+do_emit(Data, State = #state{as = As, parser = Parser, extract = _Extract}) ->
+  P = tcp_msg_parser:convert(Data, As, Parser),
   dataflow:emit(P),
   State.
 
