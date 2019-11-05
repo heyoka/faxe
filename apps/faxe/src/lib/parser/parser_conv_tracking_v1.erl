@@ -73,7 +73,7 @@ parse(BinData) ->
    {?TGW_DATAFORMAT, ?PARSER_VERSION, DisambRes}.
 
 
-%% if there is no previous parser data OR if there are obvioulsy no duplicate values for "trac" ->
+%% if there is no previous parser data OR if there are obviously no duplicate values for "trac" ->
 %% do nothing at all !
 maybe_disambiguate(Result) ->
    case ets:tab2list(parser_prev_table()) of
@@ -91,12 +91,12 @@ maybe_disambiguate(Result) ->
 disambiguate(ResMap, TList) ->
    %% log from last parser run
    LastTime = ets:tab2list(parser_prev_table()),
-   %% lets filter out double "trac" values, thats what we are interested
+   %% lets filter out double "trac" values, that is what we are interested in
    F =
    fun({_Pos, Trac}, {Seen, Doubles}) ->
       NewDoubles =
       case lists:member(Trac, Seen) of
-         true -> %% we have a second entry here -> check if we have an entry in prev vals
+         true -> %% we have a second entry here
             [Trac|Doubles];
          false -> Doubles
       end,
@@ -121,6 +121,7 @@ disambiguate(ResMap, TList) ->
 %%   lager:notice("The Actions are: ~p",[Actions]),
    %% execute the actions on the parsed list of maps
    #{<<"sources">> := Sources, <<"targets">> := Targets} = ResMap,
+   %% run over every entry from the parsed data
    AllPos = lists:concat([Sources, Targets]),
    Disamb =
    fun(#{<<"pos">> := Pos} = El, #{<<"sources">> := Srcs, <<"targets">> := Trgts} = Acc) ->
@@ -131,6 +132,7 @@ disambiguate(ResMap, TList) ->
          false ->
             El
       end,
+      %% with the presence of the field "targ" we decide if the entry is source or target
       case maps:is_key(<<"targ">>, NewEntry) of
          true -> Acc#{<<"sources">> => [NewEntry|Srcs]};
          false -> Acc#{<<"targets">> => [NewEntry|Trgts]}
@@ -257,6 +259,7 @@ parse_datetime(DTBin) ->
 
 
 %%%%%%%%%%%%%%%%%%% parser tables %%%%%%%%%%%%%%%%%%%%%%
+%% parser table handles stored in process dictionary
 parser_table() ->
    case get(parser) of
       undefined ->
