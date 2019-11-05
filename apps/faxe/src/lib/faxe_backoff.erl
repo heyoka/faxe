@@ -1,10 +1,10 @@
 %%%-----------------------------------------------------------------------------
 %%% @doc
-%%% client reconnector.
+%%% backoff module, for reconnecting and other things
 %%%
 %%% @end
 %%%-----------------------------------------------------------------------------
--module(faxe_reconnect).
+-module(faxe_backoff).
 
 -author('miae@tgw-group.com').
 
@@ -17,7 +17,7 @@
 
 -define(IS_MAX_RETRIES(Max), (is_integer(Max) orelse Max =:= infinity)).
 
--record(reconnector, {
+-record(backoff, {
    min_interval  = ?MIN_INTERVAL,
    max_interval  = ?MAX_INTERVAL,
    max_retries   = infinity,
@@ -25,7 +25,7 @@
    retries       = 0,
    timer         = undefined}).
 
--opaque reconnector() :: #reconnector{}.
+-opaque reconnector() :: #backoff{}.
 
 -export_type([reconnector/0]).
 
@@ -52,23 +52,23 @@ new({_MinInterval, _MaxInterval}) ->
    new({?MIN_INTERVAL, ?MAX_INTERVAL, infinity});
 new({MinInterval, MaxInterval, MaxRetries}) when is_integer(MinInterval),
    is_integer(MaxInterval), ?IS_MAX_RETRIES(MaxRetries) ->
-   #reconnector{min_interval = MinInterval,
+   #backoff{min_interval = MinInterval,
       interval     = MinInterval,
       max_interval = MaxInterval,
       max_retries  = MaxRetries}.
 
 
--spec set_min_interval(#reconnector{}, non_neg_integer()) -> #reconnector{}.
-set_min_interval(R = #reconnector{}, NewMinInterval) ->
-   R#reconnector{min_interval = NewMinInterval}.
+-spec set_min_interval(#backoff{}, non_neg_integer()) -> #backoff{}.
+set_min_interval(R = #backoff{}, NewMinInterval) ->
+   R#backoff{min_interval = NewMinInterval}.
 
--spec set_max_interval(#reconnector{}, non_neg_integer()) -> #reconnector{}.
-set_max_interval(R = #reconnector{}, NewMaxInterval) ->
-   R#reconnector{max_interval = NewMaxInterval}.
+-spec set_max_interval(#backoff{}, non_neg_integer()) -> #backoff{}.
+set_max_interval(R = #backoff{}, NewMaxInterval) ->
+   R#backoff{max_interval = NewMaxInterval}.
 
--spec set_max_retries(#reconnector{}, non_neg_integer()) -> #reconnector{}.
-set_max_retries(R = #reconnector{}, NewMaxRetries) ->
-   R#reconnector{max_retries = NewMaxRetries}.
+-spec set_max_retries(#backoff{}, non_neg_integer()) -> #backoff{}.
+set_max_retries(R = #backoff{}, NewMaxRetries) ->
+   R#backoff{max_retries = NewMaxRetries}.
 
 %%------------------------------------------------------------------------------
 %% @doc Execute reconnector.
@@ -77,11 +77,11 @@ set_max_retries(R = #reconnector{}, NewMaxRetries) ->
 -spec execute(Reconnector, TimeoutMsg) -> {stop, retries_exhausted} | {ok, reconnector()} when
    Reconnector :: reconnector(),
    TimeoutMsg :: tuple().
-execute(#reconnector{retries = Retries, max_retries = MaxRetries}, _TimeoutMsg) when
+execute(#backoff{retries = Retries, max_retries = MaxRetries}, _TimeoutMsg) when
    MaxRetries =/= infinity andalso (Retries > MaxRetries) ->
    {stop, retries_exhausted};
 
-execute(Reconnector=#reconnector{
+execute(Reconnector=#backoff{
    min_interval = MinInterval,
    max_interval = MaxInterval,
    interval     = Interval,
@@ -96,17 +96,18 @@ execute(Reconnector=#reconnector{
          Interval1 > MaxInterval -> MinInterval;
          true -> Interval1
       end,
+   lager:notice("reconnect in :~p",[Interval2]),
    NewTimer = erlang:send_after(Interval2, self(), TimeoutMsg),
-   {ok, Reconnector#reconnector{interval = Interval2, retries = Retries+1, timer = NewTimer }}.
+   {ok, Reconnector#backoff{interval = Interval2, retries = Retries+1, timer = NewTimer }}.
 
 %%------------------------------------------------------------------------------
 %% @doc Reset reconnector
 %% @end
 %%------------------------------------------------------------------------------
 -spec reset(reconnector()) -> reconnector().
-reset(Reconnector = #reconnector{min_interval = MinInterval, timer = Timer}) ->
+reset(Reconnector = #backoff{min_interval = MinInterval, timer = Timer}) ->
    cancel(Timer),
-   Reconnector#reconnector{interval = MinInterval, retries = 0, timer = undefined}.
+   Reconnector#backoff{interval = MinInterval, retries = 0, timer = undefined}.
 
 cancel(undefined) -> ok;
 cancel(Timer) when is_reference(Timer) -> erlang:cancel_timer(Timer).

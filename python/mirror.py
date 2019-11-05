@@ -1,4 +1,5 @@
 import erlport.erlterms
+import pandas as pd
 
 
 # Mirrors all points it receives back to faxe
@@ -27,7 +28,7 @@ class Mirror:
             outList.append(tuple(l))
         return outList
 
-    # this is to implemented by a subclass
+    # this is to be implemented by a subclass
     def options():
         opts = [
             (b"foo", b"string"),
@@ -43,8 +44,20 @@ class Mirror:
 
     def batch(self, req):
         print("batch at python: ", req)
-        return req
+        df = pd.DataFrame.from_dict(req, orient='columns')
+        df.set_index(keys=b'ts', inplace=True)
+        print(df)
+        mean = df.mean(axis=0)
+        print("the mean of vals is: ", mean),
+        req1 = req[b'mean']
+        return req1
 
     def point(self, req):
         print("point at python: ", req)
-        return req
+        req1 = dict(req)
+        df = pd.DataFrame(data=req)
+        print(df)
+        # req1[b'vs'] = 5
+        # req2 = {b"vs": 2, "id": "oi23u4oi23u4oi23u4oi2u34o2i3u4o", "df": "220.023",
+        #         "data": {"val1": 23423.3}}
+        return df

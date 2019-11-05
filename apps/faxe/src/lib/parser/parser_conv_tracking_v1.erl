@@ -72,12 +72,16 @@ parse(BinData) ->
 
    {?TGW_DATAFORMAT, ?PARSER_VERSION, DisambRes}.
 
+
+%% if there is no previous parser data OR if there are obvioulsy no duplicate values for "trac" ->
+%% do nothing at all !
 maybe_disambiguate(Result) ->
    case ets:tab2list(parser_prev_table()) of
       [] -> Result;
       _L ->
          TList = lists:filter(fun({_P, T}) -> T /= <<>> end, ets:tab2list(parser_table())),
          {_Positions, Tracs} = lists:unzip(TList),
+         %% check if there are duplicates
          case length(Tracs) == length(lists:usort(Tracs)) of
             true -> Result;
             false -> disambiguate(Result, TList)
@@ -85,7 +89,9 @@ maybe_disambiguate(Result) ->
    end.
 
 disambiguate(ResMap, TList) ->
+   %% log from last parser run
    LastTime = ets:tab2list(parser_prev_table()),
+   %% lets filter out double "trac" values, thats what we are interested
    F =
    fun({_Pos, Trac}, {Seen, Doubles}) ->
       NewDoubles =
@@ -97,8 +103,10 @@ disambiguate(ResMap, TList) ->
       {[Trac|Seen], NewDoubles}
    end,
    {_Seen, Doubles} = lists:foldl(F, {[], []}, TList),
+   %% use doubles list to reduce the parser data
    TheDoubles = lists:filter(fun({_Po, Tr}) -> lists:member(Tr, Doubles) end, TList),
 
+   %% check these with last parser values to get Actions list
    FunEval =
    fun({DPos, DTrac}, Acc) ->
       case proplists:get_value(DPos, LastTime) of
@@ -111,6 +119,7 @@ disambiguate(ResMap, TList) ->
    end,
    Actions = lists:foldl(FunEval, [], TheDoubles),
 %%   lager:notice("The Actions are: ~p",[Actions]),
+   %% execute the actions on the parsed list of maps
    #{<<"sources">> := Sources, <<"targets">> := Targets} = ResMap,
    AllPos = lists:concat([Sources, Targets]),
    Disamb =

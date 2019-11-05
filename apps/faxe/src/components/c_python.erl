@@ -71,7 +71,7 @@ init(NodeId, _Ins, #{cb_module := Callback, cb_class := CBClass} = Args) ->
 process(_Inport, #data_batch{} = Batch, State = #state{callback_module = Mod, python_instance = Python,
    cb_object = Obj, callback_class = Class}) ->
    lager:notice("from batch to list of maps: ~p",[flowdata:to_map(Batch)]),
-   Data = flowdata:to_mapstruct(Batch),
+   Data = flowdata:to_map(Batch),
 %%   Res = python:call(Python, Mod, build_class_call(Class, ?PYTHON_BATCH_CALL), [Obj, Data]),
    {Call, NewState} = build_class_call(Class, ?PYTHON_BATCH_CALL, State),
    {T, Res} =

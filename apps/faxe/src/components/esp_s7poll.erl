@@ -20,8 +20,8 @@
 
 -define(MAX_READ_ITEMS, 19).
 
--define(RECON_MIN_INTERVAL, 1).
--define(RECON_MAX_INTERVAL, 6).
+-define(RECON_MIN_INTERVAL, 100).
+-define(RECON_MAX_INTERVAL, 6000).
 -define(RECON_MAX_RETRIES, infinity).
 
 -record(state, {
@@ -66,7 +66,7 @@ init(_NodeId, _Ins,
       as := As,
       diff := Diff}) ->
 
-  Reconnector = modbus_reconnector:new(
+  Reconnector = faxe_backoff:new(
     {?RECON_MIN_INTERVAL, ?RECON_MAX_INTERVAL, ?RECON_MAX_RETRIES}),
 
   {PList, TypeList} = build_addresses(Addresses),
@@ -135,7 +135,7 @@ shutdown(#state{client = Client, timer = Timer}) ->
   catch (snapclient:stop(Client)).
 
 try_reconnect(State=#state{reconnector = Reconnector}) ->
-  case modbus_reconnector:execute(Reconnector, do_reconnect) of
+  case faxe_backoff:execute(Reconnector, do_reconnect) of
     {ok, Reconnector1} ->
       {ok, State#state{reconnector = Reconnector1}};
     {stop, Error} -> logger:error("[Client: ~p] PLC reconnect error: ~p!",[?MODULE, Error]),

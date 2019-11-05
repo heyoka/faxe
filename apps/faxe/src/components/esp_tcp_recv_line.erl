@@ -42,8 +42,8 @@
     {buffer, 4096}
   ]).
 
--define(RECON_MIN_INTERVAL, 1).
--define(RECON_MAX_INTERVAL, 10).
+-define(RECON_MIN_INTERVAL, 200).
+-define(RECON_MAX_INTERVAL, 7000).
 -define(RECON_MAX_RETRIES, infinity).
 
 options() -> [
@@ -61,8 +61,8 @@ options() -> [
 init(_NodeId, _Ins,
     #{ip := Ip, port := Port, as := As, extract := Extract, changed := Changed,
       line_delimiter := Delimit, parser := Parser, min_length := MinL}) ->
-  Reconnector = modbus_reconnector:new({?RECON_MIN_INTERVAL, ?RECON_MAX_INTERVAL, ?RECON_MAX_RETRIES}),
-  {ok, Reconnector1} = modbus_reconnector:execute(Reconnector, do_reconnect),
+  Reconnector = faxe_backoff:new({?RECON_MIN_INTERVAL, ?RECON_MAX_INTERVAL, ?RECON_MAX_RETRIES}),
+  {ok, Reconnector1} = faxe_backoff:execute(Reconnector, do_reconnect),
   {ok, all,
     #state{ip = Ip, port = Port, as = As, extract = Extract, parser = Parser, min_length = MinL,
       reconnector = Reconnector1, line_delimiter = Delimit, changes = Changed}}.
@@ -101,7 +101,7 @@ shutdown(#state{socket = Sock, timer_ref = Timer}) ->
   catch (gen_tcp:close(Sock)).
 
 try_reconnect(State=#state{reconnector = Reconnector}) ->
-  case modbus_reconnector:execute(Reconnector, do_reconnect) of
+  case faxe_backoff:execute(Reconnector, do_reconnect) of
     {ok, Reconnector1} ->
       {ok, State#state{reconnector = Reconnector1}};
     {stop, Error} -> logger:error("[Client: ~p] reconnect error: ~p!",[?MODULE, Error]),

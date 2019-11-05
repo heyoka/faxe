@@ -1,12 +1,17 @@
 
 def s =
     |value_emitter()
-    .every(5s)
+    .every(1s)
     .type(point)
 
     |default()
-    .fields('id', 'df', 'vs', 'data.mac[1]')
-    .field_values('oi23u4oi23u4oi32u34oi2u3', '02.005', 1, 'somoly')
+    .fields('id', 'df', 'vs')
+    .field_values('oi23u4oi23u4oi32u34oi2u3', '02.005', 1)
+
+
+    |win_event()
+    .every(7)
+    .period(7)
 
     @mirror()
     .foo('sefooo')
