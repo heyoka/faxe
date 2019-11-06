@@ -1,0 +1,19 @@
+
+def s =
+    |value_emitter()
+    .every(1s)
+    .type(point)
+
+    |default()
+    .fields('id', 'df', 'vs')
+    .field_values('oi23u4oi23u4oi32u34oi2u3', '02.005', 1)
+
+
+    |win_event()
+    .every(3)
+    .period(3)
+
+    @callback()
+    .foo('sefooo')
+    .bar(12.5)
+    .baz(55)

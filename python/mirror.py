@@ -33,10 +33,11 @@ class Mirror:
         opts = [
             (b"foo", b"string"),
             (b"bar", b"float", 22.5),
-            (b"baz", b"integer")
+            (b"bauz", b"integer")
         ]
         return opts
 
+    # subclass
     def init(self, init_req=None):
         print("hey you called init with : ", init_req)
         ret = {"eins": erlport.erlterms.List([1, 2, 3, 4]), "zwei": 2, "drei": {"view": 3}}
@@ -49,8 +50,8 @@ class Mirror:
         print(df)
         mean = df.mean(axis=0)
         print("the mean of vals is: ", mean),
-        req1 = req[b'mean']
-        return req1
+        # req1 = req[b'mean']
+        return req
 
     def point(self, req):
         print("point at python: ", req)
