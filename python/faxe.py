@@ -16,7 +16,7 @@ class Faxe:
 
     @staticmethod
     def info(clname):
-        classname = clname.decode("utf-8")
+        classname = clname #.decode("utf-8")
         modname = classname.lower()
         module = __import__(modname)
         print("classname ", classname, " modname ", modname)
@@ -38,14 +38,14 @@ class Faxe:
         pass
 
     def batch(self, req):
-        print("batch at python: ", self)
-        df = pd.DataFrame.from_dict(req, orient='columns')
-        df.set_index(keys=b'ts', inplace=True)
+        print("batch at Faxe python: ", req)
+        # df = pd.DataFrame.from_dict(req, orient='columns')
+        # df.set_index(keys=b'ts', inplace=True)
         # print(df)
         # mean = df.mean(axis=0)
         # print("the mean of vals is: ", mean),
         # req1 = req[b'mean']
-        self.handle_batch(df)
+        # self.handle_batch(req)
 
     def point(self, req):
         print("point at python: ", req)

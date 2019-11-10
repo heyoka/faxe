@@ -41,6 +41,7 @@ class Faxe:
         return outList
 
     def batch(self, req):
+
         print("batch at python: ", self)
         df = pd.DataFrame.from_dict(req, orient='columns')
         df.set_index(keys=b'ts', inplace=True)

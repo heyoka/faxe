@@ -19,7 +19,7 @@
     modbus,
     msgpack,
     cowboy,
-    erlport,
+    pythra,
     snap7erl,
     dfs,
     qdate,

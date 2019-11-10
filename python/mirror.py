@@ -33,7 +33,7 @@ class Mirror:
         opts = [
             (b"foo", b"string"),
             (b"bar", b"float", 22.5),
-            (b"bauz", b"integer")
+            (b"baz", b"integer")
         ]
         return opts
 
@@ -44,14 +44,16 @@ class Mirror:
         return erlport.erlterms.Map(ret)
 
     def batch(self, req):
-        print("batch at python: ", req)
-        df = pd.DataFrame.from_dict(req, orient='columns')
-        df.set_index(keys=b'ts', inplace=True)
-        print(df)
-        mean = df.mean(axis=0)
-        print("the mean of vals is: ", mean),
+        self = getattr(self, "Mirror")
+        print(self)
+        # print("batch at python: ", req)
+        # df = pd.DataFrame.from_dict(req, orient='columns')
+        # df.set_index(keys=b'ts', inplace=True)
+        # print(df)
+        # mean = df.mean(axis=0)
+        # print("the mean of vals is: ", mean),
         # req1 = req[b'mean']
-        return req
+        return self.make_dataframe(req)
 
     def point(self, req):
         print("point at python: ", req)
@@ -61,4 +63,9 @@ class Mirror:
         # req1[b'vs'] = 5
         # req2 = {b"vs": 2, "id": "oi23u4oi23u4oi23u4oi2u34o2i3u4o", "df": "220.023",
         #         "data": {"val1": 23423.3}}
+        return df
+
+    def make_dataframe(self, data):
+        d = dict(data)
+        df = pd.DataFrame(data=d)
         return df

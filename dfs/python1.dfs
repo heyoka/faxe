@@ -13,7 +13,7 @@ def s =
     .every(3)
     .period(3)
 
-    @callback()
+    @calc()
     .foo('sefooo')
     .bar(12.5)
     .baz(55)

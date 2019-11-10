@@ -26,10 +26,10 @@
 -define(PYTHON_PATH, "/home/heyoka/workspace/faxe/python/").
 
 %% python method calls
--define(PYTHON_INFO_CALL, "info").
--define(PYTHON_INIT_CALL, "init").
--define(PYTHON_BATCH_CALL, "batch").
--define(PYTHON_POINT_CALL, "point").
+-define(PYTHON_INFO_CALL, info).
+-define(PYTHON_INIT_CALL, init).
+-define(PYTHON_BATCH_CALL, batch).
+-define(PYTHON_POINT_CALL, point).
 
 
 
@@ -43,8 +43,8 @@ options() -> [{cb_module, atom}, {cb_class, atom}].
 -spec call_options(atom(), atom()) -> list(tuple()).
 call_options(Module, Class) ->
    P = get_python(),
-   {Call, _} = build_class_call(faxe, ?PYTHON_INFO_CALL, #state{}),
-   Res = python:call(P, faxe_base, Call, [Class]),
+   ModClass = list_to_atom(atom_to_list(Module)++"."++atom_to_list(Class)),
+   Res = pythra:func(P, ModClass, ?PYTHON_INFO_CALL, [Class]),
    lager:warning("python info call to ~p gives ~p",[{Module, Class}, Res]),
    python:stop(P),
    Res.
@@ -55,11 +55,8 @@ init(NodeId, _Ins, #{cb_module := Callback, cb_class := CBClass} = Args) ->
    lager:notice("ARgs for ~p: ~p", [Callback, Args]),
    PInstance = get_python(),
    %% create an instance of the callback class
-   {'$erlport.opaque', python, ClassInstance} =
-      python:call(PInstance, faxe_base, 'Faxe', [maps:without([cb_module], Args)]),
-   %% call "init" on that instance
-%%   _InitRes = python:call(PInstance, Callback, build_class_call(CBClass, ?PYTHON_INIT_CALL), [Args]),
-%%   lager:notice("python init gives us: ~p",[_InitRes]),
+   ClassInstance = pythra:init(PInstance, Callback, CBClass, [maps:without([cb_module, cb_class], Args)]),
+   lager:notice("python instantiation of ~p gives us: ~p",[{Callback, CBClass}, ClassInstance]),
    State = #state{
       callback_module = Callback,
       callback_class =  CBClass,
@@ -73,43 +70,43 @@ process(_Inport, #data_batch{} = Batch, State = #state{callback_module = Mod, py
    lager:notice("from batch to list of maps: ~p",[flowdata:to_map(Batch)]),
    Data = flowdata:to_map(Batch),
 %%   Res = python:call(Python, Mod, build_class_call(Class, ?PYTHON_BATCH_CALL), [Obj, Data]),
-   {Call, NewState} = build_class_call('Faxe', ?PYTHON_BATCH_CALL, State),
+%%   {Call, NewState} = build_class_call(Class, ?PYTHON_BATCH_CALL, State),
    {T, Res} =
-      timer:tc(python, call, [Python, faxe_base, Call, [Obj, Data]]),
+      timer:tc(pythra, method, [Python, Obj, ?PYTHON_BATCH_CALL, [Data]]),
    lager:notice("~p emitting: ~p after: ~p",[Mod, Res, T]),
-   {emit, Res, NewState}
+   {emit, Res, State}
 ;
 process(_Inport, #data_point{} = Point, State = #state{python_instance = Python, callback_module = Mod,
    cb_object = Obj, callback_class = Class}) ->
 
    Data = flowdata:to_mapstruct(Point),
    lager:notice("DataPoint data: ~p",[Data]),
-   {Call, NewState} = build_class_call(Class, ?PYTHON_POINT_CALL, State),
-   {T, Res} =
-      timer:tc(python, call, [Python, Mod, Call, [Obj, Data]]),
-   lager:info("~p emitting: ~p after: ~p",[Mod, Res, T]),
-   {emit, Res, NewState}.
+%%   {Call, NewState} = build_class_call(Class, ?PYTHON_POINT_CALL, State),
+   Res = pythra:method(Python, Obj, ?PYTHON_POINT_CALL, [Data]),
+%%   {T, Res} =
+%%      timer:tc(python, call, [Python, Mod, Call, [Obj, Data]]),
+%%   lager:info("~p emitting: ~p after: ~p",[Mod, Res, T]),
+   {emit, Res, State}.
 
 handle_info(Request, State) ->
    io:format("~p request: ~p~n", [State, Request]),
    {ok, State}.
 
 shutdown(#state{python_instance = Python}) ->
-   python:stop(Python).
+   pythra:stop(Python).
 
 %%%%%%%%%%%%%%%%%%%% internal %%%%%%%%%%%%
 
 get_python() ->
    {ok, PythonParams} = application:get_env(faxe, python),
-   Version = proplists:get_value(version, PythonParams, ?PYTHON_VERSION),
    Path = proplists:get_value(script_path, PythonParams, ?PYTHON_PATH),
-   {ok, Python} = python:start_link([{python_path, Path},{python, "python"++Version}]),
+   {ok, Python} = pythra:start_link(Path),
    Python.
 
-build_class_call(Class, Func, State = #state{func_calls = Calls}) when is_atom(Class), is_list(Func) ->
-   case proplists:get_value(Func, Calls) of
-      undefined -> SMod = atom_to_list(Class) ++ "." ++ Func,
-                  Call = list_to_atom(SMod),
-         {Call, State#state{func_calls = [{Func,Call} | Calls]}};
-      FuncCall -> {FuncCall, State}
-   end.
+%%build_class_call(Class, Func, State = #state{func_calls = Calls}) when is_atom(Class), is_list(Func) ->
+%%   case proplists:get_value(Func, Calls) of
+%%      undefined -> SMod = atom_to_list(Class) ++ "." ++ Func,
+%%                  Call = list_to_atom(SMod),
+%%         {Call, State#state{func_calls = [{Func,Call} | Calls]}};
+%%      FuncCall -> {FuncCall, State}
+%%   end.

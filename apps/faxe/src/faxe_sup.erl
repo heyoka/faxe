@@ -38,10 +38,11 @@ init([]) ->
             permanent, infinity, supervisor, [dataflow_sup]},
         {faxe_ets,
             {faxe_ets, start_link, []},
-            permanent, 5000, worker, []},
-        {initial_task_starter,
-            {initial_task_starter, start_link, []},
             permanent, 5000, worker, []}
+%%        ,
+%%        {initial_task_starter,
+%%            {initial_task_starter, start_link, []},
+%%            permanent, 5000, worker, []}
     ],
     {ok, { {one_for_one, 5, 10}, Procs} }.
 
