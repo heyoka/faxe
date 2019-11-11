@@ -8,8 +8,6 @@ def s =
     .fields('id', 'df', 'vs')
     .field_values('oi23u4oi23u4oi32u34oi2u3', '02.005', 1)
 
-
-    @callback()
-    .foo('sefooo')
-    .bar(12.5)
-    .baz(55)
+    @double()
+    .field('val')
+    .as('double_val')

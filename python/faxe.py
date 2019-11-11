@@ -1,5 +1,7 @@
 import erlport.erlterms
+import erlport.erlang
 import pandas as pd
+import numpy as np
 
 
 class Faxe:
@@ -8,11 +10,11 @@ class Faxe:
 
     def __init__(self, args):
         print("__init__ in Faxe")
-        self.args = args
-        cb_args = {}
-        for k, v in args.items():
-            cb_args[str(k)] = v
-        self.init(cb_args)
+        print("args in __init__", args)
+        self.cb_args = dict(args)
+        self.erlang_pid = self.cb_args[b'erl']
+        print("erl process is here ", self.erlang_pid)
+        self.init(self.cb_args)
 
     @staticmethod
     def info(clname):
@@ -37,28 +39,29 @@ class Faxe:
     def init(self, args=None):
         pass
 
-    def batch(self, req):
-        print("batch at Faxe python: ", req)
-        # df = pd.DataFrame.from_dict(req, orient='columns')
-        # df.set_index(keys=b'ts', inplace=True)
-        # print(df)
-        # mean = df.mean(axis=0)
-        # print("the mean of vals is: ", mean),
-        # req1 = req[b'mean']
-        # self.handle_batch(req)
-
-    def point(self, req):
-        print("point at python: ", req)
-        # req1 = dict(req)
-        # df = pd.DataFrame(data=req)
-        # print(df)
-        # req1[b'vs'] = 5
-        # req2 = {b"vs": 2, "id": "oi23u4oi23u4oi23u4oi2u34o2i3u4o", "df": "220.023",
-        #         "data": {"val1": 23423.3}}
-        self.handle_point(req)
-
     def handle_point(self, point_data):
         pass
 
     def handle_batch(self, batch_data):
         pass
+
+    def batch(self, req):
+        self.handle_batch(req)
+
+    def point(self, req):
+        self.handle_point(dict(req))
+
+    def return_emit(self, emit_data):
+        return erlport.erlterms.Atom(b'emit_data'), emit_data
+
+    def return_ok(self):
+        return erlport.erlterms.Atom(b'ok')
+
+    def return_error(self, error):
+        return erlport.erlterms.Atom(b'error'), error
+
+    def emit(self, emit_data):
+        erlport.erlang.cast(self.erlang_pid, (erlport.erlterms.Atom(b'emit_data'), emit_data))
+
+    def error(self, error):
+        erlport.erlang.cast(self.erlang_pid, (erlport.erlterms.Atom(b'python_error'), error))

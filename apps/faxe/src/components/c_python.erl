@@ -45,7 +45,7 @@ call_options(Module, Class) ->
    P = get_python(),
    ModClass = list_to_atom(atom_to_list(Module)++"."++atom_to_list(Class)),
    Res = pythra:func(P, ModClass, ?PYTHON_INFO_CALL, [Class]),
-   lager:warning("python info call to ~p gives ~p",[{Module, Class}, Res]),
+   lager:info("python info call to ~p gives ~p",[{Module, Class}, Res]),
    python:stop(P),
    Res.
 
@@ -55,8 +55,9 @@ init(NodeId, _Ins, #{cb_module := Callback, cb_class := CBClass} = Args) ->
    lager:notice("ARgs for ~p: ~p", [Callback, Args]),
    PInstance = get_python(),
    %% create an instance of the callback class
-   ClassInstance = pythra:init(PInstance, Callback, CBClass, [maps:without([cb_module, cb_class], Args)]),
-   lager:notice("python instantiation of ~p gives us: ~p",[{Callback, CBClass}, ClassInstance]),
+   ClassInstance = pythra:init(PInstance, Callback, CBClass,
+      [maps:without([cb_module, cb_class], Args#{<<"erl">> => self()})]),
+%%   lager:notice("python instantiation of ~p gives us: ~p",[{Callback, CBClass}, ClassInstance]),
    State = #state{
       callback_module = Callback,
       callback_class =  CBClass,
@@ -67,27 +68,27 @@ init(NodeId, _Ins, #{cb_module := Callback, cb_class := CBClass} = Args) ->
 
 process(_Inport, #data_batch{} = Batch, State = #state{callback_module = Mod, python_instance = Python,
    cb_object = Obj, callback_class = Class}) ->
-   lager:notice("from batch to list of maps: ~p",[flowdata:to_map(Batch)]),
    Data = flowdata:to_map(Batch),
-%%   Res = python:call(Python, Mod, build_class_call(Class, ?PYTHON_BATCH_CALL), [Obj, Data]),
-%%   {Call, NewState} = build_class_call(Class, ?PYTHON_BATCH_CALL, State),
    {T, Res} =
       timer:tc(pythra, method, [Python, Obj, ?PYTHON_BATCH_CALL, [Data]]),
    lager:notice("~p emitting: ~p after: ~p",[Mod, Res, T]),
-   {emit, Res, State}
+   handle_python_res(Res, State)
 ;
-process(_Inport, #data_point{} = Point, State = #state{python_instance = Python, callback_module = Mod,
-   cb_object = Obj, callback_class = Class}) ->
+process(_Inport, #data_point{} = Point,
+    State = #state{python_instance = Python, cb_object = Obj}) ->
 
-   Data = flowdata:to_mapstruct(Point),
-   lager:notice("DataPoint data: ~p",[Data]),
-%%   {Call, NewState} = build_class_call(Class, ?PYTHON_POINT_CALL, State),
+   Data = flowdata:to_map(Point),
    Res = pythra:method(Python, Obj, ?PYTHON_POINT_CALL, [Data]),
-%%   {T, Res} =
-%%      timer:tc(python, call, [Python, Mod, Call, [Obj, Data]]),
-%%   lager:info("~p emitting: ~p after: ~p",[Mod, Res, T]),
-   {emit, Res, State}.
+   handle_python_res(Res, State).
 
+%% python sends us data
+handle_info({emit_data, Data}, State) ->
+   lager:notice("got data from python: ~p", [Data]),
+   dataflow:emit(Data),
+   {ok, State};
+handle_info({python_error, Error}, State) ->
+   lager:error("error from python: ~p", [Error]),
+   {ok, State};
 handle_info(Request, State) ->
    io:format("~p request: ~p~n", [State, Request]),
    {ok, State}.
@@ -103,10 +104,13 @@ get_python() ->
    {ok, Python} = pythra:start_link(Path),
    Python.
 
-%%build_class_call(Class, Func, State = #state{func_calls = Calls}) when is_atom(Class), is_list(Func) ->
-%%   case proplists:get_value(Func, Calls) of
-%%      undefined -> SMod = atom_to_list(Class) ++ "." ++ Func,
-%%                  Call = list_to_atom(SMod),
-%%         {Call, State#state{func_calls = [{Func,Call} | Calls]}};
-%%      FuncCall -> {FuncCall, State}
-%%   end.
+handle_python_res(undefined, State) ->
+   {ok, State};
+handle_python_res(ok, State) ->
+   {ok, State};
+handle_python_res({error, Error}, State) ->
+   lager:error("~p", [Error]),
+   {ok, State};
+handle_python_res({emit_data, Data}, State) ->
+   lager:notice("python emits ~p", [Data]),
+   {emit, Data, State}.
