@@ -47,18 +47,11 @@ class Faxe:
 
     def batch(self, req):
         self.handle_batch(req)
+        return self
 
     def point(self, req):
-        self.handle_point(dict(req))
-
-    def return_emit(self, emit_data):
-        return erlport.erlterms.Atom(b'emit_data'), emit_data
-
-    def return_ok(self):
-        return erlport.erlterms.Atom(b'ok')
-
-    def return_error(self, error):
-        return erlport.erlterms.Atom(b'error'), error
+        self.handle_point(req)
+        return self
 
     def emit(self, emit_data):
         erlport.erlang.cast(self.erlang_pid, (erlport.erlterms.Atom(b'emit_data'), emit_data))

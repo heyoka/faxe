@@ -57,7 +57,7 @@ init(NodeId, _Ins, #{cb_module := Callback, cb_class := CBClass} = Args) ->
    %% create an instance of the callback class
    ClassInstance = pythra:init(PInstance, Callback, CBClass,
       [maps:without([cb_module, cb_class], Args#{<<"erl">> => self()})]),
-%%   lager:notice("python instantiation of ~p gives us: ~p",[{Callback, CBClass}, ClassInstance]),
+   lager:notice("python instantiation of ~p gives us: ~p",[{Callback, CBClass}, ClassInstance]),
    State = #state{
       callback_module = Callback,
       callback_class =  CBClass,
@@ -69,17 +69,18 @@ init(NodeId, _Ins, #{cb_module := Callback, cb_class := CBClass} = Args) ->
 process(_Inport, #data_batch{} = Batch, State = #state{callback_module = Mod, python_instance = Python,
    cb_object = Obj, callback_class = Class}) ->
    Data = flowdata:to_map(Batch),
-   {T, Res} =
+   {T, NewObj} =
       timer:tc(pythra, method, [Python, Obj, ?PYTHON_BATCH_CALL, [Data]]),
-   lager:notice("~p emitting: ~p after: ~p",[Mod, Res, T]),
-   handle_python_res(Res, State)
+   lager:notice("~p emitting: ~p after: ~p",[Mod, NewObj, T]),
+   {ok, State#state{cb_object = NewObj}}
 ;
 process(_Inport, #data_point{} = Point,
     State = #state{python_instance = Python, cb_object = Obj}) ->
 
    Data = flowdata:to_map(Point),
-   Res = pythra:method(Python, Obj, ?PYTHON_POINT_CALL, [Data]),
-   handle_python_res(Res, State).
+   NewObj = pythra:method(Python, Obj, ?PYTHON_POINT_CALL, [Data]),
+%%   lager:notice("res from method is ~p",[Res]),
+   {ok, State#state{cb_object = NewObj}}.
 
 %% python sends us data
 handle_info({emit_data, Data}, State) ->
