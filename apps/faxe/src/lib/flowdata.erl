@@ -64,7 +64,8 @@
    field/3, to_s_msgpack/1, from_json/1,
    to_map/1, set_fields/3, set_tags/3, fields/2, tags/2,
    delete_fields/2, delete_tags/2, path/1, paths/1, set_fields/2,
-   to_mapstruct/1, from_json/2, from_json_struct/1, from_json_struct/3, to_map_except/2]).
+   to_mapstruct/1, from_json/2, from_json_struct/1, from_json_struct/3,
+   to_map_except/2, point_from_json_map/1, point_from_json_map/3]).
 
 
 -define(DEFAULT_ID, <<"00000">>).
@@ -122,6 +123,11 @@ from_json_struct(JSON, TimeField, TimeFormat) ->
          Points = [point_from_json_map(PMap, TimeField, TimeFormat) || PMap <- List],
          #data_batch{points = Points}
    end.
+
+%% from a map get a data_point record
+-spec point_from_json_map(map()) -> #data_point{}.
+point_from_json_map(Map) ->
+   point_from_json_map(Map, ?DEFAULT_TS_FIELD, ?TF_TS_MILLI).
 
 -spec point_from_json_map(map(), binary(), binary()) -> #data_point{}.
 point_from_json_map(Map, TimeField, TimeFormat) ->

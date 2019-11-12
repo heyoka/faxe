@@ -1,5 +1,20 @@
-%% Date: 05.01.17 - 14:11
-%% Ⓒ 2017 heyoka
+%%% Date: 05.01.17 - 14:11
+%%% Ⓒ 2017 heyoka
+%%% @doc
+%%% rules for python callback classes
+%%% * Callback class must be in a module with the lowercased name of the class ie:
+%%%   module: "double", class: "Double"
+%%% * python callback class must be a subclass of the class Faxe from module faxe
+%%% * 'abstract' methods to implement are:
+%%%      options() -> return a list of tuples // static
+%%%      init(self, args) -> gets the object and a list of dicts with args from options()
+%%%      handle_point(self, point_data) -> point_data is a dict
+%%%      handle_batch(self, batch_data) -> batch_data is a list of dicts (points)
+%%% * the callbacks need not return anything except for the options method
+%%% * to emit data the method self.emit(data) has to be used, where data is a dict or a list of dicts
+%%%
+
+
 -module(c_python).
 -author("Alexander Minichmair").
 
@@ -83,8 +98,21 @@ process(_Inport, #data_point{} = Point,
    {ok, State#state{cb_object = NewObj}}.
 
 %% python sends us data
-handle_info({emit_data, Data}, State) ->
-   lager:notice("got data from python: ~p", [Data]),
+handle_info({emit_data, Data}, State) when is_map(Data) ->
+   lager:notice("got point data as map from python: ~p", [Data]),
+   Point = flowdata:point_from_json_map(Data),
+   lager:notice("emit point: ~p " ,[Point]),
+   dataflow:emit(Point),
+   {ok, State};
+handle_info({emit_data, Data}, State) when is_list(Data) ->
+   lager:notice("got batch data from python: ~p", [Data]),
+   Points = [flowdata:point_from_json_map(D) || D <- Data],
+   Batch = #data_batch{points = Points},
+   dataflow:emit(Batch),
+   lager:notice("emit batch: ~p",[Batch]),
+   {ok, State};
+handle_info({emit_data, {"Map", Data}}, State) when is_list(Data) ->
+   lager:notice("got point data from python: ~p", [Data]),
    dataflow:emit(Data),
    {ok, State};
 handle_info({python_error, Error}, State) ->
@@ -104,14 +132,3 @@ get_python() ->
    Path = proplists:get_value(script_path, PythonParams, ?PYTHON_PATH),
    {ok, Python} = pythra:start_link(Path),
    Python.
-
-handle_python_res(undefined, State) ->
-   {ok, State};
-handle_python_res(ok, State) ->
-   {ok, State};
-handle_python_res({error, Error}, State) ->
-   lager:error("~p", [Error]),
-   {ok, State};
-handle_python_res({emit_data, Data}, State) ->
-   lager:notice("python emits ~p", [Data]),
-   {emit, Data, State}.

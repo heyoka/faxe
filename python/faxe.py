@@ -1,7 +1,5 @@
 import erlport.erlterms
 import erlport.erlang
-import pandas as pd
-import numpy as np
 
 
 class Faxe:
@@ -9,16 +7,12 @@ class Faxe:
     __class = None
 
     def __init__(self, args):
-        print("__init__ in Faxe")
-        print("args in __init__", args)
-        self.cb_args = dict(args)
-        self.erlang_pid = self.cb_args[b'erl']
-        print("erl process is here ", self.erlang_pid)
-        self.init(self.cb_args)
+        self.erlang_pid = args[b'erl']
+        self.init(dict(args))
 
     @staticmethod
     def info(clname):
-        classname = clname #.decode("utf-8")
+        classname = clname
         modname = classname.lower()
         module = __import__(modname)
         print("classname ", classname, " modname ", modname)

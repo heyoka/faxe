@@ -1,0 +1,17 @@
+
+def s =
+    |value_emitter()
+    .every(3s)
+    .type(point)
+
+    |default()
+    .fields('id', 'df', 'vs')
+    .field_values('oi23u4oi23u4oi32u34oi2u3', '02.005', 1)
+
+    |win_event()
+    .every(5)
+    .period(5)
+
+    @double()
+    .field('val')
+    .as('double_val')

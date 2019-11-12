@@ -438,6 +438,19 @@ from_json_list_test() ->
       }, flowdata:from_json_struct(JSON, <<"datetime">>, ?TF_ISO8601)
    ).
 
+
+from_map_basic_test() ->
+   Map = #{<<"df">> => <<"02.005">>,<<"double_val">> => 10.220761769454324,
+      <<"id">> => <<"oi23u4oi23u4oi32u34oi2u3">>,<<"ts">> => 1573546741698,
+      <<"val">> => 5.110380884727162,<<"vs">> => 1},
+   ?assertEqual(flowdata:point_from_json_map(Map),
+      #data_point{ts=1573546741698, fields=
+   #{<<"df">> => <<"02.005">>,<<"double_val">> => 10.220761769454324,
+      <<"id">> => <<"oi23u4oi23u4oi32u34oi2u3">>,
+      <<"val">> => 5.110380884727162,<<"vs">> => 1}}
+      ).
+
+
 msgpack_basic_test() ->
    P = #data_point{ts = 1568029511598, fields = #{<<"id">> => <<"ioi2u34oiu23oi4u2oi4u2">>,
       <<"df">> => <<"01.002">>, <<"vs">> => 2,
