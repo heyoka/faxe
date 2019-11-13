@@ -30,7 +30,7 @@ options() ->
 
 init(_NodeId, _Inputs, #{period := Period, every := Every, fill_period := Fill}) ->
    Ev = faxe_time:duration_to_ms(Every),
-   Per = faxe_time:duration_to_ms(Period),
+   Per = case Period of undefined -> Ev; _ ->  faxe_time:duration_to_ms(Period) end,
    %% fill_period does not make sense, if every is less than period
    DoFill = (Fill == true) andalso (Per > Ev),
    State = #state{period = Per, every = Ev, fill_period = DoFill, window = queue:new()},

@@ -198,6 +198,10 @@ minute(Ts) ->
 hour(Ts) ->
    faxe_time:get(hour, Ts).
 
+-spec day(non_neg_integer()) -> non_neg_integer().
+day(Ts) ->
+   faxe_time:get(day, Ts).
+
 -spec day_of_week(non_neg_integer()) -> non_neg_integer().
 day_of_week(Ts) ->
    faxe_time:get(day_of_week, Ts).

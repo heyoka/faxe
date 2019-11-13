@@ -256,6 +256,10 @@ get(day_of_week_string, Ts) ->
 get(day, Ts) ->
    {{_Y, _M, Day},_T} = Ts,
    Day;
+get(week, Ts) ->
+   {Date, _T} = Ts,
+   {_Year, Week} = calendar:iso_week_number(Date),
+   Week;
 get(month, Ts) ->
    {{_Y, Month, _D},_T} = Ts,
    Month;

@@ -32,7 +32,7 @@
 
 options() ->
    [
-      {period, duration}, %% window length
+      {period, duration, undefined}, %% window length
       {every, duration}, %% output window contents every
       {align, is_set, false}, %% align window to 'every' unit
       {fill_period, is_set, false}]. %% fill full window period before first output
@@ -44,10 +44,16 @@ init(_NodeId, _Inputs, #{period := Period, every := Every, align := Align, fill_
          true -> faxe_time:binary_to_duration(Every)
       end,
    Every1 = faxe_time:duration_to_ms(Every),
-   Per = faxe_time:duration_to_ms(Period),
+   Per =
+      case Period of
+         undefined -> Every1;
+         _ -> faxe_time:duration_to_ms(Period)
+      end,
+   %% fill_period does not make sense, if every is less than period
+   DoFill = (Fill == true) andalso (Per > Every1),
    State =
       #state{period = Per, every = Every1, align = NUnit,
-         fill_period = Fill, window = queue:new()},
+         fill_period = DoFill, window = queue:new()},
 
    {ok, all, State}.
 

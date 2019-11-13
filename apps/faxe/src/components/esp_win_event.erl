@@ -27,10 +27,13 @@
 }).
 
 options() ->
-   [{period, integer, 12}, {every, integer, 4}, {fill_period, is_set}].
+   [{period, integer, undefined}, {every, integer, 4}, {fill_period, is_set}].
 
-init(_NodeId, _Inputs, #{period := Period, every := Every, fill_period := Fill}) ->
-   State = #state{every = Every, period = Period, fill_period = Fill, window = queue:new()},
+init(_NodeId, _Inputs, #{period := Period0, every := Every, fill_period := Fill}) ->
+   Period = case Period0 of undefined -> Every; _ -> Period0 end,
+   %% fill_period does not make sense, if every is less than period
+   DoFill = (Fill == true) andalso (Period > Every),
+   State = #state{every = Every, period = Period, fill_period = DoFill, window = queue:new()},
    {ok, all, State}.
 
 process(_Inport, #data_point{} = Point, State=#state{} ) ->
