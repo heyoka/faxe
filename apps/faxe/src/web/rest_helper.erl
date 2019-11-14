@@ -15,10 +15,13 @@
 -export([task_to_map/1, template_to_map/1, do_register/3, to_bin/1]).
 
 
-task_to_map(T = #task{definition = _Def0, id = Id, name = Name,
-   date = Dt, last_start = LStart, last_stop = LStop}) ->
+task_to_map(T = #task{id = Id, name = Name, date = Dt, is_running = Running,
+   last_start = LStart, last_stop = LStop, dfs = Dfs, permanent = Perm}) ->
    lager:notice("task_to_json: ~p",[T]),
    Map = #{id => Id, name => Name,
+      dfs => Dfs,
+      running => Running,
+      permanent => Perm,
       created => faxe_time:to_iso8601(Dt),
       last_start => faxe_time:to_iso8601(LStart),
       last_stop => faxe_time:to_iso8601(LStop)},
@@ -38,7 +41,15 @@ do_register(Req, State, Type) ->
    Dfs = proplists:get_value(<<"dfs">>, Result),
    lager:notice("name: ~p: dfs: ~p, type:~p",[TaskName, Dfs, Type]),
    case reg_fun(Dfs, TaskName, Type) of
-      ok -> Req4 = cowboy_req:set_resp_body(jiffy:encode(#{success => true, name => TaskName}), Req3),
+      ok ->
+         NewTask = faxe:get_task(TaskName),
+         Id =
+         case NewTask of
+            #task{id = NewId} -> NewId;
+            _  -> 0
+         end,
+         Req4 = cowboy_req:set_resp_body(
+            jiffy:encode(#{success => true, name => TaskName, id => Id}), Req3),
          {true, Req4, State};
       {error, Error} ->
          Add =

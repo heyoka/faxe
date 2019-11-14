@@ -81,12 +81,14 @@
 -record(task, {
    id :: list()|binary(),
    name :: binary(),
+   dfs :: binary(),
    definition :: map(),
    date :: faxe_time:date(),
    pid :: pid(),
    last_start :: faxe_time:date(),
    last_stop :: faxe_time:date(),
-   permanent = false :: true|false
+   permanent = false :: true|false,
+   is_running = false
 }).
 
 -record(template, {

@@ -31,7 +31,7 @@ get_all_templates() ->
    get_all(template).
 
 get_all(Table) ->
-   [mnesia:dirty_read(Table, Key) || Key <- mnesia:dirty_all_keys(Table)].
+   lists:flatten([mnesia:dirty_read(Table, Key) || Key <- mnesia:dirty_all_keys(Table)]).
 
 get_task(TaskId) when is_integer(TaskId) ->
    case mnesia:dirty_read(task, TaskId) of
@@ -56,7 +56,7 @@ get_template(TemplateName) ->
    end.
 
 get_tasks_by_pids(PidList) ->
-   [mnesia:dirty_index_read(task, Pid, #task.pid) || {_Name, Pid, _, _} <- PidList].
+   lists:flatten([mnesia:dirty_index_read(task, Pid, #task.pid) || {_Name, Pid, _, _} <- PidList]).
 
 get_permanent_tasks() ->
    mnesia:dirty_index_read(task, true, #task.permanent).

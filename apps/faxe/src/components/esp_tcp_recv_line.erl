@@ -125,8 +125,10 @@ maybe_emit(Data, State = #state{changes = true, prev_crc32 = PrevCheckSum}) ->
   end.
 
 do_emit(Data, State = #state{as = As, parser = Parser, extract = _Extract}) ->
-  P = tcp_msg_parser:convert(Data, As, Parser),
-  dataflow:emit(P),
+  case (catch tcp_msg_parser:convert(Data, As, Parser)) of
+    P when is_record(P, data_point) -> dataflow:emit(P);
+    Err -> lager:warning("Parsing error [~p] ~nmessage ~p",[Parser, Err])
+  end,
   State.
 
 

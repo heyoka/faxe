@@ -17,6 +17,8 @@ paths:
       responses:
         200:
           description: OK
+          schema:
+            $ref: '#/definitions/ArrayOfTasks'
   /tasks/running:
     get:
       summary: Returns a list of all tasks currently running.
@@ -26,6 +28,8 @@ paths:
       responses:
         200:
           description: OK
+          schema:
+            $ref: '#/definitions/ArrayOfTasks'
   /task/{task_id}:
     get:
       summary: Get a task by its id
@@ -35,6 +39,8 @@ paths:
       responses:
         200:
           description: OK
+          schema:
+            $ref: '#/definitions/Task'
         404:
           description: Task not found
       parameters:
@@ -120,6 +126,27 @@ paths:
       responses:
         200:
           description: "Successfully parsed registered task"
+          schema:
+            properties:
+              id:
+                type: integer
+                description: The newly created task ID
+              name:
+                type: string
+                description: The task name
+              success:
+                type: boolean
+                default: true
+        400:
+          description: "Error creating or parsing the task"
+          schema:
+            properties:
+              success:
+                type: boolean
+                default: false
+              error:
+                type: string
+                description: error message
       parameters:
         - in: "formData"
           name: "name"
@@ -226,8 +253,43 @@ paths:
         - in: "path"
           name: "template_id"
           type: "integer"
-          required: true   
-          
-          
-          
-          
+          required: true
+
+definitions:
+  Task:
+    type: object
+    properties:
+      id:
+        type: integer
+        description: The task ID
+      name:
+        type: string
+        description: The task name
+      dfs:
+        type: string
+        description: The DFS Script
+      running:
+        type: boolean
+        description: Whether the task is running at the moment
+      permanent:
+        type: boolean
+        description: Whether the task is to be started permanent
+      created:
+        type: string
+        format: ISO8601
+        description: Time the task was created
+      last_start:
+        type: string
+        format: ISO8601
+        description: Time the task was last started
+      last_stop:
+        type: string
+        format: ISO8601
+        description: Time the task was last stopped
+  ArrayOfTasks:
+    type: array
+    properties:
+      task:
+        type: object
+        description: single task
+        $ref: '#/definitions/Task'

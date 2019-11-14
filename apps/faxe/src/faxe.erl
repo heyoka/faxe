@@ -28,7 +28,7 @@
    start_permanent_tasks/0,
    get_stats/1,
    update_file_task/2,
-   update_string_task/2, update_task/3, update/3, get_errors/1, list_permanent_tasks/0]).
+   update_string_task/2, update_task/3, update/3, get_errors/1, list_permanent_tasks/0, get_task/1]).
 
 start_permanent_tasks() ->
    Tasks = faxe_db:get_permanent_tasks(),
@@ -52,9 +52,30 @@ join(NodeName) ->
    pong = net_adm:ping(NodeName),
    faxe_db:db_init().
 
+
+-spec get_task(term()) -> {error, not_found}|#task{}.
+get_task(TaskId) ->
+   case faxe_db:get_task(TaskId) of
+      {error, not_found} -> {error, not_found};
+      #task{pid = Pid} = T ->
+         Running = supervisor:which_children(graph_sup),
+         case lists:keyfind(Pid, 2, Running) of
+            Y when is_tuple(Y) -> T#task{is_running = true};
+            false -> T
+         end
+   end.
+
 -spec list_tasks() -> list().
 list_tasks() ->
-   faxe_db:get_all_tasks().
+   Running = supervisor:which_children(graph_sup),
+   F =
+      fun(#task{pid = Pid} = T) ->
+         case lists:keyfind(Pid, 2, Running) of
+            Y when is_tuple(Y) -> T#task{is_running = true};
+            false -> T
+         end
+      end,
+   lists:map(F, faxe_db:get_all_tasks()).
 
 -spec list_templates() -> list().
 list_templates() ->
@@ -63,7 +84,7 @@ list_templates() ->
 -spec list_running_tasks() -> list().
 list_running_tasks() ->
    Graphs = supervisor:which_children(graph_sup),
-   faxe_db:get_tasks_by_pids(Graphs).
+   [T#task{is_running = true} || T <-  faxe_db:get_tasks_by_pids(Graphs)].
 
 list_permanent_tasks() ->
    faxe_db:get_permanent_tasks().
@@ -82,8 +103,14 @@ register_task(DfsScript, Name, Type) ->
       {error, not_found} ->
          case eval_dfs(DfsScript, Type) of
             Def when is_map(Def) ->
+               DFS =
+                  case Type of
+                     file -> get_file_dfs(DfsScript);
+                     data -> DfsScript
+                  end,
                Task = #task{
                   date = faxe_time:now_date(),
+                  dfs = DFS,
                   definition = Def,
                   name = Name
                },
@@ -155,14 +182,17 @@ get_running(TaskId) ->
          end
    end.
 
+%% get the dfs binary
+get_file_dfs(DfsFile) ->
+   {ok, DfsParams} = application:get_env(faxe, dfs),
+   Path = proplists:get_value(script_path, DfsParams),
+   {ok, Data} = file:read_file(Path++DfsFile),
+   binary:replace(Data, <<"\\">>, <<>>, [global]).
+
 -spec register_template_file(list(), binary()) ->
    'ok'|{error, template_exists}|{error, not_found}|{error, Reason::term()}.
 register_template_file(DfsFile, TemplateName) ->
-   {ok, DfsParams} = application:get_env(faxe, dfs),
-   Path = proplists:get_value(script_path, DfsParams),
-%%   lager:info("dfs file path is: ~p",[Path++DfsFile]),
-   {ok, Data} = file:read_file(Path++DfsFile),
-   StringData = binary_to_list(binary:replace(Data, <<"\\">>, <<>>, [global])),
+   StringData = binary_to_list(get_file_dfs(DfsFile)),
    register_template_string(StringData, TemplateName).
 
 -spec register_template_string(list(), binary()) ->
@@ -314,6 +344,7 @@ template_to_task(#template{dfs = DFS}, TaskName, Vars) ->
          Task = #task{
             date = faxe_time:now_date(),
             definition = Def,
+            dfs = DFS,
             name = TaskName},
          faxe_db:save_task(Task);
       {error, What} -> {error, What}

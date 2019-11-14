@@ -91,7 +91,7 @@ resource_exists(Req = #{method := <<"GET">>}, State=#state{mode = Mode, task_id 
    {Value, NewState} =
     case TId of
        undefined -> {true, State};
-       Id -> case faxe_db:get_task(binary_to_integer(Id)) of
+       Id -> case faxe:get_task(binary_to_integer(Id)) of
                 {error, not_found} -> {false, State};
                 Task=#task{} -> {true, State#state{task = Task, task_id = Task#task.id}}
              end
