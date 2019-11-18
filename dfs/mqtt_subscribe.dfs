@@ -1,6 +1,6 @@
 def mqtt =
     |mqtt_subscribe()
-    .host('devat-cw-mqtt.tgwdev.internal')
+    .host('127.0.0.1')
     .port(1883)
     .topic('ttgw/grip/#')
 
@@ -14,7 +14,6 @@ def mqtt =
     .ls_mem_ttl(3)
 
     |debug()
-
 
 
 

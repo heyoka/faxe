@@ -1,6 +1,6 @@
 %%%-----------------------------------------------------------------------------
 %%% @doc
-%%% backoff module, for reconnecting and other things
+%%% backoff module, for reconnecting and other retry things
 %%%
 %%% @end
 %%%-----------------------------------------------------------------------------
@@ -25,38 +25,38 @@
    retries       = 0,
    timer         = undefined}).
 
--opaque reconnector() :: #backoff{}.
+-opaque backoff() :: #backoff{}.
 
--export_type([reconnector/0]).
+-export_type([backoff/0]).
 
 %%------------------------------------------------------------------------------
-%% @doc Create a reconnector.
+%% @doc Create a backoff.
 %% @end
 %%------------------------------------------------------------------------------
--spec new() -> reconnector().
+-spec new() -> backoff().
 new() ->
    new({?MIN_INTERVAL, ?MAX_INTERVAL}).
 
 %%------------------------------------------------------------------------------
-%% @doc Create a reconnector with min_interval, max_interval seconds and max retries.
+%% @doc Create a backoff with min_interval, max_interval seconds and max retries.
 %% @end
 %%------------------------------------------------------------------------------
--spec new(MinInterval) -> reconnector() when
+-spec new(MinInterval) -> backoff() when
    MinInterval  :: non_neg_integer() | {non_neg_integer(), non_neg_integer()}.
 new(MinInterval) when is_integer(MinInterval), MinInterval =< ?MAX_INTERVAL ->
    new({MinInterval, ?MAX_INTERVAL});
 
-new({MinInterval, MaxInterval}) when is_integer(MinInterval), is_integer(MaxInterval), MinInterval =< MaxInterval ->
+new({MinInterval, MaxInterval})
+      when is_integer(MinInterval), is_integer(MaxInterval), MinInterval =< MaxInterval ->
    new({MinInterval, MaxInterval, infinity});
 new({_MinInterval, _MaxInterval}) ->
    new({?MIN_INTERVAL, ?MAX_INTERVAL, infinity});
 new({MinInterval, MaxInterval, MaxRetries}) when is_integer(MinInterval),
-   is_integer(MaxInterval), ?IS_MAX_RETRIES(MaxRetries) ->
+      is_integer(MaxInterval), ?IS_MAX_RETRIES(MaxRetries) ->
    #backoff{min_interval = MinInterval,
       interval     = MinInterval,
       max_interval = MaxInterval,
       max_retries  = MaxRetries}.
-
 
 -spec set_min_interval(#backoff{}, non_neg_integer()) -> #backoff{}.
 set_min_interval(R = #backoff{}, NewMinInterval) ->
@@ -71,43 +71,44 @@ set_max_retries(R = #backoff{}, NewMaxRetries) ->
    R#backoff{max_retries = NewMaxRetries}.
 
 %%------------------------------------------------------------------------------
-%% @doc Execute reconnector.
+%% @doc Execute backoff.
 %% @end
 %%------------------------------------------------------------------------------
--spec execute(Reconnector, TimeoutMsg) -> {stop, retries_exhausted} | {ok, reconnector()} when
-   Reconnector :: reconnector(),
+-spec execute(Backoff, TimeoutMsg) -> {stop, retries_exhausted} | {ok, backoff()} when
+   Backoff :: backoff(),
    TimeoutMsg :: tuple().
 execute(#backoff{retries = Retries, max_retries = MaxRetries}, _TimeoutMsg) when
    MaxRetries =/= infinity andalso (Retries > MaxRetries) ->
    {stop, retries_exhausted};
 
-execute(Reconnector=#backoff{
-   min_interval = MinInterval,
-   max_interval = MaxInterval,
+execute(Backoff = #backoff{
    interval     = Interval,
    retries      = Retries,
    timer        = Timer}, TimeoutMsg) ->
    % cancel timer first...
    cancel(Timer),
-   % power
-   Interval1 = Interval * 2,
-   Interval2 =
+   lager:notice("backoff interval: ~p", [Interval]),
+   NewTimer = erlang:send_after(Interval, self(), TimeoutMsg),
+   {ok,
+      Backoff#backoff{interval = next_interval(Backoff), retries = Retries+1, timer = NewTimer }}.
+
+next_interval(#backoff{min_interval = MinInt, max_interval = MaxInt, interval = Int}) ->
+   Interval0 = Int * 2,
+   NewInterval =
       if
-         Interval1 > MaxInterval -> MinInterval;
-         true -> Interval1
+         Interval0 > MaxInt -> MinInt;
+         true -> Interval0
       end,
-   lager:notice("reconnect in :~p",[Interval2]),
-   NewTimer = erlang:send_after(Interval2, self(), TimeoutMsg),
-   {ok, Reconnector#backoff{interval = Interval2, retries = Retries+1, timer = NewTimer }}.
+   NewInterval.
 
 %%------------------------------------------------------------------------------
-%% @doc Reset reconnector
+%% @doc Reset backoff
 %% @end
 %%------------------------------------------------------------------------------
--spec reset(reconnector()) -> reconnector().
-reset(Reconnector = #backoff{min_interval = MinInterval, timer = Timer}) ->
+-spec reset(backoff()) -> backoff().
+reset(B = #backoff{min_interval = MinInterval, timer = Timer}) ->
    cancel(Timer),
-   Reconnector#backoff{interval = MinInterval, retries = 0, timer = undefined}.
+   B#backoff{interval = MinInterval, retries = 0, timer = undefined}.
 
 cancel(undefined) -> ok;
 cancel(Timer) when is_reference(Timer) -> erlang:cancel_timer(Timer).
