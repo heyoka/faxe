@@ -81,16 +81,15 @@ init(NodeId, _Ins, #{cb_module := Callback, cb_class := CBClass} = Args) ->
       python_instance = PInstance},
    {ok, all, State}.
 
-process(_Inport, #data_batch{} = Batch, State = #state{callback_module = Mod, python_instance = Python,
-   cb_object = Obj, callback_class = Class}) ->
+process(_Inp, #data_batch{} = Batch, State = #state{callback_module = Mod, python_instance = Python,
+   cb_object = Obj}) ->
    Data = flowdata:to_map(Batch),
    {T, NewObj} =
       timer:tc(pythra, method, [Python, Obj, ?PYTHON_BATCH_CALL, [Data]]),
    lager:notice("~p emitting: ~p after: ~p",[Mod, NewObj, T]),
    {ok, State#state{cb_object = NewObj}}
 ;
-process(_Inport, #data_point{} = Point,
-    State = #state{python_instance = Python, cb_object = Obj}) ->
+process(_Inp, #data_point{} = Point, State = #state{python_instance = Python, cb_object = Obj}) ->
 
    Data = flowdata:to_map(Point),
    NewObj = pythra:method(Python, Obj, ?PYTHON_POINT_CALL, [Data]),
