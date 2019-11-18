@@ -118,6 +118,8 @@ float_millisecond_to_ms_test() ->
    ?assertEqual(1565343079173, float_millisecond_to_ms(1565343079.173)).
 float_micro_to_ms_test() ->
    ?assertEqual(1565343079174, float_micro_to_ms(<<"1565343079.173588">>)).
+float_micro_to_ms2_test() ->
+   ?assertEqual(1574067119038, float_micro_to_ms(<<"1574067119.037648">>)).
 iso8601_to_ms_test() ->
    Dt = <<"2011-10-05T14:48:00.000Z">>,
    ?assertEqual(1317826080000, iso8601_to_ms(Dt)).

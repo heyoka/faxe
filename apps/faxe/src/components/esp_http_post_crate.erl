@@ -119,7 +119,6 @@ build_value_stmt(P = #data_point{ts = Ts}, Fields, undefined) ->
 build_value_stmt(P = #data_point{}, Fields, _RemFieldsAs) ->
    DataList = build_value_stmt(P, Fields, undefined),
    Rem = flowdata:to_map_except(P, Fields),
-   lager:notice("REM: ~p~n DataList: ~p",[Rem, DataList]),
    DataList ++ [Rem].
 
 build_batch([], _FieldList, _RemFieldsAs, Acc) ->

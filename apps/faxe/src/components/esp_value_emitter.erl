@@ -13,10 +13,11 @@
    every             :: non_neg_integer(),
    jitter            :: non_neg_integer(),
    type              :: batch | point,
-   format            :: undefined | ejson,
+   format            :: undefined | ejson | json,
    batch_size        :: non_neg_integer(),
    align             :: atom(),
-   fields            :: list(binary())
+   fields            :: list(binary()),
+   json_string       :: binary()
 }).
 
 params() -> [].
@@ -24,11 +25,11 @@ params() -> [].
 options() ->
    [{every, duration, <<"5s">>}, {jitter, duration, <<"0ms">>}, {type, atom, batch},
       {batch_size, integer, 5}, {align, is_set},
-      {fields, binary_list, [<<"val">>]}, {format, atom, undefined}].
+      {fields, binary_list, [<<"val">>]}, {format, atom, undefined}, {json_string, binary, undefined}].
 
 init(NodeId, _Inputs,
     #{every := Every, type := Type, batch_size := BatchSize, align := Unit,
-       fields := Fields, format := Fmt, jitter := Jitter}) ->
+       fields := Fields, format := Fmt, jitter := Jitter, json_string := JS}) ->
    NUnit =
       case Unit of
          false -> false;
@@ -36,7 +37,7 @@ init(NodeId, _Inputs,
       end,
    JT = faxe_time:duration_to_ms(Jitter),
    EveryMs = faxe_time:duration_to_ms(Every),
-   State = #state{node_id = NodeId, every = EveryMs, fields = Fields,
+   State = #state{node_id = NodeId, every = EveryMs, fields = Fields, json_string = JS,
       type = Type, batch_size = BatchSize, align = NUnit, format = Fmt, jitter = JT},
 
    erlang:send_after(EveryMs, self(), values),
