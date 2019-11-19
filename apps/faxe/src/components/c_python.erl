@@ -129,5 +129,6 @@ shutdown(#state{python_instance = Python}) ->
 get_python() ->
    {ok, PythonParams} = application:get_env(faxe, python),
    Path = proplists:get_value(script_path, PythonParams, ?PYTHON_PATH),
-   {ok, Python} = pythra:start_link(Path),
+   FaxePath = code:priv_dir(faxe) ++ "/python/",
+   {ok, Python} = pythra:start_link([FaxePath, Path]),
    Python.
