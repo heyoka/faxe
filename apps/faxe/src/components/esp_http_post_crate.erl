@@ -118,7 +118,7 @@ build_value_stmt(P = #data_point{ts = Ts}, Fields, undefined) ->
    DataList0;
 build_value_stmt(P = #data_point{}, Fields, _RemFieldsAs) ->
    DataList = build_value_stmt(P, Fields, undefined),
-   Rem = flowdata:to_map_except(P, Fields),
+   Rem = flowdata:to_map_except(P, [<<"ts">>|Fields]),
    DataList ++ [Rem].
 
 build_batch([], _FieldList, _RemFieldsAs, Acc) ->

@@ -44,7 +44,7 @@ class Faxe:
 
     def init(self, args=None):
         """
-        will be called on startup with args requests with options()
+        will be called on startup with args requested with options()
         :param args: dict
         """
         pass
