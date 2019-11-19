@@ -13,10 +13,17 @@ def v2 =
 
 v1
     |join(v2)
-    .prefix('v1.joined', 'v2.joined')
+    .field_merge('val')
     .tolerance(3s)
     .missing_timeout(3s)
     .fill(none)
+
+v1
+    %|join(v2)
+    %.prefix('v1.joined', 'v2.joined')
+    %.tolerance(3s)
+    %.missing_timeout(3s)
+    %.fill(none)
 
     |debug()
 

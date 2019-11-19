@@ -84,7 +84,7 @@ handle_info({publish, #{payload := Payload, topic := Topic} }, S=#state{dt_field
    P = flowdata:set_field(P0, <<"topic">>, Topic),
    dataflow:emit(P),
    {ok, S};
-handle_info({disconnected,shutdown,tcp_closed}=M, State = #state{}) ->
+handle_info({disconnected, shutdown, tcp_closed}=M, State = #state{}) ->
    lager:warning("emqtt : ~p", [M]),
    {ok, State};
 handle_info({'EXIT', _C, _Reason}, State) ->

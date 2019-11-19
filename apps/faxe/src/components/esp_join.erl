@@ -9,6 +9,11 @@
 %% * null - fill missing points with null, full outer join.
 %% * Any numerical value - fill fields with given value, full outer join.
 %% Note, that this node will produce a completely new value.
+%%
+%% Note, with field_merge, no deep merge is performed, also, if the fields to merge contain different data-types
+%% merging is not possible
+%% data-types that can be merged: 2 maps, 2 lists, 2 numbers (which will be added), strings (will be concatenated)
+%%
 %% @end
 -module(esp_join).
 -author("Alexander Minichmair").
@@ -27,9 +32,9 @@
    lookup = [] :: list(), %% buffer-keys
    buffer, %% orddict with timstamps as keys
    prefix,
+   fill,
    field_merge,
    tolerance,
-   %granularity = {minute, 5}, %% if given, means: align the joining to the time-interval
    m_timeout,
    timers = []
 }).
@@ -53,17 +58,17 @@ options() -> [
 ].
 
 init(NodeId, Ins,
-    #{prefix := Prefix, missing_timeout := MTimeOut, tolerance := Tol, field_merge := FMerge}) ->
+    #{prefix := Prefix, missing_timeout := MTimeOut, tolerance := Tol, field_merge := FMerge, fill := Fill}) ->
    RowLength = length(Ins),
    Prefix1 =
    case FMerge of
-      undefined -> lists:zip(lists:seq(1,RowLength), Prefix);
+      undefined -> lists:zip(lists:seq(1, RowLength), Prefix);
       _ -> nil
    end,
 
    lager:notice("~p init:node :: ~p~n",[NodeId, Ins]),
    {ok, all,
-      #state{node_id = NodeId, prefix = Prefix1, field_merge = FMerge, row_length = length(Ins),
+      #state{node_id = NodeId, prefix = Prefix1, field_merge = FMerge, row_length = RowLength, fill = Fill,
       tolerance = faxe_time:duration_to_ms(Tol),
       m_timeout = faxe_time:duration_to_ms(MTimeOut)}}.
 
@@ -74,7 +79,7 @@ process(Inport, #data_point{ts = Ts} = Point, State = #state{buffer = undefined,
    NewBuffer = orddict:store(Ts, [{Inport, Point}], Buffer),
    {ok, State#state{buffer = NewBuffer, timers = NewList}};
 process(Inport, #data_point{ts = Ts} = Point, State = #state{buffer = Buffer, timers = TList,
-   prefix = As, field_merge = FMerge, m_timeout = MTimeout, row_length = RowLength, tolerance = Tolerance}) ->
+      m_timeout = MTimeout, row_length = RowLength, tolerance = Tolerance}) ->
 %%   lager:notice("In on port : ~p",[Inport]),
    TsList = orddict:fetch_keys(Buffer),
 %%   lager:info("new TsList in Buffer: ~p",[TsList]),
@@ -95,7 +100,8 @@ process(Inport, #data_point{ts = Ts} = Point, State = #state{buffer = Buffer, ti
    {NewBuffer, NewTimerList} =
    case length(NewRow) == RowLength of
       true ->
-         dataflow:emit(conflate(NewRow, NewTs, As, FMerge)),
+         maybe_emit(NewRow, NewTs, State),
+%%         dataflow:emit(conflate(NewRow, NewTs, As, FMerge)),
          {orddict:erase(NewTs, Buffer), clear_timeout(NewTs, TList)};
 
       false ->
@@ -109,7 +115,6 @@ process(Inport, #data_point{ts = Ts} = Point, State = #state{buffer = Buffer, ti
                {NBuffer, TList}
          end
 
-
    end,
    {ok, State#state{buffer = NewBuffer, timers = NewTimerList}}.
 
@@ -117,18 +122,29 @@ process(Inport, #data_point{ts = Ts} = Point, State = #state{buffer = Buffer, ti
 handle_info({tick, Ts}, State = #state{buffer = [], timers = TList}) ->
 %%   lager:warning("~p empty buffer when ticked",[?MODULE]),
    {ok, State#state{timers = proplists:delete(Ts, TList), buffer = undefined}};
-handle_info({tick, Ts},
-    State = #state{buffer = Buffer, prefix = As, field_merge = FMerge, timers = TList}) ->
+handle_info({tick, Ts}, State = #state{buffer = Buffer, timers = TList}) ->
 %%   lager:warning("~p ticks missing timeout :: ~p",[?MODULE, Buffer]),
    NewBuffer =
    case lists:member(Ts, orddict:fetch_keys(Buffer)) of
       true ->
             {Row, NewDict} = orddict:take(Ts, Buffer),
-            dataflow:emit(conflate(Row, Ts, As, FMerge)),
+            maybe_emit(Row, Ts, State),
+%%            dataflow:emit(conflate(Row, Ts, As, FMerge)),
             NewDict;
       false -> Buffer
    end,
    {ok, State#state{buffer = NewBuffer, timers = proplists:delete(Ts, TList)}}.
+
+
+maybe_emit(Row, Ts, #state{row_length = RowLength, prefix = Pref, field_merge = FMerge})
+      when length(Row) == RowLength ->
+   dataflow:emit(conflate(Row, Ts, Pref, FMerge));
+maybe_emit(NewRow, NewTs, #state{prefix = Pref, field_merge = FMerge, fill = Fill}) ->
+   case Fill of
+      none -> no_emit;
+      null -> dataflow:emit(conflate(NewRow, NewTs, Pref, FMerge));
+      _Val -> dataflow:emit(conflate(NewRow, NewTs, Pref, FMerge))
+   end.
 
 %% conflate the rows in buffer
 conflate(RowData, Ts, Prefixes, undefined) ->
@@ -209,7 +225,9 @@ clear_timeout(Ts, TimerList) ->
 
 merge(M1, M2) when is_map(M1), is_map(M2) -> maps:merge(M1, M2);
 merge(M1, M2) when is_list(M1), is_list(M2) -> lists:merge(M1, M2);
-merge(_, _) -> error(cannot_merge_different_datatypes).
+merge(V1, V2) when is_number(V1), is_number(V2) -> V1 + V2;
+merge(S1, S2) when is_binary(S1), is_binary(S2) -> string:concat(S1, S2);
+merge(_, _) -> error(cannot_merge_wrong_or_different_datatypes).
 
 
 -ifdef(TEST).
