@@ -72,7 +72,7 @@ init(NodeId, _Ins, #{cb_module := Callback, cb_class := CBClass} = Args) ->
    %% create an instance of the callback class
    ClassInstance = pythra:init(PInstance, Callback, CBClass,
       [maps:without([cb_module, cb_class], Args#{<<"erl">> => self()})]),
-   lager:notice("python instantiation of ~p gives us: ~p",[{Callback, CBClass}, ClassInstance]),
+   lager:info("python instantiation of ~p gives us: ~p",[{Callback, CBClass}, ClassInstance]),
    State = #state{
       callback_module = Callback,
       callback_class =  CBClass,
@@ -84,9 +84,10 @@ init(NodeId, _Ins, #{cb_module := Callback, cb_class := CBClass} = Args) ->
 process(_Inp, #data_batch{} = Batch, State = #state{callback_module = Mod, python_instance = Python,
    cb_object = Obj}) ->
    Data = flowdata:to_map(Batch),
+   lager:warning("data: ~p",[Data]),
    {T, NewObj} =
       timer:tc(pythra, method, [Python, Obj, ?PYTHON_BATCH_CALL, [Data]]),
-   lager:notice("~p emitting: ~p after: ~p",[Mod, NewObj, T]),
+   lager:info("~p emitting: ~p after: ~p",[Mod, NewObj, T]),
    {ok, State#state{cb_object = NewObj}}
 ;
 process(_Inp, #data_point{} = Point, State = #state{python_instance = Python, cb_object = Obj}) ->
@@ -100,7 +101,7 @@ process(_Inp, #data_point{} = Point, State = #state{python_instance = Python, cb
 handle_info({emit_data, Data}, State) when is_map(Data) ->
    lager:notice("got point data as map from python: ~p", [Data]),
    Point = flowdata:point_from_json_map(Data),
-   lager:notice("emit point: ~p " ,[Point]),
+   lager:info("emit point: ~p " ,[Point]),
    dataflow:emit(Point),
    {ok, State};
 handle_info({emit_data, Data}, State) when is_list(Data) ->
@@ -108,7 +109,7 @@ handle_info({emit_data, Data}, State) when is_list(Data) ->
    Points = [flowdata:point_from_json_map(D) || D <- Data],
    Batch = #data_batch{points = Points},
    dataflow:emit(Batch),
-   lager:notice("emit batch: ~p",[Batch]),
+   lager:info("emit batch: ~p",[Batch]),
    {ok, State};
 handle_info({emit_data, {"Map", Data}}, State) when is_list(Data) ->
    lager:notice("got point data from python: ~p", [Data]),

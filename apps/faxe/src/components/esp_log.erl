@@ -22,7 +22,7 @@ check_options() ->
    [{not_empty, [file]}].
 
 init(_NodeId, _Inputs, #{file := File}) ->
-   {ok, F} = file:open(File, [write]),
+   {ok, F} = file:open(File, [append, delayed_write]),
    {ok, all, #state{file = F}}.
 
 process(_In, P = #data_point{}, State = #state{file = F}) ->

@@ -8,11 +8,7 @@ class Callback(Faxe):
 
     @staticmethod
     def options():
-        opts = [
-            (b"foo", b"string"),
-            (b"bar", b"float", 22.5),
-            (b"baz", b"integer")
-        ]
+        opts = []
         return opts
 
     def init(self, args):
