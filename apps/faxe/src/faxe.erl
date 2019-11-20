@@ -149,12 +149,16 @@ update(DfsScript, Task, ScriptType) ->
    end.
 
 -spec update_running(list()|binary(), #task{}, atom()) -> ok|{error, term()}.
-update_running(DfsScript, Task = #task{id = TId}, ScriptType) ->
-   lager:warning("update running task!"),
+update_running(DfsScript, Task = #task{id = TId, pid = TPid}, ScriptType) ->
+   erlang:monitor(process, TPid),
+   stop_task(Task),
    case update(DfsScript, Task, ScriptType) of
       {error, Err} -> {error, Err};
-      ok -> stop_task(Task),
-         start_task(TId)
+      ok ->
+         receive
+            {'DOWN', _MonitorRef, process, TPid, _Info} -> start_task(TId), ok
+            after 5000 -> erlang:demonitor(TPid, true), {error, updated_task_start_fail}
+         end
    end.
 
 -spec eval_dfs(list()|binary(), atom()) -> map()|{error, term()}.
