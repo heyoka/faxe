@@ -22,7 +22,7 @@
 -record(state, {mode}).
 
 init(Req, [{op, Mode}]) ->
-   lager:notice("Cowboy Opts are : ~p",[Mode]),
+%%   lager:notice("Cowboy Opts are : ~p",[Mode]),
    {cowboy_rest, Req, #state{mode = Mode}}.
 
 allowed_methods(Req, State) ->

@@ -17,7 +17,7 @@
 
 task_to_map(T = #task{id = Id, name = Name, date = Dt, is_running = Running,
    last_start = LStart, last_stop = LStop, dfs = Dfs, permanent = Perm}) ->
-   lager:notice("task_to_json: ~p",[T]),
+%%   lager:notice("task_to_json: ~p",[T]),
    Map = #{id => Id, name => Name,
       dfs => Dfs,
       running => Running,
@@ -25,13 +25,13 @@ task_to_map(T = #task{id = Id, name = Name, date = Dt, is_running = Running,
       created => faxe_time:to_iso8601(Dt),
       last_start => faxe_time:to_iso8601(LStart),
       last_stop => faxe_time:to_iso8601(LStop)},
-   lager:notice("theMap: ~p",[Map]),
+%%   lager:notice("theMap: ~p",[Map]),
    Map.
 
 template_to_map(T = #template{definition = _Def0, id = Id, name = Name, date = Dt, dfs = Dfs}) ->
-   lager:notice("template_to_json: ~p",[T]),
+%%   lager:notice("template_to_json: ~p",[T]),
    Map = #{id => Id, name => Name, dfs => to_bin(Dfs), date => faxe_time:to_iso8601(Dt)},
-   lager:notice("theTMap: ~p",[Map]),
+%%   lager:notice("theTMap: ~p",[Map]),
    Map.
 
 
@@ -39,7 +39,7 @@ do_register(Req, State, Type) ->
    {ok, Result, Req3} = cowboy_req:read_urlencoded_body(Req),
    TaskName = proplists:get_value(<<"name">>, Result),
    Dfs = proplists:get_value(<<"dfs">>, Result),
-   lager:notice("name: ~p: dfs: ~p, type:~p",[TaskName, Dfs, Type]),
+%%   lager:notice("name: ~p: dfs: ~p, type:~p",[TaskName, Dfs, Type]),
    case reg_fun(Dfs, TaskName, Type) of
       ok ->
          NewTask = faxe:get_task(TaskName),
