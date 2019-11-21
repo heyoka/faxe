@@ -46,7 +46,6 @@ process(_Inport, _Value, State) ->
 
 handle_info(emit, State=#state{every = Every, jitter = JT, ejson = JS}) ->
    Jitter = round(rand:uniform()*JT),
-   lager:notice("[~p] jitter time: ~p",[?MODULE, Jitter]),
    After = Every+(Jitter),
    erlang:send_after(After, self(), emit),
    JsonMap = lists:nth(rand:uniform(length(JS)), JS),
