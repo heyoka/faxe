@@ -25,11 +25,11 @@ params() -> [].
 options() ->
    [{every, duration, <<"5s">>}, {jitter, duration, <<"0ms">>}, {type, atom, batch},
       {batch_size, integer, 5}, {align, is_set},
-      {fields, binary_list, [<<"val">>]}, {format, atom, undefined}, {json_string, binary, undefined}].
+      {fields, binary_list, [<<"val">>]}, {format, atom, undefined}].
 
 init(NodeId, _Inputs,
     #{every := Every, type := Type, batch_size := BatchSize, align := Unit,
-       fields := Fields, format := Fmt, jitter := Jitter, json_string := JS}) ->
+       fields := Fields, format := Fmt, jitter := Jitter}) ->
    NUnit =
       case Unit of
          false -> false;
@@ -37,7 +37,7 @@ init(NodeId, _Inputs,
       end,
    JT = faxe_time:duration_to_ms(Jitter),
    EveryMs = faxe_time:duration_to_ms(Every),
-   State = #state{node_id = NodeId, every = EveryMs, fields = Fields, json_string = JS,
+   State = #state{node_id = NodeId, every = EveryMs, fields = Fields,
       type = Type, batch_size = BatchSize, align = NUnit, format = Fmt, jitter = JT},
 
    erlang:send_after(EveryMs, self(), values),

@@ -143,7 +143,15 @@ update_task(DfsScript, TaskId, ScriptType) ->
 update(DfsScript, Task, ScriptType) ->
    case eval_dfs(DfsScript, ScriptType) of
       Map when is_map(Map) ->
-         NewTask = Task#task{definition = Map, date = faxe_time:now_date()},
+         DFS =
+            case ScriptType of
+               file -> get_file_dfs(DfsScript);
+               data -> DfsScript
+            end,
+         NewTask = Task#task{
+            definition = Map,
+            dfs = DFS,
+            date = faxe_time:now_date()},
          faxe_db:save_task(NewTask);
       Err -> Err
    end.
