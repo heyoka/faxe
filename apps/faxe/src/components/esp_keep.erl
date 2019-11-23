@@ -15,36 +15,41 @@
 -record(state, {
    node_id,
    fields,
-   tags
+   tags,
+   as_fields
 }).
 
-options() -> [{fields, binary_list, []},{tags, binary_list, []}].
+options() -> [{fields, binary_list, []}, {tags, binary_list, []}, {as, string_list, []}].
 
-init(NodeId, _Ins, #{fields := Fields, tags := Tags}) ->
-   {ok, all, #state{fields = Fields, node_id = NodeId, tags = Tags}}.
+init(NodeId, _Ins, #{fields := Fields, tags := Tags, as := As}) ->
+   {ok, all, #state{fields = Fields, node_id = NodeId, tags = Tags, as_fields = As}}.
 
-process(_In, #data_batch{points = Points} = Batch, State = #state{fields = Fs, tags = Ts}) ->
+process(_In, #data_batch{points = Points} = Batch, State = #state{fields = Fs, tags = Ts, as_fields = As}) ->
 
    NewPoints = lists:map(
-      fun(P) -> rewrite(Fs, Ts, P) end,
+      fun(P) -> rewrite(P, Fs, Ts, As) end,
       Points
    ),
    {emit, Batch#data_batch{points = NewPoints}, State};
-process(_Inport, #data_point{} = Point, State = #state{fields = Fs, tags = Ts}) ->
-   {emit, rewrite(Point, Fs, Ts), State}.
+process(_Inport, #data_point{} = Point, State = #state{fields = Fs, tags = Ts, as_fields = As}) ->
+   {emit, rewrite(Point, Fs, Ts, As), State}.
 
 
-rewrite(#data_point{} = Point, FieldNames, TagNames) ->
+rewrite(#data_point{} = Point, FieldNames, TagNames, Aliases) ->
    Fields = flowdata:fields(Point, FieldNames),
    Tags = flowdata:tags(Point, TagNames),
    Point0 = Point#data_point{fields = #{}, tags = # {}},
-   NewPoint0 = flowdata:set_fields(Point0, FieldNames, Fields),
+   NewPoint0 = flowdata:set_fields(Point0, Aliases, Fields),
    flowdata:set_tags(NewPoint0, TagNames, Tags).
 
 
 -ifdef(TEST).
 rewrite_point_test() ->
    Point = #data_point{ts = 1234, fields = #{<<"value">> => 2134, <<"val44">> => <<"get">>}},
-   ?assertEqual(#data_point{ts = 1234, fields = #{<<"val44">> => <<"get">>}},
-      rewrite(Point, [<<"val44">>], [])).
+   ?assertEqual(#data_point{ts = 1234, fields = #{<<"val">> => <<"get">>}},
+      rewrite(Point, [<<"val44">>], [], [<<"val">>])).
+rewrite_points_path_test() ->
+   Point = #data_point{ts = 1234, fields = #{<<"first">> => #{<<"value">> => 2134, <<"val44">> => <<"get">>}}},
+   ?assertEqual(#data_point{ts = 1234, fields = #{<<"val">> => <<"get">>}},
+      rewrite(Point, [<<"first.val44">>], [], [<<"val">>])).
 -endif.
