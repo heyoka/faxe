@@ -34,7 +34,8 @@ process(_In, #data_batch{points = Points} = Batch, State = #state{fields = Fs, t
 process(_Inport, #data_point{} = Point, State = #state{fields = Fs, tags = Ts, as_fields = As}) ->
    {emit, rewrite(Point, Fs, Ts, As), State}.
 
-
+rewrite(#data_point{} = Point, FieldNames, TagNames, []) ->
+   rewrite(Point, FieldNames, TagNames, FieldNames);
 rewrite(#data_point{} = Point, FieldNames, TagNames, Aliases) ->
    Fields = flowdata:fields(Point, FieldNames),
    Tags = flowdata:tags(Point, TagNames),
@@ -52,4 +53,12 @@ rewrite_points_path_test() ->
    Point = #data_point{ts = 1234, fields = #{<<"first">> => #{<<"value">> => 2134, <<"val44">> => <<"get">>}}},
    ?assertEqual(#data_point{ts = 1234, fields = #{<<"val">> => <<"get">>}},
       rewrite(Point, [<<"first.val44">>], [], [<<"val">>])).
+rewrite_points_path_no_aliases_test() ->
+   Point = #data_point{ts = 1234, fields = #{<<"first">> => #{<<"value">> => 2134, <<"val44">> => <<"get">>}}},
+   ?assertEqual(#data_point{ts = 1234, fields = #{<<"first">> => #{<<"val44">> => <<"get">>}}},
+      rewrite(Point, [<<"first.val44">>], [], [])).
+rewrite_points_path_alias_path_test() ->
+   Point = #data_point{ts = 1234, fields = #{<<"first">> => #{<<"value">> => 2134, <<"val44">> => <<"get">>}}},
+   ?assertEqual(#data_point{ts = 1234, fields = #{<<"erster">> => #{<<"val">> => <<"get">>}}},
+      rewrite(Point, [<<"first.val44">>], [], [<<"erster.val">>])).
 -endif.
