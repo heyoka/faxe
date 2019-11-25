@@ -167,6 +167,9 @@ str_concat(String1, String2) ->
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %% additional
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+round_float(Float, Precision) when is_float(Float), is_integer(Precision) ->
+   list_to_float(io_lib:format("~.*f",[Precision, Float])).
+
 max([]) -> 0;
 max(ValueList) when is_list(ValueList) ->
    lists:max(ValueList).

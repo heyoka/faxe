@@ -3,7 +3,7 @@
 %%% @copyright (C) 2019, <COMPANY>
 %%% @doc
 %%% parser for the robot_plc data v1
-%%% siemens plc cpus are big-endian (as is erlang's default)
+%%% siemens plc cpus are big-endian (as is erlang's default endianess)
 %%%
 %%% 216 bytes in total
 %%% @end
@@ -237,7 +237,8 @@ pos1_test() ->
    Pos2 = make_reals(5),
    Pos21 = make_reals(2), Pos22 = <<252:16/integer, 2323:16/integer, 6786:16/integer>>,
    Pos3 = <<0:1, 1:1, 1:1, 0:1, 0:4>>,
-   Pos4 = make_reals(3),
+%%   Pos4 = <<0.0:?REAL, 0.0:?REAL, 0.0:?REAL>>, %% succ
+   Pos4 = make_reals(3), %% sucction 1,2,3
    Pos5 = make_reals(4),
    Pos6 = make_dints(6),
    Pos7 = <<0:1, 0:1, 1:1, 1:1, 0:1, 0:3>>,
