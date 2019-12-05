@@ -57,6 +57,7 @@ init([]) ->
    ok = new_table(up_nodes, ordered_set),
    ok = new_table(ls_mem, set),
    ok = new_table(field_paths, set),
+   ok = new_table(temp_tasks, set),
    {ok, #state{}}.
 
 

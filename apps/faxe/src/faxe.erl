@@ -247,7 +247,28 @@ task_from_template(TemplateId, TaskName, Vars) ->
       #task{} -> {error, task_exists}
    end.
 
+start_temp(DfsScript, TTL) ->
+   start_temp(DfsScript, string, TTL).
+start_temp(DfsScript, Type, TTL) ->
+   case eval_dfs(DfsScript, Type) of
+      Def when is_map(Def) ->
+         Id = faxe_time:now(),
+         case dataflow:create_graph(Id, Def) of
+            {ok, Graph} ->
+               ets:insert(temp_tasks, {Id, Graph}),
+               try dataflow:start_graph(Graph, #task_modes{temporary = true, temp_ttl = TTL}) of
+                  ok ->
 
+                     {ok, Graph}
+               catch
+                  _:E = E -> {error, graph_start_error}
+               end;
+            {error, E} -> {error, E}
+         end;
+      {error, What} -> {error, What}
+   end.
+%% @doc start a task temporary, when the timeout is over the task will stop and delete itself from the database
+%% only use this for temporary tasks
 -spec start_temporary(term(), non_neg_integer()) -> ok|{error, Error::term()}.
 start_temporary(TaskId, TTL) ->
    start_task(TaskId, #task_modes{temporary = true, temp_ttl = TTL}).
@@ -262,7 +283,6 @@ start_task(TaskId,
          case dataflow:create_graph(Name, GraphDef) of
             {ok, Graph} ->
                try dataflow:start_graph(Graph, Mode) of
-%%               try dataflow:start_graph(Graph, RunMode) of
                   ok ->
                      faxe_db:save_task(T#task{pid = Graph,
                         last_start = faxe_time:now_date(), permanent = Perm}),
