@@ -45,7 +45,8 @@
    topic,
    queue,
    retained = false,
-   ssl = false
+   ssl = false,
+   ssl_opts = []
 }).
 
 options() -> [
@@ -53,7 +54,7 @@ options() -> [
    {qos, integer, 1},
    {topic, binary},
    {retained, is_set},
-   {ssl, bool, false},
+   {ssl, is_set},
    {save, is_set}].
 
 %% save mode with ondisc queuing
@@ -65,13 +66,22 @@ init(_NodeId, _Ins, #{save := true, host := Host0}=Opts) ->
 %% direct publish mode
 init(_NodeId, _Ins,
    #{save := false, host := Host0, port := Port, topic := Topic,
-      retained := Retained, ssl := UseSSL, qos := Qos}) ->
+      retained := Retained, ssl := UseSsL, qos := Qos}) ->
    process_flag(trap_exit, true),
+   SslOpts =
+      case UseSsL of
+         true ->
+            [
+               {keyfile, "certs/key.pem"},
+               {certfile, "certs/cert.pem"},
+               {cacertfile, "certs/tgw_wildcard.crt"}];
+         false -> []
+      end,
    Host = binary_to_list(Host0),
    erlang:send_after(0, self(), reconnect),
    {ok,
-      #direct_state{host = Host, port = Port, topic = Topic, connected = true,
-         retained = Retained, ssl = UseSSL, qos = Qos, queue = queue:new()}}.
+      #direct_state{host = Host, port = Port, topic = Topic, connected = true, ssl_opts = SslOpts,
+         retained = Retained, ssl = UseSsL, qos = Qos, queue = queue:new()}}.
 
 %% direct state
 process(_In, Item, State = #direct_state{connected = true}) ->
@@ -127,8 +137,8 @@ publish(Msg, #direct_state{retained = Ret, qos = Qos, client = C, topic = Topic}
 %%   lager:notice("sent msg and got PacketId: ~p",[PacketId])
 .
 
-do_connect(#direct_state{host = Host, port = Port} = State) ->
-   {ok, Client} = emqtt:start_link([{host, Host}, {port, Port}]),
+do_connect(#direct_state{host = Host, port = Port, ssl_opts = SslOpts, ssl = Ssl} = State) ->
+   {ok, Client} = emqtt:start_link([{host, Host}, {port, Port}, {ssl, Ssl}, {ssl_opts, SslOpts}]),
    case catch(emqtt:connect(Client)) of
       {ok, _} -> State#direct_state{client = Client, connected = true};
       _Other ->

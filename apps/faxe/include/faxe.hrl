@@ -98,3 +98,13 @@
    definition :: map(),
    date :: faxe_time:date()
 }).
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+-record(task_modes, {
+   temporary = false :: true|false,
+   temp_ttl = infinity :: infinity|non_neg_integer(),
+   permanent = false :: true|false,
+   run_mode = push :: push|pull
+
+}).

@@ -28,7 +28,7 @@
    start_permanent_tasks/0,
    get_stats/1,
    update_file_task/2,
-   update_string_task/2, update_task/3, update/3, get_errors/1, list_permanent_tasks/0, get_task/1]).
+   update_string_task/2, update_task/3, update/3, get_errors/1, list_permanent_tasks/0, get_task/1, ping_task/1, start_temporary/2]).
 
 start_permanent_tasks() ->
    Tasks = faxe_db:get_permanent_tasks(),
@@ -248,28 +248,37 @@ task_from_template(TemplateId, TaskName, Vars) ->
    end.
 
 
+-spec start_temporary(term(), non_neg_integer()) -> ok|{error, Error::term()}.
+start_temporary(TaskId, TTL) ->
+   start_task(TaskId, #task_modes{temporary = true, temp_ttl = TTL}).
+
 start_task(TaskId) ->
    start_task(TaskId, false).
-start_task(TaskId, Permanent) ->
-   start_task(TaskId, push, Permanent).
--spec start_task(integer()|binary(), atom(), true|false) -> ok|{error, term()}.
-start_task(TaskId, GraphRunMode, Permanent) ->
+start_task(TaskId,
+    #task_modes{run_mode = _RunMode, permanent = Perm, temporary = _Temp, temp_ttl = _TTL} = Mode) ->
    case faxe_db:get_task(TaskId) of
       {error, not_found} -> {error, task_not_found};
       T = #task{definition = GraphDef, name = Name} ->
          case dataflow:create_graph(Name, GraphDef) of
             {ok, Graph} ->
-               try dataflow:start_graph(Graph, GraphRunMode) of
+               try dataflow:start_graph(Graph, Mode) of
+%%               try dataflow:start_graph(Graph, RunMode) of
                   ok ->
                      faxe_db:save_task(T#task{pid = Graph,
-                        last_start = faxe_time:now_date(), permanent = Permanent}),
+                        last_start = faxe_time:now_date(), permanent = Perm}),
                      {ok, Graph}
                catch
                   _:E = E -> {error, graph_start_error}
                end;
             {error, {already_started, _Pid}} -> {error, already_started}
          end
-   end.
+   end;
+start_task(TaskId, Permanent) ->
+   start_task(TaskId, push, Permanent).
+-spec start_task(integer()|binary(), atom(), true|false) -> ok|{error, term()}.
+start_task(TaskId, GraphRunMode, Permanent) ->
+   start_task(TaskId, #task_modes{run_mode = GraphRunMode, permanent = Permanent}).
+
 
 -spec stop_task(integer()|binary()|#task{}) -> ok.
 %% @doc just stop the graph process and its children
@@ -321,6 +330,19 @@ delete_template(TaskId) ->
       {error, not_found} -> ok;
       #template{} ->
          faxe_db:delete_template(TaskId)
+   end.
+
+
+-spec ping_task(term()) -> {ok, NewTimeout::non_neg_integer()} | {error, term()}.
+ping_task(TaskId) ->
+   T = faxe_db:get_task(TaskId),
+   case T of
+      {error, not_found} -> {error, not_found};
+      #task{pid = Graph} when is_pid(Graph) ->
+         case is_process_alive(Graph) of
+            true -> df_graph:ping(Graph);
+            false -> {error, task_not_running}
+         end
    end.
 
 

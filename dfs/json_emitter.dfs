@@ -1,3 +1,5 @@
+def host = '10.14.204.3'
+
 |json_emitter()
 .every(5s)
 .json(<<< {"condition": {"id": 0, "name": "OK"}, "condition_reason": "", "predicted_maintenance_time": 1584246411783,
@@ -12,4 +14,10 @@
 .fields('id', 'df')
 .field_values('oi2u3oi2u32oi3u2oiu32ou', '05.001')
 
-|debug()
+|mqtt_publish()
+.host(host)
+.port(8883)
+.qos(1)
+.topic('ttgw/data/what/ever')
+.retained()
+.ssl()

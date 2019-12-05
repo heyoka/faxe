@@ -20,7 +20,7 @@
 %% Additional callbacks
 -export([
    from_register_task/2, get_to_json/2
-   , from_update_to_json/2, create_to_json/2, start_to_json/2, stop_to_json/2, errors_to_json/2]).
+   , from_update_to_json/2, create_to_json/2, start_to_json/2, stop_to_json/2, errors_to_json/2, from_ping_to_json/2, from_start_temp_task/2]).
 
 -include("faxe.hrl").
 
@@ -34,7 +34,11 @@ allowed_methods(Req, State=#state{mode = get}) ->
    {[<<"GET">>, <<"OPTIONS">>], Req, State};
 allowed_methods(Req, State=#state{mode = register}) ->
    {[<<"POST">>], Req, State};
+allowed_methods(Req, State=#state{mode = start_temp}) ->
+   {[<<"POST">>], Req, State};
 allowed_methods(Req, State=#state{mode = update}) ->
+   {[<<"POST">>], Req, State};
+allowed_methods(Req, State=#state{mode = ping}) ->
    {[<<"POST">>], Req, State};
 allowed_methods(Req, State=#state{mode = start}) ->
    {[<<"GET">>, <<"OPTIONS">>], Req, State};
@@ -52,8 +56,14 @@ allowed_methods(Req, State=#state{}) ->
 content_types_accepted(Req = #{method := <<"POST">>}, State = #state{mode = register}) ->
     Value = [{{ <<"application">>, <<"x-www-form-urlencoded">>, []}, from_register_task}],
     {Value, Req, State};
+content_types_accepted(Req = #{method := <<"POST">>}, State = #state{mode = start_temp}) ->
+   Value = [{{ <<"application">>, <<"x-www-form-urlencoded">>, []}, from_start_temp_task}],
+   {Value, Req, State};
 content_types_accepted(Req = #{method := <<"POST">>} , State = #state{mode = update}) ->
    Value = [{{ <<"application">>, <<"x-www-form-urlencoded">>, []}, from_update_to_json}],
+   {Value, Req, State};
+content_types_accepted(Req = #{method := <<"POST">>} , State = #state{mode = ping}) ->
+   Value = [{{ <<"application">>, <<"x-www-form-urlencoded">>, []}, from_ping_to_json}],
    {Value, Req, State}.
 
 
@@ -127,6 +137,34 @@ get_to_json(Req, State=#state{task = Task}) ->
 from_register_task(Req, State) ->
    rest_helper:do_register(Req, State, task).
 
+from_start_temp_task(Req, State) ->
+   {ok, Result, Req3} = cowboy_req:read_urlencoded_body(Req),
+   TaskName = proplists:get_value(<<"name">>, Result),
+   Dfs = proplists:get_value(<<"dfs">>, Result),
+   TTL = binary_to_integer(proplists:get_value(<<"ttl">>, Result)),
+   case rest_helper:reg_fun(Dfs, TaskName, task) of
+      ok ->
+         NewTask = faxe:get_task(TaskName),
+         Id =
+            case NewTask of
+               #task{id = NewId} -> NewId;
+               _ -> 0
+            end,
+         case faxe:start_temporary(Id, TTL) of
+            {ok, _Pid} ->
+               Req4 = cowboy_req:set_resp_body(jiffy:encode(#{success => true, id => Id, ttl => TTL}), Req3),
+               {true, Req4, State};
+            {error, E} -> lager:warning("Error occured when starting faxe-task: ~p",[E]),
+               Req4 = cowboy_req:set_resp_body(jiffy:encode(#{success => false,
+                  error => rest_helper:to_bin(E)}), Req3),
+               {false, Req4, State}
+         end;
+      {error, Error} -> lager:warning("Error occured when registering faxe-flow: ~p",[Error]),
+         Req4 = cowboy_req:set_resp_body(jiffy:encode(#{success => false,
+            error => rest_helper:to_bin(Error)}), Req3),
+         {false, Req4, State}
+   end.
+
 from_update_to_json(Req, State=#state{task_id = TaskId}) ->
    {ok, Result, Req1} = cowboy_req:read_urlencoded_body(Req),
 %%   TaskId = proplists:get_value(<<"id">>, Result),
@@ -139,6 +177,18 @@ from_update_to_json(Req, State=#state{task_id = TaskId}) ->
       {error, Error} ->
          Req3 = cowboy_req:set_resp_body(
             jiffy:encode(#{success => false, error => rest_helper:to_bin(Error)}), Req1),
+         {false, Req3, State}
+   end.
+
+from_ping_to_json(Req, State=#state{task_id = TaskId}) ->
+   case faxe:ping_task(binary_to_integer(TaskId)) of
+      {ok, Time} ->
+         Req4 = cowboy_req:set_resp_body(
+            jiffy:encode(#{success => true, id => TaskId, stops_in => Time}), Req),
+         {true, Req4, State};
+      {error, Error} ->
+         Req3 = cowboy_req:set_resp_body(
+            jiffy:encode(#{success => false, error => rest_helper:to_bin(Error)}), Req),
          {false, Req3, State}
    end.
 

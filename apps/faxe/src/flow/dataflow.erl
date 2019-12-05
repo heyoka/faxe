@@ -1,6 +1,6 @@
 -module(dataflow).
 
--include("df_types.hrl").
+-include("faxe.hrl").
 
 %% API exports
 -export([new_graph/0, create_graph/2, start_graph/1, start_graph/2,
@@ -56,8 +56,10 @@ create_graph(Id, Definitions) when is_map(Definitions) ->
 %% @doc start the graph computation
 start_graph(Graph) ->
    start_graph(Graph, push).
-start_graph(Graph, Mode) ->
-   df_graph:start_graph(Graph, Mode).
+start_graph(Graph, #task_modes{} = TM) ->
+   df_graph:start_graph(Graph, TM#task_modes{run_mode = push});
+start_graph(Graph, RunMode) ->
+   df_graph:start_graph(Graph, #task_modes{run_mode = RunMode}).
 
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%

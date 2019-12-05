@@ -21,7 +21,9 @@
    start_graph/2,
    stop/1,
    sink_nodes/1,
-   source_nodes/1, get_stats/1]).
+   source_nodes/1,
+   get_stats/1,
+   ping/1]).
 
 %% gen_server callbacks
 -export([init/1,
@@ -36,6 +38,8 @@
    running  = false     :: true | false,
    started  = false     :: true | false,
    graph    = nil,
+   start_mode = undefined :: #task_modes{},
+   timeout_ref          :: reference(),
    nodes    = []        :: list(tuple()),
    is_leader = false    :: true|false
 }).
@@ -51,13 +55,19 @@ start_link(Id, Params) ->
    lager:notice("start graph with id: ~p",[Id]),
    gen_server:start_link(?MODULE, [Id, Params], []).
 
-start_graph(Graph, FlowMode) ->
-   gen_server:call(Graph, {start, FlowMode}).
+
+-spec start_graph(pid(), #task_modes{}) -> {ok, started}|{error, term()}.
+start_graph(Graph, Modes) ->
+   gen_server:call(Graph, {start, Modes}).
 
 stop(Graph) ->
    erlang:process_flag(trap_exit, true),
    Graph ! stop.
 %%   gen_server:call(Graph, {stop}).
+
+%% ping a temporary running graph to keep it alive
+ping(Graph) ->
+   gen_server:call(Graph, ping).
 
 add_node(Graph, NodeId, Component) ->
    add_node(Graph, NodeId, Component, []).
@@ -142,8 +152,8 @@ handle_call({edges}, _From, State) ->
    All = digraph:vertices(State#state.graph),
    {reply, All, State};
 %% start the computation
-handle_call({start, FlowMode}, _From, State) ->
-   NewState = start(FlowMode, State),
+handle_call({start, Modes}, _From, State) ->
+   NewState = start(Modes, State),
    {reply, ok, NewState};
 handle_call({stop}, _From, State) ->
    do_stop(State),
@@ -161,9 +171,11 @@ handle_call({get_errors}, _From, State=#state{nodes = Nodes}) ->
          }
       end,
    Res = [GetHistory(NodeId) || {NodeId, _NPid} <- Nodes],
-   {reply, {ok, Res}, State}.
-
-
+   {reply, {ok, Res}, State};
+handle_call(ping, _From, State = #state{timeout_ref = TRef, start_mode = #task_modes{temp_ttl = TTL}}) ->
+   erlang:cancel_timer(TRef),
+   NewTimer = erlang:send_after(TTL, self(), timeout),
+   {reply, {ok, TTL}, State#state{timeout_ref = NewTimer}}.
 
 handle_cast({swarm, end_handoff, NewState}, State) ->
    lager:notice("~p ~p end_handoff with new State: ~p (old: ~p)",
@@ -180,6 +192,11 @@ handle_cast(_Request, State) ->
 
 handle_info({start, RunMode}, State) ->
    {noreply, start(RunMode, State)};
+handle_info(timeout, State) ->
+   lager:notice("Time is out for graph: ~p",[self()]),
+   %% delete the task here
+   faxe_db:delete_task(State#state.id),
+   {stop, shutdown, State};
 handle_info({swarm, die}, State) ->
    lager:warning("~p ~p must (and will) DIE!",[?MODULE, State#state.id]),
    {stop, shutdown, State};
@@ -260,8 +277,9 @@ build_subscriptions(Graph, Node, Nodes, FlowMode) ->
 %% @doc
 %% creates the graph processes and starts the computation
 %%
--spec start(atom(), #state{}) -> #state{}.
-start(FlowMode, State=#state{graph = G, id = _Id}) ->
+-spec start(#task_modes{}, #state{}) -> #state{}.
+start(ModeOpts=#task_modes{run_mode = RunMode, temporary = Temp, temp_ttl = TTL},
+    State=#state{graph = G, id = _Id}) ->
    Nodes0 = digraph:vertices(G),
 
 %% build : [{NodeId, Pid}]
@@ -275,22 +293,28 @@ start(FlowMode, State=#state{graph = G, id = _Id}) ->
       end, lists:reverse(Nodes0)),
    %% Inports and Subscriptions
    Subscriptions = lists:foldl(fun({NId, _N}, Acc) ->
-      [{NId, build_subscriptions(G, NId, Nodes, FlowMode)}|Acc]
+      [{NId, build_subscriptions(G, NId, Nodes, RunMode)}|Acc]
                                end, [], Nodes),
 
    %% start the nodes with subscriptions
    lists:foreach(
       fun({NodeId, NPid}) ->
          {Inputs, Subs} = proplists:get_value(NodeId, Subscriptions),
-         df_component:start_async(NPid, Inputs, Subs, FlowMode)
+         df_component:start_async(NPid, Inputs, Subs, RunMode)
 %%         NodeStart = df_component:start_node(NPid, Inputs, Subs, FlowMode),
 %%         lager:debug("NodeStart for ~p gives: ~p",[NodeId, NodeStart] )
       end,
       Nodes),
    %% if in pull mode initially let all components send requests to their producers
-   case FlowMode of
+   case RunMode of
       push -> ok;
       pull -> lists:foreach(fun({_NodeId, NPid}) -> NPid ! pull end, Nodes)
    end,
-   %gen_event:notify(dfevent_graph, {start, Id, FlowMode}),
-   State#state{running = true, started = true, nodes = Nodes}.
+   %% are we starting temporary
+   TimerRef =
+   case Temp of
+      false -> undefined;
+      true -> erlang:send_after(TTL, self(), timeout)
+   end,
+   State#state{running = true, started = true, nodes = Nodes,
+      timeout_ref = TimerRef, start_mode = ModeOpts}.

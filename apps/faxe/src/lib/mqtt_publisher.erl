@@ -73,9 +73,15 @@ start_link(Opts, Queue) ->
    {ok, State :: #state{}} | {ok, State :: #state{}, timeout() | hibernate} |
    {stop, Reason :: term()} | ignore).
 init([#{host := Host, port := Port, topic := Topic, retained := Retained, ssl := UseSSL, qos := Qos}, Queue]) ->
-
-   {ok, Client} = emqtt:start_link([{host, Host}, {port, Port}%, {logger, info}
-   ]),
+   SslOpts =
+   case ssl of
+      true ->
+         [{keyfile, "certs/tgw_wildcard.key"},
+            {certfile, "certs/tgw_wildcard.pem"},
+            {cacertfile, "certs/tgw_wildcard.crt"}];
+      false -> []
+   end,
+   {ok, Client} = emqtt:start_link([{host, Host}, {port, Port}, {ssl_opts, SslOpts} ]),
    {ok, _} = emqtt:connect(Client),
    {ok,
       #state{host = Host, port = Port, topic = Topic,

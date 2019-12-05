@@ -12,7 +12,7 @@
 -include("faxe.hrl").
 
 %% API
--export([task_to_map/1, template_to_map/1, do_register/3, to_bin/1]).
+-export([task_to_map/1, template_to_map/1, do_register/3, to_bin/1, reg_fun/3]).
 
 
 task_to_map(T = #task{id = Id, name = Name, date = Dt, is_running = Running,
@@ -65,6 +65,7 @@ do_register(Req, State, Type) ->
 reg_fun(Dfs, Name, task) -> Res = faxe:register_string_task(Dfs, Name), Res;
 reg_fun(Dfs, Name, _) -> faxe:register_template_string(Dfs, Name).
 
+-spec to_bin(any()) -> binary().
 to_bin(L) when is_list(L) -> list_to_binary(L);
 to_bin(E) when is_atom(E) -> atom_to_binary(E, utf8);
 to_bin(Bin) when is_binary(Bin) -> Bin;
