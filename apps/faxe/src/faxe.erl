@@ -28,7 +28,16 @@
    start_permanent_tasks/0,
    get_stats/1,
    update_file_task/2,
-   update_string_task/2, update_task/3, update/3, get_errors/1, list_permanent_tasks/0, get_task/1, ping_task/1, start_temporary/2]).
+   update_string_task/2,
+   update_task/3,
+   update/3,
+   get_errors/1,
+   list_permanent_tasks/0,
+   get_task/1,
+   ping_task/1,
+%%   start_temporary/2,
+   start_temp/2,
+   start_file_temp/2]).
 
 start_permanent_tasks() ->
    Tasks = faxe_db:get_permanent_tasks(),
@@ -169,7 +178,7 @@ update_running(DfsScript, Task = #task{id = TId, pid = TPid}, ScriptType) ->
          end
    end.
 
--spec eval_dfs(list()|binary(), atom()) -> map()|{error, term()}.
+-spec eval_dfs(list()|binary(), file|data) -> map()|{error, term()}.
 eval_dfs(DfsScript, Type) ->
    try faxe_dfs:Type(DfsScript, []) of
       Def when is_map(Def) -> Def;
@@ -247,19 +256,23 @@ task_from_template(TemplateId, TaskName, Vars) ->
       #task{} -> {error, task_exists}
    end.
 
+
+start_file_temp(DfsScript, TTL) ->
+   start_temp(DfsScript, file, TTL).
+
 start_temp(DfsScript, TTL) ->
-   start_temp(DfsScript, string, TTL).
+   start_temp(DfsScript, data, TTL).
 start_temp(DfsScript, Type, TTL) ->
    case eval_dfs(DfsScript, Type) of
       Def when is_map(Def) ->
-         Id = faxe_time:now(),
+         Id = list_to_binary(faxe_util:uuid_string()),
          case dataflow:create_graph(Id, Def) of
             {ok, Graph} ->
                ets:insert(temp_tasks, {Id, Graph}),
                try dataflow:start_graph(Graph, #task_modes{temporary = true, temp_ttl = TTL}) of
                   ok ->
 
-                     {ok, Graph}
+                     {ok, Id}
                catch
                   _:E = E -> {error, graph_start_error}
                end;
@@ -355,16 +368,10 @@ delete_template(TaskId) ->
 
 -spec ping_task(term()) -> {ok, NewTimeout::non_neg_integer()} | {error, term()}.
 ping_task(TaskId) ->
-   T = faxe_db:get_task(TaskId),
-   case T of
-      {error, not_found} -> {error, not_found};
-      #task{pid = Graph} when is_pid(Graph) ->
-         case is_process_alive(Graph) of
-            true -> df_graph:ping(Graph);
-            false -> {error, task_not_running}
-         end
+   case ets:lookup(temp_tasks, TaskId) of
+      [] -> {error, not_found};
+      [{TaskId, GraphPid}] -> df_graph:ping(GraphPid)
    end.
-
 
 get_stats(TaskId) ->
    T = faxe_db:get_task(TaskId),

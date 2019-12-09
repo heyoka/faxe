@@ -27,7 +27,8 @@
     folsom,
     fusco,
     epgsql,
-    carrot
+    carrot,
+    uuid
    ]},
   {env,[]},
   {modules, [esp_stats]},

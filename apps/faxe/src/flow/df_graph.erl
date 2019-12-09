@@ -195,7 +195,8 @@ handle_info({start, RunMode}, State) ->
 handle_info(timeout, State) ->
    lager:notice("Time is out for graph: ~p",[self()]),
    %% delete the task here
-   faxe_db:delete_task(State#state.id),
+   ets:delete(temp_tasks, State#state.id),
+   do_stop(State),
    {stop, shutdown, State};
 handle_info({swarm, die}, State) ->
    lager:warning("~p ~p must (and will) DIE!",[?MODULE, State#state.id]),

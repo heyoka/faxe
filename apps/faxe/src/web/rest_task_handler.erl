@@ -139,27 +139,14 @@ from_register_task(Req, State) ->
 
 from_start_temp_task(Req, State) ->
    {ok, Result, Req3} = cowboy_req:read_urlencoded_body(Req),
-   TaskName = proplists:get_value(<<"name">>, Result),
+%%   TaskName = proplists:get_value(<<"name">>, Result),
    Dfs = proplists:get_value(<<"dfs">>, Result),
    TTL = binary_to_integer(proplists:get_value(<<"ttl">>, Result)),
-   case rest_helper:reg_fun(Dfs, TaskName, task) of
-      ok ->
-         NewTask = faxe:get_task(TaskName),
-         Id =
-            case NewTask of
-               #task{id = NewId} -> NewId;
-               _ -> 0
-            end,
-         case faxe:start_temporary(Id, TTL) of
-            {ok, _Pid} ->
-               Req4 = cowboy_req:set_resp_body(jiffy:encode(#{success => true, id => Id, ttl => TTL}), Req3),
+   case faxe:start_temp(Dfs, TTL) of
+      {ok, TaskName} ->
+         Req4 = cowboy_req:set_resp_body(jiffy:encode(#{success => true, id => TaskName, ttl => TTL}), Req3),
                {true, Req4, State};
-            {error, E} -> lager:warning("Error occured when starting faxe-task: ~p",[E]),
-               Req4 = cowboy_req:set_resp_body(jiffy:encode(#{success => false,
-                  error => rest_helper:to_bin(E)}), Req3),
-               {false, Req4, State}
-         end;
-      {error, Error} -> lager:warning("Error occured when registering faxe-flow: ~p",[Error]),
+      {error, Error} -> lager:warning("Error occured when starting temporary task: ~p",[Error]),
          Req4 = cowboy_req:set_resp_body(jiffy:encode(#{success => false,
             error => rest_helper:to_bin(Error)}), Req3),
          {false, Req4, State}
@@ -167,7 +154,6 @@ from_start_temp_task(Req, State) ->
 
 from_update_to_json(Req, State=#state{task_id = TaskId}) ->
    {ok, Result, Req1} = cowboy_req:read_urlencoded_body(Req),
-%%   TaskId = proplists:get_value(<<"id">>, Result),
    Dfs = proplists:get_value(<<"dfs">>, Result),
    lager:info("update ~p with dfs: ~p",[TaskId, Dfs]),
    case faxe:update_string_task(Dfs, binary_to_integer(TaskId)) of
@@ -181,10 +167,10 @@ from_update_to_json(Req, State=#state{task_id = TaskId}) ->
    end.
 
 from_ping_to_json(Req, State=#state{task_id = TaskId}) ->
-   case faxe:ping_task(binary_to_integer(TaskId)) of
+   case faxe:ping_task(TaskId) of
       {ok, Time} ->
          Req4 = cowboy_req:set_resp_body(
-            jiffy:encode(#{success => true, id => TaskId, stops_in => Time}), Req),
+            jiffy:encode(#{success => true, id => TaskId, ttl => Time}), Req),
          {true, Req4, State};
       {error, Error} ->
          Req3 = cowboy_req:set_resp_body(

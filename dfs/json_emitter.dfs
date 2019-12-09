@@ -16,8 +16,7 @@ def host = '10.14.204.3'
 
 |mqtt_publish()
 .host(host)
-.port(8883)
+.port(1883)
 .qos(1)
 .topic('ttgw/data/what/ever')
 .retained()
-.ssl()
