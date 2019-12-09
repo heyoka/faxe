@@ -22,6 +22,7 @@
 -define(TGW_DATAFORMAT, <<"05.010">>).
 
 -define(FIELD_DELIMITER, [<<";">>, <<"\r\n">>]).
+-define(ERR_DELIMITER, [<<",">>, <<"]">>, <<" ">>]).
 
 parse(BinData) ->
    %% split lines
@@ -57,7 +58,7 @@ enum_orderstate(<<"OFF">>) -> 2.
 
 parse_errors(<<"[]">>) -> [];
 parse_errors(<<"[", Rest/binary>>) ->
-   binary:split(Rest, [<<",">>, <<"]">>, <<" ">>], [global, trim_all]).
+   binary:split(Rest, ?ERR_DELIMITER, [global, trim_all]).
 
 %%%%%%%%%%%%%%%%%% end %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 -ifdef(TEST).
