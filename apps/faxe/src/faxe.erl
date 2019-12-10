@@ -280,11 +280,7 @@ start_temp(DfsScript, Type, TTL) ->
          end;
       {error, What} -> {error, What}
    end.
-%% @doc start a task temporary, when the timeout is over the task will stop and delete itself from the database
-%% only use this for temporary tasks
--spec start_temporary(term(), non_neg_integer()) -> ok|{error, Error::term()}.
-start_temporary(TaskId, TTL) ->
-   start_task(TaskId, #task_modes{temporary = true, temp_ttl = TTL}).
+
 
 start_task(TaskId) ->
    start_task(TaskId, false).

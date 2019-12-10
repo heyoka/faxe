@@ -33,6 +33,7 @@
 -define(IT_PREFIX, "IT").
 -define(DP_PREFIX, "DP").
 -define(PP_PREFIX, "PP").
+-define(ET_PREFIX_IGNORE, "ET"). %% will be ignored
 -define(E_PREFIX, "E"). %% maybe L
 
 %% bitmask values for ATTR field
@@ -59,12 +60,15 @@
 parse(BinData) ->
    ets:insert(parser_prev_table(), ets:tab2list(parser_table())),
    ets:delete_all_objects(parser_table()),
-%%   lager:info("parser_prev: ~p",[ets:tab2list(parser_prev)]),
    %% split lines
    LinesAll = to_lines(BinData),
    %% remove timestamp
-   [<<_DateTime:?PLC_DATETIME_LENGTH/binary, FirstLine/binary>>|RLines] = LinesAll,
-   DataLines = [FirstLine|RLines],
+   %% todo use the timestamp
+   DataLines =
+   case LinesAll of
+      [<<_DateTime:?PLC_DATETIME_LENGTH/binary, FirstLine/binary>>|RLines] -> [FirstLine|RLines];
+      [_DateTime | RLines] -> RLines
+   end,
    %% parse the lines
    Res = parse_lines(DataLines),
    %% no check for inconsistencies
@@ -177,6 +181,10 @@ line([<< ?IT_PREFIX, _IT/binary>> = Pos |Fields], Acc = #{<<"targets">> := Targe
 line([<< ?DP_PREFIX, _DP/binary>> = Pos |Fields], Acc = #{<<"targets">> := Targets}) ->
    NewMap = line_tgt_it_dp(Pos, Fields),
    Acc#{<<"targets">> => [NewMap|Targets]};
+%% line with ET definition
+%% will be ignored here
+line([<< ?ET_PREFIX_IGNORE, _E/binary>> = _Pos| _Fields], Acc) ->
+   Acc;
 %% line with E definition
 %% E01,TRAC:,SCAN:,SEQN:,TARG:,ATTR:0,TRG1:,TRG2:,TRG3:,TRG4:,TRG5:;
 line([<< ?E_PREFIX, _E/binary>> = Pos| Fields], Acc=#{<<"sources">> := Srcs}) ->
@@ -191,12 +199,11 @@ line([<< ?PP_PREFIX, _PP/binary>> = Pos| Fields], Acc=#{<<"sources">> := Srcs}) 
 %%[<<"N:0">>,<<"CASE:0">>,<<"ATTR:0">>]
 
 %% SOURCE, E, PP lines
-line_src_e_pp(Pos, Fields)  ->
-
+line_src_e_pp(Pos, Fields0)  ->
+   Fields = src_match(Fields0),
    [<<"TRAC:", Trac/binary>>,
       <<"SCAN:", Scan/binary>>,
       <<"SEQN:", SeqN/binary>>,
-      <<"TARG:", _Targ/binary>>,
       <<"ATTR:", Attr/binary>>,
       <<"TRG1:", Targ1/binary>>,
       <<"TRG2:", Targ2/binary>>,
@@ -209,6 +216,27 @@ line_src_e_pp(Pos, Fields)  ->
       <<"scan">> => Scan, <<"seqn">> => int_or_null(SeqN),
       <<"attr">> => eval_bitarray(int_or_empty(Attr), ?SOURCE_BITMASK_VAL),
       <<"targ">> => lists:filter(fun(E) -> E /= <<>> end, [Targ1, Targ2, Targ3, Targ4, Targ5])}.
+
+%% kick out "TARG" as it may not be there and is not used anyway
+src_match([
+   <<"TRAC:", Trac/binary>>,
+   <<"SCAN:", Scan/binary>>,
+   <<"SEQN:", SeqN/binary>>,
+   <<"TARG:", _Targ/binary>>,
+   <<"ATTR:", _/binary>>,
+   <<"TRG1:", _/binary>>,
+   <<"TRG2:", _/binary>>,
+   <<"TRG3:", _/binary>>,
+   <<"TRG4:", _/binary>>,
+   <<"TRG5:", _/binary>>] = Fields) ->
+
+   [<<"TRAC:", Trac/binary>>,
+      <<"SCAN:", Scan/binary>>,
+      <<"SEQN:", SeqN/binary>>] ++ lists:nthtail(4, Fields);
+
+src_match(Fields) -> Fields.
+
+
 
 %% TARGET, IT, DP lines
 line_tgt_it_dp(Pos, Fields) ->
@@ -281,7 +309,6 @@ parser_prev_table() ->
 %%%%%%%%%%%%%%%%%% end %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 -ifdef(TEST).
 %% test
-do() -> parse(def()), parse(defnew()), parse(def()), parse(defnew()), parse(defnew()).
 def() ->
    iolist_to_binary(
       [
@@ -364,7 +391,8 @@ def1() -> iolist_to_binary([
    <<"IT1,TRAC:3062,SCAN:,TEMP:,SEQN:,CASE:,ATTR:0;">>,
    <<"DP1,TRAC:3068,SCAN:3068,TEMP:,SEQN:1,CASE:3100,ATTR:0;">>,
    <<"DP2,TRAC:2051,SCAN:2051,TEMP:,SEQN:2,CASE:,ATTR:0;">>,
-   <<"S00,TRAC:2001,SCAN:2001,SEQN:,TARG:,ATTR:20,TRG1:3072,TRG2:,TRG3:,TRG4:,TRG5:;">>,
+%%    S00,TRAC:,SCAN:,SEQN:0,ATTR:0,TRG1:,TRG2:,TRG3:,TRG4:,TRG5:
+   <<"S00,TRAC:2001,SCAN:2001,SEQN:,ATTR:20,TRG1:3072,TRG2:,TRG3:,TRG4:,TRG5:;">>,
    <<"S10,TRAC:3064,SCAN:,SEQN:9,TARG:1,ATTR:16,TRG1:2057,TRG2:,TRG3:,TRG4:,TRG5:;">>,
    <<"S11,TRAC:,SCAN:,SEQN:,TARG:,ATTR:0,TRG1:,TRG2:,TRG3:,TRG4:,TRG5:;">>,
    <<"E01,TRAC:,SCAN:,SEQN:,TARG:,ATTR:0,TRG1:,TRG2:0000000000E8,TRG3:,TRG4:,TRG5:;">>,
@@ -605,6 +633,3 @@ bitmask_target_test() ->
    ?assertEqual(eval_bitarray(33, ?TARGET_BITMASK_VAL),[<<"not_scanned">>, <<"recirculate">>]).
 
 -endif.
-
-
-%%<<";ET,TRAC:,SCAN:,TEMP:,SEQN:0,CASE:0,ATTR:0;T00,TRAC:,SCAN:,TEMP:,SEQN:0,CASE:0,ATTR:0;T01,TRAC:,SCAN:,TEMP:,SEQN:0,CASE:0,ATTR:0;T02,TRAC:,SCAN:,TEMP:,SEQN:0,CASE:0,ATTR:0;T03,TRAC:,SCAN:,TEMP:,SEQN:0,CASE:0,ATTR:0;T04,TRAC:,SCAN:,TEMP:,SEQN:0,CASE:0,ATTR:0;T05,TRAC:,SCAN:,TEMP:,SEQN:0,CASE:0,ATTR:0;T06,TRAC:,SCAN:,TEMP:,SEQN:0,CASE:0,ATTR:0;T07,TRAC:,SCAN:,TEMP:,SEQN:0,CASE:0,ATTR:0;T08,TRAC:,SCAN:,TEMP:,SEQN:0,CASE:0,ATTR:0;T09,TRAC:,SCAN:,TEMP:,SEQN:0,CASE:0,ATTR:0;T10,TRAC:,SCAN:,TEMP:,SEQN:0,CASE:0,ATTR:0;T11,TRAC:,SCAN:,TEMP:,SEQN:0,CASE:0,ATTR:0;T12,TRAC:,SCAN:,TEMP:,SEQN:0,CASE:0,ATTR:0;T13,TRAC:,SCAN:,TEMP:,SEQN:0,CASE:0,ATTR:0;T14,TRAC:,SCAN:,TEMP:,SEQN:0,CASE:0,ATTR:0;T15,TRAC:,SCAN:,TEMP:,SEQN:0,CASE:0,ATTR:0;DP1,TRAC:,SCAN:,TEMP:,SEQN:0,CASE:0,ATTR:0;DP2,TRAC:,SCAN:,TEMP:,SEQN:0,CASE:0,ATTR:0;IT,TRAC:,SCAN:,TEMP:,SEQN:0,CASE:0,ATTR:0;S00,TRAC:,SCAN:,SEQN:0,ATTR:0,TRG1:,TRG2:,TRG3:,TRG4:,TRG5:;S01,TRAC:,SCAN:,SEQN:0,ATTR:0,TRG1:,TRG2:,TRG3:,TRG4:,TRG5:;S02,TRAC:,SCAN:,SEQN:0,ATTR:0,TRG1:,TRG2:,TRG3:,TRG4:,TRG5:;S03,TRAC:,SCAN:,SEQN:0,ATTR:0,TRG1:,TRG2:,TRG3:,TRG4:,TRG5:;S04,TRAC:,SCAN:,SEQN:0,ATTR:0,TRG1:,TRG2:,TRG3:,TRG4:,TRG5:;S05,TRAC:,SCAN:,SEQN:0,ATTR:0,TRG1:,TRG2:,TRG3:,TRG4:,TRG5:;S06,TRAC:,SCAN:,SEQN:0,ATTR:0,TRG1:,TRG2:,TRG3:,TRG4:,TRG5:;S07,TRAC:,SCAN:,SEQN:0,ATTR:0,TRG1:,TRG2:,TRG3:,TRG4:,TRG5:;S08,TRAC:,SCAN:,SEQN:0,ATTR:0,TRG1:,TRG2:,TRG3:,TRG4:,TRG5:;S09,TRAC:,SCAN:,SEQN:0,ATTR:0,TRG1:,TRG2:,TRG3:,TRG4:,TRG5:;S10,TRAC:,SCAN:,SEQN:0,ATTR:0,TRG1:,TRG2:,TRG3:,TRG4:,TRG5:;S11,TRAC:,SCAN:,SEQN:0,ATTR:0,TRG1:,TRG2:,TRG3:,TRG4:,TRG5:;PP1,TRAC:,SCAN:,SEQN:0,ATTR:0,TRG1:,TRG2:,TRG3:,TRG4:,TRG5:;PP2,TRAC:,SCAN:,SEQN:0,ATTR:0,TRG1:,TRG2:,TRG3:,TRG4:,TRG5:;S6R,TRAC:NOREAD,SCAN:,SEQN:0,ATTR:0,TRG1:,TRG2:,TRG3:,TRG4:,TRG5:;E1,TRAC:,SCAN:,SEQN:0,ATTR:0,TRG1:,TRG2:,TRG3:,TRG4:,TRG5:;\r\n">>

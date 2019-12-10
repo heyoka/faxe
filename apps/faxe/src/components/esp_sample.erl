@@ -40,7 +40,7 @@ init(NodeId, _Ins, #{rate := Rate, tolerance := Tol}) ->
 
 process(_In, Item, State = #state{rate_interval = undefined, rate_count = Count, point_count = Count}) ->
    {emit, Item, State#state{point_count = 0}};
-process(_In, Item, State = #state{rate_interval = undefined, point_count = Count}) ->
+process(_In, _Item, State = #state{rate_interval = undefined, point_count = Count}) ->
    {ok, State#state{point_count = Count+1}}.
 
 %%process()

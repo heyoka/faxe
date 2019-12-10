@@ -15,7 +15,7 @@
 -export([task_to_map/1, template_to_map/1, do_register/3, to_bin/1, reg_fun/3]).
 
 
-task_to_map(T = #task{id = Id, name = Name, date = Dt, is_running = Running,
+task_to_map(_T = #task{id = Id, name = Name, date = Dt, is_running = Running,
    last_start = LStart, last_stop = LStop, dfs = Dfs, permanent = Perm}) ->
 %%   lager:notice("task_to_json: ~p",[T]),
    Map = #{id => Id, name => Name,
@@ -28,7 +28,7 @@ task_to_map(T = #task{id = Id, name = Name, date = Dt, is_running = Running,
 %%   lager:notice("theMap: ~p",[Map]),
    Map.
 
-template_to_map(T = #template{definition = _Def0, id = Id, name = Name, date = Dt, dfs = Dfs}) ->
+template_to_map(_T = #template{definition = _Def0, id = Id, name = Name, date = Dt, dfs = Dfs}) ->
 %%   lager:notice("template_to_json: ~p",[T]),
    Map = #{id => Id, name => Name, dfs => to_bin(Dfs), date => faxe_time:to_iso8601(Dt)},
 %%   lager:notice("theTMap: ~p",[Map]),

@@ -48,26 +48,26 @@ init(_NodeId, _Ins,
 process(_In, #data_batch{points = _Points} = _Batch, State = #state{}) ->
   {error, State};
 process(_Inport, #data_point{} = Point, State = #state{field = Field}) ->
-  maybe_emit(flowdata:value(Point, Field), State).
+  maybe_emit(Point, flowdata:value(Point, Field), State).
 
 handle_info(_E, S) ->
   {ok, S}.
 
-maybe_emit(Data, State = #state{changes = false}) -> do_process(Data, State);
-maybe_emit(Data, State = #state{changes = true, prev_crc32 = undefined}) ->
+maybe_emit(Point, Data, State = #state{changes = false}) -> do_process(Point, Data, State);
+maybe_emit(Point, Data, State = #state{changes = true, prev_crc32 = undefined}) ->
   DataCheckSum = erlang:crc32(Data),
   NewState = State#state{prev_crc32 = DataCheckSum},
-  do_process(Data, NewState);
-maybe_emit(Data, State = #state{changes = true, prev_crc32 = PrevCheckSum}) ->
+  do_process(Point, Data, NewState);
+maybe_emit(Point, Data, State = #state{changes = true, prev_crc32 = PrevCheckSum}) ->
   DataCheckSum = erlang:crc32(Data),
   NewState = State#state{prev_crc32 = DataCheckSum},
   case  DataCheckSum /= PrevCheckSum of
-    true -> do_process(Data, NewState);
+    true -> do_process(Point, Data, NewState);
     false -> {ok, NewState}
   end.
 
-do_process(Data, State = #state{as = As, parser = Parser}) ->
-  case (catch tcp_msg_parser:convert(Data, As, Parser)) of
+do_process(DataPoint, Data, State = #state{as = As, parser = Parser}) ->
+  case (catch tcp_msg_parser:convert(Data, DataPoint, As, Parser)) of
     P when is_record(P, data_point) ->
       {emit, P, State};
     Err -> lager:warning("Parsing error [~p] ~nmessage ~p",[Parser, Err]),

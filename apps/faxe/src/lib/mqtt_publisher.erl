@@ -74,7 +74,7 @@ start_link(Opts, Queue) ->
    {stop, Reason :: term()} | ignore).
 init([#{host := Host, port := Port, topic := Topic, retained := Retained, ssl := UseSSL, qos := Qos}, Queue]) ->
    SslOpts =
-   case ssl of
+   case UseSSL of
       true ->
          [{keyfile, "certs/tgw_wildcard.key"},
             {certfile, "certs/tgw_wildcard.pem"},

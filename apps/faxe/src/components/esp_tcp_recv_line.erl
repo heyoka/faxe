@@ -79,6 +79,7 @@ handle_info({tcp, Socket, Data}, State=#state{min_length = Min}) when byte_size(
   {ok, State};
 handle_info({tcp, Socket, Data0}, State=#state{}) ->
   Data = string:chomp(Data0),
+%%  lager:notice("NewData: ~p", [Data]),
   NewState = maybe_emit(Data, State),
   inet:setopts(Socket, [{active, once}]),
   {ok, NewState};
@@ -93,7 +94,6 @@ handle_info(do_reconnect, State=#state{ip = Ip, port = Port, line_delimiter = LD
     {error, Error} -> lager:error("[~p] Error connecting to ~p: ~p",[?MODULE, {Ip, Port},Error]), try_reconnect(State)
   end;
 handle_info(_E, S) ->
-%%  io:format("unexpected: ~p~n", [E]),
   {ok, S}.
 
 shutdown(#state{socket = Sock, timer_ref = Timer}) ->

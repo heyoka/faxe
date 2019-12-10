@@ -138,7 +138,8 @@ publish(Msg, #direct_state{retained = Ret, qos = Qos, client = C, topic = Topic}
 .
 
 do_connect(#direct_state{host = Host, port = Port, ssl_opts = SslOpts, ssl = Ssl} = State) ->
-   {ok, Client} = emqtt:start_link([{host, Host}, {port, Port}, {ssl, Ssl}, {ssl_opts, SslOpts}]),
+   Opts = [{host, Host}, {port, Port}, {ssl, Ssl}, {keepalive, 30}, {ssl_opts, SslOpts}],
+   {ok, Client} = emqtt:start_link(Opts),
    case catch(emqtt:connect(Client)) of
       {ok, _} -> State#direct_state{client = Client, connected = true};
       _Other ->

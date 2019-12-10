@@ -11,7 +11,7 @@
 
 -include("faxe.hrl").
 %% API
--export([convert/3]).
+-export([convert/3, convert/4]).
 
 -callback parse(BinData :: binary()) -> map().
 
@@ -21,10 +21,12 @@ convert(Data, As, undefined) ->
    NewPoint = flowdata:set_field(#data_point{ts = faxe_time:now()}, As, Data),
    NewPoint;
 convert(Data, As, Parser) ->
+   convert(Data, #data_point{ts = faxe_time:now()}, As, Parser).
+convert(Data, Point = #data_point{}, As, Parser) ->
    {T, {DataFormat, Vers, Map}} = timer:tc(Parser, parse, [Data]),
-   NewPoint = flowdata:set_field(#data_point{ts = faxe_time:now()}, As, Map),
-   NewPoint1 = flowdata:set_field(NewPoint, <<"df">>, DataFormat),
-   lager:notice("[~p] parser time: ~p",[?MODULE, T]),
-   flowdata:set_field(NewPoint1, <<"vs">>, Vers).
+   lager:notice("Parser time <~p>: ~p",[Parser, T]),
+   P0 = flowdata:set_field(Point, As, Map),
+   P1 = flowdata:set_field(P0, <<"df">>, DataFormat),
+   flowdata:set_field(P1, <<"vs">>, Vers).
 
 %%%%%%%
