@@ -75,7 +75,7 @@ shutdown(#state{client = C}) ->
 %%% internal
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 start_connection(State = #state{opts = Opts}) ->
-   {ok, Pid} = bunny_worker:start_link(build_config(Opts)),
+   {ok, Pid} = bunny_worker:start(build_config(Opts)),
    erlang:monitor(process, Pid),
    State#state{client = Pid}.
 

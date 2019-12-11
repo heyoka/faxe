@@ -38,7 +38,7 @@
 %%% Exports.
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %%% Public API.
--export([deliver/2, start_link/1, stop/1]).
+-export([deliver/2, start_link/1, stop/1, start/1]).
 
 %%% gen_server/worker_pool callbacks.
 -export([
@@ -52,6 +52,9 @@
 -spec start_link(any()) -> any().
 start_link(Args) ->
    gen_server:start_link(?MODULE, Args, []).
+
+start(Args) ->
+   gen_server:start(?MODULE, Args, []).
 
 stop(Server) ->
    Server ! stop.
@@ -195,13 +198,16 @@ handle_call(Req, _From, State) ->
 -spec terminate(atom(), state()) -> ok.
 terminate(Reason, #state{channel = Channel, connection = Conn}) ->
    lager:notice("~p ~p terminating with reason: ~p",[?MODULE, self(), Reason]),
+   catch(close(Channel, Conn))
+   .
+
+close(Channel, Conn) ->
    amqp_channel:unregister_confirm_handler(Channel),
    amqp_channel:unregister_return_handler(Channel),
    amqp_channel:unregister_flow_handler(Channel),
 
    amqp_channel:close(Channel),
-   amqp_connection:close(Conn)
-   .
+   amqp_connection:close(Conn).
 
 -spec code_change(string(), state(), term()) -> {ok, state()}.
 code_change(_OldVsn, State, _Extra) ->
