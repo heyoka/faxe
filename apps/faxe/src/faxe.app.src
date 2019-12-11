@@ -13,7 +13,7 @@
     lager,
     poolboy,
     esq,
-    emqtt,
+    emqttc,
     jiffy,
     jsn,
     modbus,

@@ -64,7 +64,7 @@ handle_info({publisher_ack, Ref}, State) ->
    lager:notice("message acked: ~p",[Ref]),
    {ok, State};
 handle_info({'DOWN', _MonitorRef, process, Client, _Info}, #state{client = Client} = State) ->
-   lager:notice("MQ-PubWorker ~p is 'DOWN'",[Client]),
+   lager:notice("MQ-PubWorker ~p is 'DOWN'", [Client]),
    {ok, start_connection(State)}.
 
 shutdown(#state{client = C}) ->

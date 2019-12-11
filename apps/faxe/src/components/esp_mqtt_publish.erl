@@ -68,19 +68,10 @@ init(_NodeId, _Ins,
    #{save := false, host := Host0, port := Port, topic := Topic,
       retained := Retained, ssl := UseSsL, qos := Qos}) ->
    process_flag(trap_exit, true),
-   SslOpts =
-      case UseSsL of
-         true ->
-            [
-               {keyfile, "certs/key.pem"},
-               {certfile, "certs/cert.pem"},
-               {cacertfile, "certs/tgw_wildcard.crt"}];
-         false -> []
-      end,
    Host = binary_to_list(Host0),
    erlang:send_after(0, self(), reconnect),
    {ok,
-      #direct_state{host = Host, port = Port, topic = Topic, connected = true, ssl_opts = SslOpts,
+      #direct_state{host = Host, port = Port, topic = Topic, connected = true, ssl_opts = [],
          retained = Retained, ssl = UseSsL, qos = Qos, queue = queue:new()}}.
 
 %% direct state
@@ -126,25 +117,28 @@ shutdown(#save_state{publisher = P}) ->
    catch (P);
 shutdown(#direct_state{client = C}) ->
    lager:debug("shutdown: ~p", [?MODULE]),
-   catch (emqtt:disconnect(C)).
+   catch (emqttc:disconnect(C)).
 
 
 publish(Msg, #direct_state{retained = Ret, qos = Qos, client = C, topic = Topic})
    when is_binary(Msg); is_list(Msg)->
    lager:notice("publish ~s on topic ~p ~n",[Msg, Topic]),
-   {ok, _PacketId} = emqtt:publish(C, Topic, Msg, [{qos, Qos}, {retained, Ret}])
+%%   {ok, _PacketId}
+   ok = emqttc:publish(C, Topic, Msg, [{qos, Qos}, {retain, Ret}])
 %%   ,
 %%   lager:notice("sent msg and got PacketId: ~p",[PacketId])
 .
 
-do_connect(#direct_state{host = Host, port = Port, ssl_opts = SslOpts, ssl = Ssl} = State) ->
-   Opts = [{host, Host}, {port, Port}, {ssl, Ssl}, {keepalive, 30}, {ssl_opts, SslOpts}],
-   {ok, Client} = emqtt:start_link(Opts),
-   case catch(emqtt:connect(Client)) of
-      {ok, _} -> State#direct_state{client = Client, connected = true};
-      _Other ->
-         catch emqtt:stop(Client),
-         lager:notice("Error connecting to mqtt_broker: ~p ~p", [{Host, Port}, _Other]),
-         erlang:send_after(2000, self(), reconnect), State
-   end.
+do_connect(#direct_state{host = Host, port = Port, ssl = _Ssl} = State) ->
+   Opts = [{host, Host}, {port, Port}, {keepalive, 30}],
+   {ok, _Client} = emqttc:start_link(Opts),
+   State.
+%%   ,
+%%   case catch(emqtt:connect(Client)) of
+%%      {ok, _} -> State#direct_state{client = Client, connected = true};
+%%      _Other ->
+%%         exit(Client)
+%%         lager:notice("Error connecting to mqtt_broker: ~p ~p", [{Host, Port}, _Other]),
+%%         erlang:send_after(2000, self(), reconnect), State
+%%   end.
 
