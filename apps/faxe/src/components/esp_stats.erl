@@ -32,8 +32,8 @@ get_options() -> [{field, binary}, {as, binary, undefined}, {func, atomlist, und
 init(NodeId, Ins, #{field := Field, as := As, module := Mod, func := Func} = Args) ->
    lager:notice("ARgs for ~p: ~p", [Mod, Args]),
    RowLength = length(Ins),
-   Modules = case Func of undefined -> [Mod]; _ -> Func end,
-   As1 = case As of undefined -> Mod; _ -> As end,
+   Modules = case Func of undefined -> Mod; _ -> Func end,
+   As1 = case As of undefined -> atom_to_binary(Mod, latin1); _ -> As end,
    State = #state{field = Field, node_id = NodeId, as = As1, row_length = RowLength, modules = Modules},
    {ok, all, State#state{module_state = Args}}.
 

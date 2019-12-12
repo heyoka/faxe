@@ -459,21 +459,34 @@ outports() ->
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 eval_args(A = #{}, State) ->
    {LsMem, A0} = maps:take(ls_mem, A),
-   {LsMemFields, A1} = maps:take(ls_mem_field, A0),
-   {LsMemTTL, Args} = maps:take(ls_mem_ttl, A1),
-   NewState = State#c_state{ls_mem = LsMem, ls_mem_field = LsMemFields, ls_mem_ttl = LsMemTTL},
+   {LsMemSet, A00} = maps:take(ls_mem_set, A0),
+   {LsMemFields, A1} = maps:take(ls_mem_field, A00),
+   {_LsMemTTL, Args} = maps:take(ls_mem_ttl, A1),
+   NewState = State#c_state{ls_mem = LsMem, ls_mem_field = LsMemFields, ls_mem_set = LsMemSet},
    {Args, NewState}.
 
 
-handle_ls_mem(_, #c_state{ls_mem = undefined}) ->
+handle_ls_mem(_, #c_state{ls_mem = undefined, ls_mem_set = undefined}) ->
    ok;
-handle_ls_mem(#data_batch{points = Points}, State=#c_state{}) ->
-   [handle_ls_mem(P, State) || P <- Points];
-handle_ls_mem(P = #data_point{}, #c_state{ls_mem = MemKey, ls_mem_field = MemField}) ->
+handle_ls_mem(Item, State = #c_state{ls_mem_set = undefined, ls_mem = _LsMem}) ->
+   lager:notice("handle_ls_mem: ~p", [_LsMem]),
+   handle_ls_mem_val(Item, State);
+handle_ls_mem(Item, State = #c_state{ls_mem = undefined, ls_mem_set = _LsMem}) ->
+   handle_ls_mem_set(Item, State).
+
+handle_ls_mem_val(#data_batch{points = Points}, State=#c_state{}) ->
+   handle_ls_mem_val(lists:last(Points), State);
+handle_ls_mem_val(P = #data_point{}, #c_state{ls_mem = MemKey, ls_mem_field = MemField}) ->
+   ets:insert(ls_mem, {MemKey, flowdata:field(P, MemField)}).
+
+handle_ls_mem_set(#data_batch{points = Points}, State=#c_state{}) ->
+   [handle_ls_mem_set(P, State) || P <- Points];
+handle_ls_mem_set(P = #data_point{}, #c_state{ls_mem_set = MemKey, ls_mem_field = MemField}) ->
+   lager:notice("handle_ls_mem_set"),
    Set0 =
-   case ets:lookup(ls_mem, MemKey) of
+   case ets:lookup(ls_mem_set, MemKey) of
       [] -> sets:new();
       [{MemKey, List}] -> sets:from_list(List)
    end,
    Set = sets:add_element(flowdata:field(P, MemField), Set0),
-   ets:insert(ls_mem, {MemKey, sets:to_list(Set)}).
+   ets:insert(ls_mem_set, {MemKey, sets:to_list(Set)}).

@@ -14,7 +14,6 @@ class Double(Faxe):
     def init(self, args):
         self.fieldname = args[b'field']
         self.asfieldname = args[b'as']
-        print("my args: ", args)
 
     def handle_point(self, point_data):
         self.emit(self.calc(point_data))

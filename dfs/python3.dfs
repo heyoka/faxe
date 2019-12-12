@@ -1,12 +1,8 @@
 
 def s =
     |value_emitter()
-    .every(3s)
+    .every(2s)
     .type(point)
-
-    |default()
-    .fields('id', 'df', 'vs')
-    .field_values('oi23u4oi23u4oi32u34oi2u3', '02.005', 1)
 
     |win_event()
     .every(5)
@@ -15,3 +11,5 @@ def s =
     @double()
     .field('val')
     .as('double_val')
+
+    |debug()

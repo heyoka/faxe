@@ -37,7 +37,8 @@
    emitted = 0          :: non_neg_integer(),
    ls_mem,
    ls_mem_field,
-   ls_mem_ttl
+   ls_mem_ttl,
+   ls_mem_set
 }).
 
 -record(data_point, {

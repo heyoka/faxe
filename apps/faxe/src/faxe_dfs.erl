@@ -115,7 +115,8 @@ eval({Nodes, Connections}) ->
                             end
             end,
             %% add ls_mem options as optional
-            LsMem = [{ls_mem, binary, undefined}, {ls_mem_field, binary, <<>>}, {ls_mem_ttl, integer, 0}],
+            LsMem = [{ls_mem, binary, undefined}, {ls_mem_field, binary, <<>>},
+               {ls_mem_ttl, integer, 0}, {ls_mem_set, binary, undefined}],
             CompOptions = CompOptions0 ++ LsMem,
             %% handle all other params and options
             NOptions = convert_options(CompOptions, lists:flatten(Options ++ ParamOptions)),
@@ -357,6 +358,7 @@ make_lambda_fun(LambdaString, FunParams, BinRefs) ->
       BinRefs
    ),
    F =  "fun(Point) -> " ++ Bindings ++ " fun() -> " ++ LambdaString ++ " end end.",
+   lager:notice("lambda: ~p",[F]),
    Fun = parse_fun(F),
    Fun
 .

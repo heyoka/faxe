@@ -26,7 +26,7 @@
 }).
 
 options() ->
-   [{period, duration}, {every, duration}, {fill_period, is_set}].
+   [{period, duration, undefined}, {every, duration}, {fill_period, is_set}].
 
 init(_NodeId, _Inputs, #{period := Period, every := Every, fill_period := Fill}) ->
    Ev = faxe_time:duration_to_ms(Every),

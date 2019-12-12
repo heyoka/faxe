@@ -4,14 +4,10 @@
 
 |eval()
 .lambdas(
-    lambda: int(str_concat(string(int("val")),string(int("val"))))
+    lambda: int(str_concat(string(int("val")), string(int("val"))))
     )
 .as('concat_string.int')
 
-|eval()
-.lambdas(
-    lambda: 5 rem 2 div 3)
-.as('plusplus')
 
 |debug()
 

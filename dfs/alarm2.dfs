@@ -1,0 +1,35 @@
+%% send alarm, if the the mean exceeds a certain threshold
+
+def mqtt_broker = '10.14.204.3'
+def alarm_topic = 'ttopic/alarm/energy_max'
+
+def point =
+    |value_emitter()
+    .every(1s)
+    .type(point)
+
+    |debug()
+
+point
+    |win_event()
+    .every(10)
+
+    |avg()
+    .field('val')
+    .as('avg')
+
+
+
+    |debug()
+    .ls_mem('avg10')
+    .ls_mem_field('avg')
+
+point
+    |where()
+    .lambda(lambda: "val" > ls_mem('avg10'))
+
+    |default()
+    .fields('message')
+    .field_values('val is > avg10')
+
+    |debug()

@@ -238,7 +238,7 @@ year(Ts) ->
 random(N) when is_integer(N), N > 0 ->
    rand:uniform(N).
 
-%% @doc generate a random float, that gets multiplied by N
+%% @doc generate a random float between 0.0 and 1.0, that gets multiplied by N
 random_real(N) ->
    rand:uniform_real() * N.
 
@@ -251,11 +251,15 @@ not_member(Ele, List) -> lists:member(Ele, List) == false.
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %%% lambda state functions
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+ls_mem_set(Name) ->
+   mem_lookup(ls_mem_set, Name).
 ls_mem(Name) ->
+   R = mem_lookup(ls_mem, Name),
+   lager:warning("ls_mem: ~p",[R]),R.
+mem_lookup(Table, Name) ->
    Res =
-   case ets:lookup(ls_mem, Name) of
+   case ets:lookup(Table, Name) of
       [{Name, Val}] -> Val;
       Other -> Other
    end,
-%%   lager:info("ls_mem(~p) gives ~p",[Name, Res]),
    Res.

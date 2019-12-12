@@ -60,19 +60,19 @@ call_options(Module, Class) ->
    P = get_python(),
    ModClass = list_to_atom(atom_to_list(Module)++"."++atom_to_list(Class)),
    Res = pythra:func(P, ModClass, ?PYTHON_INFO_CALL, [Class]),
-   lager:info("python info call to ~p gives ~p",[{Module, Class}, Res]),
+%%   lager:info("python info call to ~p gives ~p",[{Module, Class}, Res]),
    python:stop(P),
    Res.
 
 init(NodeId, _Ins, #{cb_module := Callback, cb_class := CBClass} = Args) ->
    ArgsKeys = maps:keys(Args),
-   lager:info("ArgsKeys: ~p",[ArgsKeys]),
-   lager:notice("ARgs for ~p: ~p", [Callback, Args]),
+%%   lager:info("ArgsKeys: ~p",[ArgsKeys]),
+%%   lager:notice("ARgs for ~p: ~p", [Callback, Args]),
    PInstance = get_python(),
    %% create an instance of the callback class
    ClassInstance = pythra:init(PInstance, Callback, CBClass,
       [maps:without([cb_module, cb_class], Args#{<<"erl">> => self()})]),
-   lager:info("python instantiation of ~p gives us: ~p",[{Callback, CBClass}, ClassInstance]),
+%%   lager:info("python instantiation of ~p gives us: ~p",[{Callback, CBClass}, ClassInstance]),
    State = #state{
       callback_module = Callback,
       callback_class =  CBClass,
@@ -84,10 +84,10 @@ init(NodeId, _Ins, #{cb_module := Callback, cb_class := CBClass} = Args) ->
 process(_Inp, #data_batch{} = Batch, State = #state{callback_module = Mod, python_instance = Python,
    cb_object = Obj}) ->
    Data = flowdata:to_map(Batch),
-   lager:warning("data: ~p",[Data]),
+%%   lager:warning("data: ~p",[Data]),
    {T, NewObj} =
       timer:tc(pythra, method, [Python, Obj, ?PYTHON_BATCH_CALL, [Data]]),
-   lager:info("~p emitting: ~p after: ~p",[Mod, NewObj, T]),
+%%   lager:info("~p emitting: ~p after: ~p",[Mod, NewObj, T]),
    {ok, State#state{cb_object = NewObj}}
 ;
 process(_Inp, #data_point{} = Point, State = #state{python_instance = Python, cb_object = Obj}) ->
@@ -99,20 +99,20 @@ process(_Inp, #data_point{} = Point, State = #state{python_instance = Python, cb
 
 %% python sends us data
 handle_info({emit_data, Data}, State) when is_map(Data) ->
-   lager:notice("got point data as map from python: ~p", [Data]),
+%%   lager:notice("got point data as map from python: ~p", [Data]),
    Point = flowdata:point_from_json_map(Data),
    lager:info("emit point: ~p " ,[Point]),
    dataflow:emit(Point),
    {ok, State};
 handle_info({emit_data, Data}, State) when is_list(Data) ->
-   lager:notice("got batch data from python: ~p", [Data]),
+%%   lager:notice("got batch data from python: ~p", [Data]),
    Points = [flowdata:point_from_json_map(D) || D <- Data],
    Batch = #data_batch{points = Points},
    dataflow:emit(Batch),
    lager:info("emit batch: ~p",[Batch]),
    {ok, State};
 handle_info({emit_data, {"Map", Data}}, State) when is_list(Data) ->
-   lager:notice("got point data from python: ~p", [Data]),
+%%   lager:notice("got point data from python: ~p", [Data]),
    dataflow:emit(Data),
    {ok, State};
 handle_info({python_error, Error}, State) ->
