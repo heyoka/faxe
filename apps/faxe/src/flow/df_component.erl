@@ -321,19 +321,19 @@ handle_info({item, {Inport, Value}},
 %%lager:warning("cb state is: ~p",[CBState]),
    folsom_metrics:notify({NId, 1}),
    %gen_event:notify(dfevent_component, {item, State#c_state.node_id, {Inport, Value}}),
-   Result = (Module:process(Inport, Value, CBState)),
-%%   case  catch(Module:process(Inport, Value, CBState)) of
-%%      {'EXIT', {Reason,Stacktrace}} ->
-%%         lager:error("'error' ~p in component ~p caught when processing item: ~p -- ~p",
-%%         [Reason, State#c_state.component, {Inport, Value}, Stacktrace]),
-%%         folsom_metrics:notify({<< NId/binary, ?FOLSOM_ERROR_HISTORY >>,
-%%%%            io_lib:format("'error' ~p in component ~p caught when processing item: ~p -- ~p",
-%%            [time_format:to_iso8601(faxe_time:now()), Reason, State#c_state.component, {Inport, Value}, Stacktrace]
-%%%%         )}
-%%         }),
-%%         {noreply, State};
-%%
-%%      Result ->
+%%   Result = (Module:process(Inport, Value, CBState)),
+   case  catch(Module:process(Inport, Value, CBState)) of
+      {'EXIT', {Reason,Stacktrace}} ->
+         lager:error("'error' ~p in component ~p caught when processing item: ~p -- ~p",
+         [Reason, State#c_state.component, {Inport, Value}, Stacktrace]),
+         folsom_metrics:notify({<< NId/binary, ?FOLSOM_ERROR_HISTORY >>,
+%%            io_lib:format("'error' ~p in component ~p caught when processing item: ~p -- ~p",
+            [time_format:to_iso8601(faxe_time:now()), Reason, State#c_state.component, {Inport, Value}, Stacktrace]
+%%         )}
+         }),
+         {noreply, State};
+
+      Result ->
          {NewState, Requested, REmitted} = handle_process_result(Result, State),
          case FMode == pull of
             true -> case {Requested, AR, REmitted} of
@@ -347,7 +347,7 @@ handle_info({item, {Inport, Value}},
          end,
          handle_ls_mem(Value, State),
          {noreply, NewState}
-%%   end
+   end
    ;
 
 handle_info({emit, {Outport, Value}}, State=#c_state{subscriptions = Ss, node_id = _NId,

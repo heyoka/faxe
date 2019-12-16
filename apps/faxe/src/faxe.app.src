@@ -28,7 +28,8 @@
     fusco,
     epgsql,
     carrot,
-    uuid
+    uuid,
+    mapz
    ]},
   {env,[]},
   {modules, [esp_stats]},
