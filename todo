@@ -1,0 +1,3 @@
+crate_query check object (deep path) support
+stats nodes should support multiple fields
+safe amqp and mqtt publishers

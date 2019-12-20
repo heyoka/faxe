@@ -482,7 +482,7 @@ handle_ls_mem_val(P = #data_point{}, #c_state{ls_mem = MemKey, ls_mem_field = Me
 handle_ls_mem_set(#data_batch{points = Points}, State=#c_state{}) ->
    [handle_ls_mem_set(P, State) || P <- Points];
 handle_ls_mem_set(P = #data_point{}, #c_state{ls_mem_set = MemKey, ls_mem_field = MemField}) ->
-   lager:notice("handle_ls_mem_set"),
+%%   lager:notice("handle_ls_mem_set"),
    Set0 =
    case ets:lookup(ls_mem_set, MemKey) of
       [] -> sets:new();

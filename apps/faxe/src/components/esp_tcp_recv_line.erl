@@ -84,14 +84,16 @@ handle_info({tcp, Socket, Data0}, State=#state{}) ->
   inet:setopts(Socket, [{active, once}]),
   {ok, NewState};
 handle_info({tcp_closed, _S}, S=#state{}) ->
+  lager:notice("tcp_closed"),
   try_reconnect(S#state{socket = undefined});
 handle_info({tcp_error, Socket, _}, State) ->
   inet:setopts(Socket, [{active, once}]),
   {ok, State};
 handle_info(do_reconnect, State=#state{ip = Ip, port = Port, line_delimiter = LD}) ->
   case connect(Ip, Port, LD) of
-    {ok, Socket} -> inet:setopts(Socket, [{active, once}]), {ok, State#state{socket = Socket}};
-    {error, Error} -> lager:error("[~p] Error connecting to ~p: ~p",[?MODULE, {Ip, Port},Error]), try_reconnect(State)
+    {ok, Socket} -> lager:notice("connected to ~p" ,[Ip] ),
+      inet:setopts(Socket, [{active, once}]), {ok, State#state{socket = Socket}};
+    {error, Error} -> lager:warning("[~p] Error connecting to ~p: ~p",[?MODULE, {Ip, Port},Error]), try_reconnect(State)
   end;
 handle_info(_E, S) ->
   {ok, S}.
@@ -109,7 +111,8 @@ try_reconnect(State=#state{reconnector = Reconnector}) ->
   end.
 
 connect(Ip, Port, _LineDelimiter) ->
-   gen_tcp:connect(binary_to_list(Ip), Port, ?SOCKOPTS).
+  lager:notice("connect to: ~p",[{Ip, Port}]),
+  gen_tcp:connect(binary_to_list(Ip), Port, ?SOCKOPTS).
 
 maybe_emit(Data, State = #state{changes = false}) -> do_emit(Data, State);
 maybe_emit(Data, State = #state{changes = true, prev_crc32 = undefined}) ->

@@ -64,17 +64,21 @@ parse(BinData) ->
    LinesAll = to_lines(BinData),
    %% remove timestamp
    %% todo use the timestamp
-   DataLines =
+   {Ts, DataLines} =
    case LinesAll of
-      [<<_DateTime:?PLC_DATETIME_LENGTH/binary, FirstLine/binary>>|RLines] -> [FirstLine|RLines];
-      [_DateTime | RLines] -> RLines
+      [<<DateTime:?PLC_DATETIME_LENGTH/binary, FirstLine/binary>>|RLines] ->
+         Ts = parse_datetime(DateTime),
+         {Ts, [FirstLine|RLines]};
+      [DateTime | RLines] ->
+         Ts = parse_datetime_new(DateTime),
+         {Ts, RLines}
    end,
    %% parse the lines
    Res = parse_lines(DataLines),
    %% no check for inconsistencies
    DisambRes = maybe_disambiguate(Res),
 
-   {?TGW_DATAFORMAT, ?PARSER_VERSION, DisambRes}.
+   {Ts, ?TGW_DATAFORMAT, ?PARSER_VERSION, DisambRes}.
 
 
 %% if there is no previous parser data OR if there are obviously no duplicate values for "trac" ->
@@ -280,13 +284,13 @@ bitm(<<Bit:1, Rest/bitstring>>, [Item | Others], Gathered) ->
 
 -spec parse_datetime(binary()) -> faxe_time:timestamp().
 parse_datetime(DTBin) ->
-   Parts =
-      binary:split(DTBin, [<<".">>, <<":">>, <<",">>,<<"  ">>], [global, trim_all]),
-   [Year, Month, Day, Hour, Minute, Second, Milli] =
-      lists:map(fun(E) -> binary_to_integer(E) end, Parts),
-   DtParts = {{2000 + Year, Month, Day},{Hour, Minute, Second, Milli}},
-   faxe_time:to_ms(DtParts).
+   lager:notice("datetime: ~p",[DTBin]),
+   time_format:conv_dt_to_ms(DTBin).
 
+parse_datetime_new(DTBin) ->
+   lager:notice("datetime: ~p",[DTBin]),
+   %% add "Z" to get UTC time
+   time_format:rfc3339_to_ms(<<DTBin/binary, "Z">>).
 
 %%%%%%%%%%%%%%%%%%% parser tables %%%%%%%%%%%%%%%%%%%%%%
 %% parser table handles stored in process dictionary

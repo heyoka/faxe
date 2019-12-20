@@ -45,13 +45,17 @@ parse(BinData) ->
    lager:notice("the fields: ~p" ,[Out]),
    {?TGW_DATAFORMAT, ?PARSER_VERSION, Out}.
 
+
 enum_opstate(<<"ON">>) -> 0;
 enum_opstate(<<"OFF">>) -> 1.
+
 enum_opmode(<<"NOMO">>) -> 0;
 enum_opmode(<<"AUTO">>) -> 1;
 enum_opmode(<<"MANU">>) -> 2.
+
 enum_alarmstate(<<"NOAL">>) -> 0;
 enum_alarmstate(<<"ERR">>) -> 1.
+
 enum_orderstate(<<"RDY">>) -> 0; %% availablility
 enum_orderstate(<<"NRDY">>) -> 1;
 enum_orderstate(<<"OFF">>) -> 2.

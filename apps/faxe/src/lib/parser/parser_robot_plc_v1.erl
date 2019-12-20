@@ -161,8 +161,8 @@ motor(MotorX,
 
 %% (20 bytes)
 parse_motor(<<Motorl2t:?REAL, MotorTorque:?REAL, MotorTemp:?REAL, MotorA:?REAL, MotorErr:?REAL, Rest/binary>>) ->
-   {#{<<"i2t">> => Motorl2t, <<"tor">> => MotorTorque, <<"temp">> => MotorTemp,
-      <<"cur">> => MotorA, <<"lag">> => MotorErr},
+   {#{<<"i2t">> => Motorl2t, <<"tor">> => MotorTorque, <<"temp">> => faxe_util:round_float(MotorTemp, 5),
+      <<"cur">> => faxe_util:round_float(MotorA, 5), <<"lag">> => MotorErr},
       Rest}.
 
 %% 2 byte
