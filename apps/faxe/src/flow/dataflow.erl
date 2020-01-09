@@ -218,7 +218,22 @@ do_check({max_param_count, Keys, Max}, Opts, Mod) ->
                       end
          end
        end,
-   lists:foreach(F, Keys).
+   lists:foreach(F, Keys);
+
+do_check({one_of, Key, ValidOpts}, Opts, Mod) ->
+   lager:notice("do check: ~p",[[{one_of, Key, ValidOpts}, Opts, Mod]]),
+   case maps:get(Key, Opts, undefined) of
+      undefined -> ok; %% should not happen
+      Params ->
+         lists:foreach(fun(E) ->
+                        case lists:member(E, ValidOpts) of
+                           true -> ok;
+                           false -> erlang:error(format_error(invalid_opt, Mod,
+                              [<<"Cannot use '">>, E, <<"' for param '">>, atom_to_binary(Key, latin1),
+                                 <<"'">>, <<" must be one of: ">>, ValidOpts]))
+                        end
+                       end, Params)
+   end.
 
 option_error(OptType, Given, Should, Name) ->
    throw([OptType,

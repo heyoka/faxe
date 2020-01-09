@@ -45,7 +45,7 @@ inports() ->
 
 options() -> [
    {joined, nodes, {ports, [2,3,4,5]}},
-   {prefix,     string_list, [<<"val1">>, <<"val2">>]},
+   {prefix,     string_list, [<<"">>, <<"">>]},
    {field_merge, string, undefined},
    %% @todo maybe this should be aligned to wall clock ?
    %% a wall-clock timeout will be set up per time unit to collect all values,

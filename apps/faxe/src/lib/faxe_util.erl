@@ -2,7 +2,7 @@
 %%% @author heyoka
 %%% @copyright (C) 2019, <COMPANY>
 %%% @doc
-%%%
+%%% some utility functions
 %%% @end
 %%% Created : 09. Dec 2019 09:57
 %%%-------------------------------------------------------------------

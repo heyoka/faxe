@@ -287,7 +287,7 @@ convert_options(NodeOptions, Params) ->
 %%   {Name, [convert(N, T, PVal) || {N, T}]}
 %%   lists:map(fun({N, Typ, PVal}) -> convert(N, Typ, PVal) end, Type);
 convert(Name, Type, PVals) ->
-%%   lager:notice("convert(~p,~p,~p)",[Name, Type, PVals]),
+   lager:notice("convert(~p,~p,~p)",[Name, Type, PVals]),
    TName = atom_to_binary(Type),
    case estr:str_ends_with(TName, <<"list">>) of
       true -> {Name, list_params(Type, PVals)};
@@ -340,6 +340,7 @@ list_param(_Type, Val) ->
 
 cparam(is_set, _) -> true;
 cparam(atom, {identifier, Val}) -> binary_to_atom(Val);
+cparam(bool, {identifier, Val}) -> binary_to_atom(Val);
 cparam(binary, {string, Val}) -> Val;
 cparam(lambda, {lambda, Fun, BinRefs, FunRefs}) -> make_lambda_fun(Fun, FunRefs, BinRefs);
 cparam(lambda, Fun) -> Fun;
