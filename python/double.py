@@ -1,5 +1,6 @@
 from faxe import Faxe
 
+
 class Double(Faxe):
 
     @staticmethod

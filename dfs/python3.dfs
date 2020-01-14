@@ -6,6 +6,6 @@ def s =
 
     @double()
     .field('val')
-    %.as('double_val')
+    .as('double_val')
 
     |debug()
