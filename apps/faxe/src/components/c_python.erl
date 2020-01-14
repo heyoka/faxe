@@ -93,8 +93,9 @@ process(_Inp, #data_batch{} = Batch, State = #state{callback_module = Mod, pytho
 process(_Inp, #data_point{} = Point, State = #state{python_instance = Python, cb_object = Obj}) ->
 
    Data = flowdata:to_map(Point),
-   NewObj = pythra:method(Python, Obj, ?PYTHON_POINT_CALL, [Data]),
-%%   lager:notice("res from method is ~p",[Res]),
+%%   {_, _, Ob} =
+      NewObj = pythra:method(Python, Obj, ?PYTHON_POINT_CALL, [Data]),
+%%   lager:warning("new obj has size: ~p", [byte_size(Ob)]),
    {ok, State#state{cb_object = NewObj}}.
 
 %% python sends us data
@@ -105,7 +106,7 @@ handle_info({emit_data, Data}, State) when is_map(Data) ->
    dataflow:emit(Point),
    {ok, State};
 handle_info({emit_data, Data}, State) when is_list(Data) ->
-%%   lager:notice("got batch data from python: ~p", [Data]),
+   lager:notice("got batch data from python: ~p", [Data]),
    Points = [flowdata:point_from_json_map(D) || D <- Data],
    Batch = #data_batch{points = Points},
    dataflow:emit(Batch),

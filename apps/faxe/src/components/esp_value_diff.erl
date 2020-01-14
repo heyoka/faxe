@@ -34,15 +34,18 @@ init(NodeId, _Ins, #{fields := Fields}) ->
 %%%%   {emit, NewBatch, State}
 %%ok
 %%;
-process(_Inport, #data_point{fields = FieldVals} = Point, State = #state{fields = Fields, field_states = FS}) ->
-   NewPoint = execute(Point, Fields, FS),
-%%   lager:info("~p emitting: ~p when previous: ~p",[?MODULE, NewPoint, FS]),
-   {emit, NewPoint, State#state{field_states = FieldVals}}.
+process(_Inport, P = #data_point{} = Point, State = #state{fields = FieldList, field_states = FS}) ->
+   FieldVals = flowdata:fields(P, FieldList),
+   Fields = lists:zip(FieldList, FieldVals),
+   NewPoint = execute(Point, Fields, FieldList, FS),
+%%   lager:notice("~p emitting: ~p when previous: ~p",[?MODULE, NewPoint, FS]),
+   {emit, NewPoint, State#state{field_states = Fields}}.
 
 %% @doc maps current datapoint fields to new values, depending on previous values and
 %% fieldlist configuration
--spec execute(#data_point{}, list(binary()), list({binary(), number()})) -> #data_point{}.
-execute(P =#data_point{fields = Fields}, FieldList, FieldStates) ->
+-spec execute(#data_point{}, list(binary()), list({binary(), number()}), list({binary(), number()}))
+       -> #data_point{}.
+execute(P =#data_point{}, FieldVals, FieldList, FieldStates) ->
    MapFn = fun({K, V}=Current) ->
       case {lists:member(K, FieldList), proplists:get_value(K, FieldStates)} of
          {_, undefined} -> Current;
@@ -50,14 +53,19 @@ execute(P =#data_point{fields = Fields}, FieldList, FieldStates) ->
          {true, PrevVal} -> {K, abs(V-PrevVal)}
       end
            end,
-   P#data_point{fields = lists:map(MapFn, Fields)}.
+   Eval = lists:map(MapFn, FieldVals),
+   flowdata:set_fields(P, Eval).
 
 
 %%%%%%%%%%%%
 -ifdef(TEST).
 basic_test() ->
-   P = #data_point{fields = [{<<"energy_used">>, 13.4563}, {<<"current_max">>, 3453.34534}, {<<"t1">>, 12}]},
+   P = #data_point{fields = #{<<"energy_used">> => 13.4563, <<"current_max">> => 3453.34534, <<"t1">> => 12}},
    LastValues = [{<<"current_max">>, 3753.34534}, {<<"t1">>, 12}],
-   ?assertEqual(#data_point{fields = [{<<"energy_used">>, 13.4563}, {<<"current_max">>, 300.0}, {<<"t1">>, 12}]},
-      execute(P, [<<"energy_used">>, <<"current_max">>], LastValues)).
+   FieldList = [<<"current_max">>, <<"energy_used">>],
+   FieldVals = flowdata:fields(P, FieldList),
+   Fields = lists:zip(FieldList, FieldVals),
+   ?assertEqual(#data_point{fields = #{<<"energy_used">> => 13.4563, <<"current_max">> => 300.0, <<"t1">> => 12}},
+      execute(P, Fields, FieldList, LastValues)).
+
 -endif.

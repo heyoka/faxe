@@ -1,5 +1,6 @@
 import erlport.erlterms
 import erlport.erlang
+from decode_dict import DecodeDict
 
 
 class Faxe:
@@ -11,7 +12,7 @@ class Faxe:
 
     def __init__(self, args):
         self.erlang_pid = args[b'erl']
-        self.init(dict(args))
+        self.init(DecodeDict(dict(args)))
 
     @staticmethod
     def info(clname):
@@ -64,11 +65,14 @@ class Faxe:
         pass
 
     def batch(self, req):
+        batch = []
+        for point in req:
+            batch.append(DecodeDict(point))
         self.handle_batch(req)
         return self
 
     def point(self, req):
-        self.handle_point(req)
+        self.handle_point(DecodeDict(req))
         return self
 
     def emit(self, emit_data):
