@@ -122,7 +122,7 @@ shutdown(#direct_state{client = C}) ->
 
 publish(Msg, #direct_state{retained = Ret, qos = Qos, client = C, topic = Topic})
    when is_binary(Msg); is_list(Msg)->
-   lager:notice("publish ~s on topic ~p ~n",[Msg, Topic]),
+   %lager:notice("publish ~s on topic ~p ~n",[Msg, Topic]),
 %%   {ok, _PacketId}
    ok = emqttc:publish(C, Topic, Msg, [{qos, Qos}, {retain, Ret}])
 %%   ,
