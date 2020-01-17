@@ -43,6 +43,7 @@
    port,
    qos,
    topic,
+   topic_lambda,
    queue,
    retained = false,
    ssl = false,
@@ -52,7 +53,8 @@
 options() -> [
    {host, binary}, {port, integer, ?DEFAULT_PORT},
    {qos, integer, 1},
-   {topic, binary},
+   {topic, binary, undefined},
+   {topic_lambda, lambda, undefined},
    {retained, is_set},
    {ssl, is_set},
    {save, is_set}].
@@ -78,12 +80,12 @@ init(_NodeId, _Ins,
 process(_In, Item, State = #direct_state{connected = true}) ->
 %%   lager:alert("connected!!"),
    Json = flowdata:to_json(Item),
-   publish(Json, State),
+   publish(Json, get_topic(Item, State), State),
    {ok, State};
 process(_Inport, Item, State = #direct_state{connected = false, queue = Q}) ->
 %%   lager:alert("not connected!!"),
    Json = flowdata:to_json(Item),
-   Q1 = queue:in(Json, Q),
+   Q1 = queue:in({get_topic(Item, State), Json}, Q),
    {ok, State#direct_state{queue = Q1}};
 %% save state
 process(_In, #data_batch{} = Batch, State = #save_state{queue = Q}) ->
@@ -97,7 +99,7 @@ process(_Inport, #data_point{} = Point, State = #save_state{queue = Q}) ->
 
 handle_info({mqttc, C, connected}, State=#direct_state{queue = Q}) ->
    lager:info("mqtt client connected, resend : ~p!!",[queue:to_list(Q)]),
-   [publish(J, State) || J <- queue:to_list(Q)],
+   [publish(J, Topic, State) || {Topic, J} <- queue:to_list(Q)],
    NewState = State#direct_state{client = C, connected = true, queue = queue:new()},
    {ok, NewState};
 handle_info({mqttc, _C,  disconnected}, State=#direct_state{client = _Client}) ->
@@ -121,8 +123,11 @@ shutdown(#direct_state{client = C}) ->
    catch (emqttc:disconnect(C)).
 
 
-publish(Msg, #direct_state{retained = Ret, qos = Qos, client = C, topic = Topic})
-   when is_binary(Msg); is_list(Msg)->
+%%publish(Msg, State = #direct_state{topic = Topic}) ->
+%%   publish(Msg, Topic, State).
+
+publish(Msg, Topic, #direct_state{retained = Ret, qos = Qos, client = C})
+   when is_binary(Msg); is_list(Msg) ->
    lager:notice("publish ~s on topic ~p ~n",[Msg, Topic]),
 %%   {ok, _PacketId}
    ok = emqttc:publish(C, Topic, Msg, [{qos, Qos}, {retain, Ret}])
@@ -142,4 +147,9 @@ do_connect(#direct_state{host = Host, port = Port, ssl = _Ssl} = State) ->
 %%         lager:notice("Error connecting to mqtt_broker: ~p ~p", [{Host, Port}, _Other]),
 %%         erlang:send_after(2000, self(), reconnect), State
 %%   end.
+
+get_topic(#data_point{} = _P, #direct_state{topic_lambda = undefined, topic = Topic}) ->
+   Topic;
+get_topic(#data_point{} = P, #direct_state{topic_lambda = Fun}) ->
+   faxe_lambda:execute(P, Fun).
 
