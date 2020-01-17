@@ -128,6 +128,7 @@ val(Val, {OptName, duration}) when is_binary(Val) ->
    end;
 val(Val, {_, number}) when is_integer(Val) orelse is_float(Val) -> Val;
 val(Val, {_, integer}) when is_integer(Val) -> Val;
+%%val(Val, {_, int}) when is_integer(Val) -> Val;
 val(Val, {_, float}) when is_float(Val) -> Val;
 val(Val, {_, double}) when is_float(Val) -> Val;
 val(Val, {_, binary}) when is_binary(Val) -> Val;

@@ -298,10 +298,10 @@ parse_datetime(DTBin) ->
    lager:notice("datetime: ~p",[DTBin]),
    time_format:conv_dt_to_ms(DTBin).
 
-parse_datetime_new(DTBin) ->
-   lager:notice("datetime: ~p",[DTBin]),
-   %% add "Z" to get UTC time
-   time_format:rfc3339_to_ms(<<DTBin/binary, "Z">>).
+%%parse_datetime_new(DTBin) ->
+%%   lager:notice("datetime: ~p",[DTBin]),
+%%   %% add "Z" to get UTC time
+%%   time_format:rfc3339_to_ms(<<DTBin/binary, "Z">>).
 
 %%%%%%%%%%%%%%%%%%% parser tables %%%%%%%%%%%%%%%%%%%%%%
 %% parser table handles stored in process dictionary

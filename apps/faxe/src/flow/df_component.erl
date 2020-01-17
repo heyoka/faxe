@@ -459,7 +459,11 @@ outports() ->
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 eval_args(A = #{}, State) ->
    {LsMem, A0} = maps:take(ls_mem, A),
-   {LsMemSet, A00} = maps:take(ls_mem_set, A0),
+   {LsMemSet, A00} =
+   case maps:is_key(ls_mem_set, A0) of
+      true -> case maps:take(ls_mem_set, A0) of error -> {undefined, A0}; O -> O end;
+      false -> {undefined, A0}
+   end,
    {LsMemFields, A1} = maps:take(ls_mem_field, A00),
    {_LsMemTTL, Args} = maps:take(ls_mem_ttl, A1),
    NewState = State#c_state{ls_mem = LsMem, ls_mem_field = LsMemFields, ls_mem_set = LsMemSet},

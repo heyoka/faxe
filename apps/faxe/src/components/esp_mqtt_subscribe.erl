@@ -107,7 +107,7 @@ shutdown(#state{client = C}) ->
    catch (emqttc:disconnect(C)).
 
 connect(_State = #state{host = Host, port = Port}) ->
-   {ok, _Client} = emqttc:start_link([{host, Host}, {port, Port},{keepalive, 25}])
+   {ok, _Client} = emqttc:start_link([{host, Host}, {port, Port},{keepalive, 25}, {reconnect, 1}])
 %%   ,
 %%   emqttc:connect(Client)
 .
