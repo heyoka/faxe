@@ -128,7 +128,9 @@ val(Val, {OptName, duration}) when is_binary(Val) ->
    end;
 val(Val, {_, number}) when is_integer(Val) orelse is_float(Val) -> Val;
 val(Val, {_, integer}) when is_integer(Val) -> Val;
+%%val(Val, {_, int}) when is_integer(Val) -> Val;
 val(Val, {_, float}) when is_float(Val) -> Val;
+val(Val, {_, double}) when is_float(Val) -> Val;
 val(Val, {_, binary}) when is_binary(Val) -> Val;
 val(Val, {_, string}) when is_binary(Val) -> Val;
 val(Val, {_, list}) when is_list(Val) -> Val;
@@ -218,7 +220,22 @@ do_check({max_param_count, Keys, Max}, Opts, Mod) ->
                       end
          end
        end,
-   lists:foreach(F, Keys).
+   lists:foreach(F, Keys);
+
+do_check({one_of, Key, ValidOpts}, Opts, Mod) ->
+   lager:notice("do check: ~p",[[{one_of, Key, ValidOpts}, Opts, Mod]]),
+   case maps:get(Key, Opts, undefined) of
+      undefined -> ok; %% should not happen
+      Params ->
+         lists:foreach(fun(E) ->
+                        case lists:member(E, ValidOpts) of
+                           true -> ok;
+                           false -> erlang:error(format_error(invalid_opt, Mod,
+                              [<<"Cannot use '">>, E, <<"' for param '">>, atom_to_binary(Key, latin1),
+                                 <<"'">>, <<" must be one of: ">>, ValidOpts]))
+                        end
+                       end, Params)
+   end.
 
 option_error(OptType, Given, Should, Name) ->
    throw([OptType,

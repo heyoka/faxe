@@ -1,0 +1,34 @@
+def topic = 'ttgw/grip_images/#'
+def mqtt_host = 'devat-cw-mqtt.tgwdev.internal'
+def topic_base = 'ttgw/grip_images/'
+
+def image =
+    |mqtt_subscribe()
+    .host(mqtt_host)
+    .port(1883)
+    .topic(topic)
+
+|where()
+.lambda(lambda: "data.image_name" == 'calib_image')
+
+
+%% PP1 stkirch
+image
+|where()
+.lambda(lambda: "data.location" == 'PP1' AND "data.device" == 'rovolutionstephanskirchen')
+
+|mqtt_publish()
+.host(mqtt_host)
+.topic('ttgw/grip_images/rovolutionstephanskirchen/calib_image/PP1')
+.retained()
+
+%% PP2 stkirch
+image
+|where()
+.lambda(lambda: "data.location" == 'PP2' AND "data.device" == 'rovolutionstephanskirchen')
+
+|mqtt_publish()
+.host(mqtt_host)
+.topic('ttgw/grip_images/rovolutionstephanskirchen/calib_image/PP2')
+.topic_lambda(lambda: str_concat( str_concat(str_concat(topic_base, "data.device"), 'calib_image' ), "data.location") )
+.retained()

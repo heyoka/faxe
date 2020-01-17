@@ -41,7 +41,7 @@ process(_Inport, #data_batch{} = Batch, State = #state{modules = Mod, module_sta
 
    Ps = prepare(Batch, F),
    Result = call(Ps, Mod, MState, As),
-   lager:info("~p emitting: ~p",[Mod, Result]),
+%%   lager:info("~p emitting: ~p",[Mod, Result]),
    {emit, Result, State}
 ;
 process(_Inport, #data_point{ts = Ts_Buffer} = Point,

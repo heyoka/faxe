@@ -1,5 +1,5 @@
 %% Date: 12.05.17 - 20:50
-%% Ⓒ 2017 LineMetrics GmbH
+%% Ⓒ 2017 heyoka
 -module(c_agg).
 -author("Alexander Minichmair").
 

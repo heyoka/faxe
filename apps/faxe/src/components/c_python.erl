@@ -22,7 +22,7 @@
 %% API
 -behavior(df_component).
 %% API
--export([init/3, process/3, handle_info/2, options/0, call_options/2, get_python/0, shutdown/1]).
+-export([init/3, process/3, handle_info/2, options/0, call_options/2, get_python/0, shutdown/1, decode_from_python/1]).
 
 -callback execute(tuple(), term()) -> tuple().
 
@@ -65,7 +65,7 @@ call_options(Module, Class) ->
    Res.
 
 init(NodeId, _Ins, #{cb_module := Callback, cb_class := CBClass} = Args) ->
-   ArgsKeys = maps:keys(Args),
+%%   ArgsKeys = maps:keys(Args),
 %%   lager:info("ArgsKeys: ~p",[ArgsKeys]),
 %%   lager:notice("ARgs for ~p: ~p", [Callback, Args]),
    PInstance = get_python(),
@@ -81,11 +81,11 @@ init(NodeId, _Ins, #{cb_module := Callback, cb_class := CBClass} = Args) ->
       python_instance = PInstance},
    {ok, all, State}.
 
-process(_Inp, #data_batch{} = Batch, State = #state{callback_module = Mod, python_instance = Python,
+process(_Inp, #data_batch{} = Batch, State = #state{callback_module = _Mod, python_instance = Python,
    cb_object = Obj}) ->
    Data = flowdata:to_map(Batch),
 %%   lager:warning("data: ~p",[Data]),
-   {T, NewObj} =
+   {_T, NewObj} =
       timer:tc(pythra, method, [Python, Obj, ?PYTHON_BATCH_CALL, [Data]]),
 %%   lager:info("~p emitting: ~p after: ~p",[Mod, NewObj, T]),
    {ok, State#state{cb_object = NewObj}}
@@ -93,26 +93,29 @@ process(_Inp, #data_batch{} = Batch, State = #state{callback_module = Mod, pytho
 process(_Inp, #data_point{} = Point, State = #state{python_instance = Python, cb_object = Obj}) ->
 
    Data = flowdata:to_map(Point),
-   NewObj = pythra:method(Python, Obj, ?PYTHON_POINT_CALL, [Data]),
-%%   lager:notice("res from method is ~p",[Res]),
+%%   {_, _, Ob} =
+      NewObj = pythra:method(Python, Obj, ?PYTHON_POINT_CALL, [Data]),
+%%   lager:warning("new obj has size: ~p", [byte_size(Ob)]),
    {ok, State#state{cb_object = NewObj}}.
 
 %% python sends us data
-handle_info({emit_data, Data}, State) when is_map(Data) ->
-%%   lager:notice("got point data as map from python: ~p", [Data]),
-   Point = flowdata:point_from_json_map(Data),
+handle_info({emit_data, Data0}, State) when is_map(Data0) ->
+%%   {T, Map} = timer:tc(?MODULE, decode_from_python, [Data0]),
+%%
+%%   lager:notice("conversion took: ~p ~ngot point data as map from python: ~p", [T,Map]),
+   Point = flowdata:point_from_json_map(Data0),
    lager:info("emit point: ~p " ,[Point]),
    dataflow:emit(Point),
    {ok, State};
 handle_info({emit_data, Data}, State) when is_list(Data) ->
-%%   lager:notice("got batch data from python: ~p", [Data]),
+   lager:notice("got batch data from python: ~p", [Data]),
    Points = [flowdata:point_from_json_map(D) || D <- Data],
    Batch = #data_batch{points = Points},
    dataflow:emit(Batch),
    lager:info("emit batch: ~p",[Batch]),
    {ok, State};
 handle_info({emit_data, {"Map", Data}}, State) when is_list(Data) ->
-%%   lager:notice("got point data from python: ~p", [Data]),
+   lager:notice("got point data from python: ~p", [Data]),
    dataflow:emit(Data),
    {ok, State};
 handle_info({python_error, Error}, State) ->
@@ -133,3 +136,21 @@ get_python() ->
    FaxePath = code:priv_dir(faxe) ++ "/python/",
    {ok, Python} = pythra:start_link([FaxePath, Path]),
    Python.
+
+
+decode_from_python(Map) ->
+   Dec = fun(K, V, NewMap) ->
+      NewKey =
+      case K of
+         _ when is_binary(K) -> K;
+         _ when is_list(K) -> list_to_binary(K)
+      end,
+      NewValue =
+      case V of
+         _ when is_map(V) -> decode_from_python(V);
+         _ when is_list(V) -> list_to_binary(V);
+         _ -> V
+      end,
+      NewMap#{NewKey => NewValue}
+         end,
+   maps:fold(Dec, #{}, Map).

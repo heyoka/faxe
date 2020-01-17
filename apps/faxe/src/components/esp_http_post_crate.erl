@@ -99,7 +99,8 @@ do_send(Body, Headers, Retries, S = #state{client = Client}) ->
          lager:warning("could not send ~p: invalid request", [Body]),
          S;
 
-      _ ->
+      _O ->
+%%         lager:warning("sending problem :~p",[_O]),
          NewState =
          case is_process_alive(Client) of
             true ->

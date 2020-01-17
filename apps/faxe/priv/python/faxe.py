@@ -1,5 +1,31 @@
 import erlport.erlterms
 import erlport.erlang
+from decode_dict import DecodeDict
+
+
+"""
+    we always want to have strings as bytes for faxe
+"""
+
+
+def encode_data(data):
+    if type(data) == list:
+        newlist = [encode_data(d) for d in data]
+        return newlist
+    if type(data) == dict:
+        return encode_dict(data)
+
+def encode_dict(mydict):
+    return {to_bytes(k): to_bytes(v) for (k, v) in mydict.items()}
+
+
+def to_bytes(ele):
+    if type(ele) == str:
+        return ele.encode("utf-8")
+    elif type(ele) == dict:
+        return encode_dict(ele)
+
+    return ele
 
 
 class Faxe:
@@ -11,7 +37,7 @@ class Faxe:
 
     def __init__(self, args):
         self.erlang_pid = args[b'erl']
-        self.init(dict(args))
+        self.init(DecodeDict(dict(args)))
 
     @staticmethod
     def info(clname):
@@ -64,11 +90,14 @@ class Faxe:
         pass
 
     def batch(self, req):
+        batch = []
+        for point in req:
+            batch.append(DecodeDict(point))
         self.handle_batch(req)
         return self
 
     def point(self, req):
-        self.handle_point(req)
+        self.handle_point(DecodeDict(req))
         return self
 
     def emit(self, emit_data):
@@ -76,7 +105,9 @@ class Faxe:
         used to emit data to the next node(s)
         :param emit_data: dict | list of dicts
         """
-        erlport.erlang.cast(self.erlang_pid, (erlport.erlterms.Atom(b'emit_data'), emit_data))
+        if type(emit_data) == dict or type(emit_data) == list:
+            erlport.erlang.cast(self.erlang_pid,
+                                (erlport.erlterms.Atom(b'emit_data'), encode_data(emit_data)))
 
     def error(self, error):
         """

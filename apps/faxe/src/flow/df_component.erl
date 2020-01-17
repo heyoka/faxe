@@ -321,19 +321,19 @@ handle_info({item, {Inport, Value}},
 %%lager:warning("cb state is: ~p",[CBState]),
    folsom_metrics:notify({NId, 1}),
    %gen_event:notify(dfevent_component, {item, State#c_state.node_id, {Inport, Value}}),
-   Result = (Module:process(Inport, Value, CBState)),
-%%   case  catch(Module:process(Inport, Value, CBState)) of
-%%      {'EXIT', {Reason,Stacktrace}} ->
-%%         lager:error("'error' ~p in component ~p caught when processing item: ~p -- ~p",
-%%         [Reason, State#c_state.component, {Inport, Value}, Stacktrace]),
-%%         folsom_metrics:notify({<< NId/binary, ?FOLSOM_ERROR_HISTORY >>,
-%%%%            io_lib:format("'error' ~p in component ~p caught when processing item: ~p -- ~p",
-%%            [time_format:to_iso8601(faxe_time:now()), Reason, State#c_state.component, {Inport, Value}, Stacktrace]
-%%%%         )}
-%%         }),
-%%         {noreply, State};
-%%
-%%      Result ->
+%%   Result = (Module:process(Inport, Value, CBState)),
+   case  catch(Module:process(Inport, Value, CBState)) of
+      {'EXIT', {Reason,Stacktrace}} ->
+         lager:error("'error' ~p in component ~p caught when processing item: ~p -- ~p",
+         [Reason, State#c_state.component, {Inport, Value}, Stacktrace]),
+         folsom_metrics:notify({<< NId/binary, ?FOLSOM_ERROR_HISTORY >>,
+%%            io_lib:format("'error' ~p in component ~p caught when processing item: ~p -- ~p",
+            [time_format:to_iso8601(faxe_time:now()), Reason, State#c_state.component, {Inport, Value}, Stacktrace]
+%%         )}
+         }),
+         {noreply, State};
+
+      Result ->
          {NewState, Requested, REmitted} = handle_process_result(Result, State),
          case FMode == pull of
             true -> case {Requested, AR, REmitted} of
@@ -347,7 +347,7 @@ handle_info({item, {Inport, Value}},
          end,
          handle_ls_mem(Value, State),
          {noreply, NewState}
-%%   end
+   end
    ;
 
 handle_info({emit, {Outport, Value}}, State=#c_state{subscriptions = Ss, node_id = _NId,
@@ -459,7 +459,11 @@ outports() ->
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 eval_args(A = #{}, State) ->
    {LsMem, A0} = maps:take(ls_mem, A),
-   {LsMemSet, A00} = maps:take(ls_mem_set, A0),
+   {LsMemSet, A00} =
+   case maps:is_key(ls_mem_set, A0) of
+      true -> case maps:take(ls_mem_set, A0) of error -> {undefined, A0}; O -> O end;
+      false -> {undefined, A0}
+   end,
    {LsMemFields, A1} = maps:take(ls_mem_field, A00),
    {_LsMemTTL, Args} = maps:take(ls_mem_ttl, A1),
    NewState = State#c_state{ls_mem = LsMem, ls_mem_field = LsMemFields, ls_mem_set = LsMemSet},
@@ -482,7 +486,7 @@ handle_ls_mem_val(P = #data_point{}, #c_state{ls_mem = MemKey, ls_mem_field = Me
 handle_ls_mem_set(#data_batch{points = Points}, State=#c_state{}) ->
    [handle_ls_mem_set(P, State) || P <- Points];
 handle_ls_mem_set(P = #data_point{}, #c_state{ls_mem_set = MemKey, ls_mem_field = MemField}) ->
-   lager:notice("handle_ls_mem_set"),
+%%   lager:notice("handle_ls_mem_set"),
    Set0 =
    case ets:lookup(ls_mem_set, MemKey) of
       [] -> sets:new();

@@ -1,0 +1,5 @@
+crate_query check object (deep path) support
+crate_query should support time sync in a plausible way
+stats nodes should support multiple fields
+safe amqp and mqtt publishers
+get last errors via rest api

@@ -12,6 +12,7 @@
                                     number         |
                                     integer        |
                                     float          |
+                                    double         |
                                     string         |
                                     binary         |
                                     atom           |
@@ -32,6 +33,7 @@
 -type option_number()            :: integer() | float().
 -type option_integer()           :: integer().
 -type option_float()             :: float().
+-type option_double()            :: float().
 -type option_string()            :: binary().
 -type option_binary()            :: binary().
 -type option_atom()              :: atom().
@@ -53,6 +55,7 @@
                                     option_number()         |
                                     option_integer()        |
                                     option_float()          |
+                                    option_double()         |
                                     option_string()         |
                                     option_binary()         |
                                     option_atom()           |

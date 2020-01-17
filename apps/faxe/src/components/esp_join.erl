@@ -45,7 +45,7 @@ inports() ->
 
 options() -> [
    {joined, nodes, {ports, [2,3,4,5]}},
-   {prefix,     string_list, [<<"val1">>, <<"val2">>]},
+   {prefix,     string_list, [<<"">>, <<"">>]},
    {field_merge, string, undefined},
    %% @todo maybe this should be aligned to wall clock ?
    %% a wall-clock timeout will be set up per time unit to collect all values,
@@ -54,7 +54,7 @@ options() -> [
    %% timestamp tolerance in ms
    {tolerance, duration, <<"2s">>},
    %% missing-value handling
-   {fill,   any,     none} %% none, null, any numerical value
+   {fill,   any,     null} %% none, null, any numerical value
 ].
 
 init(NodeId, Ins,
@@ -89,11 +89,11 @@ process(Inport, #data_point{ts = Ts} = Point, State = #state{buffer = Buffer, ti
    case abs(LookupTs - Ts) > Tolerance of
       true ->
          %% new ts in buffer
-%%         lager:warning("new buffer entry for Ts: ~p : ~p",[Ts, {Inport, Point}]),
+%%         lager:warning("new buffer entry for Ts: ~p : ~p",[Ts, {Inport, flowdata:ts(Point)}]),
          {Ts , [{Inport, Point}]};
       false ->
          %% add point to buffer
-%%         lager:warning("add buffer entry for Ts: ~p: ~p",[LookupTs, {Inport, Point}]),
+%%         lager:warning("add buffer entry for Ts: ~p: ~p",[LookupTs, {Inport, flowdata:ts(Point)}]),
          {LookupTs, [{Inport, Point}| orddict:fetch(LookupTs, Buffer)]}
    end,
 
@@ -223,11 +223,21 @@ clear_timeout(Ts, TimerList) ->
    .
 
 
-merge(M1, M2) when is_map(M1), is_map(M2) -> maps:merge(M1, M2);
+merge(M1, M2) when is_map(M1), is_map(M2) -> mapz:deep_merge(merge_fun(), #{}, [M1, M2]);
+%%merge(M1, M2) when is_map(M1), is_map(M2) -> maps:merge(M1, M2);
 merge(M1, M2) when is_list(M1), is_list(M2) -> lists:merge(M1, M2);
 merge(V1, V2) when is_number(V1), is_number(V2) -> V1 + V2;
 merge(S1, S2) when is_binary(S1), is_binary(S2) -> string:concat(S1, S2);
 merge(_, _) -> error(cannot_merge_wrong_or_different_datatypes).
+
+
+merge_fun() ->
+   fun
+      (Prev, Val) when is_map(Prev), is_map(Val) -> maps:merge(Prev, Val);
+      (Prev, Val) when is_list(Prev), is_list(Val) -> lists:merge(Prev, Val);
+      (_, Val) -> Val
+   end.
+
 
 
 -ifdef(TEST).

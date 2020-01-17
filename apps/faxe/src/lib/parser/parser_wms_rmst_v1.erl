@@ -41,17 +41,23 @@ parse(BinData) ->
          AlarmStateMap0#{<<"errors">> => Errors};
       _ -> AlarmStateMap0
    end,
-   Out = Out0#{<<"alarm_state">> => AlarmStateMap},
+   Out1 = Out0#{<<"alarm_state">> => AlarmStateMap},
+   State = robot_state(OpState, OpMode, Avail, AlarmState),
+   Out = Out1#{<<"robot_state">> => State},
    lager:notice("the fields: ~p" ,[Out]),
    {?TGW_DATAFORMAT, ?PARSER_VERSION, Out}.
 
+
 enum_opstate(<<"ON">>) -> 0;
 enum_opstate(<<"OFF">>) -> 1.
+
 enum_opmode(<<"NOMO">>) -> 0;
 enum_opmode(<<"AUTO">>) -> 1;
 enum_opmode(<<"MANU">>) -> 2.
+
 enum_alarmstate(<<"NOAL">>) -> 0;
 enum_alarmstate(<<"ERR">>) -> 1.
+
 enum_orderstate(<<"RDY">>) -> 0; %% availablility
 enum_orderstate(<<"NRDY">>) -> 1;
 enum_orderstate(<<"OFF">>) -> 2.
@@ -60,7 +66,18 @@ parse_errors(<<"[]">>) -> [];
 parse_errors(<<"[", Rest/binary>>) ->
    binary:split(Rest, ?ERR_DELIMITER, [global, trim_all]).
 
-%%%%%%%%%%%%%%%%%% end %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%% overall robot state derived from the 4 parsed vals
+%% operating_state, operating_mode, order_state(avail), alarm_state
+
+%%robot_state(OpState, OpMode, Avail, ErrState) -> ok;
+robot_state(_OpState, _OpMode, _Avail, <<"ERR">>) -> <<"ERROR">>; %% Error, any other state
+robot_state(_OpState, <<"MANU">>, _Avail, _Err) -> <<"OFF">>; %% Manuell
+robot_state(<<"OFF">>, _OpMode, _Avail, _Err) -> <<"OFF">>; %% Off at OpState
+robot_state(<<"ON">>, <<"AUTO">>, <<"NRDY">>, _Err) -> <<"BUSY">>;
+robot_state(<<"ON">>, <<"AUTO">>, <<"RDY">>, _Err) -> <<"IDLE">>.
+
+%%%%%%%%%%%%%%%%%% end %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
 -ifdef(TEST).
 basic_test() ->
 
@@ -75,7 +92,26 @@ basic_test() ->
             <<"operating_state">> =>
             #{<<"id">> => 0,<<"name">> => <<"ON">>},
             <<"order_state">> =>
-            #{<<"id">> => 1,<<"name">> => <<"NRDY">>}}}
+            #{<<"id">> => 1,<<"name">> => <<"NRDY">>},
+         <<"robot_state">> => <<"ERROR">>}
+      }
+      ,parse(Data)
+   ).
+
+basic_2_test() ->
+
+   Data = <<"ROB1;MFS1;4272;RMST;ON;AUTO;NOAL;NRDY;[]\r\n">>,
+   ?assertEqual(
+      {<<"05.010">>,1,
+         #{<<"alarm_state">> =>
+         #{<<"id">> => 0,<<"name">> => <<"NOAL">>},
+            <<"operating_mode">> =>
+            #{<<"id">> => 1,<<"name">> => <<"AUTO">>},
+            <<"operating_state">> =>
+            #{<<"id">> => 0,<<"name">> => <<"ON">>},
+            <<"order_state">> =>
+            #{<<"id">> => 1,<<"name">> => <<"NRDY">>},
+            <<"robot_state">> => <<"BUSY">>}}
       ,parse(Data)
    ).
 -endif.

@@ -58,23 +58,38 @@
    <<"recirculate">>]).
 
 parse(BinData) ->
+   Timestamp = faxe_time:now(),
    ets:insert(parser_prev_table(), ets:tab2list(parser_table())),
    ets:delete_all_objects(parser_table()),
    %% split lines
    LinesAll = to_lines(BinData),
-   %% remove timestamp
-   %% todo use the timestamp
+
+
+   %% can be used, if the message's datetime is valid and synced
+%%   {Ts, DataLines} =
+%%   case LinesAll of
+%%      [<<DateTime:?PLC_DATETIME_LENGTH/binary, FirstLine/binary>>|RLines] ->
+%%         Ts = parse_datetime(DateTime),
+%%         {Ts, [FirstLine|RLines]};
+%%      [DateTime | RLines] ->
+%%         Ts = parse_datetime_new(DateTime),
+%%         {Ts, RLines}
+%%   end,
    DataLines =
    case LinesAll of
-      [<<_DateTime:?PLC_DATETIME_LENGTH/binary, FirstLine/binary>>|RLines] -> [FirstLine|RLines];
-      [_DateTime | RLines] -> RLines
+      [<<_DateTime:?PLC_DATETIME_LENGTH/binary, FirstLine/binary>>|RLines] ->
+         [FirstLine|RLines];
+      [_DateTime | RLines] ->
+         RLines
    end,
    %% parse the lines
    Res = parse_lines(DataLines),
    %% no check for inconsistencies
    DisambRes = maybe_disambiguate(Res),
 
-   {?TGW_DATAFORMAT, ?PARSER_VERSION, DisambRes}.
+   {Timestamp, ?TGW_DATAFORMAT, ?PARSER_VERSION, DisambRes}.
+%% test version, were we use the time in the plc message (but the time is not valid at the moment)
+%%   {Ts, ?TGW_DATAFORMAT, ?PARSER_VERSION, DisambRes}.
 
 
 %% if there is no previous parser data OR if there are obviously no duplicate values for "trac" ->
@@ -280,13 +295,13 @@ bitm(<<Bit:1, Rest/bitstring>>, [Item | Others], Gathered) ->
 
 -spec parse_datetime(binary()) -> faxe_time:timestamp().
 parse_datetime(DTBin) ->
-   Parts =
-      binary:split(DTBin, [<<".">>, <<":">>, <<",">>,<<"  ">>], [global, trim_all]),
-   [Year, Month, Day, Hour, Minute, Second, Milli] =
-      lists:map(fun(E) -> binary_to_integer(E) end, Parts),
-   DtParts = {{2000 + Year, Month, Day},{Hour, Minute, Second, Milli}},
-   faxe_time:to_ms(DtParts).
+   lager:notice("datetime: ~p",[DTBin]),
+   time_format:conv_dt_to_ms(DTBin).
 
+%%parse_datetime_new(DTBin) ->
+%%   lager:notice("datetime: ~p",[DTBin]),
+%%   %% add "Z" to get UTC time
+%%   time_format:rfc3339_to_ms(<<DTBin/binary, "Z">>).
 
 %%%%%%%%%%%%%%%%%%% parser tables %%%%%%%%%%%%%%%%%%%%%%
 %% parser table handles stored in process dictionary
@@ -608,12 +623,14 @@ i_test() ->
    lager:info("Time (micros) needed: ~p~nJSON: ~s",[T1, Res1]).
 
 parse_test() ->
-   ?assertEqual(parse(def1()), {?TGW_DATAFORMAT, ?PARSER_VERSION, res_new()}).
+   {Ts, _Df, _Vs, _Data} = Res = parse(def1()),
+   ?assertEqual(Res, {Ts, ?TGW_DATAFORMAT, ?PARSER_VERSION, res_new()}).
 
 parse_disambiguate_test() ->
    parse(def()),
-   ?assertEqual(parse(defnew()),
-      {?TGW_DATAFORMAT, ?PARSER_VERSION, res2()}).
+   {Ts, _Df, _Vs, _Data} = Res = parse(defnew()),
+   ?assertEqual(Res,
+      {Ts, ?TGW_DATAFORMAT, ?PARSER_VERSION, res2()}).
 
 test_bin_lines() -> <<" 1;2;;34;35,767,67; /4365;0:">>.
 test_bin_fields() -> <<"ARG:4,BRG:3, ,, SomeField:,AnotherField:hello,KKKRF">>.

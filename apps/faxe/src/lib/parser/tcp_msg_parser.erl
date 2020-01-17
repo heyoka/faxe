@@ -23,10 +23,16 @@ convert(Data, As, undefined) ->
 convert(Data, As, Parser) ->
    convert(Data, #data_point{ts = faxe_time:now()}, As, Parser).
 convert(Data, Point = #data_point{}, As, Parser) ->
-   {T, {DataFormat, Vers, Map}} = timer:tc(Parser, parse, [Data]),
+   {T, NPoint, D} =
+   case timer:tc(Parser, parse, [Data]) of
+      {Time, {_DataFormat, _Vers, _Map}=D0} -> {Time, Point, D0};
+      {Time, {Ts, DataFormat, Vers, Map}} -> {Time, Point#data_point{ts=Ts}, {DataFormat, Vers, Map}}
+   end,
+%%   {T, {DataFormat, Vers, Map}} = timer:tc(Parser, parse, [Data]),
    lager:notice("Parser time <~p>: ~p",[Parser, T]),
-   P0 = flowdata:set_field(Point, As, Map),
-   P1 = flowdata:set_field(P0, <<"df">>, DataFormat),
-   flowdata:set_field(P1, <<"vs">>, Vers).
+   {DataF, Vs, Mp} = D,
+   P0 = flowdata:set_field(NPoint, As, Mp),
+   P1 = flowdata:set_field(P0, <<"df">>, DataF),
+   flowdata:set_field(P1, <<"vs">>, Vs).
 
 %%%%%%%

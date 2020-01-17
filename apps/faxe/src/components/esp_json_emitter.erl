@@ -20,8 +20,11 @@
 params() -> [].
 
 options() ->
-   [{every, duration, <<"3s">>}, {jitter, duration, <<"0ms">>}, {align, is_set},
-      {json, binary_list, undefined}, {rand_fields, binary_list, []}].
+   [{every, duration, <<"3s">>},
+      {jitter, duration, <<"0ms">>},
+      {align, is_set},
+      {json, binary_list, undefined},
+      {rand_fields, binary_list, []}].
 
 init(NodeId, _Inputs,
     #{every := Every, align := Unit, jitter := Jitter, json := JS}) ->

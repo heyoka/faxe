@@ -4,10 +4,6 @@ def s =
     .every(2s)
     .type(point)
 
-    |win_event()
-    .every(5)
-    .period(5)
-
     @double()
     .field('val')
     .as('double_val')

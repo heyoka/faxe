@@ -35,6 +35,7 @@
    port,
    qos,
    topic,
+   topics,
    retained = false,
    dt_field,
    dt_format,
@@ -45,7 +46,8 @@
 options() -> [
    {host, binary}, {port, integer, ?DEFAULT_PORT},
    {qos, integer, 1},
-   {topic, binary},
+   {topic, binary, undefined},
+   {topics, binary_list, undefined},
    {retained, is_set},
    {dt_field, string, <<"ts">>},
    {dt_format, string, ?TF_TS_MILLI},
@@ -53,14 +55,14 @@ options() -> [
 
 
 init(_NodeId, _Ins,
-   #{ host := Host0, port := Port, topic := Topic, dt_field := DTField,
+   #{ host := Host0, port := Port, topic := Topic, topics := Topics, dt_field := DTField,
       dt_format := DTFormat,
       retained := Retained, ssl := UseSSL, qos := Qos} = _Opts) ->
    Host = binary_to_list(Host0),
    process_flag(trap_exit, true),
    erlang:send_after(0, self(), connect),
    State = #state{host = Host, port = Port, topic = Topic, dt_field = DTField, dt_format = DTFormat,
-      retained = Retained, ssl = UseSSL, qos = Qos},
+      retained = Retained, ssl = UseSSL, qos = Qos, topics = Topics},
    {ok, State}.
 
 process(_In, _, State = #state{}) ->
@@ -105,12 +107,14 @@ shutdown(#state{client = C}) ->
    catch (emqttc:disconnect(C)).
 
 connect(_State = #state{host = Host, port = Port}) ->
-   {ok, _Client} = emqttc:start_link([{host, Host}, {port, Port},{keepalive, 25}])
+   {ok, _Client} = emqttc:start_link([{host, Host}, {port, Port},{keepalive, 25}, {reconnect, 1}])
 %%   ,
 %%   emqttc:connect(Client)
 .
 
-subscribe(#state{qos = Qos, client = C, topic = Topic}) when is_binary(Topic) ->
-%%   {ok, _, _} =
-      ok = emqttc:subscribe(C, Topic, Qos).
+subscribe(#state{qos = Qos, client = C, topic = Topic, topics = undefined}) when is_binary(Topic) ->
+      ok = emqttc:subscribe(C, Topic, Qos);
+subscribe(#state{qos = Qos, client = C, topics = Topics}) ->
+   TQs = [{Top, Qos} || Top <- Topics],
+   ok = emqttc:subscribe(C, TQs).
 

@@ -100,13 +100,14 @@ handle_info({mqttc, C, connected}, State=#direct_state{queue = Q}) ->
    [publish(J, State) || J <- queue:to_list(Q)],
    NewState = State#direct_state{client = C, connected = true, queue = queue:new()},
    {ok, NewState};
-handle_info({mqttc, _C,  disconnected}, State=#direct_state{}) ->
+handle_info({mqttc, _C,  disconnected}, State=#direct_state{client = _Client}) ->
+%%   catch exit(Client),
    lager:warning("mqtt client disconnected!!"),
    {ok, State#direct_state{connected = false, client = undefined}};
 handle_info(reconnect, State = #direct_state{}) ->
    NewState = do_connect(State),
    {ok, NewState};
-handle_info({'EXIT', Client, Reason}, State = #direct_state{client = Client}) ->
+handle_info({'EXIT', _Client, Reason}, State = #direct_state{}) ->
    lager:notice("MQTT Client died: ~p", [Reason]),
    erlang:send_after(1000, self(), reconnect),
    {ok, State#direct_state{connected = false, client = undefined}};
@@ -130,7 +131,7 @@ publish(Msg, #direct_state{retained = Ret, qos = Qos, client = C, topic = Topic}
 .
 
 do_connect(#direct_state{host = Host, port = Port, ssl = _Ssl} = State) ->
-   Opts = [{host, Host}, {port, Port}, {keepalive, 30}],
+   Opts = [{host, Host}, {port, Port}, {keepalive, 30}, {reconnect, 1}],
    {ok, _Client} = emqttc:start_link(Opts),
    State.
 %%   ,
