@@ -219,6 +219,14 @@ code_change(_OldVsn, State, _Extra) ->
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %%% MQ Connection functions.
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+do_connect(State) ->
+   {Available, Channel, Conn} = check_for_channel(State),
+   {noreply, State#state{
+      channel = Channel,
+      available = Available,
+      connection = Conn
+   }}.
+
 check_for_channel(#state{} = State) ->
    Connect = fun() ->
       case connect(State#state.config) of
