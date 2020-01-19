@@ -50,12 +50,21 @@ execute(P =#data_point{}, FieldVals, FieldList, FieldStates) ->
       case {lists:member(K, FieldList), proplists:get_value(K, FieldStates)} of
          {_, undefined} -> Current;
          {false, _} -> Current;
-         {true, PrevVal} -> {K, abs(V-PrevVal)}
+         {true, PrevVal} -> {K, diff(V, PrevVal)}
       end
            end,
    Eval = lists:map(MapFn, FieldVals),
    flowdata:set_fields(P, Eval).
 
+
+diff(V1, V2) when is_number(V1), is_number(V2) ->
+   abs(V1-v2);
+diff(_, _) -> erlang:error(cannot_diff_non_numeric_values).
+
+%%diff(V1, V2) when is_list(V1), is_list(V2) ->
+%%   lists:subtract(V1, V2);
+%%diff(V1, V2) when is_map(V1), is_map(V2) ->
+%%   ok.
 
 %%%%%%%%%%%%
 -ifdef(TEST).

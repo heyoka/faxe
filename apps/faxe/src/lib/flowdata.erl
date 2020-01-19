@@ -200,8 +200,9 @@ ts(#data_batch{points = Points}) ->
 value(#data_point{ts = Ts}, <<"ts">>) ->
    Ts;
 value(#data_point{fields = Fields, tags = Tags}, F) ->
-   case jsn:get(F, Fields) of
-      undefined -> jsn:get(F, Tags);
+   Path = path(F),
+   case jsn:get(Path, Fields) of
+      undefined -> jsn:get(Path, Tags);
       Value -> Value
    end.
 %%
@@ -392,15 +393,6 @@ delete_fields(B = #data_batch{points = Points}, KeyList) when is_list(KeyList) -
       Points
    ),
    B#data_batch{points = Ps}.
-
-%% @doc delete a list of fields from a data_point and return the data_point with the remaining fields
-%%delete_fields_root(#data_point{fields = Fields}=P, FieldNames) ->
-%%   PFields =
-%%   lists:foldl(
-%%      fun(FName, Fields) -> maps:without(FName, Fields) end,
-%%      Fields, FieldNames
-%%   ),
-%%   P#data_point{fields = PFields}.
 
 %% @doc
 %% delete a tag with the given name, if a data_batch record is provided, the tag gets deleted from all

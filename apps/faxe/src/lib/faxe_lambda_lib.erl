@@ -62,6 +62,8 @@
 %%%%%%%%%%% additional str funcs
 str_concat(String1, String2) ->
    unicode:characters_to_binary([String1, String2]).
+str_concat(Strings) when is_list(Strings) ->
+   unicode:characters_to_binary(Strings).
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %%% Math functions
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
