@@ -201,7 +201,6 @@ outports(Module) ->
    {stop, Reason :: term()} | ignore).
 init([Component, GraphId, NodeId, Inports, _Outports, Args]) ->
    code:ensure_loaded(Component),
-   lager:debug("init component ~p",[Component]),
    InputPorts = lists:map(fun({_Pid, Port}) -> Port end, Inports),
    {ok, #c_state{component = Component, graph_id = GraphId, node_id = NodeId, subscriptions = [],
       inports = InputPorts, cb_state = Args}};
@@ -213,7 +212,7 @@ handle_call({start, Inputs, Subscriptions, FlowMode}, _From,
     State=#c_state{component = CB, cb_state = CBState, node_id = NId}) ->
 
    %gen_event:notify(dfevent_component, {start, State#c_state.node_id, FlowMode}),
-   lager:debug("component ~p starts with options; ~p", [{CB, CBState}]),
+   lager:debug("component ~p starts with options; ~p", [CB, CBState]),
    Opts = CBState,
    {NewCBOpts, NewState} = eval_args(Opts, State),
    Inited = CB:init(NId, Inputs, NewCBOpts),
@@ -273,7 +272,7 @@ handle_info({start, Inputs, Subscriptions, FlowMode},
     State=#c_state{component = CB, cb_state = CBState, node_id = NId}) ->
 
    %gen_event:notify(dfevent_component, {start, State#c_state.node_id, FlowMode}),
-   lager:debug("component ~p starts with options; ~p", [{CB, CBState}]),
+   lager:debug("component ~p starts with options; ~p", [CB, CBState]),
    Opts = CBState,
    {NewCBOpts, NewState} = eval_args(Opts, State),
    Inited = CB:init(NId, Inputs, NewCBOpts),
