@@ -280,7 +280,7 @@ build_subscriptions(Graph, Node, Nodes, FlowMode) ->
 %%
 -spec start(#task_modes{}, #state{}) -> #state{}.
 start(ModeOpts=#task_modes{run_mode = RunMode, temporary = Temp, temp_ttl = TTL},
-    State=#state{graph = G, id = _Id}) ->
+    State=#state{graph = G, id = Id}) ->
    Nodes0 = digraph:vertices(G),
 
 %% build : [{NodeId, Pid}]
@@ -289,7 +289,7 @@ start(ModeOpts=#task_modes{run_mode = RunMode, temporary = Temp, temp_ttl = TTL}
          {NodeId, Label} = digraph:vertex(G, E),
          #{component := Component, inports := Inports, outports := OutPorts, metadata := Metadata}
             = Label,
-         {ok, Pid} = df_component:start_link(Component, NodeId, Inports, OutPorts, Metadata),
+         {ok, Pid} = df_component:start_link(Component, Id, NodeId, Inports, OutPorts, Metadata),
          {E, Pid}
       end, lists:reverse(Nodes0)),
    %% Inports and Subscriptions
