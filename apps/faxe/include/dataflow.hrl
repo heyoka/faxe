@@ -26,6 +26,7 @@
 
 -record(c_state, {
    flow_mode = push     :: push | pull,
+   graph_id             :: term(), %% the id of the graph this node belongs to
    node_id              :: term(), %% this nodes id
    component            :: atom(), %% callbacks module name
    cb_state             :: cbstate(), %% state for callback

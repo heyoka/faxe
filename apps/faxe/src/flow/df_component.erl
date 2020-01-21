@@ -8,7 +8,7 @@
 -behaviour(gen_server).
 
 %% API
--export([start_link/5]).
+-export([start_link/6]).
 -export([start_node/4, inports/1, outports/1, start_async/4]).
 
 %% Callback API
@@ -153,10 +153,10 @@
 %%% API
 %%%===================================================================
 
--spec(start_link(atom(), term(), list(), list(), term()) ->
+-spec(start_link(atom(), term(), term(), list(), list(), term()) ->
    {ok, Pid :: pid()} | ignore | {error, Reason :: term()}).
-start_link(Component, NodeId, Inports, Outports, Args) ->
-   gen_server:start_link(?MODULE, [Component, NodeId, Inports, Outports, Args], []).
+start_link(Component, GraphId, NodeId, Inports, Outports, Args) ->
+   gen_server:start_link(?MODULE, [Component, GraphId, NodeId, Inports, Outports, Args], []).
 
 start_node(Server, Inputs, Subscriptions, FlowMode) ->
    gen_server:call(Server, {start, Inputs, Subscriptions, FlowMode}).
@@ -199,21 +199,20 @@ outports(Module) ->
 -spec(init(Args :: term()) ->
    {ok, State :: #c_state{}} | {ok, State :: #c_state{}, timeout() | hibernate} |
    {stop, Reason :: term()} | ignore).
-init([Component, NodeId, Inports, _Outports, Args]) ->
+init([Component, GraphId, NodeId, Inports, _Outports, Args]) ->
    code:ensure_loaded(Component),
-   lager:debug("init component ~p",[Component]),
    InputPorts = lists:map(fun({_Pid, Port}) -> Port end, Inports),
-   {ok, #c_state{component = Component, node_id = NodeId, subscriptions = [],
+   {ok, #c_state{component = Component, graph_id = GraphId, node_id = NodeId, subscriptions = [],
       inports = InputPorts, cb_state = Args}};
-init(#c_state{} = PersitedState) ->
-   {ok, PersitedState}.
+init(#c_state{} = PersistedState) ->
+   {ok, PersistedState}.
 
 
 handle_call({start, Inputs, Subscriptions, FlowMode}, _From,
     State=#c_state{component = CB, cb_state = CBState, node_id = NId}) ->
 
    %gen_event:notify(dfevent_component, {start, State#c_state.node_id, FlowMode}),
-   lager:debug("component ~p starts with options; ~p", [{CB, CBState}]),
+   lager:debug("component ~p starts with options; ~p", [CB, CBState]),
    Opts = CBState,
    {NewCBOpts, NewState} = eval_args(Opts, State),
    Inited = CB:init(NId, Inputs, NewCBOpts),
@@ -273,7 +272,7 @@ handle_info({start, Inputs, Subscriptions, FlowMode},
     State=#c_state{component = CB, cb_state = CBState, node_id = NId}) ->
 
    %gen_event:notify(dfevent_component, {start, State#c_state.node_id, FlowMode}),
-   lager:debug("component ~p starts with options; ~p", [{CB, CBState}]),
+   lager:debug("component ~p starts with options; ~p", [CB, CBState]),
    Opts = CBState,
    {NewCBOpts, NewState} = eval_args(Opts, State),
    Inited = CB:init(NId, Inputs, NewCBOpts),
@@ -376,7 +375,6 @@ handle_info(stop, State=#c_state{node_id = N, component = Mod, cb_state = CBStat
       true -> Mod:shutdown(CBState);
       false -> ok
    end,
-   lager:debug("--- stopped: ~p", [{N, Mod}]),
    {stop, normal, State}
 ;
 handle_info(Req, State=#c_state{component = Module, cb_state = CB, cb_handle_info = true}) ->
@@ -457,6 +455,7 @@ outports() ->
    inports().
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%% evaluate component base arguments
 eval_args(A = #{}, State) ->
    {LsMem, A0} = maps:take(ls_mem, A),
    {LsMemSet, A00} =

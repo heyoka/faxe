@@ -49,9 +49,6 @@ add_edge({NodeOut, PortOut, NodeIn, PortIn, Params}, Defs = #{edges := Edges}) -
 create_graph(Id, Definitions) when is_map(Definitions) ->
    lager:debug("start/create graph: ~p", [Id]),
    graph_sup:new(Id, Definitions).
-%%   create_graph(Id, Definitions, 1).
-%create_graph(Id, Definitions, _RepFactor) when is_list(Id), is_map(Definitions) ->
-%   'Elixir.Swarm':'register_name'(Id, graph_sup, new, [Id, Definitions]).
 
 %% @doc start the graph computation
 start_graph(Graph) ->
