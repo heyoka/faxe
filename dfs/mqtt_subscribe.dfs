@@ -1,4 +1,5 @@
 def mqtt_host = '127.0.0.1'
+%def mqtt_host = '10.14.204.3'
 def mqtt =
     |mqtt_subscribe()
     .host(mqtt_host)

@@ -47,8 +47,8 @@
     {buffer, 4096}
   ]).
 
--define(RECON_MIN_INTERVAL, 1).
--define(RECON_MAX_INTERVAL, 10).
+-define(RECON_MIN_INTERVAL, 100).
+-define(RECON_MAX_INTERVAL, 1000).
 -define(RECON_MAX_RETRIES, infinity).
 
 options() -> [

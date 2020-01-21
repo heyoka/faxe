@@ -87,7 +87,7 @@ execute(Backoff = #backoff{
    timer        = Timer}, TimeoutMsg) ->
    % cancel timer first...
    cancel(Timer),
-   lager:notice("backoff interval: ~p", [Interval]),
+%%   lager:notice("backoff interval: ~p", [Interval]),
    NewTimer = erlang:send_after(Interval, self(), TimeoutMsg),
    {ok,
       Backoff#backoff{interval = next_interval(Backoff), retries = Retries+1, timer = NewTimer }}.

@@ -31,6 +31,7 @@
 -record(state, {
    client,
    connected = false,
+   reconnector,
    host,
    port,
    qos,
@@ -62,9 +63,11 @@ init(_NodeId, _Ins,
    Host = binary_to_list(Host0),
    process_flag(trap_exit, true),
    ClientId = list_to_binary(faxe_util:uuid_string()),
-   erlang:send_after(0, self(), connect),
+   Reconnector = faxe_backoff:new({5,1200}),
+   {ok, Reconnector1} = faxe_backoff:execute(Reconnector, connect),
    State = #state{host = Host, port = Port, topic = Topic, dt_field = DTField, dt_format = DTFormat,
-      retained = Retained, ssl = UseSSL, qos = Qos, topics = Topics, client_id = ClientId},
+      retained = Retained, ssl = UseSSL, qos = Qos, topics = Topics, client_id = ClientId,
+      reconnector = Reconnector1},
    {ok, State}.
 
 process(_In, _, State = #state{}) ->
@@ -79,9 +82,10 @@ handle_info({mqttc, C, connected}, State=#state{}) ->
    NewState = State#state{client = C, connected = true},
    subscribe(NewState),
    {ok, NewState};
-handle_info({mqttc, _C,  disconnected}, State=#state{}) ->
+handle_info({mqttc, _C,  disconnected}, State=#state{reconnector = Recon}) ->
    lager:debug("mqtt client disconnected!!"),
-   {ok, State#state{connected = false, client = undefined}};
+   {ok, Reconnector} = faxe_backoff:execute(Recon, connect),
+   {ok, State#state{connected = false, client = undefined, reconnector = Reconnector}};
 %% for emqtt
 handle_info({publish, #{payload := Payload, topic := Topic} }, S=#state{dt_field = DTField, dt_format = DTFormat}) ->
    P0 = flowdata:from_json_struct(Payload, DTField, DTFormat),
@@ -97,10 +101,10 @@ handle_info({publish, Topic, Payload }, S=#state{dt_field = DTField, dt_format =
 handle_info({disconnected, shutdown, tcp_closed}=M, State = #state{}) ->
    lager:warning("emqtt : ~p", [M]),
    {ok, State};
-handle_info({'EXIT', _C, _Reason}, State) ->
-   lager:warning("EXIT emqtt"),
-   connect(State),
-   {ok, State};
+handle_info({'EXIT', _C, _Reason}, State = #state{reconnector = Recon, host = H, port = P}) ->
+   lager:warning("EXIT emqtt: ~p [~p]", [_Reason,{H, P}]),
+   {ok, Reconnector} = faxe_backoff:execute(Recon, connect),
+   {ok, State#state{connected = false, client = undefined, reconnector = Reconnector}};
 handle_info(What, State) ->
    lager:warning("~p handle_info: ~p", [?MODULE, What]),
    {ok, State}.
@@ -110,10 +114,12 @@ shutdown(#state{client = C}) ->
 
 connect(_State = #state{host = Host, port = Port, client_id = ClientId}) ->
    {ok, _Client} = emqttc:start_link(
-      [{host, Host}, {port, Port},{keepalive, 25},
-         {reconnect, 1},
-         {client_id, ClientId},
-         {logger, debug}
+      [
+         {host, Host},
+         {port, Port},
+         {keepalive, 25},
+         {reconnect, 3, 120, 10},
+         {client_id, ClientId}
       ])
 .
 

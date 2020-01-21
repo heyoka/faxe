@@ -39,6 +39,7 @@
 -record(direct_state, {
    client,
    connected = false,
+   reconnector :: faxe_backoff:backoff(),
    host,
    port,
    qos,
@@ -71,10 +72,11 @@ init(_NodeId, _Ins,
       retained := Retained, ssl := UseSsL, qos := Qos}) ->
    process_flag(trap_exit, true),
    Host = binary_to_list(Host0),
-   erlang:send_after(0, self(), reconnect),
+   Reconnector = faxe_backoff:new({5, 1200}),
+   {ok, Reconnector1} = faxe_backoff:execute(Reconnector, reconnect),
    {ok,
       #direct_state{host = Host, port = Port, topic = Topic, topic_lambda = LTopic,
-         connected = false, ssl_opts = [],
+         connected = false, ssl_opts = [], reconnector = Reconnector1,
          retained = Retained, ssl = UseSsL, qos = Qos, queue = queue:new()}}.
 
 %% direct state
@@ -111,10 +113,11 @@ handle_info({mqttc, _C,  disconnected}, State=#direct_state{client = _Client}) -
 handle_info(reconnect, State = #direct_state{}) ->
    NewState = do_connect(State),
    {ok, NewState};
-handle_info({'EXIT', _Client, Reason}, State = #direct_state{}) ->
-   lager:notice("MQTT Client died: ~p", [Reason]),
-   erlang:send_after(1000, self(), reconnect),
-   {ok, State#direct_state{connected = false, client = undefined}};
+handle_info({'EXIT', _Client, Reason},
+    State = #direct_state{reconnector = Recon, host = H, port = P}) ->
+   lager:notice("MQTT Client exit: ~p ~p", [Reason, {H, P}]),
+   {ok, Reconnector} = faxe_backoff:execute(Recon, reconnect),
+   {ok, State#direct_state{connected = false, client = undefined, reconnector = Reconnector}};
 handle_info(_E, S) ->
    {ok, S}.
 
@@ -138,7 +141,7 @@ publish(Msg, Topic, #direct_state{retained = Ret, qos = Qos, client = C})
 .
 
 do_connect(#direct_state{host = Host, port = Port, ssl = _Ssl} = State) ->
-   Opts = [{host, Host}, {port, Port}, {keepalive, 30}, {reconnect, 1}],
+   Opts = [{host, Host}, {port, Port}, {keepalive, 30}],
    {ok, _Client} = emqttc:start_link(Opts),
    State.
 %%   ,
