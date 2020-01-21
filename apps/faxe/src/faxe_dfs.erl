@@ -287,7 +287,7 @@ convert_options(NodeOptions, Params) ->
 %%   {Name, [convert(N, T, PVal) || {N, T}]}
 %%   lists:map(fun({N, Typ, PVal}) -> convert(N, Typ, PVal) end, Type);
 convert(Name, Type, PVals) ->
-   lager:notice("convert(~p,~p,~p)",[Name, Type, PVals]),
+%%   lager:notice("convert(~p,~p,~p)",[Name, Type, PVals]),
    TName = atom_to_binary(Type),
    case estr:str_ends_with(TName, <<"list">>) of
       true -> {Name, list_params(Type, PVals)};

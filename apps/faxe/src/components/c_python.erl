@@ -83,7 +83,7 @@ init(NodeId, _Ins, #{cb_module := Callback, cb_class := CBClass} = Args) ->
 
 process(_Inp, #data_batch{} = Batch, State = #state{callback_module = _Mod, python_instance = Python,
    cb_object = Obj}) ->
-   Data = flowdata:to_map(Batch),
+   Data = flowdata:to_mapstruct(Batch),
 %%   lager:warning("data: ~p",[Data]),
    {_T, NewObj} =
       timer:tc(pythra, method, [Python, Obj, ?PYTHON_BATCH_CALL, [Data]]),
@@ -92,7 +92,7 @@ process(_Inp, #data_batch{} = Batch, State = #state{callback_module = _Mod, pyth
 ;
 process(_Inp, #data_point{} = Point, State = #state{python_instance = Python, cb_object = Obj}) ->
 
-   Data = flowdata:to_map(Point),
+   Data = flowdata:to_mapstruct(Point),
 %%   {_, _, Ob} =
       NewObj = pythra:method(Python, Obj, ?PYTHON_POINT_CALL, [Data]),
 %%   lager:warning("new obj has size: ~p", [byte_size(Ob)]),

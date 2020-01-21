@@ -8,27 +8,16 @@ def image =
     .port(1883)
     .topic(topic)
 
-|where()
-.lambda(lambda: "data.image_name" == 'calib_image')
+%|where()
+%.lambda(lambda: "data.image_name" == 'calibration_image')
+
+%|eval()
+%.lambdas(lambda: str_concat( topic_base, "data.device", '/calibration_image/' , "data.location") )
+%.as('topic')
 
 
-%% PP1 stkirch
-image
-|where()
-.lambda(lambda: "data.location" == 'PP1' AND "data.device" == 'rovolutionstephanskirchen')
+|debug()
 
-|mqtt_publish()
-.host(mqtt_host)
-.topic('ttgw/grip_images/rovolutionstephanskirchen/calib_image/PP1')
-.retained()
+@condition_monitor_cameras_wrapper()
 
-%% PP2 stkirch
-image
-|where()
-.lambda(lambda: "data.location" == 'PP2' AND "data.device" == 'rovolutionstephanskirchen')
-
-|mqtt_publish()
-.host(mqtt_host)
-.topic('ttgw/grip_images/rovolutionstephanskirchen/calib_image/PP2')
-.topic_lambda(lambda: str_concat( str_concat(str_concat(topic_base, "data.device"), 'calib_image' ), "data.location") )
-.retained()
+|debug()

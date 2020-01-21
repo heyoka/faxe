@@ -1,17 +1,12 @@
+def mqtt_host = '127.0.0.1'
 def mqtt =
     |mqtt_subscribe()
-    .host('127.0.0.1')
+    .host(mqtt_host)
     .port(1883)
-    .topic('ttgw/grip/#')
+    .topic('ttgw/data/grip/rovolutionstephanskirchen/condition/robot_state')
+    .qos(1)
 
-    |where()
-    .lambda(lambda: str_ends_with("topic", '/conveyor_message') == false)
 
-    |where()
-    .lambda(lambda: if(member("topic", ls_mem('topics_seen')), false, true))
-    .ls_mem('topics_seen')
-    .ls_mem_field('topic')
-    .ls_mem_ttl(3)
 
     |debug()
 

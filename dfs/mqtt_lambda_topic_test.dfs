@@ -1,0 +1,20 @@
+def mqtt_host = 'devat-cw-mqtt.tgwdev.internal'
+def topic_base = 'ttgw/test/'
+
+|json_emitter()
+.every(3s)
+.json(<<< {"condition": {"id": 0, "name": "OK"}, "condition_reason": "none", "predicted_maintenance_time": 1584246411783,
+        "vac_on_without_contact": [1.2, 2.5, 4.33], "vac_on_with_contact": [5.6, 45.98, 7.012]} >>>,
+      <<< {"condition": {"id": 1, "name": "Warning"}, "condition_reason": "bad_succer", "predicted_maintenance_time": 1583246411783,
+         "vac_on_without_contact": [0.2, 2.5, 8.01], "vac_on_with_contact": [6.001, 4.798, 7.012]} >>>,
+      <<< {"condition": {"id": 2, "name": "Error"}, "condition_reason": "something_went_really_wrong", "predicted_maintenance_time": 1582246411783,
+         "vac_on_without_contact": [0.5, 2.5, 0.44], "vac_on_with_contact": [2.06, 4.98, 2.901]} >>>)
+
+|debug()
+
+%def ignore =
+
+|mqtt_publish()
+.host(mqtt_host)
+.topic_lambda(lambda: str_concat([ topic_base, str_downcase("data.condition.name"), '/ttw/' , "data.condition_reason"]) )
+.retained()

@@ -67,13 +67,14 @@ init(_NodeId, _Ins, #{save := true, host := Host0}=Opts) ->
    {ok, all, #save_state{options = Opts, publisher = Publisher, queue = Q}};
 %% direct publish mode
 init(_NodeId, _Ins,
-   #{save := false, host := Host0, port := Port, topic := Topic,
+   #{save := false, host := Host0, port := Port, topic := Topic, topic_lambda := LTopic,
       retained := Retained, ssl := UseSsL, qos := Qos}) ->
    process_flag(trap_exit, true),
    Host = binary_to_list(Host0),
    erlang:send_after(0, self(), reconnect),
    {ok,
-      #direct_state{host = Host, port = Port, topic = Topic, connected = true, ssl_opts = [],
+      #direct_state{host = Host, port = Port, topic = Topic, topic_lambda = LTopic,
+         connected = false, ssl_opts = [],
          retained = Retained, ssl = UseSsL, qos = Qos, queue = queue:new()}}.
 
 %% direct state
@@ -99,8 +100,9 @@ process(_Inport, #data_point{} = Point, State = #save_state{queue = Q}) ->
 
 handle_info({mqttc, C, connected}, State=#direct_state{queue = Q}) ->
    lager:info("mqtt client connected, resend : ~p!!",[queue:to_list(Q)]),
-   [publish(J, Topic, State) || {Topic, J} <- queue:to_list(Q)],
+   PendingList = queue:to_list(Q),
    NewState = State#direct_state{client = C, connected = true, queue = queue:new()},
+   [publish(J, Topic, NewState) || {Topic, J} <- PendingList],
    {ok, NewState};
 handle_info({mqttc, _C,  disconnected}, State=#direct_state{client = _Client}) ->
 %%   catch exit(Client),
