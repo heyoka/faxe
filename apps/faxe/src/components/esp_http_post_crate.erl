@@ -34,6 +34,8 @@
 -define(QUERY_TIMEOUT, 5000).
 -define(FAILED_RETRIES, 3).
 
+-define(HTTP_PROTOCOL, <<"http://">>).
+
 options() ->
    [
       {host, string},
@@ -48,11 +50,17 @@ init(_NodeId, _Inputs,
     #{host := Host0, port := Port, database := DB, table := Table,
        db_fields := DBFields, faxe_fields := FaxeFields, remaining_fields_as := RemFieldsAs}) ->
 
-   Host = binary_to_list(Host0)++":"++integer_to_list(Port),
+   Host1 =
+      case string:find(Host0, ?HTTP_PROTOCOL) of
+         nomatch -> <<?HTTP_PROTOCOL/binary, Host0/binary>>;
+         _ -> Host0
+      end,
+
+   Host = binary_to_list(Host1)++":"++integer_to_list(Port),
+
    {ok, C} = fusco:start(Host, []),
    erlang:monitor(process, C),
    Query = build_query(DBFields, Table, RemFieldsAs),
-%%   lager:notice("Query: ~p", [Query]),
    {ok, all, #state{host = Host, port = Port, client = C, database = DB,
       failed_retries = ?FAILED_RETRIES, remaining_fields_as = RemFieldsAs,
       table = Table, query = Query, db_fields = DBFields, faxe_fields = FaxeFields}}.

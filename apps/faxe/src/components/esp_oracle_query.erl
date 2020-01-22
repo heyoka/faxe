@@ -24,7 +24,6 @@
    stmt,
    db_opts,
    every,
-   period,
    align = false,
    timer
 }).
@@ -58,7 +57,7 @@ options() ->
 
 %% jamdb_oracle:sql_query(Pid, "select connection, sent, received from tr_keepalive").
 
-init(_NodeId, _Inputs, #{host := Host0, port := Port, user := User0, every := Every, period := Period,
+init(_NodeId, _Inputs, #{host := Host0, port := Port, user := User0, every := Every,
       pass := Pass0, service_name := DB, query := Q0, align := Align}) ->
 
    process_flag(trap_exit, true),
@@ -76,7 +75,7 @@ init(_NodeId, _Inputs, #{host := Host0, port := Port, user := User0, every := Ev
 %%   lager:warning("the QUERY: ~p",[Query]),
 
    State = #state{host = Host, port = Port, user = User, pass = Pass, service_name = ServiceName, query = Query,
-      db_opts = DBOpts, every = Every, period = faxe_time:duration_to_ms(Period), align = Align},
+      db_opts = DBOpts, every = Every, align = Align},
    NewState = connect(State),
    {ok, all, NewState}.
 

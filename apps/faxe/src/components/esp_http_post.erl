@@ -18,6 +18,8 @@
    client
 }).
 
+-define(HTTP_PROTOCOL, <<"http://">>).
+
 options() ->
    [
       {host, string},
@@ -26,8 +28,12 @@ options() ->
    ].
 
 init(_NodeId, _Inputs, #{host := Host0, port := Port, path := Path}) ->
-   Host = binary_to_list(Host0)++":"++integer_to_list(Port),
-   lager:notice("host part is: ~p" ,[Host]),
+   Host1 =
+      case string:find(Host0, ?HTTP_PROTOCOL) of
+         nomatch -> <<?HTTP_PROTOCOL/binary, Host0/binary>>;
+         _ -> Host0
+      end,
+   Host = binary_to_list(Host1)++":"++integer_to_list(Port),
    {ok, C} = fusco:start(Host, []),
    {ok, all, #state{host = Host, port = Port, path = Path, client = C}}.
 
