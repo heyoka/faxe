@@ -63,6 +63,7 @@ exec(Point, LFun) -> faxe_lambda:execute(Point, LFun).
 
 -ifdef(TEST).
 process_point_test_() ->
+   faxe_ets:start_link(),
    Point = #data_point{ts = 1234, fields = #{<<"value">> => 2134}},
    [point_count_test(Point), process_no_count_test(Point), process_first_count_test(Point)].
 point_count_test(Point) ->

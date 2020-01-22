@@ -90,13 +90,15 @@ handle_info(query, State = #state{timer = Timer, client = C, stmt = Q, period = 
    NewTimer = faxe_time:timer_next(Timer),
    %% do query
    {ok, Columns, Rows} = epgsql:prepared_query(C, ?STMT, [QueryMark-Period, QueryMark]),
-   lager:notice("Columns: ~p",[Columns]),
-   lager:notice("Rows: ~p",[Rows]),
+%%   lager:notice("Columns: ~p",[Columns]),
+%%   lager:notice("Rows: ~p",[Rows]),
 
    ColumnNames = columns(Columns, []),
-   lager:notice("ColumnName: ~p",[ColumnNames]),
-   {T, Batch} = timer:tc(?MODULE, to_flowdata, [ColumnNames, Rows]),
-   lager:notice("Batch in ~p my: ~n~p",[T,Batch]),
+%%   lager:notice("ColumnName: ~p",[ColumnNames]),
+%%   {T, Batch} = timer:tc(?MODULE, to_flowdata, [ColumnNames, Rows]),
+   Batch = to_flowdata(ColumnNames, Rows),
+%%   lager:notice("Batch in ~p my: ~n~p",[T,Batch]),
+   dataflow:emit(Batch),
    {ok, State#state{timer = NewTimer}};
 
 handle_info({'EXIT', _C, _Reason}, State = #state{timer = Timer}) ->

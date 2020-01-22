@@ -27,6 +27,7 @@
     folsom,
     fusco,
     epgsql,
+    jamdb_oracle,
     carrot,
     uuid,
     mapz

@@ -368,7 +368,7 @@ handle_info(pull, State=#c_state{inports = Ins}) ->
    lists:foreach(fun({Port, Pid}) -> dataflow:request_items(Port, [Pid]) end, Ins),
    {noreply, State}
 ;
-handle_info(stop, State=#c_state{node_id = N, component = Mod, cb_state = CBState}) ->
+handle_info(stop, State=#c_state{node_id = _N, component = Mod, cb_state = CBState}) ->
 
    %gen_event:notify(dfevent_component, {stopping, N, Mod}),
    case erlang:function_exported(Mod, shutdown, 1) of

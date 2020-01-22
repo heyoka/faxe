@@ -218,17 +218,28 @@ to_htime(Ts) ->
 -spec to_iso8601(timestamp()|tuple()) -> binary().
 to_iso8601(Ts) when is_integer(Ts) ->
    to_iso8601(to_date(Ts));
+to_iso8601({{_Year, _Month, _Day}=D,{H, Min, SecFrac}}) when is_float(SecFrac) ->
+   {Sec, Milli} = split_frac_sec(SecFrac),
+   to_iso8601({D, {H, Min, Sec, Milli}});
 to_iso8601({{Year, Month, Day},{H, Min, S, Milli}}) ->
    Fmt = "~.4.0w-~.2.0w-~.2.0wT~.2.0w:~.2.0w:~.2.0w.~.3.0wZ",
    iolist_to_binary(io_lib:format(Fmt, [Year,Month,Day,H,Min,S, Milli]));
 to_iso8601(_) ->
    <<>>.
 
+to_ms({Date, {H, Min, SecFrac}}) when is_float(SecFrac) ->
+   {Sec, Milli} = split_frac_sec(SecFrac),
+   to_ms({Date, {H, Min, Sec, Milli}});
 to_ms({Date,{H, Min, S, Milli}}) ->
    qdate:to_unixtime({Date,{H, Min, S}}) * 1000 + Milli;
 to_ms(Date) when is_tuple(Date) ->
    qdate:to_unixtime(Date)*1000.
 
+%% 41.223 -> sec.milli
+split_frac_sec(SecFrac) ->
+   Sec = erlang:trunc(SecFrac),
+   [_, Milli] = string:split(float_to_binary(SecFrac,[compact, {decimals, 3}]), <<".">>),
+   {Sec, binary_to_integer(Milli)}.
 
 %%% @doc
 %%% get the unit portion from a ms-timestamp

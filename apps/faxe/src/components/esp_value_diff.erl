@@ -58,13 +58,9 @@ execute(P =#data_point{}, FieldVals, FieldList, FieldStates) ->
 
 
 diff(V1, V2) when is_number(V1), is_number(V2) ->
-   abs(V1-v2);
+   abs(V1-V2);
 diff(_, _) -> erlang:error(cannot_diff_non_numeric_values).
 
-%%diff(V1, V2) when is_list(V1), is_list(V2) ->
-%%   lists:subtract(V1, V2);
-%%diff(V1, V2) when is_map(V1), is_map(V2) ->
-%%   ok.
 
 %%%%%%%%%%%%
 -ifdef(TEST).
