@@ -32,14 +32,18 @@ round_float(Float, Precision) when is_float(Float), is_integer(Precision) ->
 
 %% @doc get the decimal part of a float as an integer
 %% note that rounding occurs if there are more decimals in the float than given by the parameter
+%% note also that trailing zeros will be truncated
 -spec decimal_part(float(), non_neg_integer()) -> integer().
 decimal_part(Float, Decimals) when is_float(Float), is_integer(Decimals) ->
-   [_, Dec] = string:split(float_to_binary(Float, [compact, {decimals, Decimals}]), <<".">>),
+   [_, Dec] =
+      string:split(
+         float_to_binary(Float, [compact, {decimals, Decimals}]),
+         <<".">>
+      ),
    binary_to_integer(Dec).
 
 %% @doc
 %% check if a given protocol prefix is present, if not prepend it
-%%
 -spec host_with_protocol(binary()) -> binary().
 host_with_protocol(Host) when is_binary(Host) ->
    prefix_binary(Host, ?HTTP_PROTOCOL).
@@ -53,6 +57,8 @@ prefix_binary(Bin, Prefix) when is_binary(Bin), is_binary(Prefix) ->
          nomatch -> <<Prefix/binary, Bin/binary>>;
          _ -> Bin
       end.
+
+
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%% TESTS %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 -ifdef(TEST).
@@ -70,6 +76,11 @@ decimal_part_3_test() ->
    ?assertEqual(
       23,
       decimal_part(59.23, 3)
+   ).
+decimal_part_4_test() ->
+   ?assertEqual(
+      23,
+      decimal_part(59.2300, 3)
    ).
 round_float_test() ->
    ?assertEqual(
