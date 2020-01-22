@@ -236,10 +236,10 @@ to_ms(Date) when is_tuple(Date) ->
    qdate:to_unixtime(Date)*1000.
 
 %% 41.223 -> sec.milli
-split_frac_sec(SecFrac) ->
+-spec split_frac_sec(float()) -> tuple().
+split_frac_sec(SecFrac) when is_float(SecFrac)->
    Sec = erlang:trunc(SecFrac),
-   [_, Milli] = string:split(float_to_binary(SecFrac,[compact, {decimals, 3}]), <<".">>),
-   {Sec, binary_to_integer(Milli)}.
+   {Sec, faxe_util:decimal_part(SecFrac, 3)}.
 
 %%% @doc
 %%% get the unit portion from a ms-timestamp
