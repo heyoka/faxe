@@ -63,6 +63,7 @@ init(_NodeId, _Ins,
    Host = binary_to_list(Host0),
    process_flag(trap_exit, true),
    ClientId = list_to_binary(faxe_util:uuid_string()),
+   reconnect_watcher:new(10000, 5, io_lib:format("~s:~p ~p",[Host, Port, ?MODULE])),
    Reconnector = faxe_backoff:new({5,1200}),
    {ok, Reconnector1} = faxe_backoff:execute(Reconnector, connect),
    State = #state{host = Host, port = Port, topic = Topic, dt_field = DTField, dt_format = DTFormat,
@@ -113,6 +114,7 @@ shutdown(#state{client = C}) ->
    catch (emqttc:disconnect(C)).
 
 connect(_State = #state{host = Host, port = Port, client_id = ClientId}) ->
+   reconnect_watcher:bump(),
    {ok, _Client} = emqttc:start_link(
       [
          {host, Host},

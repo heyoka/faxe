@@ -43,7 +43,7 @@
   ]).
 
 -define(RECON_MIN_INTERVAL, 200).
--define(RECON_MAX_INTERVAL, 7000).
+-define(RECON_MAX_INTERVAL, 4000).
 -define(RECON_MAX_RETRIES, infinity).
 
 options() -> [
@@ -63,6 +63,8 @@ init(_NodeId, _Ins,
       line_delimiter := Delimit, parser := Parser, min_length := MinL}) ->
   Reconnector = faxe_backoff:new({?RECON_MIN_INTERVAL, ?RECON_MAX_INTERVAL, ?RECON_MAX_RETRIES}),
   {ok, Reconnector1} = faxe_backoff:execute(Reconnector, do_reconnect),
+  reconnect_watcher:new(10000, 5, io_lib:format("~s:~p ~p",[Ip, Port, ?MODULE])),
+  erlang:send_after(30000, self(), die),
   {ok, all,
     #state{ip = Ip, port = Port, as = As, extract = Extract, parser = Parser, min_length = MinL,
       reconnector = Reconnector1, line_delimiter = Delimit, changes = Changed}}.
@@ -86,7 +88,8 @@ handle_info({tcp, Socket, Data0}, State=#state{}) ->
 handle_info({tcp_closed, _S}, S=#state{}) ->
   lager:notice("tcp_closed"),
   try_reconnect(S#state{socket = undefined});
-handle_info({tcp_error, Socket, _}, State) ->
+handle_info({tcp_error, Socket, _E}, State) ->
+  lager:warning("tcp_error: ~p", [_E]),
   inet:setopts(Socket, [{active, once}]),
   {ok, State};
 handle_info(do_reconnect, State=#state{ip = Ip, port = Port, line_delimiter = LD}) ->
@@ -95,7 +98,7 @@ handle_info(do_reconnect, State=#state{ip = Ip, port = Port, line_delimiter = LD
       inet:setopts(Socket, [{active, once}]), {ok, State#state{socket = Socket}};
     {error, Error} -> lager:warning("[~p] Error connecting to ~p: ~p",[?MODULE, {Ip, Port},Error]), try_reconnect(State)
   end;
-handle_info(_E, S) ->
+handle_info(_R, S) ->
   {ok, S}.
 
 shutdown(#state{socket = Sock, timer_ref = Timer}) ->
@@ -106,12 +109,16 @@ try_reconnect(State=#state{reconnector = Reconnector}) ->
   case faxe_backoff:execute(Reconnector, do_reconnect) of
     {ok, Reconnector1} ->
       {ok, State#state{reconnector = Reconnector1}};
+    {warning, Reason, Reconnector2} ->
+      lager:warning("Reconnector warning: ~p", [Reason]),
+      {ok, State#state{reconnector = Reconnector2}};
     {stop, Error} -> logger:error("[Client: ~p] reconnect error: ~p!",[?MODULE, Error]),
       {stop, {shutdown, Error}, State}
   end.
 
 connect(Ip, Port, _LineDelimiter) ->
-  lager:notice("connect to: ~p",[{Ip, Port}]),
+  reconnect_watcher:bump(),
+  lager:info("connect to: ~p",[{Ip, Port}]),
   gen_tcp:connect(binary_to_list(Ip), Port, ?SOCKOPTS).
 
 maybe_emit(Data, State = #state{changes = false}) -> do_emit(Data, State);

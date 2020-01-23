@@ -38,6 +38,9 @@ init([]) ->
             permanent, infinity, supervisor, [dataflow_sup]},
         {faxe_ets,
             {faxe_ets, start_link, []},
+            permanent, 5000, worker, []},
+        {reconnect_watcher,
+            {reconnect_watcher, start_link, []},
             permanent, 5000, worker, []}
 %%        ,
 %%        {initial_task_starter,

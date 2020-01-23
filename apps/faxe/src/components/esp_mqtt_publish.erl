@@ -72,6 +72,7 @@ init(_NodeId, _Ins,
       retained := Retained, ssl := UseSsL, qos := Qos}) ->
    process_flag(trap_exit, true),
    Host = binary_to_list(Host0),
+   reconnect_watcher:new(10000, 5, io_lib:format("~s:~p ~p",[Host, Port, ?MODULE])),
    Reconnector = faxe_backoff:new({5, 1200}),
    {ok, Reconnector1} = faxe_backoff:execute(Reconnector, reconnect),
    {ok,
@@ -141,6 +142,7 @@ publish(Msg, Topic, #direct_state{retained = Ret, qos = Qos, client = C})
 .
 
 do_connect(#direct_state{host = Host, port = Port, ssl = _Ssl} = State) ->
+   reconnect_watcher:bump(),
    Opts = [{host, Host}, {port, Port}, {keepalive, 30}],
    {ok, _Client} = emqttc:start_link(Opts),
    State.
