@@ -5,7 +5,8 @@ def mqtt =
     .host(mqtt_host)
     .port(1883)
     .topic('ttgw/data/grip/rovolutionstephanskirchen/condition/robot_state')
-    .qos(1)
+    %.topics('Bal')
+    %.qos(1)
 
 
 

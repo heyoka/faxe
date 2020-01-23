@@ -22,7 +22,11 @@
 %% API
 -behavior(df_component).
 %% API
--export([init/3, process/3, handle_info/2, options/0, call_options/2, get_python/0, shutdown/1, decode_from_python/1]).
+-export([
+   init/3, process/3,
+   handle_info/2, options/0,
+   call_options/2, get_python/0,
+   shutdown/1, decode_from_python/1]).
 
 -callback execute(tuple(), term()) -> tuple().
 
