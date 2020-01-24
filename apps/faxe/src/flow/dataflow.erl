@@ -219,6 +219,22 @@ do_check({max_param_count, Keys, Max}, Opts, Mod) ->
        end,
    lists:foreach(F, Keys);
 
+do_check({one_of_params, Keys}, Opts, Mod) ->
+%%   lager:notice("do check: ~p", [[{one_of_params, Keys}, Opts, Mod]]),
+   OptsKeys = maps:keys(Opts),
+   Has =
+   lists:filter(fun(E) ->
+      lists:member(E, OptsKeys) andalso maps:get(E, Opts) /= undefined
+                end, Keys),
+%%   lager:notice("Has: ~p",[Has]),
+   case length(Has) of
+      1 -> ok;
+      _ ->
+         KeysBinList = ["'" ++ atom_to_list(K) ++ "'" || K <- Keys],
+         erlang:error(format_error(invalid_opt, Mod,
+         [<<"Must provide one of params: ">>, lists:join(<<"," >>, KeysBinList)]))
+   end;
+
 do_check({one_of, Key, ValidOpts}, Opts, Mod) ->
    lager:notice("do check: ~p",[[{one_of, Key, ValidOpts}, Opts, Mod]]),
    case maps:get(Key, Opts, undefined) of

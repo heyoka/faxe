@@ -22,7 +22,7 @@
 
 -include("faxe.hrl").
 %% API
--export([init/3, process/3, options/0, handle_info/2, shutdown/1]).
+-export([init/3, process/3, options/0, handle_info/2, shutdown/1, check_options/0]).
 
 -define(DEFAULT_PORT, 1883).
 -define(DEFAULT_SSL_PORT, 8883).
@@ -55,17 +55,25 @@ options() -> [
    {dt_format, string, ?TF_TS_MILLI},
    {ssl, bool, false}].
 
+check_options() ->
+   [
+      {one_of_params, [topic, topics]}
+   ].
 
 init(_NodeId, _Ins,
    #{ host := Host0, port := Port, topic := Topic, topics := Topics, dt_field := DTField,
       dt_format := DTFormat,
       retained := Retained, ssl := UseSSL, qos := Qos} = _Opts) ->
+
    Host = binary_to_list(Host0),
+
    process_flag(trap_exit, true),
    ClientId = list_to_binary(faxe_util:uuid_string()),
+
    reconnect_watcher:new(10000, 5, io_lib:format("~s:~p ~p",[Host, Port, ?MODULE])),
    Reconnector = faxe_backoff:new({5,1200}),
    {ok, Reconnector1} = faxe_backoff:execute(Reconnector, connect),
+
    State = #state{host = Host, port = Port, topic = Topic, dt_field = DTField, dt_format = DTFormat,
       retained = Retained, ssl = UseSSL, qos = Qos, topics = Topics, client_id = ClientId,
       reconnector = Reconnector1},
