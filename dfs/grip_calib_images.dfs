@@ -1,6 +1,6 @@
 def topic = 'ttgw/grip_images/#'
-def mqtt_host = 'devat-cw-mqtt.tgwdev.internal'
-def topic_base = 'ttgw/grip_images/'
+def mqtt_host = '10.14.204.3'
+def topic_base = 'ttgw/data/grip_images/'
 
 def image =
     |mqtt_subscribe()
@@ -8,16 +8,11 @@ def image =
     .port(1883)
     .topic(topic)
 
-%|where()
-%.lambda(lambda: "data.image_name" == 'calibration_image')
+|where()
+.lambda(lambda: "data.image_name" == 'calibration_image')
 
-%|eval()
-%.lambdas(lambda: str_concat( topic_base, "data.device", '/calibration_image/' , "data.location") )
-%.as('topic')
-
-
-|debug()
-
-@condition_monitor_cameras_wrapper()
-
-|debug()
+|mqtt_publish()
+.host(mqtt_host)
+.topic_lambda(lambda: str_concat( [topic_base, "data.device", '/calibration_image/' , "data.location"]) )
+%% important to send retained
+.retained()
