@@ -31,7 +31,8 @@
     carrot,
     uuid,
     mapz,
-    digraph_export
+    digraph_export,
+    gen_smtp
    ]},
   {env,[]},
   {modules, [esp_stats]},
