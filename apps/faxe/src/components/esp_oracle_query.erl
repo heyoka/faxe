@@ -50,11 +50,6 @@ options() ->
 
 %%check_options() ->
 %%   [{not_empty, [file]}].
-
-%% Opts =
-%% [{host, "db-arche.vm.net"}, {port, 1521}, {user, "MMX_TS_TRACKING_V4"},
-%% {password, "MMX_TS_TRACKING_V4"}, {service_name, "ARCHE.vm.net"}].
-
 %% jamdb_oracle:sql_query(Pid, "select connection, sent, received from tr_keepalive").
 
 init(_NodeId, _Inputs, #{host := Host0, port := Port, user := User0, every := Every,
@@ -98,7 +93,7 @@ handle_info(query, State = #state{timer = Timer, client = C}) ->
    Res = jamdb_oracle:sql_query(C, State#state.query),
    {ok, [{result_set, Columns, [], Rows}]} = Res,
 %%   lager:info("RESULT: ~nColumns: ~p~nRows: ~p",[Columns, Rows]),
-%%   lager:info("RESULT: ~n ~p",[Res]),
+   lager:info("RESULT: ~n ~p",[Res]),
 %%   {ok, Columns, Rows} = epgsql:prepared_query(C, ?STMT, [QueryMark-Period, QueryMark]),
 %%   lager:notice("Columns: ~p",[Columns]),
 %%   lager:notice("Rows: ~p",[Rows]),
@@ -154,6 +149,8 @@ decode({{_Y,_M_, _D}=Date, {_H, _M, _SecFrac} = Time, TZOffset}) ->
    binary:replace(Iso, <<"Z">>, list_to_binary(TZOffset));
 decode(String) when is_list(String) ->
    list_to_binary(String);
+decode({Number}) when is_number(Number) ->
+   Number;
 decode(Other) ->
    Other.
 

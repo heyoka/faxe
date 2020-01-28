@@ -37,7 +37,8 @@
    ping_task/1,
 %%   start_temporary/2,
    start_temp/2,
-   start_file_temp/2]).
+   start_file_temp/2,
+   export/1]).
 
 start_permanent_tasks() ->
    Tasks = faxe_db:get_permanent_tasks(),
@@ -389,6 +390,18 @@ get_errors(TaskId) ->
       #task{pid = Graph} when is_pid(Graph) ->
          case is_process_alive(Graph) of
             true -> df_graph:get_errors(Graph);
+            false -> {error, task_not_running}
+         end;
+      #task{} -> {ok, []}
+   end.
+
+export(TaskId) ->
+   T = faxe_db:get_task(TaskId),
+   case T of
+      {error, not_found} -> {error, not_found};
+      #task{pid = Graph} when is_pid(Graph) ->
+         case is_process_alive(Graph) of
+            true -> df_graph:export(Graph);
             false -> {error, task_not_running}
          end;
       #task{} -> {ok, []}

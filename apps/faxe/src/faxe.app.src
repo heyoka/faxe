@@ -30,7 +30,8 @@
     jamdb_oracle,
     carrot,
     uuid,
-    mapz
+    mapz,
+    digraph_export
    ]},
   {env,[]},
   {modules, [esp_stats]},

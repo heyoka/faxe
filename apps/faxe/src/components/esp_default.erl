@@ -40,7 +40,7 @@ init(NodeId, _Ins, #{fields := Fields, tags := Tags,
 
 process(_In, #data_batch{points = Points} = Batch,
     State = #state{fields = FName, field_values = FValue, tags = TName, tag_values = TValue}) ->
-   lager:notice("Points: ~p",[Points]),
+%%   lager:notice("Points: ~p",[Points]),
    NewPoints = lists:map(
       fun(P) ->
          NewPoint = set_fields(P, FName, FValue),

@@ -23,7 +23,7 @@
    sink_nodes/1,
    source_nodes/1,
    get_stats/1,
-   ping/1]).
+   ping/1, export/1]).
 
 %% gen_server callbacks
 -export([init/1,
@@ -96,6 +96,9 @@ get_stats(Graph) ->
 
 get_errors(Graph) ->
    gen_server:call(Graph, {get_errors}).
+
+export(Graph) ->
+   gen_server:call(Graph, export).
 
 %%%===================================================================
 %%% gen_server callbacks
@@ -175,7 +178,13 @@ handle_call({get_errors}, _From, State=#state{nodes = Nodes}) ->
 handle_call(ping, _From, State = #state{timeout_ref = TRef, start_mode = #task_modes{temp_ttl = TTL}}) ->
    erlang:cancel_timer(TRef),
    NewTimer = erlang:send_after(TTL, self(), timeout),
-   {reply, {ok, TTL}, State#state{timeout_ref = NewTimer}}.
+   {reply, {ok, TTL}, State#state{timeout_ref = NewTimer}};
+handle_call(export, _From, State = #state{graph = Graph, id = GraphId}) ->
+   GraphDot = digraph_export:convert(Graph, dot, []),
+   {ok, F} = file:open(<<GraphId/binary, ".dot">>, [append, delayed_write]),
+   io:format(F, "~s~n", [GraphDot]),
+%%   digraph_export:view(GraphDot, dot),
+   {reply, GraphDot, State#state{}}.
 
 handle_cast({swarm, end_handoff, NewState}, State) ->
    lager:notice("~p ~p end_handoff with new State: ~p (old: ~p)",
