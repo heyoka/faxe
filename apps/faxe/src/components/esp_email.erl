@@ -71,7 +71,7 @@ init(NodeId, _Ins, #{to := To0, subject := Subj, body := Body, body_field := Bod
 
    {ok, all, State}.
 
-process(_In, P = #data_point{}, State = #state{from = From, to = To, subject = Subj, smtp_relay = Relay}) ->
+process(_In, P = #data_point{}, State = #state{from = From, to = To, subject = Subj}) ->
    Body = body(P, State),
    gen_smtp_client:send({From, To, build_body(
       binary_to_list(Subj), binary_to_list(From), To, binary_to_list(Body))},

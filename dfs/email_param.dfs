@@ -1,0 +1,4 @@
+|email()
+.to(<<<amini@kar.at>>>)
+.subject('wurscht')
+.body('a wurscht')

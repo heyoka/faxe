@@ -102,6 +102,14 @@
  ).
 %% @end
 
+%% @doc
+%% further checks for options, see dataflow module
+%% optional
+%% @end
+-callback check_options() ->
+   list(
+      {Type :: atom(), term()} | {Type :: atom(), term(), term()} | {Type :: atom(), term(), term(), term()}
+   ).
 
 %% @doc
 %% INPORTS/0
@@ -145,7 +153,10 @@
     -> any().
 
 %% these are optional
--optional_callbacks([options/0, inports/0, outports/0, handle_info/2, shutdown/1]). %% erlang 18+
+-optional_callbacks([
+   options/0, check_options/0,
+   inports/0, outports/0,
+   handle_info/2, shutdown/1]). %% erlang 18+
 
 
 
@@ -240,7 +251,7 @@ handle_call({start, Inputs, Subscriptions, FlowMode}, _From,
          flow_mode = FlowMode,
          cb_handle_info = CallbackHandlesInfo}}
 ;
-handle_call(stats, _From, State=#c_state{node_id = NId, component = Comp}) ->
+handle_call(stats, _From, State=#c_state{node_id = _NId, component = _Comp}) ->
 %%   Res = {Comp,#{
 %%      <<"processing_errors">> => folsom_metrics:get_history_values(<< NId/binary, ?FOLSOM_ERROR_HISTORY >>, 24),
 %%      <<"items processed">> => folsom_metrics:get_histogram_statistics(NId)
@@ -308,7 +319,7 @@ handle_info({request, ReqPid, ReqPort}, State=#c_state{subscriptions = Ss}) ->
 
 handle_info({item, {Inport, Value}},
     State=#c_state{
-       cb_state = CBState, component = Module, flow_mode = FMode, auto_request = AR, node_id = NId}) ->
+       cb_state = CBState, component = Module, flow_mode = FMode, auto_request = AR, node_id = _NId}) ->
 
    {message_queue_len, MsgQueueLength} = erlang:process_info(self(), message_queue_len),
    case MsgQueueLength > ?MSG_Q_LENGTH_HIGH_WATERMARK of
