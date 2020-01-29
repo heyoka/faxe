@@ -3,6 +3,7 @@
 %% @doc
 %% sends an email to 1 or more recipients
 %% @end
+
 -module(esp_email).
 -author("Alexander Minichmair").
 
@@ -38,8 +39,16 @@ options() -> [
 
 check_options() ->
    [
-      {one_of_params, [body, body_field]}
+      {one_of_params, [body, body_field]},
+      {func, to, fun check_email/1, <<"invalid email address(es) given">>}
    ].
+
+check_email(Address) when is_list(Address) ->
+   lists:all(fun(A) -> email_address:is_valid(A) end, Address);
+check_email(Address) when is_binary(Address) ->
+   email_address:is_valid(Address).
+
+
 
 init(NodeId, _Ins, #{to := To0, subject := Subj, body := Body, body_field := BodyField}) ->
    To = [<<"<", Address/binary, ">">> || Address <- To0],
@@ -66,8 +75,16 @@ process(_In, P = #data_point{}, State = #state{from = From, to = To, subject = S
    Body = body(P, State),
    gen_smtp_client:send({From, To, build_body(
       binary_to_list(Subj), binary_to_list(From), To, binary_to_list(Body))},
-      [{relay, Relay}]),
+      email_options(State)
+   ),
    {ok, State}.
+
+email_options(#state{smtp_relay = Relay, smtp_user = User, smtp_pass = Pass}) ->
+   Opts = [{relay, Relay}],
+   case User of
+      undefined -> Opts;
+      _ -> Opts ++ [{username, User}, {password, Pass}]
+   end.
 
 body(P, #state{body = Body, body_field = undefined}) ->
    string_template:eval(Body, P)

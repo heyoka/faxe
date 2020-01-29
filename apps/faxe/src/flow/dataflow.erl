@@ -77,6 +77,7 @@ emit(Port, Value) ->
 -spec build_options(atom(), list( {atom(), option_value()} ), map()) -> map().
 build_options(Component, L, Opts) ->
 %%   lager:notice("build options for: ~p :: ~p -------------- ~p", [Component, L, Opts]),
+%%   case do_build_options(Opts, L) of
    case catch(do_build_options(Opts, L)) of
       Opts0 when is_map(Opts0) -> maybe_check_opts(Opts0, Component);
       {error, What} -> erlang:error({bad_option, {Component, What}});
@@ -164,7 +165,7 @@ list_val(Val, Fun, Type, OptName) ->
    end.
 
 
-%% further options checks
+%% further option checks
 maybe_check_opts(Opts, Module) when is_map(Opts), is_atom(Module) ->
    case erlang:function_exported(Module, check_options, 0) of
       true -> check_options(Module:check_options(), Opts, Module);
@@ -220,6 +221,7 @@ do_check({max_param_count, Keys, Max}, Opts, Mod) ->
        end,
    lists:foreach(F, Keys);
 
+%% check if one of the required parameters is given
 do_check({one_of_params, Keys}, Opts, Mod) ->
 %%   lager:notice("do check: ~p", [[{one_of_params, Keys}, Opts, Mod]]),
    OptsKeys = maps:keys(Opts),
@@ -236,8 +238,9 @@ do_check({one_of_params, Keys}, Opts, Mod) ->
          [<<"Must provide one of params: ">>, lists:join(<<"," >>, KeysBinList)]))
    end;
 
+%% check if one of possible values is given for a specific param
 do_check({one_of, Key, ValidOpts}, Opts, Mod) ->
-   lager:notice("do check: ~p",[[{one_of, Key, ValidOpts}, Opts, Mod]]),
+%%   lager:notice("do check: ~p",[[{one_of, Key, ValidOpts}, Opts, Mod]]),
    case maps:get(Key, Opts, undefined) of
       undefined -> ok; %% should not happen
       Params ->
@@ -249,7 +252,17 @@ do_check({one_of, Key, ValidOpts}, Opts, Mod) ->
                                  <<"'">>, <<" must be one of: ">>, ValidOpts]))
                         end
                        end, Params)
+   end;
+%% check options with a custom function
+do_check({func, Key, Fun, Message}, Opts, Mod) when is_function(Fun), is_binary(Message)->
+   Val = maps:get(Key, Opts, undefined),
+%%   lager:notice("check func for :~p",[{Key, Val}]),
+   case Fun(Val) of
+      true -> ok;
+      false -> erlang:error(format_error(invalid_opt, Mod,
+         [<<"Param '">>, atom_to_binary(Key, latin1), <<"' not valid ">>, Message]))
    end.
+
 
 option_error(OptType, Given, Should, Name) ->
    throw([OptType,
