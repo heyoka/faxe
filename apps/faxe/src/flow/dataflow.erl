@@ -130,6 +130,7 @@ val(Val, {_, float}) when is_float(Val) -> Val;
 val(Val, {_, double}) when is_float(Val) -> Val;
 val(Val, {_, binary}) when is_binary(Val) -> Val;
 val(Val, {_, string}) when is_binary(Val) -> Val;
+val(Val, {_, string_template}) when is_binary(Val) -> Val;
 val(Val, {_, list}) when is_list(Val) -> Val;
 val(Val, {_, atom}) when is_atom(Val) -> Val;
 val(Val, {_, lambda}) when is_function(Val) -> Val;

@@ -97,6 +97,7 @@ process(_Inp, #data_batch{} = Batch, State = #state{callback_module = _Mod, pyth
 process(_Inp, #data_point{} = Point, State = #state{python_instance = Python, cb_object = Obj}) ->
 
    Data = flowdata:to_mapstruct(Point),
+%%   lager:warning("Data: ~p" ,[Data]),
 %%   {_, _, Ob} =
       NewObj = pythra:method(Python, Obj, ?PYTHON_POINT_CALL, [Data]),
 %%   lager:warning("new obj has size: ~p", [byte_size(Ob)]),

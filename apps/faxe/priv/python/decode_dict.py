@@ -16,7 +16,16 @@ class DecodeDict(MutableMapping):
     def __getitem__(self, key):
         val = self.store[self.__keytransform__(key)]
         if isinstance(val, dict):
-            return DecodeDict(val) # if it is a dict then also wrap the sub-dict
+            return DecodeDict(val)  # if it is a dict then also wrap the sub-dict
+        elif isinstance(val, list):  # iterate through all list items
+            returnlist = []
+            for item in val:
+                if isinstance(item, dict):
+                    returnlist.append(DecodeDict(item)) # if it is a dict then also wrap the sub-dict
+                else:
+                    returnlist.append(item)
+
+            return returnlist
         else:
             return val
 

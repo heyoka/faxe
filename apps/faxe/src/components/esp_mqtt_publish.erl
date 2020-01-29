@@ -107,8 +107,8 @@ handle_info({mqttc, C, connected}, State=#direct_state{queue = Q}) ->
    NewState = State#direct_state{client = C, connected = true, queue = queue:new()},
    [publish(J, Topic, NewState) || {Topic, J} <- PendingList],
    {ok, NewState};
-handle_info({mqttc, _C,  disconnected}, State=#direct_state{client = _Client}) ->
-%%   catch exit(Client),
+handle_info({mqttc, _C,  disconnected}, State=#direct_state{client = Client}) ->
+   catch exit(Client, kill),
    lager:warning("mqtt client disconnected!!"),
    {ok, State#direct_state{connected = false, client = undefined}};
 handle_info(reconnect, State = #direct_state{}) ->

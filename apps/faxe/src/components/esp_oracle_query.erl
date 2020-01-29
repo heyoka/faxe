@@ -9,12 +9,13 @@
 
 -behavior(df_component).
 %% API
--export([init/3, process/3, options/0, handle_info/2, to_flowdata/2]).
+-export([init/3, process/3, options/0, handle_info/2, to_flowdata/2, handle_result/3]).
 
 -record(state, {
    host :: string(),
    port :: non_neg_integer(),
    query :: iodata(),
+   result_type :: binary(),
    user :: string(), %% Schema
    pass :: string(), %%
    service_name :: string(),
@@ -43,6 +44,7 @@ options() ->
       {pass, string, <<>>},
       {service_name, string},
       {query, string},
+      {result_type, string, <<"batch">>}, %% 'batch' or 'point'
       {time_field, string, <<"ts">>},
       {every, duration, <<"5s">>},
       {align, is_set},
@@ -53,7 +55,7 @@ options() ->
 %% jamdb_oracle:sql_query(Pid, "select connection, sent, received from tr_keepalive").
 
 init(_NodeId, _Inputs, #{host := Host0, port := Port, user := User0, every := Every,
-      pass := Pass0, service_name := DB, query := Q0, align := Align}) ->
+      pass := Pass0, service_name := DB, query := Q0, align := Align, result_type := ResType}) ->
 
    process_flag(trap_exit, true),
    Host = binary_to_list(Host0),
@@ -70,7 +72,7 @@ init(_NodeId, _Inputs, #{host := Host0, port := Port, user := User0, every := Ev
 %%   lager:warning("the QUERY: ~p",[Query]),
 
    State = #state{host = Host, port = Port, user = User, pass = Pass, service_name = ServiceName, query = Query,
-      db_opts = DBOpts, every = Every, align = Align},
+      db_opts = DBOpts, every = Every, align = Align, result_type = ResType},
    NewState = connect(State),
    {ok, all, NewState}.
 
@@ -85,7 +87,7 @@ process(_In, _B = #data_batch{}, State = #state{}) ->
    {ok, State}.
 
 
-handle_info(query, State = #state{timer = Timer, client = C}) ->
+handle_info(query, State = #state{timer = Timer, client = C, result_type = RType}) ->
 %%   QueryMark = Timer#faxe_timer.last_time,
 %%   lager:notice("query: ~p with ~p", [Q, [QueryMark-Period, QueryMark]]),
    NewTimer = faxe_time:timer_next(Timer),
@@ -100,9 +102,11 @@ handle_info(query, State = #state{timer = Timer, client = C}) ->
 %%
 %%   ColumnNames = columns(Columns, []),
 %%   lager:notice("ColumnName: ~p",[ColumnNames]),
-   {_T, Batch} = timer:tc(?MODULE, to_flowdata, [Columns, Rows]),
-%%   lager:notice("Batch in ~p my: ~n~p",[T,Batch]),
-   dataflow:emit(Batch),
+
+   {_T, Data} = timer:tc(?MODULE, handle_result, [Columns, Rows, RType]),
+%%   to_flowdata_list(Columns, Rows),
+%%   lager:notice("Data in ~p my: ~n~p",[T,Data]),
+   dataflow:emit(Data),
    {ok, State#state{timer = NewTimer}};
 
 handle_info({'EXIT', _C, _Reason}, State = #state{timer = Timer}) ->
@@ -120,28 +124,41 @@ connect(State = #state{db_opts = Opts}) ->
    NewState = init_timer(State#state{client = C}),
    NewState.
 
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
-init_timer(S = #state{align = Align, every = Every}) ->
-   Timer = faxe_time:init_timer(Align, Every, query),
-   S#state{timer = Timer}.
+handle_result(Columns, Rows, <<"batch">>) ->
+   to_flowdata(Columns, Rows);
+handle_result(Columns, Rows, <<"point">>) ->
+   to_flowdata_list(Columns, Rows).
 
-%% result handling
+%% result handling , output one data_point with all result rows (array)
+to_flowdata_list(Columns, Rows) ->
+   Batch = to_flowdata(Columns, Rows),
+   FieldsList = [Fields || #data_point{fields = Fields} <- Batch#data_batch.points],
+   #data_point{ts = faxe_time:now(), fields = #{<<"data">> => FieldsList}}.
+
+%% result handling row_to_point %% one data_point per row in the result-set
 
 to_flowdata(Columns, Rows) ->
-   to_flowdata(Columns, lists:reverse(Rows), #data_batch{}).
+   to_flowdata(Columns, lists:reverse(Rows), #data_batch{}, faxe_time:now()).
 
-to_flowdata(_C, [], Batch=#data_batch{}) ->
+to_flowdata(_C, [], Batch=#data_batch{}, _) ->
    Batch;
-to_flowdata(Columns, [ValRow|Values], Batch=#data_batch{points = Points}) ->
-   Point = row_to_datapoint(Columns, ValRow, #data_point{ts = faxe_time:now()}),
-   to_flowdata(Columns, Values, Batch#data_batch{points = [Point|Points]}).
+to_flowdata(Columns, [ValRow|Values], Batch=#data_batch{points = Points}, Ts) ->
+   Point = row_to_datapoint(Columns, ValRow, #data_point{ts = Ts}),
+   to_flowdata(Columns, Values, Batch#data_batch{points = [Point|Points]}, Ts).
 
 row_to_datapoint([], [], Point) ->
    Point;
 row_to_datapoint([C|Columns], [Val|Row], Point) ->
    P = flowdata:set_field(Point, C, decode(Val)),
    row_to_datapoint(Columns, Row, P).
+
+
+
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
 
 %% {{2020,1,22},{8,3,6.827},"+01:00"} to iso8601
 decode({{_Y,_M_, _D}=Date, {_H, _M, _SecFrac} = Time, TZOffset}) ->
@@ -153,6 +170,11 @@ decode({Number}) when is_number(Number) ->
    Number;
 decode(Other) ->
    Other.
+
+
+init_timer(S = #state{align = Align, every = Every}) ->
+   Timer = faxe_time:init_timer(Align, Every, query),
+   S#state{timer = Timer}.
 
 -spec cancel_timer(#faxe_timer{}|undefined) -> #faxe_timer{}|undefined.
 cancel_timer(Timer) ->

@@ -229,8 +229,8 @@ handle_call({start, Inputs, Subscriptions, FlowMode}, _From,
    AR = case FlowMode of pull -> AReq; push -> none end,
    CallbackHandlesInfo = erlang:function_exported(CB, handle_info, 2),
    %% metrics
-   folsom_metrics:new_histogram(NId, slide, 60),
-   folsom_metrics:new_history(<< NId/binary, ?FOLSOM_ERROR_HISTORY >>, 24),
+%%   folsom_metrics:new_histogram(NId, slide, 60),
+%%   folsom_metrics:new_history(<< NId/binary, ?FOLSOM_ERROR_HISTORY >>, 24),
    {reply, ok,
       NewState#c_state{
          subscriptions = Subscriptions,
@@ -241,15 +241,15 @@ handle_call({start, Inputs, Subscriptions, FlowMode}, _From,
          cb_handle_info = CallbackHandlesInfo}}
 ;
 handle_call(stats, _From, State=#c_state{node_id = NId, component = Comp}) ->
-   Res = {Comp,#{
-      <<"processing_errors">> => folsom_metrics:get_history_values(<< NId/binary, ?FOLSOM_ERROR_HISTORY >>, 24),
-      <<"items processed">> => folsom_metrics:get_histogram_statistics(NId)
-   }},
-   {reply, Res, State}
+%%   Res = {Comp,#{
+%%      <<"processing_errors">> => folsom_metrics:get_history_values(<< NId/binary, ?FOLSOM_ERROR_HISTORY >>, 24),
+%%      <<"items processed">> => folsom_metrics:get_histogram_statistics(NId)
+%%   }},
+   {reply, ok, State}
 ;
-handle_call(errors, _From, State=#c_state{node_id = NId, component = Comp}) ->
-   Res = {Comp, folsom_metrics:get_history_values(<< NId/binary, ?FOLSOM_ERROR_HISTORY >>, 24)},
-   {reply, Res, State}
+handle_call(errors, _From, State=#c_state{node_id = _NId, component = _Comp}) ->
+%%   Res = {Comp, folsom_metrics:get_history_values(<< NId/binary, ?FOLSOM_ERROR_HISTORY >>, 24)},
+   {reply, ok, State}
 ;
 handle_call(_What, _From, State) ->
    lager:info("~p: unexpected handle_call with ~p",[?MODULE, _What]),
@@ -289,8 +289,8 @@ handle_info({start, Inputs, Subscriptions, FlowMode},
    AR = case FlowMode of pull -> AReq; push -> none end,
    CallbackHandlesInfo = erlang:function_exported(CB, handle_info, 2),
    %% metrics
-   folsom_metrics:new_histogram(NId, slide, 60),
-   folsom_metrics:new_history(<< NId/binary, ?FOLSOM_ERROR_HISTORY >>, 24),
+%%   folsom_metrics:new_histogram(NId, slide, 60),
+%%   folsom_metrics:new_history(<< NId/binary, ?FOLSOM_ERROR_HISTORY >>, 24),
    {noreply,
       NewState#c_state{
          subscriptions = Subscriptions,
@@ -318,18 +318,18 @@ handle_info({item, {Inport, Value}},
 %%
 %%   lager:notice("stats for ~p: ~p",[NId, folsom_metrics:get_histogram_statistics(NId)]),
 %%lager:warning("cb state is: ~p",[CBState]),
-   folsom_metrics:notify({NId, 1}),
+%%   folsom_metrics:notify({NId, 1}),
    %gen_event:notify(dfevent_component, {item, State#c_state.node_id, {Inport, Value}}),
 %%   Result = (Module:process(Inport, Value, CBState)),
    case  catch(Module:process(Inport, Value, CBState)) of
       {'EXIT', {Reason,Stacktrace}} ->
          lager:error("'error' ~p in component ~p caught when processing item: ~p -- ~p",
          [Reason, State#c_state.component, {Inport, Value}, Stacktrace]),
-         folsom_metrics:notify({<< NId/binary, ?FOLSOM_ERROR_HISTORY >>,
-%%            io_lib:format("'error' ~p in component ~p caught when processing item: ~p -- ~p",
-            [time_format:to_iso8601(faxe_time:now()), Reason, State#c_state.component, {Inport, Value}, Stacktrace]
-%%         )}
-         }),
+%%         folsom_metrics:notify({<< NId/binary, ?FOLSOM_ERROR_HISTORY >>,
+%%%%            io_lib:format("'error' ~p in component ~p caught when processing item: ~p -- ~p",
+%%            [time_format:to_iso8601(faxe_time:now()), Reason, State#c_state.component, {Inport, Value}, Stacktrace]
+%%%%         )}
+%%         }),
          {noreply, State};
 
       Result ->

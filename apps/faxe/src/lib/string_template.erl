@@ -13,9 +13,15 @@
 -include("faxe.hrl").
 
 %% API
--export([extract/1, to_fun/1, to_string/2]).
+-export([extract/1, to_fun/1, to_string/2, eval/2]).
 
 %% {{My name is "name"}}
+
+%% evaluate a template with the given datapoint
+-spec eval(binary(), #data_point{}) -> binary().
+eval(Template, DataPoint) ->
+   Fun = to_fun(extract(Template)),
+   to_string(Fun, DataPoint).
 
 %% parse
 extract(Template) when is_binary(Template) ->

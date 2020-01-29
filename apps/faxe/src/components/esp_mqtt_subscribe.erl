@@ -91,10 +91,10 @@ handle_info({mqttc, C, connected}, State=#state{}) ->
    NewState = State#state{client = C, connected = true},
    subscribe(NewState),
    {ok, NewState};
-handle_info({mqttc, _C,  disconnected}, State=#state{reconnector = Recon}) ->
+handle_info({mqttc, _C,  disconnected}, State=#state{client = Client}) ->
+   catch exit(Client, kill),
    lager:debug("mqtt client disconnected!!"),
-   {ok, Reconnector} = faxe_backoff:execute(Recon, connect),
-   {ok, State#state{connected = false, client = undefined, reconnector = Reconnector}};
+   {ok, State#state{connected = false, client = undefined}};
 %% for emqtt
 handle_info({publish, #{payload := Payload, topic := Topic} }, S=#state{dt_field = DTField, dt_format = DTFormat}) ->
    P0 = flowdata:from_json_struct(Payload, DTField, DTFormat),
