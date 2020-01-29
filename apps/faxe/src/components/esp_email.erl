@@ -64,12 +64,9 @@ init(NodeId, _Ins, #{to := To0, subject := Subj, body := Body, body_field := Bod
 
 process(_In, P = #data_point{}, State = #state{from = From, to = To, subject = Subj, smtp_relay = Relay}) ->
    Body = body(P, State),
-lager:notice("email for: ~p",[To]),
    gen_smtp_client:send({From, To, build_body(
       binary_to_list(Subj), binary_to_list(From), To, binary_to_list(Body))},
-      [{relay, Relay}
-%%      , {username, "erdverbindung@gmx.at"}, {password, "feinstofflich"}
-      ]),
+      [{relay, Relay}]),
    {ok, State}.
 
 body(P, #state{body = Body, body_field = undefined}) ->
