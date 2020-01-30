@@ -83,6 +83,9 @@ to_json(P) when is_record(P, data_point) orelse is_record(P, data_batch) ->
       IoList when is_list(IoList) -> iolist_to_binary(IoList)
    end.
 %%
+%% empty message, when there is no field set (empty map)
+to_mapstruct(#data_point{ts = _Ts, fields = Fields, tags = _Tags}) when map_size(Fields) == 0 ->
+   #{};
 to_mapstruct(P=#data_point{ts = Ts, fields = Fields, tags = _Tags}) ->
 
    AllDataFields = maps:without([<<"id">>,<<"vs">>,<<"df">>], Fields),

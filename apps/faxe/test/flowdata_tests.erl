@@ -365,6 +365,26 @@ batch_to_json_test() ->
 
    ).
 
+empty_data_test() ->
+   P = #data_point{ts = 1568029511598},
+   ?assertEqual(
+      maps:new(),
+      flowdata:to_mapstruct(P)
+   ).
+
+empty_data_json_test() ->
+   P = #data_point{ts = 1568029511598, fields =
+   #{<<"id">> => <<"ioi2u34oiu23oi4u2oi4u2">>,
+      <<"df">> => <<"01.002">>, <<"vs">> => 2,
+      <<"data">> => #{}}
+   },
+   Json = to_json(P),
+   ?assertEqual(
+      P,
+      flowdata:from_json_struct(Json)
+      ).
+
+
 from_json_basic_test() ->
    M = #{<<"ts">> => 1568029511598, <<"id">> => <<"ioi2u34oiu23oi4u2oi4u2">>,
       <<"df">> => <<"01.002">>, <<"vs">> => 2, <<"value1">> => 2323422, <<"value2">> => <<"savoi">>,

@@ -17,6 +17,7 @@
 
 -define(FROM_EMAIL, <<"noreply@tgw-group.com">>).
 -define(SMTP_RELAY, <<"smtp.tgw.local">>).
+-define(HTML_TEMPLATE, <<"priv/email_template.html">>).
 
 -record(state, {
    node_id,
@@ -25,6 +26,7 @@
    subject :: binary(),
    body,
    body_field,
+   template,
    smtp_relay,
    smtp_user,
    smtp_pass
@@ -51,14 +53,15 @@ check_email(Address) when is_binary(Address) ->
 
 
 init(NodeId, _Ins, #{to := To0, subject := Subj, body := Body, body_field := BodyField}) ->
-   To = [<<"<", Address/binary, ">">> || Address <- To0],
 
    EmailData = application:get_env(faxe, email, []),
    From = proplists:get_value(from_address, EmailData, ?FROM_EMAIL),
    SmtpRelay = proplists:get_value(smtp_relay, EmailData, ?SMTP_RELAY),
+   TemplateFile = proplists:get_value(template, EmailData, ?HTML_TEMPLATE),
+   {ok, ContBin} = file:read_file(TemplateFile),
 
    State = #state{
-      to = To,
+      to = To0,
       subject = Subj,
       body = Body,
       body_field = BodyField,
@@ -66,17 +69,21 @@ init(NodeId, _Ins, #{to := To0, subject := Subj, body := Body, body_field := Bod
       from = From,
       smtp_relay = SmtpRelay,
       smtp_user = undefined,
-      smtp_pass = undefined
+      smtp_pass = undefined,
+      template = ContBin
       },
 
    {ok, all, State}.
 
 process(_In, P = #data_point{}, State = #state{from = From, to = To, subject = Subj}) ->
    Body = body(P, State),
-   gen_smtp_client:send({From, To, build_body(
-      binary_to_list(Subj), binary_to_list(From), To, binary_to_list(Body))},
+   Res =
+   gen_smtp_client:send({From, To, mime(From, To, Subj, Body)},
+%%      build_body(
+%%      binary_to_list(Subj), binary_to_list(From), To, binary_to_list(Body))},
       email_options(State)
    ),
+   lager:info("sent email to ~p, result: ~p",[To, Res]),
    {ok, State}.
 
 email_options(#state{smtp_relay = Relay, smtp_user = User, smtp_pass = Pass}) ->
@@ -86,15 +93,22 @@ email_options(#state{smtp_relay = Relay, smtp_user = User, smtp_pass = Pass}) ->
       _ -> Opts ++ [{username, User}, {password, Pass}]
    end.
 
-body(P, #state{body = Body, body_field = undefined}) ->
-   string_template:eval(Body, P)
-;
-body(P, #state{body_field = BodyField}) ->
+body(P, S = #state{template = Template}) ->
+   Content = content(P, S),
+   binary:replace(Template, [<<"##PREHEADER##">>, <<"##CONTENT##">>], Content, [global]).
+
+content(P, #state{body = Body, body_field = undefined}) ->
+   string_template:eval(Body, P);
+content(P, #state{body_field = BodyField}) ->
    flowdata:field(P, BodyField, <<"">>).
 
-build_body(Subject, From, To, Message) ->
-   Format = "Subject: ~s\r\nFrom: <~s>\r\nTo: <~s>\r\n\r\n~s",
-   B = io_lib:format(Format, [Subject, From, To, Message]),
-   lager:info("email body: ~p", [B]),
-   B.
+mime(From, To, Subject, Body) ->
+   mimemail:encode({<<"text">>, <<"html">>,
+      [{<<"Subject">>, Subject},
+         {<<"From">>, From},
+         {<<"To">>, [<<"<", Address/binary, ">">> || Address <- To]}],
+      #{<<"Content-Type">> => <<"text/html">>},
+%%      [],
+      Body
+   }).
 

@@ -31,7 +31,7 @@ extract(Template) when is_binary(Template) ->
       {match, Matched} ->
          Res0 = [{TVar, Var} || [TVar, Var] <- Matched],
          {Replace, Vars} = lists:unzip(Res0),
-         Format = binary_to_list(binary:replace(Template, Replace, <<"~p">>, [global])),
+         Format = binary_to_list(binary:replace(Template, Replace, <<"~s">>, [global])),
 %%         io:format(Format, Vars),
          {Format, Vars}
    end.
@@ -39,7 +39,9 @@ extract(Template) when is_binary(Template) ->
 to_fun(Val) when is_binary(Val) -> Val;
 to_fun({Format, Vars}) ->
    fun(Point = #data_point{}) ->
-      list_to_binary(io_lib:format(Format, flowdata:fields(Point, Vars)))
+      Fields0 = flowdata:fields(Point, Vars),
+      Fields = [conv(F) || F <- Fields0],
+      list_to_binary(io_lib:format(Format, Fields))
    end.
 
 %% evaluate
@@ -48,6 +50,11 @@ to_string(Fun, Point) when is_function(Fun) ->
 to_string(Val, _Point) ->
    Val.
 
+conv(V) when is_float(V) ->
+   float_to_binary(V, [{decimals, 6}]);
+conv(V) when is_integer(V) ->
+   integer_to_binary(V);
+conv(V) -> V.
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 -ifdef(TEST).

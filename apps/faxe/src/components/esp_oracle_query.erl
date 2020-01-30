@@ -88,6 +88,7 @@ process(_In, _B = #data_batch{}, State = #state{}) ->
 
 
 handle_info(query, State = #state{timer = Timer, client = C, result_type = RType}) ->
+%%   lager:info("do query oracle!!"),
 %%   QueryMark = Timer#faxe_timer.last_time,
 %%   lager:notice("query: ~p with ~p", [Q, [QueryMark-Period, QueryMark]]),
    NewTimer = faxe_time:timer_next(Timer),
