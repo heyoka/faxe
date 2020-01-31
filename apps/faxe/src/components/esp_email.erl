@@ -95,6 +95,7 @@ email_options(#state{smtp_relay = Relay, smtp_user = User, smtp_pass = Pass}) ->
 
 body(P, S = #state{template = Template}) ->
    Content = content(P, S),
+   lager:notice("content is: ~p",[Content]),
    binary:replace(Template, [<<"##PREHEADER##">>, <<"##CONTENT##">>], Content, [global]).
 
 content(P, #state{body = Body, body_field = undefined}) ->
@@ -102,13 +103,13 @@ content(P, #state{body = Body, body_field = undefined}) ->
 content(P, #state{body_field = BodyField}) ->
    flowdata:field(P, BodyField, <<"">>).
 
-mime(From, To, Subject, Body) ->
+mime(From, To0, Subject, Body) ->
+   To = iolist_to_binary(lists:join(<<",">>, To0)),
    mimemail:encode({<<"text">>, <<"html">>,
       [{<<"Subject">>, Subject},
          {<<"From">>, From},
-         {<<"To">>, [<<"<", Address/binary, ">">> || Address <- To]}],
-      #{<<"Content-Type">> => <<"text/html">>},
-%%      [],
+         {<<"To">>, To}],
+      #{content_type_params => [{<<"text">>, <<"html">>}]},
       Body
    }).
 
