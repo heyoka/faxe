@@ -180,10 +180,12 @@ handle_call(ping, _From, State = #state{timeout_ref = TRef, start_mode = #task_m
    NewTimer = erlang:send_after(TTL, self(), timeout),
    {reply, {ok, TTL}, State#state{timeout_ref = NewTimer}};
 handle_call(export, _From, State = #state{graph = Graph, id = GraphId}) ->
-   GraphDot = digraph_export:convert(Graph, dot, []),
-   {ok, F} = file:open(<<GraphId/binary, ".dot">>, [append, delayed_write]),
+   Nodes = digraph:vertices(Graph),
+   lager:notice("nodes: ~p~n",[Nodes]),
+   ExportGraph = digraph_utils:subgraph(Graph, Nodes, [{keep_labels, false}]),
+   GraphDot = digraph_export:convert(ExportGraph, dot, [pretty]),
+   {ok, F} = file:open(<<GraphId/binary, ".dot">>, [write]),
    io:format(F, "~s~n", [GraphDot]),
-%%   digraph_export:view(GraphDot, dot),
    {reply, GraphDot, State#state{}}.
 
 handle_cast({swarm, end_handoff, NewState}, State) ->

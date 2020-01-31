@@ -57,16 +57,16 @@ init(NodeId, _Ins,
    {ok, all, restart_timer(State)}.
 
 process(_In, Data, State = #state{}) ->
-   lager:info("msg in"),
+%%   lager:info("msg in"),
    NewState = State#state{last_point = Data},
    {emit, Data, maybe_restart_timer(NewState)}.
 
 handle_info(q_timeout, State = #state{}) ->
-   lager:info("quiet timeout is up"),
+%%   lager:info("quiet timeout is up"),
    {ok, restart_timer(State#state{is_quiet = false, quiet_timer_ref = undefined})};
 
 handle_info(timeout, State = #state{}) ->
-   lager:info("time is up"),
+%%   lager:info("time is up"),
    dataflow:emit(build_message(State)),
    NewState = maybe_start_qtimer(State),
    {ok, maybe_restart_timer(NewState)}.
@@ -81,7 +81,7 @@ build_message(#state{field_vals = Vals, fields = Fields}) ->
 maybe_start_qtimer(State = #state{quiet_time = 0}) ->
    State;
 maybe_start_qtimer(State = #state{quiet_time = QTime}) ->
-   lager:notice("start quiet_timer"),
+%%   lager:notice("start quiet_timer"),
    NewQTimer = erlang:send_after(QTime, self(), q_timeout),
    State#state{quiet_timer_ref = NewQTimer, is_quiet = true}.
 
@@ -91,7 +91,7 @@ maybe_restart_timer(State) ->
    restart_timer(State).
 
 restart_timer(State = #state{timer_ref = TRef, timeout = Timeout}) ->
-   lager:info("start new timeout"),
+%%   lager:info("start new timeout"),
    catch erlang:cancel_timer(TRef),
    NewTimer = erlang:send_after(Timeout, self(), timeout),
    State#state{timer_ref = NewTimer}.

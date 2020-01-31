@@ -83,7 +83,7 @@ process(_In, P = #data_point{}, State = #state{from = From, to = To, subject = S
 %%      binary_to_list(Subj), binary_to_list(From), To, binary_to_list(Body))},
       email_options(State)
    ),
-   lager:info("sent email to ~p, result: ~p",[To, Res]),
+   lager:notice("sent email to ~p, result: ~p",[To, Res]),
    {ok, State}.
 
 email_options(#state{smtp_relay = Relay, smtp_user = User, smtp_pass = Pass}) ->
