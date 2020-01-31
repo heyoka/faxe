@@ -97,15 +97,7 @@ handle_info(query, State = #state{timer = Timer, client = C, result_type = RType
    {ok, [{result_set, Columns, [], Rows}]} = Res,
 %%   lager:info("RESULT: ~nColumns: ~p~nRows: ~p",[Columns, Rows]),
    lager:info("RESULT: ~n ~p",[Res]),
-%%   {ok, Columns, Rows} = epgsql:prepared_query(C, ?STMT, [QueryMark-Period, QueryMark]),
-%%   lager:notice("Columns: ~p",[Columns]),
-%%   lager:notice("Rows: ~p",[Rows]),
-%%
-%%   ColumnNames = columns(Columns, []),
-%%   lager:notice("ColumnName: ~p",[ColumnNames]),
-
    {_T, Data} = timer:tc(?MODULE, handle_result, [Columns, Rows, RType]),
-%%   to_flowdata_list(Columns, Rows),
 %%   lager:notice("Data in ~p my: ~n~p",[T,Data]),
    dataflow:emit(Data),
    {ok, State#state{timer = NewTimer}};
