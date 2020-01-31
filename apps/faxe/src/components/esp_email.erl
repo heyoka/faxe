@@ -78,9 +78,8 @@ init(NodeId, _Ins, #{to := To0, subject := Subj, body := Body, body_field := Bod
 process(_In, P = #data_point{}, State = #state{from = From, to = To, subject = Subj}) ->
    Body = body(P, State),
    Res =
-   gen_smtp_client:send({From, To, mime(From, To, Subj, Body)},
-%%      build_body(
-%%      binary_to_list(Subj), binary_to_list(From), To, binary_to_list(Body))},
+   gen_smtp_client:send(
+      {From, To, mime(From, To, Subj, Body)},
       email_options(State)
    ),
    lager:notice("sent email to ~p, result: ~p",[To, Res]),
@@ -95,7 +94,6 @@ email_options(#state{smtp_relay = Relay, smtp_user = User, smtp_pass = Pass}) ->
 
 body(P, S = #state{template = Template}) ->
    Content = content(P, S),
-   lager:notice("content is: ~p",[Content]),
    binary:replace(Template, [<<"##PREHEADER##">>, <<"##CONTENT##">>], Content, [global]).
 
 content(P, #state{body = Body, body_field = undefined}) ->
