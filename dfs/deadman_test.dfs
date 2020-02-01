@@ -1,6 +1,3 @@
-def mqtt_host = '10.14.204.3'
-def topic_out = 'ttgw/deadman_test'
-
 |value_emitter()
 .every(5s)
 .type(point)
@@ -10,13 +7,12 @@ def topic_out = 'ttgw/deadman_test'
 %.quiet_time(10s)
 %.fields('question', 'answer')
 %.field_values('what', 'that')
-%.repeat_last()
+.repeat_last()
 
-|debug()
+|eval(lambda: to_iso8601("ts" - (60000 * 5)))
+.as('datetime')
 
-|mqtt_publish()
-.host(mqtt_host)
-.topic(topic_out)
-
-%|log()
-%.file('deadman.txt')
+|email()
+.to(<<<miae@tgw-group.com>>>,<<<florian.bauernfeind@tgw-group.com>>>)
+.subject('Alert #ex3 EnergyData')
+.body(<<<No data since {{datetime}} on topic 'ttgw/data/energy/KDR', last value was {{val}} >>>)

@@ -78,12 +78,11 @@ init(NodeId, _Ins, #{to := To0, subject := Subj, body := Body, body_field := Bod
 process(_In, P = #data_point{}, State = #state{from = From, to = To, subject = Subj}) ->
    Body = body(P, State),
    Res =
-   gen_smtp_client:send({From, To, mime(From, To, Subj, Body)},
-%%      build_body(
-%%      binary_to_list(Subj), binary_to_list(From), To, binary_to_list(Body))},
+   gen_smtp_client:send(
+      {From, To, mime(From, To, Subj, Body)},
       email_options(State)
    ),
-   lager:info("sent email to ~p, result: ~p",[To, Res]),
+   lager:notice("sent email to ~p, result: ~p",[To, Res]),
    {ok, State}.
 
 email_options(#state{smtp_relay = Relay, smtp_user = User, smtp_pass = Pass}) ->
@@ -102,13 +101,13 @@ content(P, #state{body = Body, body_field = undefined}) ->
 content(P, #state{body_field = BodyField}) ->
    flowdata:field(P, BodyField, <<"">>).
 
-mime(From, To, Subject, Body) ->
+mime(From, To0, Subject, Body) ->
+   To = iolist_to_binary(lists:join(<<",">>, To0)),
    mimemail:encode({<<"text">>, <<"html">>,
       [{<<"Subject">>, Subject},
          {<<"From">>, From},
-         {<<"To">>, [<<"<", Address/binary, ">">> || Address <- To]}],
-      #{<<"Content-Type">> => <<"text/html">>},
-%%      [],
+         {<<"To">>, To}],
+      #{content_type_params => [{<<"text">>, <<"html">>}]},
       Body
    }).
 

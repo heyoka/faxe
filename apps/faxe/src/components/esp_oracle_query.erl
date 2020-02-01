@@ -66,7 +66,7 @@ init(_NodeId, _Inputs, #{host := Host0, port := Port, user := User0, every := Ev
 
    DBOpts = [{host, Host}, {port, Port}, {user, User}, {password, Pass}, {service_name, ServiceName}],
 
-   lager:warning("the QUERY before: ~p",[Q0]),
+   lager:notice("the QUERY : ~p",[Q0]),
 %%   Q = clean_query(Q0),
 %%   Query = build_query(Q, TimeGroup, TimeField, GroupBys),
 %%   lager:warning("the QUERY: ~p",[Query]),
@@ -96,16 +96,8 @@ handle_info(query, State = #state{timer = Timer, client = C, result_type = RType
    Res = jamdb_oracle:sql_query(C, State#state.query),
    {ok, [{result_set, Columns, [], Rows}]} = Res,
 %%   lager:info("RESULT: ~nColumns: ~p~nRows: ~p",[Columns, Rows]),
-   lager:info("RESULT: ~n ~p",[Res]),
-%%   {ok, Columns, Rows} = epgsql:prepared_query(C, ?STMT, [QueryMark-Period, QueryMark]),
-%%   lager:notice("Columns: ~p",[Columns]),
-%%   lager:notice("Rows: ~p",[Rows]),
-%%
-%%   ColumnNames = columns(Columns, []),
-%%   lager:notice("ColumnName: ~p",[ColumnNames]),
-
+   lager:info("RESULT-length: ~n ~p",[length(Rows)]),
    {_T, Data} = timer:tc(?MODULE, handle_result, [Columns, Rows, RType]),
-%%   to_flowdata_list(Columns, Rows),
 %%   lager:notice("Data in ~p my: ~n~p",[T,Data]),
    dataflow:emit(Data),
    {ok, State#state{timer = NewTimer}};
