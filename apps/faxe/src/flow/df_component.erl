@@ -212,6 +212,7 @@ outports(Module) ->
    {stop, Reason :: term()} | ignore).
 init([Component, GraphId, NodeId, Inports, _Outports, Args]) ->
    code:ensure_loaded(Component),
+   lager:md([{flow, GraphId}, {comp, NodeId}]),
    InputPorts = lists:map(fun({_Pid, Port}) -> Port end, Inports),
    {ok, #c_state{component = Component, graph_id = GraphId, node_id = NodeId, subscriptions = [],
       inports = InputPorts, cb_state = Args}};

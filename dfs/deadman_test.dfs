@@ -12,7 +12,9 @@
 |eval(lambda: to_iso8601("ts" - (60000 * 5)))
 .as('datetime')
 
-|email()
-.to(<<<miae@tgw-group.com>>>,<<<florian.bauernfeind@tgw-group.com>>>)
-.subject('Alert #ex3 EnergyData')
-.body(<<<No data since {{datetime}} on topic 'ttgw/data/energy/KDR', last value was {{val}} >>>)
+|debug()
+
+%|email()
+%.to(<<<miae@tgw-group.com>>>,<<<florian.bauernfeind@tgw-group.com>>>)
+%.subject('Alert #ex3 EnergyData')
+%.body(<<<No data since {{datetime}} on topic 'ttgw/data/energy/KDR', last value was {{val}} >>>)

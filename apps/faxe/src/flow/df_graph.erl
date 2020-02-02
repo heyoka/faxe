@@ -52,7 +52,7 @@
 -spec(start_link(Id :: term(), Params :: term()) ->
    {ok, Pid :: pid()} | ignore | {error, Reason :: term()}).
 start_link(Id, Params) ->
-   lager:notice("start graph with id: ~p",[Id]),
+   lager:notice("start graph"),
    gen_server:start_link(?MODULE, [Id, Params], []).
 
 
@@ -109,6 +109,7 @@ export(Graph) ->
    {ok, State :: #state{}} | {ok, State :: #state{}, timeout() | hibernate} |
    {stop, Reason :: term()} | ignore).
 init([Id, #{nodes := Nodes, edges := Edges}]=_T) ->
+   lager:md([{flow, Id}]),
    %gen_event:notify(dfevent_graph, {new_graph, Id, self()}),
    Graph = digraph:new([acyclic, protected]),
    lists:foreach(fun(E) -> %gen_event:notify(dfevent_graph, {add_node, Id, E}),
