@@ -39,6 +39,9 @@ init([]) ->
         {faxe_ets,
             {faxe_ets, start_link, []},
             permanent, 5000, worker, []},
+        {faxe_vmstats,
+            {faxe_vmstats, start_link, []},
+            permanent, 5000, worker, []},
         {reconnect_watcher,
             {reconnect_watcher, start_link, []},
             permanent, 5000, worker, []}

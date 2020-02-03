@@ -484,10 +484,16 @@ first_ts(#data_batch{points = P}) ->
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %%%%%%%%%%%%%%% paths
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+jsn_get(_Path, Map) when map_size(Map) == 0 ->
+   undefined;
 jsn_get(Path, Map) ->
    jsn:get(path(Path), Map).
+jsn_get(_Path, Map, Default) when map_size(Map) == 0 ->
+   Default;
 jsn_get(Path, Map, Default) ->
    jsn:get(path(Path), Map, Default).
+jsn_getlist(_PathList, Empty) when map_size(Empty) == 0  ->
+   [];
 jsn_getlist(PathList, Map) when is_list(PathList) ->
    jsn:get_list(paths(PathList), Map).
 
@@ -499,8 +505,12 @@ jsn_setlist(KeysValues, Map) when is_list(KeysValues) ->
    {Keys, Values} = lists:unzip(KeysValues),
    jsn_setlist(Keys, Values, Map).
 
+jsn_delete(_Path, Map) when map_size(Map) == 0 ->
+   Map;
 jsn_delete(Path, Map) ->
    jsn:delete(path(Path), Map).
+jsn_deletelist(_Paths, Map) when map_size(Map) == 0 ->
+   Map;
 jsn_deletelist(Paths, Map) ->
    jsn:delete_list(paths(Paths), Map).
 

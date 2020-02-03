@@ -32,7 +32,8 @@
     uuid,
     mapz,
     digraph_export,
-    gen_smtp
+    gen_smtp,
+    vmstats
    ]},
   {env,[]},
   {modules, [esp_stats]},
