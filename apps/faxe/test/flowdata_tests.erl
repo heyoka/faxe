@@ -216,8 +216,8 @@ r_val() -> #{<<"foo">> => #{<<"bar">> =>[#{<<"first">> => 1},2,3]}}.
 rename_field_deep_array_index_test() ->
    P = #data_point{ts = 1234567891234, id = <<"324392i09i329i2df4">>,
       fields = #{<<"val">> => r_val(), <<"var">> => 44}},
-   From = [flowdata:path(<<"val.foo.bar[1].first">>)],
-   To = [flowdata:path(<<"val.foo.bar[1].erster">>)],
+   From = [<<"val.foo.bar[1].first">>],
+   To = [<<"val.foo.bar[1].erster">>],
    SetP = flowdata:rename_fields(P, From, To),
    ?assertEqual(SetP#data_point.fields,
       #{<<"val">> => #{<<"foo">> => #{<<"bar">> =>[#{<<"erster">> => 1},2,3]}}, <<"var">> => 44}

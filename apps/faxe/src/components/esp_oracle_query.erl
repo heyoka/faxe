@@ -9,7 +9,7 @@
 
 -behavior(df_component).
 %% API
--export([init/3, process/3, options/0, handle_info/2, to_flowdata/2, handle_result/3]).
+-export([init/3, process/3, options/0, handle_info/2, to_flowdata/3, handle_result/4, check_options/0]).
 
 -record(state, {
    host :: string(),
@@ -50,9 +50,10 @@ options() ->
       {align, is_set},
       {limit, string, <<"30">>}].
 
-%%check_options() ->
-%%   [{not_empty, [file]}].
-%% jamdb_oracle:sql_query(Pid, "select connection, sent, received from tr_keepalive").
+check_options() ->
+   [
+      {func, query, fun faxe_util:check_select_statement/1, <<"seems not to be a valid sql select statement">>}
+   ].
 
 init(_NodeId, _Inputs, #{host := Host0, port := Port, user := User0, every := Every,
       pass := Pass0, service_name := DB, query := Q0, align := Align, result_type := ResType}) ->
@@ -62,24 +63,17 @@ init(_NodeId, _Inputs, #{host := Host0, port := Port, user := User0, every := Ev
    User = binary_to_list(User0),
    Pass = binary_to_list(Pass0),
    ServiceName = binary_to_list(DB),
-   Query = binary_to_list(clean_query(Q0)),
+   Query = binary_to_list(faxe_util:clean_query(Q0)),
 
    DBOpts = [{host, Host}, {port, Port}, {user, User}, {password, Pass}, {service_name, ServiceName}],
 
-   lager:notice("the QUERY : ~p",[Q0]),
-%%   Q = clean_query(Q0),
-%%   Query = build_query(Q, TimeGroup, TimeField, GroupBys),
-%%   lager:warning("the QUERY: ~p",[Query]),
+   lager:notice("the QUERY : ~p",[Query]),
 
    State = #state{host = Host, port = Port, user = User, pass = Pass, service_name = ServiceName, query = Query,
       db_opts = DBOpts, every = Every, align = Align, result_type = ResType},
    NewState = connect(State),
    {ok, all, NewState}.
 
-
-clean_query(QueryBin) when is_binary(QueryBin) ->
-   Q0 = re:replace(QueryBin, "\n|\t|\r|;", " ",[global, {return, binary}]),
-   re:replace(Q0, "(\s){2,}", " ", [global, {return, binary}]).
 
 process(_In, _P = #data_point{}, State = #state{}) ->
    {ok, State};
@@ -88,16 +82,21 @@ process(_In, _B = #data_batch{}, State = #state{}) ->
 
 
 handle_info(query, State = #state{timer = Timer, client = C, result_type = RType}) ->
-%%   lager:info("do query oracle!!"),
+%%   lager:info("do query oracle at : ~p!!",[Timer#faxe_timer.last_time]),
 %%   QueryMark = Timer#faxe_timer.last_time,
 %%   lager:notice("query: ~p with ~p", [Q, [QueryMark-Period, QueryMark]]),
+
+   %% use timestamp from timer, in case of aligned queries, we have a straight
+   Timestamp = Timer#faxe_timer.last_time,
    NewTimer = faxe_time:timer_next(Timer),
    %% do query
    Res = jamdb_oracle:sql_query(C, State#state.query),
    {ok, [{result_set, Columns, [], Rows}]} = Res,
 %%   lager:info("RESULT: ~nColumns: ~p~nRows: ~p",[Columns, Rows]),
    lager:info("RESULT-length: ~n ~p",[length(Rows)]),
-   {_T, Data} = timer:tc(?MODULE, handle_result, [Columns, Rows, RType]),
+
+   Data = handle_result(Columns, Rows, Timestamp, RType),
+%%   {_T, Data} = timer:tc(?MODULE, handle_result, [Columns, Rows, RType]),
 %%   lager:notice("Data in ~p my: ~n~p",[T,Data]),
    dataflow:emit(Data),
    {ok, State#state{timer = NewTimer}};
@@ -112,28 +111,28 @@ handle_info(What, State) ->
    {ok, State}.
 
 connect(State = #state{db_opts = Opts}) ->
-   lager:warning("db opts: ~p",[Opts]),
+%%   lager:warning("db opts: ~p",[Opts]),
    {ok, C} = jamdb_oracle:start_link(Opts),
    NewState = init_timer(State#state{client = C}),
    NewState.
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
-handle_result(Columns, Rows, <<"batch">>) ->
-   to_flowdata(Columns, Rows);
-handle_result(Columns, Rows, <<"point">>) ->
-   to_flowdata_list(Columns, Rows).
+handle_result(Columns, Rows, Ts, <<"batch">>) ->
+   to_flowdata(Columns, Rows, Ts);
+handle_result(Columns, Rows, Ts, <<"point">>) ->
+   to_flowdata_list(Columns, Rows, Ts).
 
 %% result handling , output one data_point with all result rows (array)
-to_flowdata_list(Columns, Rows) ->
-   Batch = to_flowdata(Columns, Rows),
+to_flowdata_list(Columns, Rows, Ts) ->
+   Batch = to_flowdata(Columns, Rows, Ts),
    FieldsList = [Fields || #data_point{fields = Fields} <- Batch#data_batch.points],
-   #data_point{ts = faxe_time:now(), fields = #{<<"data">> => FieldsList}}.
+   #data_point{ts = Ts, fields = #{<<"data">> => FieldsList}}.
 
 %% result handling row_to_point %% one data_point per row in the result-set
 
-to_flowdata(Columns, Rows) ->
-   to_flowdata(Columns, lists:reverse(Rows), #data_batch{}, faxe_time:now()).
+to_flowdata(Columns, Rows, Ts) ->
+   to_flowdata(Columns, lists:reverse(Rows), #data_batch{}, Ts).
 
 to_flowdata(_C, [], Batch=#data_batch{}, _) ->
    Batch;
@@ -146,8 +145,6 @@ row_to_datapoint([], [], Point) ->
 row_to_datapoint([C|Columns], [Val|Row], Point) ->
    P = flowdata:set_field(Point, C, decode(Val)),
    row_to_datapoint(Columns, Row, P).
-
-
 
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%

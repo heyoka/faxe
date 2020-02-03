@@ -16,7 +16,7 @@
    uuid_string/0, round_float/2,
    prefix_binary/2,
    host_with_protocol/1, host_with_protocol/2
-   , decimal_part/2]).
+   , decimal_part/2, check_select_statement/1, clean_query/1]).
 
 -define(HTTP_PROTOCOL, <<"http://">>).
 
@@ -58,6 +58,21 @@ prefix_binary(Bin, Prefix) when is_binary(Bin), is_binary(Prefix) ->
          _ -> Bin
       end.
 
+%% @doc clean an sql statement
+-spec clean_query(binary()) -> binary().
+clean_query(QueryBin) when is_binary(QueryBin) ->
+   Q0 = re:replace(QueryBin, "\n|\t|\r|;", " ",[global, {return, binary}]),
+   re:replace(Q0, "(\s){2,}", " ", [global, {return, binary}]).
+
+%% check if the given string seems to be a valid "select ... from" statement
+-spec check_select_statement(binary()|list()) -> true|false.
+check_select_statement(Q) ->
+   Query = clean_query(Q),
+   Pattern = "^(S|s)(E|e)(L|l)(E|e)(C|c)(T|t)\s+(.*)\s+(F|f)(R|r)(O|o)(M|m)\s+(.*)",
+   case re:run(Query, Pattern) of
+      nomatch -> false;
+      _ -> true
+   end.
 
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%% TESTS %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -107,6 +122,29 @@ prefix_binary_2_test() ->
    ?assertEqual(
       <<"myprefix">>,
       prefix_binary(<<"myprefix">>, <<"m">>)
+   ).
+check_select_1_test() ->
+   ?assertEqual(
+      true,
+      check_select_statement(<<"SELECT * FROM table">>)
+   ).
+check_select_2_test() ->
+   ?assertEqual(
+      true,
+      check_select_statement(<<"SELECT\n COUNT(*), AVG(field) FROM docs.table WHERE foo = 'bar'\n
+      GROUP BY time ORDER BY time">>)
+   ).
+check_select_3_test() ->
+   ?assertEqual(
+      false,
+      check_select_statement(<<"INSERT INTO table SET foo = 'bar'">>)
+   ).
+check_select_4_test() ->
+   Sql = <<"SELECT floor(EXTRACT(epoch FROM time)/300)*300 AS time_gb, COUNT(*) FROM table
+      WHERE tag1 = 'test' AND time >= $1 AND time <= $2 GROUP BY time_gb, a, b ORDER BY time_gb DESC">>,
+   ?assertEqual(
+      true,
+      check_select_statement(Sql)
    ).
 -endif.
 

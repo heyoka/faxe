@@ -23,7 +23,7 @@
    code_change/3]).
 
 
--define(MSG_Q_LENGTH_HIGH_WATERMARK, 3).
+-define(MSG_Q_LENGTH_HIGH_WATERMARK, 15).
 
 -type auto_request()    :: 'all' | 'emit' | 'none'.
 

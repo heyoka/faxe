@@ -153,8 +153,7 @@ conflate(RowData, Ts, _Prefixes, FieldMerge) ->
    merge(RowData, Ts, FieldMerge).
 
 merge([RowData], _Ts, _MField) -> RowData;
-merge([{_Port, FirstRow}|RowData], Ts, MField) ->
-   MergeField = flowdata:path(MField),
+merge([{_Port, FirstRow}|RowData], Ts, MergeField) ->
    NewPoint =
       lists:foldl(
          fun({_Port0, OP=#data_point{}}, P=#data_point{}) ->

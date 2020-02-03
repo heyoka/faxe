@@ -9,7 +9,7 @@
 
 -behavior(df_component).
 %% API
--export([init/3, process/3, options/0, handle_info/2, to_flowdata/2]).
+-export([init/3, process/3, options/0, handle_info/2, to_flowdata/2, check_options/0]).
 
 -record(state, {
    host :: string(),
@@ -52,8 +52,10 @@ options() ->
       {group_by, string_list, []},
       {limit, string, <<"30">>}].
 
-%%check_options() ->
-%%   [{not_empty, [file]}].
+check_options() ->
+   [
+      {func, query, fun faxe_util:check_select_statement/1, <<"seems not to be a valid sql select statement">>}
+   ].
 
 init(_NodeId, _Inputs, #{host := Host0, port := Port, user := User, every := Every, period := Period,
       pass := Pass, database := DB, query := Q0, align := Align, group_by_time := TimeGroup, time_field := TimeField,
@@ -65,18 +67,13 @@ init(_NodeId, _Inputs, #{host := Host0, port := Port, user := User, every := Eve
    DBOpts = maps:merge(?DB_OPTIONS, Opts),
 
    lager:warning("the QUERY before: ~p",[Q0]),
-   Q = clean_query(Q0),
+   Q = faxe_util:clean_query(Q0),
    Query = build_query(Q, TimeGroup, TimeField, GroupBys),
    lager:warning("the QUERY: ~p",[Query]),
    State = #state{host = Host, port = Port, user = User, pass = Pass, database = DB, query = Query,
       db_opts = DBOpts, every = Every, period = faxe_time:duration_to_ms(Period), align = Align},
    NewState = connect(State),
    {ok, all, NewState}.
-
-
-clean_query(QueryBin) when is_binary(QueryBin) ->
-   Q0 = re:replace(QueryBin, "\n|\t|\r|;", " ",[global, {return, binary}]),
-   re:replace(Q0, "(\s){2,}", " ", [global, {return, binary}]).
 
 process(_In, _P = #data_point{}, State = #state{}) ->
    {ok, State};

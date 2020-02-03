@@ -204,8 +204,8 @@ value(#data_point{ts = Ts}, <<"ts">>) ->
    Ts;
 value(#data_point{fields = Fields, tags = Tags}, F) ->
    Path = path(F),
-   case jsn:get(Path, Fields) of
-      undefined -> jsn:get(Path, Tags);
+   case jsn_get(Path, Fields) of
+      undefined -> jsn_get(Path, Tags);
       Value -> Value
    end.
 %%
@@ -220,21 +220,21 @@ values(#data_batch{points = Points}, F) ->
 %%
 -spec field(#data_point{}|#data_batch{}, binary(), term()) -> term().
 field(#data_point{fields = Fields}, F, Default) ->
-   jsn:get(F, Fields, Default)
+   jsn_get(F, Fields, Default)
 ;
 field(#data_batch{points = Points}, F, Default) ->
    [field(Point, F, Default) || Point <- Points].
 
 -spec field(#data_point{}|#data_batch{}, jsonpath:path()) -> undefined | term() | list(term()|undefined).
 field(#data_point{fields = Fields}, F) ->
-   jsn:get(F, Fields)
+   jsn_get(F, Fields)
 ;
 field(#data_batch{points = Points}, F) ->
    [field(Point, F) || Point <- Points].
 
 %% @doc get a list of field-values with a list of keys/paths
 fields(#data_point{fields = Fields}, PathList) when is_list(PathList) ->
-   jsn:get_list(PathList, Fields).
+   jsn_getlist(PathList, Fields).
 
 %% @doc
 %% get an unordered list of all fieldnames from the given data_point
@@ -270,7 +270,7 @@ set_field(P = #data_point{}, <<"ts">>, Value) ->
 ;
 set_field(P = #data_point{fields = Fields}, Key, Value) ->
 %%   lager:notice("set_field(~p, ~p, ~p)", [Fields, Key, Value]),
-   NewFields = set(path(Key), Value, Fields),
+   NewFields = set(Key, Value, Fields),
    P#data_point{fields = NewFields}
 ;
 %%%
@@ -290,7 +290,7 @@ set_field(P = #data_batch{points = Points}, Key, Value) ->
 %% set multiple fields at once
 -spec set_fields(#data_point{}|#data_batch{}, list(), list()) -> #data_point{}|#data_batch{}.
 set_fields(P = #data_point{fields = Fields}, Keys, Values) when is_list(Keys), is_list(Values) ->
-   NewFields = jsn:set_list(lists:zip(Keys, Values), Fields),
+   NewFields = jsn_setlist(Keys, Values, Fields),
    P#data_point{fields = NewFields};
 set_fields(B = #data_batch{points = Points}, Keys, Values) when is_list(Keys), is_list(Values) ->
    Ps = lists:map(
@@ -302,7 +302,7 @@ set_fields(B = #data_batch{points = Points}, Keys, Values) when is_list(Keys), i
    B#data_batch{points = Ps}.
 
 set_fields(P = #data_point{fields = Fields}, KeysValues) when is_list(KeysValues) ->
-   NewFields = jsn:set_list(KeysValues, Fields),
+   NewFields = jsn_setlist(KeysValues, Fields),
    P#data_point{fields = NewFields}.
 
 %% @doc 
@@ -312,21 +312,21 @@ set_fields(P = #data_point{fields = Fields}, KeysValues) when is_list(KeysValues
 %% @end
 -spec set(jsonpath:path(), term(), list()) -> list().
 set(Key, Value, FieldList) ->
-   jsn:set(Key, FieldList, Value).
+   jsn_set(Key, Value, FieldList).
 
 -spec tag(#data_point{}|#data_batch{}, jsonpath:path()) -> undefined | term() | list(term()|undefined).
 %%% @doc
 %%% get a tags' value
 %%% @end
 tag(#data_point{tags = Fields}, F) ->
-   jsn:get(F, Fields)
+   jsn_get(F, Fields)
 ;
 tag(#data_batch{points = Points}, F) ->
    [tag(Point, F) || Point <- Points].
 
 %% @doc get a list of field-values with a list of keys/paths
 tags(#data_point{tags = Tags}, PathList) when is_list(PathList) ->
-   jsn:get_list(PathList, Tags).
+   jsn_getlist(PathList, Tags).
 
 %% @doc
 %% get the id from the given data_point or data_batch
@@ -357,7 +357,7 @@ set_tag(B = #data_batch{points = Points}, Key, Value) ->
 %% set multiple tags at once
 -spec set_tags(#data_point{}|#data_batch{}, list(), list()) -> #data_point{}|#data_batch{}.
 set_tags(P = #data_point{tags = Tags}, Keys, Values) when is_list(Keys), is_list(Values) ->
-   NewTags = jsn:set_list(lists:zip(Keys, Values), Tags),
+   NewTags = jsn_setlist(Keys, Values, Tags),
    P#data_point{tags = NewTags};
 set_tags(B = #data_batch{points = Points}, Keys, Values) when is_list(Keys), is_list(Values) ->
    Ps = lists:map(
@@ -376,7 +376,7 @@ set_tags(B = #data_batch{points = Points}, Keys, Values) when is_list(Keys), is_
 delete_field(#data_point{fields = Fields}=P, FieldName) ->
    case field(P, FieldName) of
       undefined -> P;
-      _Else -> JData = jsn:delete(FieldName, Fields),
+      _Else -> JData = jsn_delete(FieldName, Fields),
          P#data_point{fields = JData}
    end
    ;
@@ -403,7 +403,7 @@ delete_fields(B = #data_batch{points = Points}, KeyList) when is_list(KeyList) -
 %% @end
 -spec delete_tag(#data_point{}|#data_batch{}, binary()) -> #data_point{} | #data_batch{}.
 delete_tag(#data_point{tags = Tags}=P, TagName) ->
-   P#data_point{tags = jsn:delete(TagName, Tags)}
+   P#data_point{tags = jsn_delete(TagName, Tags)}
 ;
 delete_tag(#data_batch{points = Points}=B, TagName) ->
    NewPoints = [delete_tag(Point, TagName) || Point <- Points],
@@ -412,7 +412,7 @@ delete_tag(#data_batch{points = Points}=B, TagName) ->
 %% @doc delete a list of keys/paths from tags
 -spec delete_tags(#data_point{}|#data_batch{}, list()) -> #data_point{}|#data_batch{}.
 delete_tags(P = #data_point{tags = Tags}, KeyList) when is_list(KeyList) ->
-   NewTags = jsn:delete_list(KeyList, Tags),
+   NewTags = jsn_deletelist(KeyList, Tags),
    P#data_point{tags = NewTags};
 delete_tags(B = #data_batch{points = Points}, KeyList) when is_list(KeyList) ->
    Ps = lists:map(
@@ -440,11 +440,11 @@ rename(Map, [From|RFrom], [To|RTo]) when is_map(Map) ->
    rename(NewData, RFrom, RTo).
 
 do_rename(Map, From, To) ->
-   Val = jsn:get(From, Map),
+   Val = jsn_get(From, Map, undefined),
    case Val of
       undefined -> Map;
-      _Val -> NewData = jsn:delete(From, Map),
-         jsn:set(To, NewData, Val)
+      _Val -> NewData = jsn_delete(From, Map),
+         set(To, Val, NewData)
    end.
 
 %% @doc searches for a path-value and returns a new data_point with this value
@@ -478,6 +478,34 @@ set_first(B=#data_batch{points = Ps}) ->
 first_ts(#data_batch{points = P}) ->
    ts(lists:last(P)).
 
+
+
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%%%%%%%%%%%%%% paths
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+jsn_get(Path, Map) ->
+   jsn:get(path(Path), Map).
+jsn_get(Path, Map, Default) ->
+   jsn:get(path(Path), Map, Default).
+jsn_getlist(PathList, Map) when is_list(PathList) ->
+   jsn:get_list(paths(PathList), Map).
+
+jsn_set(Path, Val, Map) ->
+   jsn:set(path(Path), Map, Val).
+jsn_setlist(Keys, Values, Map) when is_list(Keys), is_list(Values) ->
+   jsn:set_list(lists:zip(paths(Keys), Values), Map).
+jsn_setlist(KeysValues, Map) when is_list(KeysValues) ->
+   {Keys, Values} = lists:unzip(KeysValues),
+   jsn_setlist(Keys, Values, Map).
+
+jsn_delete(Path, Map) ->
+   jsn:delete(path(Path), Map).
+jsn_deletelist(Paths, Map) ->
+   jsn:delete_list(paths(Paths), Map).
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
 %% @doc Convert a binary path into its tuple-form, only when array-indices are used in the path.
 %% This is required, because binary paths do not support array indices.
 %% It is recommended to compile the paths used in your flow-components at startup and use the
@@ -490,10 +518,11 @@ paths(Paths) when is_list(Paths) ->
 -spec path(binary()|tuple()) -> binary()|tuple().
 path(Path) when is_tuple(Path) -> Path;
 path(Path) when is_binary(Path) ->
-   case ets:lookup(field_paths, Path) of
+   case ( catch ets:lookup(field_paths, Path)) of
+      [{Path, Cached}] -> Cached;
       [] -> Ret = convert_path(Path), ets:insert(field_paths, {Path, Ret}), Ret;
-      [{Path, Cached}] -> Cached
-   end.
+      _ -> Ret = convert_path(Path),  Ret
+end.
 
 convert_path(Path) ->
    case binary:match(Path, <<"[">>) of

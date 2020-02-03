@@ -261,7 +261,9 @@ do_check({func, Key, Fun, Message}, Opts, Mod) when is_function(Fun), is_binary(
       true -> ok;
       false -> erlang:error(format_error(invalid_opt, Mod,
          [<<"Param '">>, atom_to_binary(Key, latin1), <<"' not valid ">>, Message]))
-   end.
+   end;
+do_check(_, _, Mod) ->
+   erlang:error(format_error(invalid_check_opts, Mod, <<"unsupported_check_options_type">>)).
 
 
 option_error(OptType, Given, Should, Name) ->
