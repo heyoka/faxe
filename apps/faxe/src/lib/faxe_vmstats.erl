@@ -25,12 +25,13 @@
 
 -define(SERVER, ?MODULE).
 
--record(state, {stack = []}).
+-record(state, {stats = []}).
 
 %%%===================================================================
 %%% API
 %%%===================================================================
 collect(Type, Key, Value) when Type =:= timing; Type =:= gauge; Type =:= counter ->
+   lager:notice("Type: ~p Key: ~p, Value: ~p",[Type, Key, Value]),
    K = lists:flatten(Key),
    call({store, K, Value}).
 
@@ -68,12 +69,17 @@ start_link() ->
 init([]) ->
    {ok, #state{}}.
 
-handle_call(called, _From, State=#state{stack = Stack}) ->
+handle_call(called, _From, State=#state{stats = Stack}) ->
    lager:notice("called: ~p",[lists:reverse((Stack))]),
-   {reply, lists:reverse(Stack), State#state{stack = []}};
-handle_call({store, K, D}, _From, State=#state{stack = Stack}) ->
-   lager:notice("store ~p, ~p",[K,D]),
-   {reply, ok, State#state{stack = [{K,D}|Stack]}};
+   {reply, lists:reverse(Stack), State#state{stats = []}};
+handle_call({store, K, D}, _From, State=#state{stats = Stack}) ->
+   Val =
+   case string:find(K, ".memory.") of
+      nomatch -> D;
+      _Match -> faxe_util:round_float(D/1024/1024, 3) %% memory bytes to mb
+   end,
+   lager:notice("store ~p, ~p",[K,Val]),
+   {reply, ok, State#state{stats = [{K,Val}|Stack]}};
 handle_call(_Req, _From, State) ->
    {reply, ok, State}.
 
