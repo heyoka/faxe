@@ -174,8 +174,10 @@ update_running(DfsScript, Task = #task{id = TId, pid = TPid}, ScriptType) ->
       {error, Err} -> {error, Err};
       ok ->
          receive
-            {'DOWN', _MonitorRef, process, TPid, _Info} -> start_task(TId), ok
-            after 5000 -> erlang:demonitor(TPid, true), {error, updated_task_start_fail}
+            {'DOWN', _MonitorRef, process, TPid, _Info} ->
+               start_task(TId, Task#task.permanent), ok
+            after 5000 ->
+               erlang:demonitor(TPid, true), {error, updated_task_start_timeout}
          end
    end.
 
@@ -303,7 +305,7 @@ start_task(TaskId,
             {error, {already_started, _Pid}} -> {error, already_started}
          end
    end;
-start_task(TaskId, Permanent) ->
+start_task(TaskId, Permanent) when Permanent == true orelse Permanent == false ->
    start_task(TaskId, push, Permanent).
 -spec start_task(integer()|binary(), atom(), true|false) -> ok|{error, term()}.
 start_task(TaskId, GraphRunMode, Permanent) ->

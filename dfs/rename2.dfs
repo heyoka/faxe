@@ -1,11 +1,19 @@
 def vals =
-    |value_emitter()
-    .every(2s)
-    .type(point)
-    .format(ejson)
+    |json_emitter()
+    .every(3s)
+    .json(<<<
+    {
+    "object" :
+        {"Payload":
+            { "Occupancies": [3] }
+        }
+    }
+    >>>)
+
+|debug()
 
     |rename()
-    .fields('val_root.val', 'hall')
-    .as_fields('val_root.value', 'hull')
+    .fields('Payload.Occupancies[1]')
+    .as_fields('Payload.Occupancies')
 
     |debug()

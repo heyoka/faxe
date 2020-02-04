@@ -27,6 +27,8 @@ start(_StartType, _StartArgs) ->
           {"/assets/[...]", cowboy_static, {priv_dir, faxe, "assets/"}},
           %% REST
 
+          {"/v1/stats", rest_stats_handler, [{op, vm}]},
+
           {"/v1/tasks", rest_tasks_handler, [{op, list}]},
           {"/v1/tasks/running", rest_tasks_handler, [{op, list_running}]},
 

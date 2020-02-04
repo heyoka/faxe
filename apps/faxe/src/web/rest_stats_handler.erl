@@ -6,13 +6,13 @@
 %%% @end
 %%% Created : $fulldate
 %%%-------------------------------------------------------------------
--module(rest_tasks_handler).
+-module(rest_stats_handler).
 
 %%
 %% Cowboy callbacks
 -export([
    init/2
-   , allowed_methods/2, list_json/2, content_types_provided/2]).
+   , allowed_methods/2, stats_json/2, content_types_provided/2]).
 
 %%
 %% Additional callbacks
@@ -22,7 +22,6 @@
 -record(state, {mode}).
 
 init(Req, [{op, Mode}]) ->
-%%   lager:notice("Cowboy Opts are : ~p",[Mode]),
    {cowboy_rest, Req, #state{mode = Mode}}.
 
 allowed_methods(Req, State) ->
@@ -31,14 +30,16 @@ allowed_methods(Req, State) ->
 
 content_types_provided(Req, State) ->
     {[
-       {{<<"application">>, <<"json">>, []}, list_json}
+       {{<<"application">>, <<"json">>, []}, stats_json}
+%%       {{<<"text">>, <<"html">>, []}, stats_json}
     ], Req, State}.
 
 
-list_json(Req, State=#state{mode = Mode}) ->
-   Maps = case Mode of
-             list -> L = lists:flatten(faxe:list_tasks()), [rest_helper:task_to_map(T) || T <- L];
-             list_running -> L = lists:flatten(faxe:list_running_tasks()),
-                [rest_helper:task_to_map(T) || T <- L]
-          end,
-   {jiffy:encode(Maps), Req, State}.
+stats_json(Req, State=#state{mode = _Mode}) ->
+   Stats = faxe_vmstats:called(),
+   F = fun(K, V, Acc) ->
+      NewKey = binary:replace(list_to_binary(K), <<".">>, <<"-">>, []),
+      Acc#{NewKey => V}
+      end,
+   Map = maps:fold(F, #{}, Stats),
+   {jiffy:encode(Map), Req, State}.

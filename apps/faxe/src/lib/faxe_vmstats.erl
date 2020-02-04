@@ -25,7 +25,7 @@
 
 -define(SERVER, ?MODULE).
 
--record(state, {stats = []}).
+-record(state, {stats = #{}}).
 
 %%%===================================================================
 %%% API
@@ -70,16 +70,16 @@ init([]) ->
    {ok, #state{}}.
 
 handle_call(called, _From, State=#state{stats = Stack}) ->
-   lager:notice("called: ~p",[lists:reverse((Stack))]),
-   {reply, lists:reverse(Stack), State#state{stats = []}};
+%%   lager:notice("called: ~p",[lists:reverse((Stack))]),
+   {reply, Stack, State};
 handle_call({store, K, D}, _From, State=#state{stats = Stack}) ->
    Val =
    case string:find(K, ".memory.") of
       nomatch -> D;
-      _Match -> faxe_util:round_float(D/1048576, 3) %% memory bytes to mib
+      _Match -> faxe_util:round_float(D/1048576, 2) %% memory bytes to mib
    end,
-   lager:notice("store ~p, ~p",[K,Val]),
-   {reply, ok, State#state{stats = [{K,Val} | Stack]}};
+%%   lager:notice("store ~p, ~p",[K,Val]),
+   {reply, ok, State#state{stats = maps:put(K, Val, Stack)}};
 handle_call(_Req, _From, State) ->
    {reply, ok, State}.
 

@@ -3,3 +3,5 @@ crate_query should support time sync in a plausible way
 stats nodes should support multiple fields
 safe amqp and mqtt publishers
 get last errors via rest api
+fix update flow with pyhtoncode where a new param has been added to the py code
+use client ids for mqtt
