@@ -122,3 +122,8 @@ code_change(_OldVsn, State, _Extra) ->
 %%%===================================================================
 %%% Internal functions
 %%%===================================================================
+bytes(Words) ->  try
+                    Words * erlang:system_info(wordsize)
+                 catch
+                    _:_ -> 0
+                 end.

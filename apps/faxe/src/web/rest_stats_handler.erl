@@ -11,8 +11,7 @@
 %%
 %% Cowboy callbacks
 -export([
-   init/2
-   , allowed_methods/2, stats_json/2, content_types_provided/2]).
+   init/2, allowed_methods/2, stats_json/2, content_types_provided/2]).
 
 %%
 %% Additional callbacks
