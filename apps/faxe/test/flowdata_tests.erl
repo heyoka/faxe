@@ -115,8 +115,10 @@ delete_fields_undefined_test() ->
       fields = #{<<"val">> => deep_val(), <<"var">> => 44}},
    Paths = [<<"pops.pips.paps">>, <<"var">>],
    NewPoint = flowdata:delete_fields(P, Paths),
-   ?assertEqual(NewPoint#data_point.fields,
-      #{<<"val">> => deep_val()}
+   ?assertEqual(NewPoint,
+       #data_point{ts = 1234567891234, id = <<"324392i09i329i2df4">>,
+         fields = #{<<"val">> => deep_val()}
+      }
 
    ).
 

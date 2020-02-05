@@ -1,4 +1,3 @@
-def host = '10.14.204.3'
 def mem_key = 'mkey'
 
 |json_emitter()

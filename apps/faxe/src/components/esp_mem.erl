@@ -41,7 +41,7 @@ init(_NodeId, _Ins, #{field := Field, key := As0, type := Type, default := Def})
    default(Type, As, Def),
    {ok, all, #state{field = Field, key = As, type = Type}}.
 
-process(_Inport, Item, State = #state{}) ->
+process(_, Item, State = #state{}) ->
    mem(Item, State),
    {emit, Item, State}.
 
@@ -89,7 +89,7 @@ default(<<"single">>, Key, Def) ->
 default(<<"set">>, Key, Def) ->
    ets:insert(ls_mem_set, {Key, def(<<"set">>, Def)});
 default(<<"list">>, Key, Def) ->
-   ets:insert(ls_mem_set, {Key, def(<<"list">>, Def)}).
+   ets:insert(ls_mem_list, {Key, def(<<"list">>, Def)}).
 
 
 def(<<"single">>, undefined) -> 0;
