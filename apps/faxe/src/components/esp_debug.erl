@@ -20,7 +20,7 @@ init(NodeId, _Inputs, _Args) ->
    {ok, all, NodeId}.
 
 process(_Inport, Value, State) ->
-   lager:notice("process [at ~p] , ~p",[faxe_time:now(),  {_Inport, lager:pr(Value, ?MODULE)}]),
+   lager:notice("process [at ~p] , ~p~n",[faxe_time:now(),  {_Inport, lager:pr(Value, ?MODULE)}]),
    {emit, Value, State}.
 
 shutdown(_State) ->

@@ -256,15 +256,17 @@ not_member(Ele, List) -> lists:member(Ele, List) == false.
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %%% lambda state functions
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-ls_mem_set(Name) ->
-   mem_lookup(ls_mem_set, Name).
-ls_mem(Name) ->
-   R = mem_lookup(ls_mem, Name),
+ls_mem_list(Key) ->
+   mem_lookup(ls_mem_list, Key).
+ls_mem_set(Key) ->
+   mem_lookup(ls_mem_set, Key).
+ls_mem(Key) ->
+   R = mem_lookup(ls_mem, Key),
    lager:warning("ls_mem: ~p",[R]),R.
-mem_lookup(Table, Name) ->
+mem_lookup(Table, Key) ->
    Res =
-   case ets:lookup(Table, Name) of
-      [{Name, Val}] -> Val;
+   case ets:lookup(Table, Key) of
+      [{Key, Val}] -> Val;
       Other -> Other
    end,
    Res.

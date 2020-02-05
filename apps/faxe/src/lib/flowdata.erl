@@ -386,8 +386,9 @@ delete_field(#data_batch{points = Points}=B, FieldName) ->
 
 %% @doc delete a list of keys/paths
 -spec delete_fields(#data_point{}|#data_batch{}, list()) -> #data_point{}|#data_batch{}.
-delete_fields(P = #data_point{}, KeyList) when is_list(KeyList) ->
-   lists:foldl(fun(E, Acc) -> delete_field(Acc, E) end, P, KeyList);
+delete_fields(P = #data_point{fields = Fields}, KeyList) when is_list(KeyList) ->
+   NewFields = jsn_deletelist(KeyList, Fields),
+   P#data_point{fields = NewFields};
 delete_fields(B = #data_batch{points = Points}, KeyList) when is_list(KeyList) ->
    Ps = lists:map(
       fun(#data_point{} = D) ->

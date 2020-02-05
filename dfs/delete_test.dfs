@@ -1,0 +1,8 @@
+|value_emitter()
+.every(5s)
+.type(point)
+
+|delete()
+.fields('harr')
+
+|debug()

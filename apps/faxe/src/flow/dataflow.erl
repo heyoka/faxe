@@ -235,23 +235,30 @@ do_check({one_of_params, Keys}, Opts, Mod) ->
       _ ->
          KeysBinList = ["'" ++ atom_to_list(K) ++ "'" || K <- Keys],
          erlang:error(format_error(invalid_opt, Mod,
-         [<<"Must provide one of params: ">>, lists:join(<<"," >>, KeysBinList)]))
+         [<<"Must provide one of params: ">>, lists:join(<<", " >>, KeysBinList)]))
    end;
 
 %% check if one of possible values is given for a specific param
 do_check({one_of, Key, ValidOpts}, Opts, Mod) ->
-%%   lager:notice("do check: ~p",[[{one_of, Key, ValidOpts}, Opts, Mod]]),
+   lager:notice("do check: ~p",[[{one_of, Key, ValidOpts}, Opts, Mod]]),
    case maps:get(Key, Opts, undefined) of
       undefined -> ok; %% should not happen
-      Params ->
+      Params when is_list(Params) ->
+         lager:warning("params: ~p", [Params]),
          lists:foreach(fun(E) ->
                         case lists:member(E, ValidOpts) of
                            true -> ok;
                            false -> erlang:error(format_error(invalid_opt, Mod,
                               [<<"Cannot use '">>, E, <<"' for param '">>, atom_to_binary(Key, latin1),
-                                 <<"'">>, <<" must be one of: ">>, ValidOpts]))
+                                 <<"'">>, <<" must be one of: ">>, lists:join(<<", " >>, ValidOpts)]))
                         end
-                       end, Params)
+                       end, Params);
+      Param -> case lists:member(Param, ValidOpts) of
+                  true -> ok;
+                  false -> erlang:error(format_error(invalid_opt, Mod,
+                     [<<"Cannot use '">>, Param, <<"' for param '">>, atom_to_binary(Key, latin1),
+                        <<"'">>, <<" must be one of: ">>, lists:join(<<", " >>, ValidOpts)]))
+               end
    end;
 %% check options with a custom function
 do_check({func, Key, Fun, Message}, Opts, Mod) when is_function(Fun), is_binary(Message)->
