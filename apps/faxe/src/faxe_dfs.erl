@@ -192,7 +192,7 @@ node_params_each({NodeName, _Id}=_N, NodeParams) ->
                   case catch(lists:nth(Index0, OptParams)) of
                      {Index0, ParamName, _PType} ->
                         Fun = make_lambda_fun(FunString, FunParams, BinRefs),
-                        [{ParamName, [{lambda, Fun}]}|Params0];
+                        [{ParamName, [Fun]}|Params0];
 
                      _Error -> throw("Illegal or missing Lambda Parameter " ++
                         integer_to_list(Index0) ++ " for node '" ++ binary_to_list(NodeName)++"'" )
