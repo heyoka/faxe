@@ -484,7 +484,7 @@ eval_args(A = #{}, State) ->
 handle_ls_mem(_, #c_state{ls_mem = undefined, ls_mem_set = undefined}) ->
    ok;
 handle_ls_mem(Item, State = #c_state{ls_mem_set = undefined, ls_mem = _LsMem}) ->
-   lager:notice("handle_ls_mem: ~p", [_LsMem]),
+%%   lager:notice("handle_ls_mem: ~p", [_LsMem]),
    handle_ls_mem_val(Item, State);
 handle_ls_mem(Item, State = #c_state{ls_mem = undefined, ls_mem_set = _LsMem}) ->
    handle_ls_mem_set(Item, State).
@@ -492,7 +492,9 @@ handle_ls_mem(Item, State = #c_state{ls_mem = undefined, ls_mem_set = _LsMem}) -
 handle_ls_mem_val(#data_batch{points = Points}, State=#c_state{}) ->
    handle_ls_mem_val(lists:last(Points), State);
 handle_ls_mem_val(P = #data_point{}, #c_state{ls_mem = MemKey, ls_mem_field = MemField}) ->
-   ets:insert(ls_mem, {MemKey, flowdata:field(P, MemField)}).
+%%   lager:notice("handle_ls_mem: key: ~p field: ~p :: ~p", [MemKey, MemField, flowdata:value(P, MemField)]),
+   ets:insert(ls_mem, {MemKey, flowdata:value(P, MemField)}).
+%%   lager:warning("ls_mem: ~p is now: ~p", [MemKey, faxe_lambda_lib:ls_mem(MemKey)]).
 
 handle_ls_mem_set(#data_batch{points = Points}, State=#c_state{}) ->
    [handle_ls_mem_set(P, State) || P <- Points];
@@ -503,5 +505,5 @@ handle_ls_mem_set(P = #data_point{}, #c_state{ls_mem_set = MemKey, ls_mem_field 
       [] -> sets:new();
       [{MemKey, List}] -> sets:from_list(List)
    end,
-   Set = sets:add_element(flowdata:field(P, MemField), Set0),
+   Set = sets:add_element(flowdata:value(P, MemField), Set0),
    ets:insert(ls_mem_set, {MemKey, sets:to_list(Set)}).

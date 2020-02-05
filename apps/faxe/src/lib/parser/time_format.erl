@@ -37,7 +37,7 @@ convert(Input, ?TF_TS_MILLI) ->
 convert(Input, ?TF_TS_SECOND) ->
    second_to_ms(Input);
 convert(Input, ?TF_TS_FLOAT_MICRO) ->
-   float_millisecond_to_ms(Input);
+   float_micro_to_ms(Input);
 convert(Input, ?TF_TS_FLOAT_MILLI) ->
    float_millisecond_to_ms(Input);
 convert(Input, ?TF_ISO8601) ->

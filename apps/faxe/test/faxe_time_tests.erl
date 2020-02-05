@@ -23,4 +23,8 @@ duration_to_ms_basic_test() ->
 duration_to_ms_neg_test() ->
    Dur = <<"-3h">>,
    ?assertEqual(3*60*60*1000*-1, faxe_time:duration_to_ms(Dur)).
+
+duration_zero_test() ->
+   Dur = <<"0m">>,
+   ?assertEqual(0, faxe_time:duration_to_ms(Dur)).
 -endif.

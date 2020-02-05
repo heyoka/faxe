@@ -190,6 +190,9 @@ to_date_string(Ts) ->
 
 to_iso8601(Ts) -> faxe_time:to_iso8601(Ts).
 
+time_convert(Ts, Format) ->
+   time_format:convert(Ts, Format).
+
 -spec millisecond(non_neg_integer()) -> non_neg_integer().
 millisecond(Ts) ->
    faxe_time:get(millisecond, Ts).
