@@ -261,8 +261,7 @@ ls_mem_list(Key) ->
 ls_mem_set(Key) ->
    mem_lookup(ls_mem_set, Key).
 ls_mem(Key) ->
-   R = mem_lookup(ls_mem, Key),
-   lager:warning("ls_mem: ~p",[R]),R.
+   mem_lookup(ls_mem, Key).
 mem_lookup(Table, Key) ->
    Res =
    case ets:lookup(Table, Key) of

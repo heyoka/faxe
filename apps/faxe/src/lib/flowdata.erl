@@ -510,6 +510,9 @@ jsn_delete(_Path, Map) when map_size(Map) == 0 ->
    Map;
 jsn_delete(Path, Map) ->
    jsn:delete(path(Path), Map).
+
+jsn_deletelist([], Map) ->
+   Map;
 jsn_deletelist(_Paths, Map) when map_size(Map) == 0 ->
    Map;
 jsn_deletelist(Paths, Map) ->
