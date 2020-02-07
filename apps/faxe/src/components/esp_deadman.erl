@@ -28,8 +28,8 @@
    fields,
    field_vals,
    timer_ref,
-   quiet_time,
-   quiet_timer_ref,
+   silent_time,
+   silent_timer_ref,
    is_quiet = false,
    repeat_last = false,
    last_point
@@ -39,7 +39,7 @@ options() -> [
    {timeout, duration}, %%
    {fields, string_list, []},
    {field_values, string_list, []},
-   {quiet_time, duration, <<"0ms">>}, %% for this amount of time no timeout is triggered
+   {silent_time, duration, <<"0ms">>}, %% for this amount of time no timeout is triggered
    {repeat_last, is_set}
 ].
 
@@ -47,13 +47,13 @@ check_options() -> [{same_length, [fields, field_values]}].
 
 init(NodeId, _Ins,
     #{timeout := Timeout0, fields := Fields, repeat_last := Repeat,
-       field_values := Vals, quiet_time := QTime0}) ->
+       field_values := Vals, silent_time := QTime0}) ->
 
    Timeout = faxe_time:duration_to_ms(Timeout0),
    QTimeout = faxe_time:duration_to_ms(QTime0),
    State =
       #state{timeout = Timeout, fields = Fields, repeat_last = Repeat,
-         node_id = NodeId, field_vals = Vals, quiet_time = QTimeout},
+         node_id = NodeId, field_vals = Vals, silent_time = QTimeout},
    {ok, all, restart_timer(State)}.
 
 process(_In, Data, State = #state{}) ->
@@ -63,7 +63,7 @@ process(_In, Data, State = #state{}) ->
 
 handle_info(q_timeout, State = #state{}) ->
 %%   lager:info("quiet timeout is up"),
-   {ok, restart_timer(State#state{is_quiet = false, quiet_timer_ref = undefined})};
+   {ok, restart_timer(State#state{is_quiet = false, silent_timer_ref = undefined})};
 
 handle_info(timeout, State = #state{}) ->
 %%   lager:info("time is up"),
@@ -78,12 +78,12 @@ build_message(#state{field_vals = Vals, fields = Fields}) ->
    DataPoint = #data_point{ts = faxe_time:now()},
    flowdata:set_fields(DataPoint, Fields, Vals).
 
-maybe_start_qtimer(State = #state{quiet_time = 0}) ->
+maybe_start_qtimer(State = #state{silent_time = 0}) ->
    State;
-maybe_start_qtimer(State = #state{quiet_time = QTime}) ->
+maybe_start_qtimer(State = #state{silent_time = QTime}) ->
 %%   lager:notice("start quiet_timer"),
    NewQTimer = erlang:send_after(QTime, self(), q_timeout),
-   State#state{quiet_timer_ref = NewQTimer, is_quiet = true}.
+   State#state{silent_timer_ref = NewQTimer, is_quiet = true}.
 
 maybe_restart_timer(State = #state{is_quiet = true}) ->
    State;
