@@ -1,11 +1,11 @@
 %% Date: 27.01.20 - 18:38
 %% Ⓒ 2020 heyoka
 %% @doc
-%% emits a point, if there is no message comming in for the given amount of time
+%% emits a point, if there is no message coming in for the given amount of time
 %% for the output datapoint there are two options:
 %% # if repeat_last param if set, the node will output the last message it saw incoming as the dead-message,
 %%    if there is no last message yet, an empty message will be emitted
-%% # multiple field and field_value can be provided to be inlcuded in the ouput
+%% # multiple field and field_value can be provided to be included in the output
 %%    if no fields (and field_values) parameter and is given, an empty datapoint will be emitted
 %% the repeat_last parameter will always override the fields and field_values parameter
 %%
@@ -31,6 +31,7 @@
    silent_time,
    silent_timer_ref,
    is_quiet = false,
+   trigger_on_value = false,
    repeat_last = false,
    last_point
 }).
@@ -40,21 +41,23 @@ options() -> [
    {fields, string_list, []},
    {field_values, string_list, []},
    {silent_time, duration, <<"0ms">>}, %% for this amount of time no timeout is triggered
-   {repeat_last, is_set}
+   {repeat_last, is_set},
+   {trigger_on_value, is_set}
 ].
 
 check_options() -> [{same_length, [fields, field_values]}].
 
 init(NodeId, _Ins,
     #{timeout := Timeout0, fields := Fields, repeat_last := Repeat,
-       field_values := Vals, silent_time := QTime0}) ->
+       trigger_on_value := Trigger, field_values := Vals, silent_time := QTime0}) ->
 
    Timeout = faxe_time:duration_to_ms(Timeout0),
    QTimeout = faxe_time:duration_to_ms(QTime0),
    State =
       #state{timeout = Timeout, fields = Fields, repeat_last = Repeat,
-         node_id = NodeId, field_vals = Vals, silent_time = QTimeout},
-   {ok, all, restart_timer(State)}.
+         node_id = NodeId, field_vals = Vals, silent_time = QTimeout, trigger_on_value = Trigger},
+
+   {ok, all, maybe_trigger_restart_timer(State)}.
 
 process(_In, Data, State = #state{}) ->
 %%   lager:info("msg in"),
@@ -85,13 +88,19 @@ maybe_start_qtimer(State = #state{silent_time = QTime}) ->
    NewQTimer = erlang:send_after(QTime, self(), q_timeout),
    State#state{silent_timer_ref = NewQTimer, is_quiet = true}.
 
+
+maybe_trigger_restart_timer(State = #state{trigger_on_value = true}) ->
+   State;
+maybe_trigger_restart_timer(State) ->
+   restart_timer(State).
+
 maybe_restart_timer(State = #state{is_quiet = true}) ->
    State;
 maybe_restart_timer(State) ->
    restart_timer(State).
 
 restart_timer(State = #state{timer_ref = TRef, timeout = Timeout}) ->
-%%   lager:info("start new timeout"),
+   lager:info("start new timeout"),
    catch erlang:cancel_timer(TRef),
    NewTimer = erlang:send_after(Timeout, self(), timeout),
    State#state{timer_ref = NewTimer}.

@@ -1,6 +1,7 @@
 %% Date: 05.02.20 - 20:22
 %% Ⓒ 2020 heyoka
 %% @doc
+%% Flow wide value storage, available to any other node (in lambda expressions) within a flow
 %% Persist value(s) that are available in lambda expression within a faxe flow
 %% @end
 -module(esp_mem).

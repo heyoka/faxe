@@ -7,7 +7,7 @@
 
 -include("faxe.hrl").
 %% API
--export([init/3, process/3, handle_info/2, options/0, params/0]).
+-export([init/3, process/3, handle_info/2, options/0, params/0, check_options/0, check_json/1]).
 -record(state, {
    node_id           :: term(),
    every             :: non_neg_integer(),
@@ -25,6 +25,18 @@ options() ->
       {align, is_set},
       {json, binary_list, undefined},
       {rand_fields, binary_list, []}].
+
+
+check_options() ->
+   [{func, json, fun check_json/1, <<", invalid json">>}].
+
+check_json(Jsons) when is_list(Jsons) ->
+   lists:all(fun check_json/1, Jsons);
+check_json(Json) when is_binary(Json) ->
+   case catch jiffy:decode(Json) of
+      {'EXIT', _} -> false;
+      Other -> true
+   end.
 
 init(NodeId, _Inputs,
     #{every := Every, align := Unit, jitter := Jitter, json := JS}) ->

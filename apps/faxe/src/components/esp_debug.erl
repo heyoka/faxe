@@ -31,7 +31,6 @@ init(_NodeId, _Inputs, #{level := Lev}) ->
    {ok, all, #state{level = Level}}.
 
 process(_Inport, Value, State=#state{level = Level}) ->
-%%   lager:notice("process [at ~p] , ~p~n",[faxe_time:now(),  {_Inport, lager:pr(Value, ?MODULE)}]),
    Format = "process [at ~p] , ~p~n", Args = [faxe_time:now(),  {_Inport, lager:pr(Value, ?MODULE)}],
    lager:log(Level, self(), Format, Args),
    {emit, Value, State}.

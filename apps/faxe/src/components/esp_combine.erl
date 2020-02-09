@@ -28,7 +28,7 @@
 
 -include("faxe.hrl").
 %% API
--export([init/3, process/3, options/0, inports/0]).
+-export([init/3, process/3, options/0, inports/0, check_options/0]).
 
 -define(PREFIX_DEL, <<"_">>).
 
@@ -49,11 +49,16 @@ inports() ->
 
 options() -> [
    {combined, node, {port, 2}},
-   {fields, string_list, []},
+   {fields, string_list, undefined},
    {tags, string_list, undefined},
    {aliases, string_list, undefined},
    {prefix, binary, undefined},
    {prefix_delimiter, binary, ?PREFIX_DEL}].
+
+check_options() ->
+   [
+      {one_of_params, [fields, tags, prefix]}
+   ].
 
 init(NodeId, _Ins, #{fields := Fields, aliases := Aliases, prefix := Prefix, prefix_delimiter := PFL}) ->
    NP =

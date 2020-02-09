@@ -1,0 +1,28 @@
+def json =
+|json_emitter()
+.every(5s)
+.json(<<< {"condition": {"id": 0, "name": "OK"}, "condition_reason": ""} >>>,
+      <<< {"condition": {"id": 1, "name": "Warning"}, "condition_reason": "bad succer"} >>>,
+      <<< {"condition": {"id": 2, "name": "Error"}, "condition_reason": "something went really wrong!"} >>>)
+
+
+def start =
+json
+|where(lambda: "data.condition.id" == 0)
+
+|debug('warning')
+
+def continue =
+json
+|where(lambda: "data.condition.id" == 1)
+
+start
+|combine(continue)
+.prefix('combined')
+
+|deadman(10s)
+.trigger_on_value()
+.fields('HI')
+.field_values('ALLLLEEEERRRRRRTTTTTT')
+
+|debug()

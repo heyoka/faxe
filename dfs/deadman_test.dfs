@@ -2,12 +2,9 @@
 .every(5s)
 .type(point)
 
-|deadman()
-.timeout(3s)
-%.quiet_time(10s)
-%.fields('question', 'answer')
-%.field_values('what', 'that')
+|deadman(3s)
 .repeat_last()
+.trigger_on_value()
 
 |eval(lambda: to_iso8601("ts" - (60000 * 5)))
 .as('datetime')
