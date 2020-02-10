@@ -49,7 +49,7 @@ inports() ->
 
 options() -> [
    {combined, node, {port, 2}},
-   {fields, string_list, undefined},
+   {fields, string_list},
    {tags, string_list, undefined},
    {aliases, string_list, undefined},
    {prefix, binary, undefined},
@@ -57,16 +57,21 @@ options() -> [
 
 check_options() ->
    [
-      {one_of_params, [fields, tags, prefix]}
+      %{one_of_params, [fields, tags, prefix]}
    ].
 
 init(NodeId, _Ins, #{fields := Fields, aliases := Aliases, prefix := Prefix, prefix_delimiter := PFL}) ->
+   Asses =
+   case Aliases of
+      undefined -> Fields;
+      _ -> Aliases
+   end,
    NP =
       case Prefix of
-         undefined -> lists:zip(Fields, Aliases);
+         undefined -> lists:zip(Fields, Asses);
          _ when is_binary(Prefix) -> <<Prefix/binary, PFL/binary>>
       end,
-   {ok, all, #state{fields = Fields, node_id = NodeId, row_aliases = Aliases, prefix = Prefix, name_param = NP}}.
+   {ok, all, #state{fields = Fields, node_id = NodeId, row_aliases = Asses, prefix = Prefix, name_param = NP}}.
 
 
 

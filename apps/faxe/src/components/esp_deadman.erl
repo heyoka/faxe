@@ -39,7 +39,7 @@
 options() -> [
    {timeout, duration}, %%
    {fields, string_list, []},
-   {field_values, string_list, []},
+   {field_values, list, []},
    {silent_time, duration, <<"0ms">>}, %% for this amount of time no timeout is triggered
    {repeat_last, is_set},
    {trigger_on_value, is_set}

@@ -13,7 +13,7 @@
 %% Note, with field_merge, no deep merge is performed, also, if the fields to merge contain different data-types
 %% merging is not possible
 %% data-types that can be merged: 2 maps, 2 lists, 2 numbers (which will be added), strings (will be concatenated)
-%%
+%% @todo make sure points that are handled are coming in on different ports (missing timeout)
 %% @end
 -module(esp_join).
 -author("Alexander Minichmair").
@@ -208,6 +208,7 @@ nearest_ts(Ts, TsList) ->
 %%   nearest_ts(Ts, NList).
 
 new_timeout(T, Ts, TimerList) ->
+   %lager:notice("new missing_timeout: ~p", [T]),
    TRef = erlang:send_after(T, self(), {tick, Ts}),
    [{Ts, TRef}|TimerList].
 
