@@ -9,9 +9,10 @@
 -compile(nowarn_export_all).
 -compile(export_all).
 
-%% [{param_number, port_number}]
+%% [{param_number, [mode,] port_number}]
 params(<<"combine">>) -> [{1, 2}];
-params(<<"join">>) -> {all, new_port, 1}.
+params(<<"join">>) -> {all, new_port, 1};
+params(<<"state_sequence">>) -> {all, new_port, 1}.
 
 %% (component name binary) -> [{param number|all, param name, param_type}]
 options(<<"deadman">>) -> [{1, <<"timeout">>, duration},{2, <<"threshold">>, integer}];

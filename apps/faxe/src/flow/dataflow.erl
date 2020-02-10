@@ -120,9 +120,9 @@ do_build_options(Opts, L) when is_list(L), is_list(Opts) ->
 %% @todo convert types accordingly, ie: string(binary) to real string(list)
 -spec val(option_value(), {Name :: binary(), option_name()}) -> option_value().
 val(Val, {OptName, duration}) when is_binary(Val) ->
-   case catch(faxe_time:duration_to_ms(Val)) of
-      T when is_integer(T) -> Val;
-      _ -> option_error(<<"bad parameter type">>, Val, duration, OptName)
+   case is_duration(Val) of
+      true -> Val;
+      false -> option_error(<<"bad parameter type">>, Val, duration, OptName)
    end;
 val(Val, {_, number}) when is_integer(Val) orelse is_float(Val) -> Val;
 val(Val, {_, integer}) when is_integer(Val) -> Val;
@@ -152,6 +152,8 @@ val(Val, {N, atom_list}) when is_list(Val) ->
    list_val(Val, fun(E) -> is_atom(E) end, atoms, N);
 val(Val, {N, lambda_list}) when is_list(Val) ->
    list_val(Val, fun(E) -> is_function(E) end, lambdas, N);
+val(Val, {N, duration_list}) when is_list(Val) ->
+   list_val(Val, fun(E) -> is_duration(E) end, durations, N);
 
 val(Val, {_, any}) -> Val;
 val(V, {OptName, Type}) -> option_error(<<"bad parameter type">>, V, Type, OptName).
@@ -164,6 +166,11 @@ list_val(Val, Fun, Type, OptName) ->
       false -> option_error(<<"bad parameter(s) type">>, Val, Type, OptName)
    end.
 
+is_duration(Bin) when is_binary(Bin) ->
+   case catch(faxe_time:duration_to_ms(Bin)) of
+      T when is_integer(T) -> true;
+      _ -> false
+   end.
 
 %% further option checks
 maybe_check_opts(Opts, Module) when is_map(Opts), is_atom(Module) ->

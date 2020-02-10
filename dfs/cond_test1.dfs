@@ -1,0 +1,46 @@
+def timeout = 0s
+def condition_reason = 'timeout'
+
+def in1 =
+    |json_emitter()
+    .every(12s)
+    .jitter(2s)
+    .json(
+        <<<
+            {"condition": {"state": "IDLE"}, "topic": "in1"}
+        >>>
+    )
+
+
+def in2 =
+    |json_emitter()
+    .every(15s)
+    .jitter(32s)
+    .json(
+        <<<
+            {"Function": "interface::WInterface::progress", "topic": "in2"}
+        >>>
+    )
+
+
+in1
+|states_follow(in2)
+.states(
+    lambda: "data.topic" == 'in1',
+    lambda: "data.topic" == 'in2',
+    lambda: "data.topic" == 'in1'
+)
+.within(25s, 20s)
+
+|debug('warning')
+
+def ignore =
+    |where(lambda: "data.Function" == 'interface::WInterface::progress' AND "data.condition.state" == 'IDLE')
+|debug()
+    |deadman(60m)
+    .fields('combined.condition.name', 'combined.condition_reason', 'combined.condition.id')
+    .field_values('Error', condition_reason, 2)
+
+    |where(lambda: "combined.condititon_reason" == condition_reason)
+
+

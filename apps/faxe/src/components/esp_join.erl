@@ -140,6 +140,7 @@ maybe_emit(Row, Ts, #state{row_length = RowLength, prefix = Pref, field_merge = 
       when length(Row) == RowLength ->
    dataflow:emit(conflate(Row, Ts, Pref, FMerge));
 maybe_emit(NewRow, NewTs, #state{prefix = Pref, field_merge = FMerge, fill = Fill}) ->
+   lager:notice("maybe emit: ~p",[Fill]),
    case Fill of
       none -> no_emit;
       null -> dataflow:emit(conflate(NewRow, NewTs, Pref, FMerge));
