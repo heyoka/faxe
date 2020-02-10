@@ -33,7 +33,8 @@
    is_quiet = false,
    trigger_on_value = false,
    repeat_last = false,
-   last_point
+   last_point,
+   no_forward
 }).
 
 options() -> [
@@ -42,25 +43,28 @@ options() -> [
    {field_values, list, []},
    {silent_time, duration, <<"0ms">>}, %% for this amount of time no timeout is triggered
    {repeat_last, is_set},
-   {trigger_on_value, is_set}
+   {trigger_on_value, is_set},
+   {no_forward, is_set}
 ].
 
 check_options() -> [{same_length, [fields, field_values]}].
 
 init(NodeId, _Ins,
-    #{timeout := Timeout0, fields := Fields, repeat_last := Repeat,
+    #{timeout := Timeout0, fields := Fields, repeat_last := Repeat, no_forward := NoForward,
        trigger_on_value := Trigger, field_values := Vals, silent_time := QTime0}) ->
 
    Timeout = faxe_time:duration_to_ms(Timeout0),
    QTimeout = faxe_time:duration_to_ms(QTime0),
    State =
-      #state{timeout = Timeout, fields = Fields, repeat_last = Repeat,
+      #state{timeout = Timeout, fields = Fields, repeat_last = Repeat, no_forward = NoForward,
          node_id = NodeId, field_vals = Vals, silent_time = QTimeout, trigger_on_value = Trigger},
 
    {ok, all, maybe_trigger_restart_timer(State)}.
 
+process(_In, Data, State = #state{no_forward = true}) ->
+   NewState = State#state{last_point = Data},
+   {ok, maybe_restart_timer(NewState)};
 process(_In, Data, State = #state{}) ->
-%%   lager:info("msg in"),
    NewState = State#state{last_point = Data},
    {emit, Data, maybe_restart_timer(NewState)}.
 

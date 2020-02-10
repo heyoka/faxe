@@ -24,22 +24,16 @@ def in3 =
 in1
 |state_sequence(in2, in3)
 .states(
-    lambda: "data.topic" == 'in1',
-    lambda: "data.topic" == 'in2',
-    lambda: "data.topic" == 'in3'
+    lambda: "data.topic" == 'in1', %% state 1
+    lambda: "data.topic" == 'in2', %% state 2
+    lambda: "data.topic" == 'in3'  %% state 3
 )
-.within(25s, 20s)
+.within(
+    25s, %% time for state 2 to be fulfilled
+    20s  %% time for state 3 to be fulfilled
+    )
 %.strict()
 
 |debug('warning')
-
-def ignore =
-    |where(lambda: "data.Function" == 'interface::WInterface::progress' AND "data.condition.state" == 'IDLE')
-|debug()
-    |deadman(60m)
-    .fields('combined.condition.name', 'combined.condition_reason', 'combined.condition.id')
-    .field_values('Error', condition_reason, 2)
-
-    |where(lambda: "combined.condititon_reason" == condition_reason)
 
 
