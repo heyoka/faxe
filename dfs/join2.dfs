@@ -20,28 +20,12 @@ def v3 =
     .format(ejson)
     .jitter(100ms)
 
-def j1 =
 v1
-    |join(v2)
-    .prefix('v1_', 'v2_')
+    |join(v2, v3)
+    .prefix('v1_', 'v2_', 'v3_')
     .tolerance(1s)
-    .missing_timeout(2s)
+    .missing_timeout(300ms)
     .fill(none)
 
-j1
-    |join(v3)
-    .prefix('j1.', 'v3.')
-    .tolerance(1s)
-    .missing_timeout(2s)
-    .fill(none)
-
-    |default()
-    .fields('j1.v1_val_root.val', 'j1.v2_val_root.val', 'v3.val_root.val')
-    .field_values(0, 0, 0)
-
-    |eval()
-    .lambdas(lambda: ("j1.v1_val_root.val" + "j1.v2_val_root.val" + "v3.val_root.val") / 3 )
-    .as('avg')
-
-    |debug()
+    |debug('warning')
 

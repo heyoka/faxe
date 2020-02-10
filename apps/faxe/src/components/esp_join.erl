@@ -29,6 +29,7 @@
 -record(state, {
    node_id,
    row_length :: non_neg_integer(),
+   row_list :: list(),
    lookup = [] :: list(), %% buffer-keys
    buffer, %% orddict with timstamps as keys
    prefix,
@@ -59,6 +60,7 @@ options() -> [
 
 init(NodeId, Ins,
     #{prefix := Prefix, missing_timeout := MTimeOut, tolerance := Tol, field_merge := FMerge, fill := Fill}) ->
+   RowList = proplists:get_keys(Ins),
    RowLength = length(Ins),
    Prefix1 =
    case FMerge of
@@ -68,8 +70,8 @@ init(NodeId, Ins,
 
    lager:notice("~p init:node :: ~p~n",[NodeId, Ins]),
    {ok, all,
-      #state{node_id = NodeId, prefix = Prefix1, field_merge = FMerge, row_length = RowLength, fill = Fill,
-      tolerance = faxe_time:duration_to_ms(Tol),
+      #state{node_id = NodeId, prefix = Prefix1, field_merge = FMerge, row_length = RowLength, fill = fill(Fill),
+      tolerance = faxe_time:duration_to_ms(Tol), row_list = RowList,
       m_timeout = faxe_time:duration_to_ms(MTimeOut)}}.
 
 process(Inport, #data_point{ts = Ts} = Point, State = #state{buffer = undefined, m_timeout = M, timers = TList}) ->
@@ -79,7 +81,7 @@ process(Inport, #data_point{ts = Ts} = Point, State = #state{buffer = undefined,
    NewBuffer = orddict:store(Ts, [{Inport, Point}], Buffer),
    {ok, State#state{buffer = NewBuffer, timers = NewList}};
 process(Inport, #data_point{ts = Ts} = Point, State = #state{buffer = Buffer, timers = TList,
-      m_timeout = MTimeout, row_length = RowLength, tolerance = Tolerance}) ->
+      m_timeout = MTimeout, tolerance = Tolerance}) ->
 %%   lager:notice("In on port : ~p",[Inport]),
    TsList = orddict:fetch_keys(Buffer),
 %%   lager:info("new TsList in Buffer: ~p",[TsList]),
@@ -98,10 +100,10 @@ process(Inport, #data_point{ts = Ts} = Point, State = #state{buffer = Buffer, ti
    end,
 
    {NewBuffer, NewTimerList} =
-   case length(NewRow) == RowLength of
+%%   case length(NewRow) == RowLength of
+   case is_full_row(NewRow, State) of
       true ->
-         maybe_emit(NewRow, NewTs, State),
-%%         dataflow:emit(conflate(NewRow, NewTs, As, FMerge)),
+         do_emit(NewRow, NewTs, State),
          {orddict:erase(NewTs, Buffer), clear_timeout(NewTs, TList)};
 
       false ->
@@ -120,7 +122,6 @@ process(Inport, #data_point{ts = Ts} = Point, State = #state{buffer = Buffer, ti
 
 %% missing timeout
 handle_info({tick, Ts}, State = #state{buffer = [], timers = TList}) ->
-%%   lager:warning("~p empty buffer when ticked",[?MODULE]),
    {ok, State#state{timers = proplists:delete(Ts, TList), buffer = undefined}};
 handle_info({tick, Ts}, State = #state{buffer = Buffer, timers = TList}) ->
 %%   lager:warning("~p ticks missing timeout :: ~p",[?MODULE, Buffer]),
@@ -129,23 +130,22 @@ handle_info({tick, Ts}, State = #state{buffer = Buffer, timers = TList}) ->
       true ->
             {Row, NewDict} = orddict:take(Ts, Buffer),
             maybe_emit(Row, Ts, State),
-%%            dataflow:emit(conflate(Row, Ts, As, FMerge)),
             NewDict;
       false -> Buffer
    end,
    {ok, State#state{buffer = NewBuffer, timers = proplists:delete(Ts, TList)}}.
 
 
-maybe_emit(Row, Ts, #state{row_length = RowLength, prefix = Pref, field_merge = FMerge})
-      when length(Row) == RowLength ->
-   dataflow:emit(conflate(Row, Ts, Pref, FMerge));
-maybe_emit(NewRow, NewTs, #state{prefix = Pref, field_merge = FMerge, fill = Fill}) ->
-   lager:notice("maybe emit: ~p",[Fill]),
-   case Fill of
-      none -> no_emit;
-      null -> dataflow:emit(conflate(NewRow, NewTs, Pref, FMerge));
-      _Val -> dataflow:emit(conflate(NewRow, NewTs, Pref, FMerge))
-   end.
+maybe_emit(NewRow, NewTs, State = #state{fill = none}) ->
+   case is_full_row(NewRow, State) of
+      true -> do_emit(NewRow, NewTs, State);
+      false -> ok
+   end;
+maybe_emit(NewRow, NewTs, State = #state{}) ->
+   do_emit(NewRow, NewTs, State).
+
+do_emit(Row, Ts, #state{prefix = Pref, field_merge = FMerge}) ->
+   dataflow:emit(conflate(Row, Ts, Pref, FMerge)).
 
 %% conflate the rows in buffer
 conflate(RowData, Ts, Prefixes, undefined) ->
@@ -185,7 +185,6 @@ join(RowData, Ts, Prefixes) ->
       #data_point{ts = Ts},
       RowData
    ),
-%%   lager:info("join OUT at ~p: ~p",[faxe_time:to_date(Ts),NewPoint]),
    NewPoint.
 
 %% get the nearest from a list of values
@@ -223,9 +222,18 @@ clear_timeout(Ts, TimerList) ->
    end
    .
 
+fill(<<"none">>) -> none;
+fill(<<"null">>) -> null;
+fill(Any) -> Any.
+
+is_full_row(Row, #state{row_list = RowList}) ->
+%%   lager:notice("is full row: ~p : ~p",[Row, RowList]),
+   case RowList -- proplists:get_keys(Row) of
+      [] -> true;
+      _  -> false
+   end.
 
 merge(M1, M2) when is_map(M1), is_map(M2) -> mapz:deep_merge(merge_fun(), #{}, [M1, M2]);
-%%merge(M1, M2) when is_map(M1), is_map(M2) -> maps:merge(M1, M2);
 merge(M1, M2) when is_list(M1), is_list(M2) -> lists:merge(M1, M2);
 merge(V1, V2) when is_number(V1), is_number(V2) -> V1 + V2;
 merge(S1, S2) when is_binary(S1), is_binary(S2) -> string:concat(S1, S2);
@@ -238,9 +246,3 @@ merge_fun() ->
       (Prev, Val) when is_list(Prev), is_list(Val) -> lists:merge(Prev, Val);
       (_, Val) -> Val
    end.
-
-
-
--ifdef(TEST).
-%%   basic_test() -> ?assertEqual(16.6, execute([1,3,8,16,55], #{field => <<"val">>})).
--endif.
