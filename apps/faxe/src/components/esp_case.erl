@@ -21,13 +21,15 @@
    lambdas,
    values,
    as,
-   default
+   default,
+   json
 }).
 
 options() -> [
    {lambdas, lambda_list},
-   {as, string},
-   {values, string_list},
+   {as, string}, %% key
+   {values, list}, %% list of values
+   {json, is_set, false}, %% treat the values as json strings
    {default, any}
 ].
 
@@ -36,8 +38,18 @@ check_options() ->
       {same_length, [lambdas, values]}
    ].
 
-init(NodeId, _Ins, #{lambdas := LambdaFuns, as := As, values := Values, default := Default}) ->
-   {ok, all, #state{lambdas = LambdaFuns, node_id = NodeId, as = As, values = Values, default = Default}}.
+init(NodeId, _Ins,
+    #{lambdas := LambdaFuns, as := As, values := Values0, default := Default0, json := Json}) ->
+
+   Default = case Json of true -> jiffy:decode(Default0, [return_maps]); false -> Default0 end,
+   Values =
+   case Json of
+      true -> [jiffy:decode(Val, [return_maps]) || Val <- Values0];
+      false -> Values0
+   end,
+   {ok, all,
+      #state{lambdas = LambdaFuns, node_id = NodeId,
+         as = As, values = Values, default = Default, json = Json}}.
 
 process(_In, #data_batch{points = Points} = Batch,
       State = #state{lambdas = LambdaFuns, as = As, values = Values, default = Def}) ->
