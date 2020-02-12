@@ -35,7 +35,7 @@ check_json(Jsons) when is_list(Jsons) ->
 check_json(Json) when is_binary(Json) ->
    case catch jiffy:decode(Json) of
       {'EXIT', _} -> false;
-      Other -> true
+      _Other -> true
    end.
 
 init(NodeId, _Inputs,
