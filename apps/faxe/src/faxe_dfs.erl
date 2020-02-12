@@ -117,7 +117,8 @@ eval({Nodes, Connections}) ->
             %% add ls_mem options as optional
             LsMem = [{ls_mem, binary, undefined}, {ls_mem_field, binary, <<>>},
                {ls_mem_ttl, integer, 0}, {ls_mem_set, binary, undefined}],
-            CompOptions = CompOptions0 ++ LsMem,
+            CompOptions1 = eval_options(CompOptions0, []),
+            CompOptions = CompOptions1 ++ LsMem,
             %% handle all other params and options
             NOptions = convert_options(CompOptions, lists:flatten(Options ++ ParamOptions)),
             NodeOptions = NOptions ++ NOpts,
@@ -151,6 +152,16 @@ eval({Nodes, Connections}) ->
       NewDef,
       Connections ++ NewConnections
    ).
+
+%% evaluate default config options
+eval_options([], Acc) ->
+   Acc;
+eval_options([{OptName, OptType, {ConfigKey, ConfigSubKey}}|Opts], Acc) ->
+   ConfigData = application:get_env(faxe, ConfigKey, []),
+   OptVal = proplists:get_value(ConfigSubKey, ConfigData),
+   eval_options(Opts, Acc ++ [{OptName, OptType, OptVal}]);
+eval_options([Opt|Opts], Acc) ->
+   eval_options(Opts, Acc ++ [Opt]).
 
 %%eval_node({<< "@", Name/binary >>, Id}) ->
 %%   {node_name(Name), node_id({Name, Id}), []};

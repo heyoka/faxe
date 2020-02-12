@@ -14,11 +14,6 @@
 %% API
 -export([init/3, process/3, options/0, check_options/0]).
 
-
--define(FROM_EMAIL, <<"noreply@tgw-group.com">>).
--define(SMTP_RELAY, <<"smtp.tgw.local">>).
--define(HTML_TEMPLATE, <<"priv/email_template.html">>).
-
 -record(state, {
    node_id,
    from :: binary(),
@@ -33,6 +28,11 @@
 }).
 
 options() -> [
+   {from_address, binary, {email, from_address}},
+   {smtp_relay, binary, {email, smtp_relay}},
+   {smtp_user, any, {email, smtp_user}},
+   {smtp_pass, any, {email, smtp_pass}},
+   {template, binary, {email, template}},
    {to, string_list},
    {subject, string},
    {body, string_template, undefined},
@@ -52,12 +52,12 @@ check_email(Address) when is_binary(Address) ->
 
 
 
-init(NodeId, _Ins, #{to := To0, subject := Subj, body := Body, body_field := BodyField}) ->
+init(NodeId, _Ins, #{
+   from_address := From, smtp_relay := SmtpRelay, template := Template0,
+   smtp_user := User, smtp_pass := Pass,
+   to := To0, subject := Subj, body := Body, body_field := BodyField}) ->
 
-   EmailData = application:get_env(faxe, email, []),
-   From = proplists:get_value(from_address, EmailData, ?FROM_EMAIL),
-   SmtpRelay = proplists:get_value(smtp_relay, EmailData, ?SMTP_RELAY),
-   TemplateFile = proplists:get_value(template, EmailData, ?HTML_TEMPLATE),
+   TemplateFile = binary_to_list(Template0),
    {ok, ContBin} = file:read_file(TemplateFile),
 
    State = #state{
@@ -68,8 +68,8 @@ init(NodeId, _Ins, #{to := To0, subject := Subj, body := Body, body_field := Bod
       node_id = NodeId,
       from = From,
       smtp_relay = SmtpRelay,
-      smtp_user = undefined,
-      smtp_pass = undefined,
+      smtp_user = User,
+      smtp_pass = Pass,
       template = ContBin
       },
 

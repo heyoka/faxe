@@ -52,7 +52,8 @@
 }).
 
 options() -> [
-   {host, binary}, {port, integer, ?DEFAULT_PORT},
+   {host, binary, {mqtt, host}},
+   {port, integer, {mqtt, port}},
    {qos, integer, 1},
    {topic, binary, undefined},
    {topic_lambda, lambda, undefined},

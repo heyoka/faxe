@@ -43,8 +43,8 @@
 }).
 
 options() -> [
-   {host, binary},
-   {port, integer, ?DEFAULT_PORT},
+   {host, binary, {amqp, host}},
+   {port, integer, {amqp, port}},
    {ssl, bool, false},
    {vhost, binary, <<"/">>},
    {routing_key, binary},
