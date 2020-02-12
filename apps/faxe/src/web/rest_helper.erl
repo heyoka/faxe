@@ -42,12 +42,7 @@ do_register(Req, State, Type) ->
 %%   lager:notice("name: ~p: dfs: ~p, type:~p",[TaskName, Dfs, Type]),
    case reg_fun(Dfs, TaskName, Type) of
       ok ->
-         NewTask = faxe:get_task(TaskName),
-         Id =
-         case NewTask of
-            #task{id = NewId} -> NewId;
-            _  -> 0
-         end,
+         Id = get_task_or_template_id(TaskName, Type),
          Req4 = cowboy_req:set_resp_body(
             jiffy:encode(#{success => true, name => TaskName, id => Id}), Req3),
          {true, Req4, State};
@@ -64,6 +59,19 @@ do_register(Req, State, Type) ->
 
 reg_fun(Dfs, Name, task) -> Res = faxe:register_string_task(Dfs, Name), Res;
 reg_fun(Dfs, Name, _) -> faxe:register_template_string(Dfs, Name).
+
+get_task_or_template_id(TName, task) ->
+   NewTask = faxe:get_task(TName),
+      case NewTask of
+         #task{id = NewId} -> NewId;
+         _  -> 0
+      end;
+get_task_or_template_id(TName, _) ->
+   NewTask = faxe:get_template(TName),
+      case NewTask of
+         #template{id = NewId} -> NewId;
+         _  -> 0
+      end.
 
 -spec to_bin(any()) -> binary().
 to_bin(L) when is_list(L) -> list_to_binary(L);

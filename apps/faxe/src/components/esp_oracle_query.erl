@@ -52,7 +52,8 @@ options() ->
 
 check_options() ->
    [
-      {func, query, fun faxe_util:check_select_statement/1, <<"seems not to be a valid sql select statement">>}
+      {func, query, fun faxe_util:check_select_statement/1,
+         <<"seems not to be a valid sql select statement">>}
    ].
 
 init(_NodeId, _Inputs, #{host := Host0, port := Port, user := User0, every := Every,
@@ -91,14 +92,7 @@ handle_info(query, State = #state{timer = Timer, client = C, result_type = RType
    NewTimer = faxe_time:timer_next(Timer),
    %% do query
    Res = jamdb_oracle:sql_query(C, State#state.query),
-   {ok, [{result_set, Columns, [], Rows}]} = Res,
-%%   lager:info("RESULT: ~nColumns: ~p~nRows: ~p",[Columns, Rows]),
-   lager:info("RESULT-length: ~n ~p",[length(Rows)]),
-
-   Data = handle_result(Columns, Rows, Timestamp, RType),
-%%   {_T, Data} = timer:tc(?MODULE, handle_result, [Columns, Rows, RType]),
-%%   lager:notice("Data in ~p my: ~n~p",[T,Data]),
-   dataflow:emit(Data),
+   handle_response(Res, Timestamp, RType),
    {ok, State#state{timer = NewTimer}};
 
 handle_info({'EXIT', _C, _Reason}, State = #state{timer = Timer}) ->
@@ -117,6 +111,15 @@ connect(State = #state{db_opts = Opts}) ->
    NewState.
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+handle_response({ok, [{result_set, Columns, [], Rows}]}, Timestamp, RType) ->
+   lager:info("RESULT-length: ~n ~p",[length(Rows)]),
+   Data = handle_result(Columns, Rows, Timestamp, RType),
+   dataflow:emit(Data);
+handle_response({ok,[{proc_result,_ ,Message}]}, _, _) ->
+   lager:warning("No query-result, but message: ~p",[Message]);
+handle_response(What, _, _) ->
+   lager:warning("Unexpected query-response: ~p", [What]).
+
 
 handle_result(Columns, Rows, Ts, <<"batch">>) ->
    to_flowdata(Columns, Rows, Ts);

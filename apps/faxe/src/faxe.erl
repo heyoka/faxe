@@ -38,7 +38,7 @@
 %%   start_temporary/2,
    start_temp/2,
    start_file_temp/2,
-   export/1]).
+   export/1, get_template/1]).
 
 start_permanent_tasks() ->
    Tasks = faxe_db:get_permanent_tasks(),
@@ -73,6 +73,13 @@ get_task(TaskId) ->
             Y when is_tuple(Y) -> T#task{is_running = true};
             false -> T
          end
+   end.
+
+-spec get_template(term()) -> {error, not_found}|#template{}.
+get_template(TemplateId) ->
+   case faxe_db:get_template(TemplateId) of
+      {error, not_found} -> {error, not_found};
+      #template{} = T -> T
    end.
 
 -spec list_tasks() -> list().

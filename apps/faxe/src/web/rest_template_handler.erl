@@ -89,7 +89,7 @@ delete_resource(Req, State=#state{template_id = TaskId}) ->
          Req2 = cowboy_req:set_resp_body(jiffy:encode(RespMap), Req),
          {true, Req2, State};
       {error, Error} ->
-         lager:info("Error occured when deleting template: ~p",[Error]),
+         lager:error("Error occured when deleting template: ~p",[Error]),
          Req3 = cowboy_req:set_resp_body(jiffy:encode(#{success => false, error => rest_helper:to_bin(Error)}), Req),
          {false, Req3, State}
    end.

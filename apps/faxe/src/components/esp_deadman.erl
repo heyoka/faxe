@@ -9,7 +9,7 @@
 %%    if no fields (and field_values) parameter and is given, an empty datapoint will be emitted
 %% the repeat_last parameter will always override the fields and field_values parameter
 %%
-%% the node will forward every message it gets
+%% the node will forward every message it gets by default, this can be changed by using the no_forward flag
 %% @end
 -module(esp_deadman).
 -author("Alexander Minichmair").
