@@ -30,15 +30,20 @@ allowed_methods(Req, State) ->
 content_types_provided(Req, State) ->
     {[
        {{<<"application">>, <<"json">>, []}, stats_json}
-%%       {{<<"text">>, <<"html">>, []}, stats_json}
     ], Req, State}.
 
 
-stats_json(Req, State=#state{mode = _Mode}) ->
+%% VM STATS
+stats_json(Req, State=#state{mode = vm}) ->
    Stats = faxe_vmstats:called(),
    F = fun(K, V, Acc) ->
       NewKey = binary:replace(list_to_binary(K), <<".">>, <<"-">>, []),
       Acc#{NewKey => V}
       end,
    Map = maps:fold(F, #{}, Stats),
-   {jiffy:encode(Map), Req, State}.
+   {jiffy:encode(Map), Req, State};
+
+%% FAXE STATS
+stats_json(Req, State=#state{mode = faxe}) ->
+   Stats = faxe_stats:get_stats(),
+   {jiffy:encode(Stats), Req, State}.

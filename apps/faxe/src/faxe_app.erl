@@ -28,6 +28,8 @@ start(_StartType, _StartArgs) ->
           %% REST
 
           {"/v1/stats", rest_stats_handler, [{op, vm}]},
+          {"/v1/stats/vm", rest_stats_handler, [{op, vm}]},
+          {"/v1/stats/faxe", rest_stats_handler, [{op, faxe}]},
 
           {"/v1/tasks", rest_tasks_handler, [{op, list}]},
           {"/v1/tasks/running", rest_tasks_handler, [{op, list_running}]},

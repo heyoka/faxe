@@ -38,7 +38,7 @@
 %%   start_temporary/2,
    start_temp/2,
    start_file_temp/2,
-   export/1, get_template/1]).
+   export/1, get_template/1, list_temporary_tasks/0]).
 
 start_permanent_tasks() ->
    Tasks = faxe_db:get_permanent_tasks(),
@@ -105,6 +105,10 @@ list_running_tasks() ->
 
 list_permanent_tasks() ->
    faxe_db:get_permanent_tasks().
+
+list_temporary_tasks() ->
+   Tasks = ets:tab2list(temp_tasks),
+   Tasks.
 
 -spec register_file_task(list()|binary(), any()) -> any().
 register_file_task(DfsScript, Name) ->

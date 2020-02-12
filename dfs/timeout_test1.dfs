@@ -1,0 +1,25 @@
+def timeout = 20s
+def condition_reason = 'timeout'
+
+def in1 =
+    |json_emitter()
+    .every(12s)
+    .jitter(2s)
+    .json(<<<{"condition": {"state": "IDLE"}, "topic": "in1"} >>>)
+
+
+def in2 =
+    |json_emitter()
+    .every(15s)
+    .jitter(32s)
+    .json(<<<{"Function": "interface::WInterface::progress", "topic": "in2"}>>>)
+
+
+in1
+|triggered_timeout(in2)
+.timeout(timeout)
+.timeout_trigger(lambda: "data.topic" == 'in1')
+
+|debug('warning')
+
+
