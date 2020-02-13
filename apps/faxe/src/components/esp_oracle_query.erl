@@ -87,7 +87,9 @@ handle_info(query, State = #state{timer = Timer, client = C, result_type = RType
 %%   QueryMark = Timer#faxe_timer.last_time,
 %%   lager:notice("query: ~p with ~p", [Q, [QueryMark-Period, QueryMark]]),
 
-   %% use timestamp from timer, in case of aligned queries, we have a straight
+%%   no match of right hand value {error,socket,closed} in esp_oracle_query:handle_info/2 line 94
+
+%% use timestamp from timer, in case of aligned queries, we have a straight
    Timestamp = Timer#faxe_timer.last_time,
    NewTimer = faxe_time:timer_next(Timer),
    %% do query
@@ -117,6 +119,10 @@ handle_response({ok, [{result_set, Columns, [], Rows}]}, Timestamp, RType) ->
    dataflow:emit(Data);
 handle_response({ok,[{proc_result,_ ,Message}]}, _, _) ->
    lager:warning("No query-result, but message: ~p",[Message]);
+handle_response({error,socket,closed}, _, _) ->
+   lager:warning("Got closed socket when reading from db");
+handle_response({error, Type, Reason}, _, _) ->
+   lager:warning("Got error when reading from db: ~p: ~p",[Type, Reason]);
 handle_response(What, _, _) ->
    lager:warning("Unexpected query-response: ~p", [What]).
 
