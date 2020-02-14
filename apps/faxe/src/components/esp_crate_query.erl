@@ -69,7 +69,7 @@ init(_NodeId, _Inputs, #{host := Host0, port := Port, user := User, every := Eve
    Opts = #{host => Host, port => Port, username => User, pass => Pass, database => DB},
    DBOpts = maps:merge(?DB_OPTIONS, Opts),
 
-   lager:warning("the QUERY before: ~p",[Q0]),
+%%   lager:warning("the QUERY before: ~p",[Q0]),
    Q = faxe_util:clean_query(Q0),
    Query = build_query(Q, TimeGroup, TimeField, GroupBys),
    lager:warning("the QUERY: ~p",[Query]),
@@ -88,12 +88,12 @@ process(_In, _B = #data_batch{}, State = #state{}) ->
 handle_info(query,
     State = #state{timer = Timer, client = C, stmt = Q, period = Period, result_type = RType}) ->
    QueryMark = Timer#faxe_timer.last_time,
-   lager:notice("query: ~p with ~p", [Q, [QueryMark-Period, QueryMark]]),
+%%   lager:notice("query: ~p with ~p", [Q, [QueryMark-Period, QueryMark]]),
    NewTimer = faxe_time:timer_next(Timer),
    %% do query
    {ok, Columns, Rows} = epgsql:prepared_query(C, ?STMT, [QueryMark-Period, QueryMark]),
-   lager:notice("Columns: ~p",[Columns]),
-   lager:notice("Rows: ~p",[Rows]),
+%%   lager:notice("Columns: ~p",[Columns]),
+%%   lager:notice("Rows: ~p",[Rows]),
 
    ColumnNames = columns(Columns, []),
 %%   lager:notice("ColumnName: ~p",[ColumnNames]),
