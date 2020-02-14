@@ -25,7 +25,8 @@ eval(Template, DataPoint) ->
 
 %% parse
 extract(Template) when is_binary(Template) ->
-   Matches = re:run(Template, "{{([a-zA-Z0-9\.\\[\\]_-]*)}}", [global, {capture, all, binary}]),
+   Matches = re:run(Template, "{{[\s]*[\"]([a-zA-Z0-9\.\\[\\]_-]*)[\"][\s]*}}",
+      [global, {capture, all, binary}]),
    case Matches of
       nomatch -> Template;
       {match, Matched} ->
@@ -59,11 +60,20 @@ conv(V) -> V.
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 -ifdef(TEST).
 basic_test() ->
-   Template = <<"We have {{tries}} tries so far and {{left}} tries left.">>,
+   Template = <<"We have {{\"tries\" }} tries so far and {{\"left\"}} tries left.">>,
    Point = #data_point{fields = #{<<"tries">> => 2, <<"left">> => 3}},
    Fun = to_fun(extract(Template)),
    ?assertEqual(
       <<"We have 2 tries so far and 3 tries left.">>,
+      to_string(Fun, Point)
+   ).
+
+basic_not_test() ->
+   Template = <<"We have {{\" tries\" }} tries so far and {{ \"left\"  }} tries left.">>,
+   Point = #data_point{fields = #{<<"tries">> => 2, <<"left">> => 3}},
+   Fun = to_fun(extract(Template)),
+   ?assertEqual(
+      <<"We have {{\" tries\" }} tries so far and 3 tries left.">>,
       to_string(Fun, Point)
    ).
 
@@ -72,7 +82,7 @@ no_template_test() ->
    Point = #data_point{fields = #{<<"tries">> => 2, <<"left">> => 3}},
    Fun = to_fun(extract(Template)),
    ?assertEqual(
-      <<"We have 5 tries so far and none tries left.">>,
+      Template,
       to_string(Fun, Point)
    ).
 

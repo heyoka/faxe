@@ -40,7 +40,6 @@ check_options() ->
 
 init(NodeId, _Ins,
     #{lambdas := LambdaFuns, as := As, values := Values0, default := Default0, json := Json}) ->
-
    Default = case Json of true -> jiffy:decode(Default0, [return_maps]); false -> Default0 end,
    Values =
    case Json of
@@ -50,6 +49,7 @@ init(NodeId, _Ins,
    {ok, all,
       #state{lambdas = LambdaFuns, node_id = NodeId,
          as = As, values = Values, default = Default, json = Json}}.
+
 
 process(_In, #data_batch{points = Points} = Batch,
       State = #state{lambdas = LambdaFuns, as = As, values = Values, default = Def}) ->
@@ -61,9 +61,14 @@ process(_Inport, #data_point{} = Point,
    {emit, NewValue, State}.
 
 eval(#data_point{} = P, [], [], As, Default) ->
+%%   lager:warning("no lambda matched!!"),
    flowdata:set_field(P, As, Default);
 eval(#data_point{} = Point, [Lambda|Lambdas], [Value|Values], As, Default) ->
    case faxe_lambda:execute(Point, Lambda) of
-      true -> flowdata:set_field(Point, As, Value);
-      false -> eval(Point, Lambdas, Values, As, Default)
+      true ->
+%%         lager:warning("lambda did match!!"),
+         flowdata:set_field(Point, As, Value);
+      false ->
+%%         lager:warning("lambda did not match!!"),
+         eval(Point, Lambdas, Values, As, Default)
    end.

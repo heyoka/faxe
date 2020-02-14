@@ -35,6 +35,8 @@
    timeout,
    fields,
    field_vals,
+   cancel_fields,
+   cancel_field_vals,
    timer_ref,
    trigger_port = 1,
    trigger_fun
@@ -44,6 +46,9 @@ options() -> [
    {timeout, duration}, %%
    {fields, string_list, []},
    {field_values, list, []},
+
+   {cancel_fields, string_list, []},
+   {cancel_field_values, list, []},
    %{timeout_trigger_port, integer, 1}, %% maybe later
    {timeout_trigger, lambda, undefined}
 ].
@@ -52,15 +57,18 @@ check_options() -> [{same_length, [fields, field_values]}].
 
 init(NodeId, Ins,
     #{timeout := Timeout0, fields := Fields, field_values := Vals,
+       cancel_fields := CFields, cancel_field_values := CVals,
        timeout_trigger := Lambda
 %%       ,
 %%       timeout_trigger_port := TriggerPort
     }) ->
-   lager:warning("In Nodes: ~p",[Ins]),
    Timeout = faxe_time:duration_to_ms(Timeout0),
 
    State =
-      #state{timeout = Timeout, fields = Fields, field_vals = Vals, trigger_fun = Lambda,
+      #state{timeout = Timeout,
+         fields = Fields, field_vals = Vals,
+         cancel_fields = CFields, cancel_field_vals = CVals,
+         trigger_fun = Lambda,
          node_id = NodeId},
 
    {ok, all, State}.
@@ -70,19 +78,16 @@ process(InPort, _Item, State = #state{trigger_fun = undefined, trigger_port = In
    NewState = maybe_start_timer(State), %% ok we hit the timeout trigger
    {ok, NewState};
 process(_In, _Item, State = #state{trigger_fun = undefined}) ->
-   lager:warning("in on port ~p", [_In]),
    {ok, cancel_timer(State)};
 process(_In, P = #data_point{}, State = #state{trigger_fun = Fun}) ->
-   lager:warning("in on port ~p", [_In]),
    NewState =
-      case faxe_lambda:execute(P, Fun) of
+      case (catch faxe_lambda:execute(P, Fun)) of
          true -> maybe_start_timer(State); %% ok we hit the timeout trigger
-         false -> cancel_timer(State)
+         _ -> cancel_timer(State) %% cancel the timeout
       end,
    {ok, NewState}.
 
 handle_info(timeout, State = #state{}) ->
-   lager:warning("time is up!"),
    dataflow:emit(build_message(State)),
    {ok, State#state{timer_ref = undefined}}.
 
@@ -90,18 +95,21 @@ build_message(#state{field_vals = Vals, fields = Fields}) ->
    DataPoint = #data_point{ts = faxe_time:now()},
    flowdata:set_fields(DataPoint, Fields, Vals).
 
+build_cancel_message(#state{cancel_field_vals = Vals, cancel_fields = Fields}) ->
+   DataPoint = #data_point{ts = faxe_time:now()},
+   flowdata:set_fields(DataPoint, Fields, Vals).
+
 maybe_start_timer(State = #state{timer_ref = undefined}) ->
    restart_timer(State);
 maybe_start_timer(State = #state{timer_ref = TRef}) when is_reference(TRef) ->
-   lager:info("timeout is running, do not restart"),
    State.
 
 cancel_timer(State = #state{timer_ref = TRef}) ->
    catch erlang:cancel_timer(TRef),
+   dataflow:emit(build_cancel_message(State)),
    State#state{timer_ref = undefined}.
 
 restart_timer(State = #state{timer_ref = TRef, timeout = Timeout}) ->
-   lager:notice("start new timeout ..."),
    catch erlang:cancel_timer(TRef),
    NewTimer = erlang:send_after(Timeout, self(), timeout),
    State#state{timer_ref = NewTimer}.

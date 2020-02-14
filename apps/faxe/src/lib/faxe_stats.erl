@@ -5,6 +5,10 @@
 %%%
 %%% @end
 %%% Created : 12. Feb 2020 20:09
+%%% @todo
+%%% throughput
+%%% num errors
+%%% cluster stats
 %%%-------------------------------------------------------------------
 -module(faxe_stats).
 -author("heyoka").
@@ -78,12 +82,17 @@ handle_cast(_Request, State) ->
    {stop, Reason :: term(), NewState :: #state{}}).
 handle_info(gather, State = #state{stats = Stats}) ->
    erlang:send_after(?INTERVAL, self(), gather),
+   {ok, FaxeVsn} = application:get_key(faxe, vsn),
    TasksAll = faxe:list_tasks(),
    TasksRunning = faxe:list_running_tasks(),
    TasksTemp = faxe:list_temporary_tasks(),
    TasksPermanent = faxe:list_permanent_tasks(),
    TemplatesAll = faxe:list_templates(),
+   Paths = ets:tab2list(field_paths),
    S = #{
+      <<"data_throughput_sec">> => faxe_lambda_lib:random(203),
+      <<"data_paths_known">> => length(Paths),
+      <<"faxe_version">> => list_to_binary(FaxeVsn),
       <<"registered_tasks">> => length(TasksAll),
       <<"running_tasks">> => length(TasksRunning),
       <<"running_temp_tasks">> => length(TasksTemp),

@@ -166,6 +166,11 @@ str_concat(Strings) when is_list(Strings) ->
 %%
 %%
 %%% @end
+
+defined(Val) ->
+   Val /= undefined.
+undefined(Val) ->
+   Val == undefined.
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %% additional
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%

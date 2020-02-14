@@ -24,6 +24,7 @@
    db_opts,
    every,
    period,
+   result_type,
    align = false,
    timer
 }).
@@ -50,7 +51,9 @@ options() ->
       {align, is_set},
       {group_by_time, duration, <<"2m">>},
       {group_by, string_list, []},
-      {limit, string, <<"30">>}].
+      {limit, string, <<"30">>},
+      {result_type, string, <<"batch">>}
+   ].
 
 check_options() ->
    [
@@ -58,8 +61,8 @@ check_options() ->
    ].
 
 init(_NodeId, _Inputs, #{host := Host0, port := Port, user := User, every := Every, period := Period,
-      pass := Pass, database := DB, query := Q0, align := Align, group_by_time := TimeGroup, time_field := TimeField,
-   group_by := GroupBys}) ->
+      pass := Pass, database := DB, query := Q0, align := Align, group_by_time := TimeGroup,
+      time_field := TimeField, group_by := GroupBys, result_type := RType}) ->
 
    process_flag(trap_exit, true),
    Host = binary_to_list(Host0),
@@ -71,7 +74,8 @@ init(_NodeId, _Inputs, #{host := Host0, port := Port, user := User, every := Eve
    Query = build_query(Q, TimeGroup, TimeField, GroupBys),
    lager:warning("the QUERY: ~p",[Query]),
    State = #state{host = Host, port = Port, user = User, pass = Pass, database = DB, query = Query,
-      db_opts = DBOpts, every = Every, period = faxe_time:duration_to_ms(Period), align = Align},
+      db_opts = DBOpts, every = Every, period = faxe_time:duration_to_ms(Period),
+      align = Align, result_type = RType},
    NewState = connect(State),
    {ok, all, NewState}.
 
@@ -81,19 +85,21 @@ process(_In, _B = #data_batch{}, State = #state{}) ->
    {ok, State}.
 
 
-handle_info(query, State = #state{timer = Timer, client = C, stmt = Q, period = Period}) ->
+handle_info(query,
+    State = #state{timer = Timer, client = C, stmt = Q, period = Period, result_type = RType}) ->
    QueryMark = Timer#faxe_timer.last_time,
    lager:notice("query: ~p with ~p", [Q, [QueryMark-Period, QueryMark]]),
    NewTimer = faxe_time:timer_next(Timer),
    %% do query
    {ok, Columns, Rows} = epgsql:prepared_query(C, ?STMT, [QueryMark-Period, QueryMark]),
-%%   lager:notice("Columns: ~p",[Columns]),
-%%   lager:notice("Rows: ~p",[Rows]),
+   lager:notice("Columns: ~p",[Columns]),
+   lager:notice("Rows: ~p",[Rows]),
 
    ColumnNames = columns(Columns, []),
 %%   lager:notice("ColumnName: ~p",[ColumnNames]),
 %%   {T, Batch} = timer:tc(?MODULE, to_flowdata, [ColumnNames, Rows]),
-   Batch = to_flowdata(ColumnNames, Rows),
+%%   Batch = to_flowdata(ColumnNames, Rows),
+   Batch = handle_result(ColumnNames, Rows, RType),
 %%   lager:notice("Batch in ~p my: ~n~p",[T,Batch]),
    dataflow:emit(Batch),
    {ok, State#state{timer = NewTimer}};
@@ -160,6 +166,15 @@ columns([], ColumnNames) ->
    lists:reverse(ColumnNames);
 columns([{column, Name, _Type, _, _, _, _}|RestC], ColumnNames) ->
    columns(RestC, [Name|ColumnNames]).
+
+handle_result(Columns, Rows, <<"batch">>) ->
+   to_flowdata(Columns, Rows);
+handle_result(Columns, Rows, <<"point">>) ->
+   Batch = to_flowdata(Columns, Rows),
+   FieldsList = [Fields || #data_point{fields = Fields} <- Batch#data_batch.points],
+   #data_point{ts = faxe_time:now(), fields = #{<<"data">> => FieldsList}}.
+
+
 
 to_flowdata(Columns, ValueRows) ->
    VRows = [tuple_to_list(VRow) || VRow <- ValueRows],
