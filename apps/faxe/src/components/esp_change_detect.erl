@@ -33,7 +33,10 @@
    exclusive = false
 }).
 
-options() -> [{fields, binary_list}, {reset_timeout, duration, <<"3h">>}, {exclusive, is_set}].
+options() -> [
+   {fields, binary_list, undefined},
+   {reset_timeout, duration, <<"3h">>},
+   {exclusive, is_set}].
 
 init(_NodeId, _Ins, #{fields := FieldList, reset_timeout := Timeout, exclusive := Exc}) ->
    Time = faxe_time:duration_to_ms(Timeout),
@@ -53,11 +56,11 @@ process(_Inport, #data_point{} = Point,
 %%   lager:notice("~p point in : ~p", [?MODULE, Point#data_point.fields]),
    cancel_timer(TRef),
    {Filtered, NewValues} = process_point(Point, LastValues, Fields, Exc),
-   %lager:info("new last values: ~p" ,[NewValues]),
+%%   lager:info("new last values: ~p~nFiltered: ~p" ,[NewValues, Filtered]),
    NewState = State#state{values = NewValues, timer = reset_timeout(Time)},
    case Filtered of
       [] -> {ok, NewState};
-      E when is_list(E) -> %lager:notice("~p emitting: ~p", [?MODULE, Filtered]),
+      E when is_map(E) -> %lager:notice("~p emitting: ~p", [?MODULE, Filtered]),
          {emit, Point#data_point{fields = Filtered}, NewState}
    end
    .

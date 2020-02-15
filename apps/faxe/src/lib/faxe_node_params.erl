@@ -12,6 +12,7 @@
 %% [{param_number, [mode,] port_number}]
 params(<<"combine">>) -> [{1, 2}];
 params(<<"join">>) -> {all, new_port, 1};
+params(<<"union">>) -> {all, new_port, 1};
 params(<<"state_sequence">>) -> {all, new_port, 1};
 params(<<"triggered_timeout">>) -> {all, new_port, 1}.
 
@@ -28,6 +29,7 @@ options(<<"state_count">>) -> [{1, <<"lambda">>, lambda}];
 options(<<"state_duration">>) -> [{1, <<"lambda">>, lambda}];
 options(<<"debug">>) -> [{1, <<"level">>, string}];
 options(<<"case">>) -> [{all, <<"lambdas">>, lambda_list}];
+options(<<"change_detect">>) -> [{all, <<"fields">>, string_list}];
 options(_) -> undefined.
 
 %% helper functions

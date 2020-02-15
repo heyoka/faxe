@@ -1,0 +1,18 @@
+|json_emitter()
+    .every(5s)
+    .jitter(2s)
+    .json(
+        <<<{"condition": {"state": "IDLE"}, "topic": "in2"} >>>,
+        <<<{"condition": {"state": "IDLE"}, "topic": "in1"} >>>,
+        <<<{"condition": {"state": "IDLE"}, "topic": "in1"} >>>,
+        <<<{"condition": {"state": "IDLE"}, "topic": "in2"} >>>,
+        <<<{"condition": {"state": "IDLE"}, "topic": "in3"} >>>,
+        <<<{"condition": {"state": "IDLE"}, "topic": "in1"} >>>,
+        <<<{"condition": {"state": "IDLER"}, "topic": "in1"} >>>,
+        <<<{"condition": {"state": "IDLE"}, "topic": "in1"} >>>,
+        <<<{"condition": {"state": "IDLE"}, "topic": "in1"} >>>
+        )
+
+|debug('info')
+|change_detect('data').exclusive()
+|debug()

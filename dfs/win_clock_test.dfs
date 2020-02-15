@@ -6,9 +6,7 @@ var in =
 
 
 in
-    |change_detect()
-    .fields('val')
-    .reset_timeout(3s)
+    |change_detect('val')
 
 in
     |win_clock_new()
