@@ -59,7 +59,7 @@ process(_Inport, #data_point{} = Point,
 %%   lager:info("new last values: ~p~nFiltered: ~p" ,[NewValues, Filtered]),
    NewState = State#state{values = NewValues, timer = reset_timeout(Time)},
    case Filtered of
-      [] -> {ok, NewState};
+      Map when is_map(Map), map_size(Map) == 0 ->  {ok, NewState};
       E when is_map(E) -> %lager:notice("~p emitting: ~p", [?MODULE, Filtered]),
          {emit, Point#data_point{fields = Filtered}, NewState}
    end
