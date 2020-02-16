@@ -1,0 +1,8 @@
+|value_emitter()
+.every(2s)
+.type(point)
+
+|win_event()
+.every(5)
+
+|debug('warning')

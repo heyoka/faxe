@@ -27,4 +27,13 @@ duration_to_ms_neg_test() ->
 duration_zero_test() ->
    Dur = <<"0m">>,
    ?assertEqual(0, faxe_time:duration_to_ms(Dur)).
+
+duration_big_test() ->
+   Dur = <<"70000ms">>,
+   ?assertEqual(70*1000, faxe_time:duration_to_ms(Dur)).
+
+not_valid_duration_test() ->
+   Dur = <<"25mm">>,
+   ?assertError(function_clause, faxe_time:duration_to_ms(Dur)).
+
 -endif.

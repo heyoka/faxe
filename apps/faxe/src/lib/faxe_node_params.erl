@@ -19,6 +19,7 @@ params(<<"triggered_timeout">>) -> {all, new_port, 1}.
 %% (component name binary) -> [{param number|all, param name, param_type}]
 options(<<"deadman">>) -> [{1, <<"timeout">>, duration},{2, <<"threshold">>, integer}];
 options(<<"shift">>) -> [{1, <<"offset">>, duration}];
+options(<<"batch">>) -> [{1, <<"size">>, integer}];
 options(<<"where">>) -> [{1, <<"lambda">>, lambda}];
 options(<<"eval">>) -> [{all, <<"lambdas">>, lambda_list}];
 options(<<"keep">>) -> [{all, <<"fields">>, binary_list}];

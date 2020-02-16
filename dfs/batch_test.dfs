@@ -1,0 +1,9 @@
+|value_emitter()
+.every(8000ms)
+.jitter(3700ms)
+.type(point)
+
+|batch(5)
+.timeout(5750ms)
+
+|debug('warning')
