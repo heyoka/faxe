@@ -274,7 +274,7 @@ convert_options(NodeOptions, Params) ->
          ({PName, PVals}, Acc) ->
 %%            lager:warning("~p :: ~p~n",[PName, proplists:get_value(PName, Opts)]),
          case proplists:get_value(PName, Opts) of
-            undefined ->
+            undefined -> %% unspecified option
                lager:warning("type is: ~p",[{PName, PVals}]),
                Acc;
             {Name, param_list = Type} ->
@@ -283,6 +283,8 @@ convert_options(NodeOptions, Params) ->
                Zipped = lists:zip(POpts, PVals),
                C = [convert(N, T, [PV]) || {{N, T}, PV} <- Zipped],
                [{Name, C} | Acc];
+            {_Name, _Type} when PVals == {list, []} ->
+               Acc;
             {Name, Type} ->
 %%               lager:info("~nconvert(~p, ~p, ~p)",[Name, Type, PVals]),
                [convert(Name, Type, PVals) | Acc]

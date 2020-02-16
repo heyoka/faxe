@@ -1,6 +1,6 @@
 |json_emitter()
-    .every(5s)
-    .jitter(2s)
+    .every(2s)
+    .jitter(1s)
     .json(
         <<<{"condition": {"state": "IDLE"}, "topic": "in2"} >>>,
         <<<{"condition": {"state": "IDLE"}, "topic": "in1"} >>>,
@@ -14,5 +14,5 @@
         )
 
 |debug('info')
-|change_detect('data').exclusive()
+|change_detect()
 |debug()

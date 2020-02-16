@@ -4,7 +4,8 @@
 %% * normal (non-exclusive) behaviour is: the node emits every value that is either not in the fields list or it
 %% has changed
 %%
-%% * multiple fields can be monitored by this node
+%% * multiple fields can be monitored by this node, if no field is specified, the whole datapoint will be used for
+%% comparison, here the exclusive parameter is useless
 %%
 %% * if reset_timeout is given, all previous values are reset, if there are no points
 %% coming in for this amount of time
@@ -29,33 +30,32 @@
    fields,
    values = [],
    reset_timeout,
-   timer,
-   exclusive = false
+   timer
 }).
 
 options() -> [
    {fields, binary_list, undefined},
-   {reset_timeout, duration, <<"3h">>},
-   {exclusive, is_set}].
+   {reset_timeout, duration, <<"3h">>}
+].
 
-init(_NodeId, _Ins, #{fields := FieldList, reset_timeout := Timeout, exclusive := Exc}) ->
+init(_NodeId, _Ins, #{fields := FieldList, reset_timeout := Timeout}) ->
    Time = faxe_time:duration_to_ms(Timeout),
-   {ok, all, #state{fields = FieldList, reset_timeout = Time, exclusive = Exc}}.
+   {ok, all, #state{fields = FieldList, reset_timeout = Time}}.
 
 process(_In, #data_batch{points = Points} = Batch,
-    State = #state{fields = FieldNames, values = Vals, timer = TRef, reset_timeout = Time, exclusive = Exc}) ->
+    State = #state{fields = FieldNames, values = Vals, timer = TRef, reset_timeout = Time}) ->
    cancel_timer(TRef),
-   {NewPoints, LastValues} = process_points(Points, [], Vals, FieldNames, Exc),
+   {NewPoints, LastValues} = process_points(Points, [], Vals, FieldNames),
    NewState = State#state{values = LastValues, timer = reset_timeout(Time)},
    case NewPoints of
       [] -> {ok, NewState};
       Es when is_list(Es) -> {emit, Batch#data_batch{points = NewPoints}}
    end;
 process(_Inport, #data_point{} = Point,
-    State = #state{fields = Fields, values = LastValues, timer = TRef, reset_timeout = Time, exclusive = Exc}) ->
+    State = #state{fields = Fields, values = LastValues, timer = TRef, reset_timeout = Time}) ->
 %%   lager:notice("~p point in : ~p", [?MODULE, Point#data_point.fields]),
    cancel_timer(TRef),
-   {Filtered, NewValues} = process_point(Point, LastValues, Fields, Exc),
+   {Filtered, NewValues} = process_point(Point, LastValues, Fields),
 %%   lager:info("new last values: ~p~nFiltered: ~p" ,[NewValues, Filtered]),
    NewState = State#state{values = NewValues, timer = reset_timeout(Time)},
    case Filtered of
@@ -72,47 +72,42 @@ handle_info(_Req, State) ->
    {ok, State}.
 
 
--spec process_points(list(), list(), list(), list(), true|false) -> {list(), list()}.
-process_points([], NewPoints, LastValues, _FieldNames, _Exc) ->
+-spec process_points(list(), list(), list(), list()) -> {list(), list()}.
+process_points([], NewPoints, LastValues, _FieldNames) ->
    {NewPoints, LastValues};
-process_points([P|RP], PointsAcc, LastValues, FieldNames, Exc) ->
-   {NewFields, NewLastValues} = process_point(P, LastValues, FieldNames, Exc),
-   process_points(RP, PointsAcc ++ [P#data_point{fields = NewFields}], NewLastValues, FieldNames, Exc).
+process_points([P|RP], PointsAcc, LastValues, FieldNames) ->
+   {NewFields, NewLastValues} = process_point(P, LastValues, FieldNames),
+   process_points(RP, PointsAcc ++ [P#data_point{fields = NewFields}], NewLastValues, FieldNames).
 
--spec process_point(#data_point{}, list(), list(), true|false) -> {list(), list()}.
-process_point(Point = #data_point{fields = Fields}, [], FieldNames, _Exc) ->
+-spec process_point(#data_point{}, list(), list()|undefined) -> {list(), list()}.
+process_point(#data_point{fields = Fields}, [], undefined) ->
+   {Fields, Fields};
+process_point(#data_point{fields = Fields}, Fields, undefined) ->
+   {#{}, Fields};
+process_point(#data_point{fields = Fields}, _LastValue, undefined) ->
+   {Fields, Fields};
+process_point(Point = #data_point{fields = Fields}, [], FieldNames) ->
    {Fields, get_values(Point, FieldNames)};
-process_point(Point = #data_point{}, LastValues, FieldNames, Exc) ->
-   Filtered = filter(Point, LastValues, Exc),
-   {Filtered, get_values(Point,FieldNames)}.
-
--spec filter(#data_point{}, list(), true|false) -> list().
-filter(#data_point{fields = Fields}, [], _Exc) ->
-   Fields;
-filter(#data_point{fields = Fields}, LastVals, false) ->
-   maps:filter(filter_fun(LastVals), Fields)
-   ;
-filter(#data_point{fields = Fields}, LastVals, true) ->
-   case lists:all(filter_list_fun(LastVals), maps:to_list(Fields)) of
-      true -> Fields;
+process_point(Point = #data_point{}, LastValues, FieldNames) ->
+   Out =
+   case check(Point, LastValues, FieldNames) of
+      true -> Point#data_point.fields;
       false -> #{}
-   end.
+   end,
+%%   Filtered = filter(Point, LastValues),
+   {Out, get_values(Point,FieldNames)}.
 
-filter_fun(LastVals) ->
-   fun
-      (FName, FieldValue) -> do_filter_fun(FName, FieldValue, LastVals)
-   end.
 
-filter_list_fun(LastVals) ->
-   fun
-      ({FName, FieldValue}) -> do_filter_fun(FName, FieldValue, LastVals)
-   end.
-
-do_filter_fun(FName, FieldValue, LastVals) ->
-   case proplists:get_value(FName, LastVals) of
-      undefined -> true;
-      Val when Val =:= FieldValue -> false;
-      _ -> true
+check(_, _, []) ->
+   true;
+check(P = #data_point{}, LastValues, [FName|FieldNames]) ->
+   case proplists:get_value(FName, LastValues) of
+      undefined -> check(P, LastValues, FieldNames);
+      Val -> case flowdata:field(P, FName) of
+                undefined -> check(P, LastValues, FieldNames);
+                Value when Value =:= Val -> false;
+                _ -> check(P, LastValues, FieldNames)
+             end
    end.
 
 -spec get_values(#data_point{}, list()) -> list({Key :: binary(), Val :: any()}).
@@ -133,44 +128,39 @@ cancel_timer(TimerRef) when is_reference(TimerRef) ->
 
 
 -ifdef(TEST).
-filter_nochange_test() ->
-   Point = #data_point{ts = 1, fields = maps:from_list([{<<"val">>, 1}, {<<"val1">>, 1.343}, {<<"val2">>, 2.222}])},
+process_point_monitor_last_test() ->
+   P = process_datapoint0(),
+   LastVals = [{<<"val">>, 2.5}],
+   ?assertEqual({P#data_point.fields, [{<<"val">>, flowdata:field(P, <<"val">>)}]},
+      process_point(P, LastVals, [<<"val">>])).
+process_point_all_nolast_test() ->
+   P = process_datapoint(),
    LastVals = [],
-   ?assertEqual(Point#data_point.fields, filter(Point, LastVals, false)).
-filter_nochange_exclusive_test() ->
-   Point = #data_point{ts = 1, fields = maps:from_list([{<<"val">>, 1}, {<<"val1">>, 1.343}, {<<"val2">>, 2.222}])},
-   LastVals = [],
-   ?assertEqual(Point#data_point.fields, filter(Point, LastVals, true)).
-filter_normal_test() ->
-   Point = #data_point{ts = 1, fields = maps:from_list([{<<"val">>, 1}, {<<"val1">>, 1.343}, {<<"val2">>, 2.222}])},
-   LastVals = [{<<"val1">>, 1.343}, {<<"val2">>, 2.222}],
-   ?assertEqual(#{<<"val">> => 1}, filter(Point, LastVals, false)).
-filter_normal_exclusive_test() ->
-   Point = #data_point{ts = 1, fields = maps:from_list([{<<"val">>, 1}, {<<"val1">>, 1.343}, {<<"val2">>, 2.222}])},
-   LastVals = [{<<"val1">>, 1.343}, {<<"val2">>, 2.222}],
-   ?assertEqual(#{}, filter(Point, LastVals, true)).
-filter_other_test() ->
-   Point = #data_point{ts = 1, fields = maps:from_list([{<<"val">>, 1}, {<<"val1">>, 1.343}, {<<"val2">>, 2.222}])},
-   LastVals = [{<<"val5">>, 1.343}, {<<"val2">>, 2.222}],
-   ?assertEqual(#{<<"val">> => 1, <<"val1">> => 1.343}, filter(Point, LastVals, false)).
-filter_all_test() ->
-   Point = #data_point{ts = 1, fields = maps:from_list([{<<"val">>, 1}, {<<"val1">>, 1.343}, {<<"val2">>, 2.222}])},
-   LastVals = [{<<"val">>, 1}, {<<"val1">>, 1.343}, {<<"val2">>, 2.222}],
-   ?assertEqual(#{}, filter(Point, LastVals, false)).
-filter_all_exclusive_test() ->
-   Point = #data_point{ts = 1, fields = maps:from_list([{<<"val">>, 1}, {<<"val1">>, 1.343}, {<<"val2">>, 2.222}])},
-   LastVals = [{<<"val">>, 1}, {<<"val1">>, 1.343}, {<<"val2">>, 2.222}],
-   ?assertEqual(#{}, filter(Point, LastVals, true)).
-filter_equality_test() ->
-   Point = #data_point{ts = 1, fields = maps:from_list([{<<"val">>, 1.0}, {<<"val1">>, 1.343}, {<<"val2">>, 2.222}])},
-   LastVals = [{<<"val">>, 1}, {<<"val1">>, 1.343}, {<<"val2">>, 2.222}],
-   ?assertEqual(#{<<"val">> => 1.0}, filter(Point, LastVals, false)).
-%%process_test() ->
-%%   Point = #data_point{ts = 1, fields = [{<<"val">>, 1.0}, {<<"val1">>, 1.343}, {<<"val2">>, 2.222}]},
-%%   LastVals = [{<<"val">>, 1}, {<<"val2">>, 2.222}],
-%%   State = #state{reset_timeout = undefined, fields = [<<"val">>,<<"val2">>], values = LastVals},
-%%   ?assertEqual(process(1, Point, State),
-%%      {emit, Point#data_point{fields = [{<<"val">>, 1.0}, {<<"val1">>, 1.343}] },
-%%         State#state{values = [{<<"val">>, 1.0}, {<<"val2">>, 2.222}]}}
-%%   ).
+   ?assertEqual({P#data_point.fields, P#data_point.fields}, process_point(P, LastVals, undefined)).
+process_point_all_last_equal_test() ->
+   P = process_datapoint(),
+   LastVals = P#data_point.fields,
+   ?assertEqual({#{}, P#data_point.fields}, process_point(P, LastVals, undefined)).
+process_point_all_last_nonequal_test() ->
+   P = process_datapoint(),
+   Fields = P#data_point.fields,
+   LastVals0 = flowdata:set_field(P, <<"x.tails[3]">>, 2.5),
+   LastVals = LastVals0#data_point.fields,
+   ?assertEqual({Fields, Fields}, process_point(P, LastVals, undefined)).
+process_point_filter_last_equal_test() ->
+   P = process_datapoint(),
+   LastVals = [{<<"x.tails">>, [1,2,3,4]}],
+   ?assertEqual({#{}, [{<<"x.tails">>, flowdata:field(P, <<"x.tails">>)}]},
+      process_point(P, LastVals, [<<"x.tails">>])).
+process_point_filter_last_nonequal_test() ->
+   P = process_datapoint(),
+   Fields = P#data_point.fields,
+   LastVals = [{<<"x.tails[3]">>, 2.5}],
+   ?assertEqual({Fields, [{<<"x.tails">>, flowdata:field(P, <<"x.tails">>)}]},
+      process_point(P, LastVals, [<<"x.tails">>])).
+process_datapoint0() ->
+   #data_point{ts = 1, fields = maps:from_list([{<<"val">>, 1}, {<<"val1">>, 1.343}, {<<"val2">>, 2.222}])}.
+process_datapoint() ->
+   #data_point{ts = 1, fields = #{<<"x">> => #{<<"tails">> => [1,2,3,4],
+      <<"head">> => #{<<"pitch">> => <<"noop">>}}, <<"y">> => 45.3} }.
 -endif.
