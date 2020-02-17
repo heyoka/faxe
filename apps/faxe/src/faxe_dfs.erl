@@ -6,7 +6,7 @@
 -include("faxe.hrl").
 
 %% API
--export([start_script/2, do/0, do/1, do/2, compile/1, file/2, data/2, make_lambda_fun/3]).
+-export([start_script/2, do/0, do/1, do/2, compile/1, file/2, data/2, make_lambda_fun/3, test_rewrite/0]).
 
 %% for now the only user definable component-type is python(3)
 -define(USER_COMPONENT, c_python).
@@ -43,9 +43,26 @@ file(ScriptFile, Vars) when is_list(ScriptFile), is_list(Vars) ->
    D = dfs:parse_file(Path ++ ScriptFile, ?LAMBDA_LIBS, Vars),
    maybe_compile(D).
 
-data(DfsData, Vars) ->
+data(DfsData, Vars) when is_list(Vars)->
    D = dfs:parse(DfsData, ?LAMBDA_LIBS, Vars),
-   maybe_compile(D).
+   Out = maybe_compile(D),
+   {Out, rewriteDFS(DfsData, Vars)}.
+
+test_rewrite() ->
+   String = "def hans = 'wurst'
+   def int = 55",
+   rewriteDFS(String, [
+%%      {<<"hans">>, <<"albers">>},
+      {<<"int">>, 22}]).
+rewriteDFS(DFSDef, []) ->
+   lists:flatten(DFSDef);
+rewriteDFS(DFSDef, [{VarName, VarValue}|Vars]) ->
+   Pattern = iolist_to_binary([<<"[\r\t\n\s]*(def)\s?">>,VarName,<<"\s?=\n?.+\n?">>]),
+   Replacement = iolist_to_binary([<<"def ">>, VarName, <<" = ">>, VarValue]),
+   Dfs = re:replace(DFSDef, Pattern, Replacement,[{return, list}, anchored]),
+   rewriteDFS(Dfs, Vars).
+
+
 
 maybe_compile(ParserResult) ->
    case ParserResult of

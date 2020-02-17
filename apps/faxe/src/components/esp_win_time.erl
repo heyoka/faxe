@@ -17,7 +17,7 @@
 -record(state, {
    every,
    period,
-   window, %% queue 
+   window :: queue:queue(),
    ts_list = [], %% list of inserted Timestamps
    at,
    mark,

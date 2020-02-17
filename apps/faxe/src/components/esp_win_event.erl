@@ -18,7 +18,7 @@
 -record(state, {
    every,
    period,
-   window,
+   window :: queue:queue(),
    length = 0,
    count = 0,
    at = 0,

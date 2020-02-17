@@ -25,7 +25,7 @@
    align,
    next_emit,
    fill_period,
-   window,
+   window :: queue:queue(),
    log = [],
    has_emitted = false
 }).
@@ -118,7 +118,7 @@ emit(State = #state{log = Log, next_emit = NextEmit, period = Interval, window =
 %%%% since the list is ordered by time, the abandoning will work as expected
 %%%% as soon as a timestamp falls into the bounderies of the window, the loop is stopped
 %%%% and the rest of the list is returned, as is for Keep
--spec evict(list(), window_events(), non_neg_integer(), non_neg_integer()) -> {window_events(), list()}.
+-spec evict(list(), queue:queue(), non_neg_integer(), non_neg_integer()) -> {list(), list()}.
 evict(Log, Window, At, Interval) ->
    {KeepTimestamps, Evict} = win_util:split(Log, At-Interval),
    {KeepTimestamps, win_util:sync_q(Window, Evict), length(Evict) > 0}
