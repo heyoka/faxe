@@ -14,5 +14,5 @@
         )
 
 |debug('info')
-|change_detect()
+|change_detect('data.condition.state', 'data.topic')
 |debug()

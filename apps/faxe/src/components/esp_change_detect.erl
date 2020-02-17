@@ -53,15 +53,13 @@ process(_In, #data_batch{points = Points} = Batch,
    end;
 process(_Inport, #data_point{} = Point,
     State = #state{fields = Fields, values = LastValues, timer = TRef, reset_timeout = Time}) ->
-%%   lager:notice("~p point in : ~p", [?MODULE, Point#data_point.fields]),
    cancel_timer(TRef),
    {Filtered, NewValues} = process_point(Point, LastValues, Fields),
-%%   lager:info("new last values: ~p~nFiltered: ~p" ,[NewValues, Filtered]),
+%%   lager:info("new last values: ~p" ,[NewValues]),
    NewState = State#state{values = NewValues, timer = reset_timeout(Time)},
    case Filtered of
-      Map when is_map(Map), map_size(Map) == 0 ->  {ok, NewState};
-      E when is_map(E) -> %lager:notice("~p emitting: ~p", [?MODULE, Filtered]),
-         {emit, Point#data_point{fields = Filtered}, NewState}
+      Point -> {emit, Point, NewState};
+      _ -> {ok, NewState}
    end
    .
 
@@ -80,39 +78,37 @@ process_points([P|RP], PointsAcc, LastValues, FieldNames) ->
    process_points(RP, PointsAcc ++ [P#data_point{fields = NewFields}], NewLastValues, FieldNames).
 
 -spec process_point(#data_point{}, list(), list()|undefined) -> {list(), list()}.
-process_point(#data_point{fields = Fields}, [], undefined) ->
-   {Fields, Fields};
+process_point(P=#data_point{fields = Fields}, [], undefined) ->
+   {P, Fields};
 process_point(#data_point{fields = Fields}, Fields, undefined) ->
    {#{}, Fields};
-process_point(#data_point{fields = Fields}, _LastValue, undefined) ->
-   {Fields, Fields};
-process_point(Point = #data_point{fields = Fields}, [], FieldNames) ->
-   {Fields, get_values(Point, FieldNames)};
+process_point(P=#data_point{fields = Fields}, _LastValue, undefined) ->
+   {P, Fields};
+process_point(Point = #data_point{}, [], FieldNames) ->
+   {Point, get_values(Point, FieldNames)};
 process_point(Point = #data_point{}, LastValues, FieldNames) ->
-   Out =
-   case check(Point, LastValues, FieldNames) of
-      true -> Point#data_point.fields;
-      false -> #{}
-   end,
-%%   Filtered = filter(Point, LastValues),
-   {Out, get_values(Point,FieldNames)}.
+   NewValues = get_values(Point, FieldNames),
+   Out = check(Point, LastValues, FieldNames, NewValues),
+   {Out, NewValues}.
 
 
-check(_, _, []) ->
-   true;
-check(P = #data_point{}, LastValues, [FName|FieldNames]) ->
+check(P, _, [], _) ->
+   P;
+check(P = #data_point{}, LastValues, [FName|FieldNames], NewValues) ->
    case proplists:get_value(FName, LastValues) of
-      undefined -> check(P, LastValues, FieldNames);
-      Val -> case flowdata:field(P, FName) of
-                undefined -> check(P, LastValues, FieldNames);
-                Value when Value =:= Val -> false;
-                _ -> check(P, LastValues, FieldNames)
+      undefined -> check(P, LastValues, FieldNames, NewValues);
+      Val -> case proplists:get_value(FName, NewValues) of
+                undefined -> check(P, LastValues, FieldNames, NewValues);
+                Value when Value =:= Val -> #{};
+                _ -> check(P, LastValues, FieldNames, NewValues)
              end
    end.
 
 -spec get_values(#data_point{}, list()) -> list({Key :: binary(), Val :: any()}).
 get_values(P = #data_point{}, FieldNames) ->
-   lists:filter(fun(E) -> E /= undefined end, [{Field, flowdata:field(P, Field)} || Field <- FieldNames]).
+   Values = flowdata:fields(P, FieldNames),
+   Pairs = lists:zip(FieldNames, Values),
+   lists:filter(fun({_N, E}) -> E /= undefined end, Pairs).
 
 
 -spec reset_timeout(undefined|non_neg_integer()) -> undefined|reference().
@@ -131,12 +127,27 @@ cancel_timer(TimerRef) when is_reference(TimerRef) ->
 process_point_monitor_last_test() ->
    P = process_datapoint0(),
    LastVals = [{<<"val">>, 2.5}],
-   ?assertEqual({P#data_point.fields, [{<<"val">>, flowdata:field(P, <<"val">>)}]},
+   ?assertEqual({P, [{<<"val">>, flowdata:field(P, <<"val">>)}]},
       process_point(P, LastVals, [<<"val">>])).
+process_point_monitor_nolast_test() ->
+   P = process_datapoint0(),
+   LastVals = [],
+   ?assertEqual({P, [{<<"val">>, flowdata:field(P, <<"val">>)}]},
+      process_point(P, LastVals, [<<"val">>])).
+process_point_monitor_lastequal_test() ->
+   P = process_datapoint0(),
+   LastVals = [{<<"val">>, flowdata:field(P, <<"val">>)}],
+   NewVals = LastVals,
+   ?assertEqual({#{}, NewVals}, process_point(P, LastVals, [<<"val">>])).
+process_point_monitor_one_lastequal_test() ->
+   P = process_datapoint0(),
+   LastVals = [{<<"val">>, #{<<"me">> => <<"muu">>}},{<<"val1">>, 1.343}],
+   NewVals = [{<<"val">>, flowdata:field(P, <<"val">>)},{<<"val1">>, flowdata:field(P, <<"val1">>)}],
+   ?assertEqual({#{}, NewVals}, process_point(P, LastVals, [<<"val">>, <<"val1">>])).
 process_point_all_nolast_test() ->
    P = process_datapoint(),
    LastVals = [],
-   ?assertEqual({P#data_point.fields, P#data_point.fields}, process_point(P, LastVals, undefined)).
+   ?assertEqual({P, P#data_point.fields}, process_point(P, LastVals, undefined)).
 process_point_all_last_equal_test() ->
    P = process_datapoint(),
    LastVals = P#data_point.fields,
@@ -146,7 +157,7 @@ process_point_all_last_nonequal_test() ->
    Fields = P#data_point.fields,
    LastVals0 = flowdata:set_field(P, <<"x.tails[3]">>, 2.5),
    LastVals = LastVals0#data_point.fields,
-   ?assertEqual({Fields, Fields}, process_point(P, LastVals, undefined)).
+   ?assertEqual({P, Fields}, process_point(P, LastVals, undefined)).
 process_point_filter_last_equal_test() ->
    P = process_datapoint(),
    LastVals = [{<<"x.tails">>, [1,2,3,4]}],
@@ -154,9 +165,8 @@ process_point_filter_last_equal_test() ->
       process_point(P, LastVals, [<<"x.tails">>])).
 process_point_filter_last_nonequal_test() ->
    P = process_datapoint(),
-   Fields = P#data_point.fields,
    LastVals = [{<<"x.tails[3]">>, 2.5}],
-   ?assertEqual({Fields, [{<<"x.tails">>, flowdata:field(P, <<"x.tails">>)}]},
+   ?assertEqual({P, [{<<"x.tails">>, flowdata:field(P, <<"x.tails">>)}]},
       process_point(P, LastVals, [<<"x.tails">>])).
 process_datapoint0() ->
    #data_point{ts = 1, fields = maps:from_list([{<<"val">>, 1}, {<<"val1">>, 1.343}, {<<"val2">>, 2.222}])}.
