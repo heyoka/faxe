@@ -1,16 +1,7 @@
-def mqtt_host = '127.0.0.1'
-%def mqtt_host = '10.14.204.3'
-def mqtt =
-    |mqtt_subscribe()
-    .host(mqtt_host)
-    .port(1883)
-    .topic('ttgw/data/grip/rovolutionstephanskirchen/condition/robot_state')
-    %.topics('Bal')
-    %.qos(1)
+|mqtt_subscribe()
+.topic('ttgw/grip_images/rovolutionstephanskirchen')
 
-
-
-    |debug()
+|debug()
 
 
 

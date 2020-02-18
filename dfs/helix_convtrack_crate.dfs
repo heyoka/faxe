@@ -2,12 +2,8 @@ def host = '10.14.204.3'
 def port = 5672
 def routing_key = 'ttgw.conveyor_tracking.petzold_test'
 
-|amqp_consume()
-    .host(host)
-    .port(port)
-    .routing_key(routing_key)
-    .exchange('x_tgw_convtracking_helix')
-    .queue('q_tgw_conveyor_tracking_helix')
+|mqtt_subscribe()
+    .topic('ttgw/conveyor_tracking/petzoldstr')
 
 %def parser = parser_conv_tracking_v1
 %def v1 =

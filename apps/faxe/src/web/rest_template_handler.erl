@@ -81,7 +81,6 @@ resource_exists(Req, State) ->
 
 
 delete_resource(Req, State=#state{template_id = TaskId}) ->
-   lager:notice("DELETE"),
    case faxe:delete_template(binary_to_integer(TaskId)) of
       ok ->
          RespMap = #{success => true, message =>
