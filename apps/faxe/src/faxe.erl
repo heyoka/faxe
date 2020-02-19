@@ -123,12 +123,7 @@ register_task(DfsScript, Name, Type) ->
    case faxe_db:get_task(Name) of
       {error, not_found} ->
          case eval_dfs(DfsScript, Type) of
-            Def when is_map(Def) ->
-               DFS =
-                  case Type of
-                     file -> get_file_dfs(DfsScript);
-                     data -> DfsScript
-                  end,
+            {DFS, Def} when is_map(Def) ->
                Task = #task{
                   date = faxe_time:now_date(),
                   dfs = DFS,
@@ -163,12 +158,7 @@ update_task(DfsScript, TaskId, ScriptType) ->
 -spec update(list()|binary(), #task{}, atom()) -> ok|{error, term()}.
 update(DfsScript, Task, ScriptType) ->
    case eval_dfs(DfsScript, ScriptType) of
-      Map when is_map(Map) ->
-         DFS =
-            case ScriptType of
-               file -> get_file_dfs(DfsScript);
-               data -> DfsScript
-            end,
+      {DFS, Map} when is_map(Map) ->
          NewTask = Task#task{
             definition = Map,
             dfs = DFS,
@@ -192,10 +182,11 @@ update_running(DfsScript, Task = #task{id = TId, pid = TPid}, ScriptType) ->
          end
    end.
 
--spec eval_dfs(list()|binary(), file|data) -> map()|{error, term()}.
+-spec eval_dfs(list()|binary(), file|data) ->
+   {DFSString :: list(), GraphDefinition :: map()} | {error, term()}.
 eval_dfs(DfsScript, Type) ->
    try faxe_dfs:Type(DfsScript, []) of
-      Def when is_map(Def) -> Def;
+      {_DFSString, Def} = Result when is_map(Def) -> Result;
       {error, What} -> {error, What};
       E -> E
    catch
@@ -243,12 +234,12 @@ register_template(DfsScript, Name, Type) ->
       {error, not_found} ->
 
          case eval_dfs(DfsScript, Type) of
-            Def when is_map(Def) ->
+            {DFS, Def} when is_map(Def) ->
                Template = #template{
                   date = faxe_time:now_date(),
                   definition = Def,
                   name = Name,
-                  dfs = DfsScript
+                  dfs = DFS
                },
                faxe_db:save_template(Template);
 
@@ -278,7 +269,7 @@ start_temp(DfsScript, TTL) ->
    start_temp(DfsScript, data, TTL).
 start_temp(DfsScript, Type, TTL) ->
    case eval_dfs(DfsScript, Type) of
-      Def when is_map(Def) ->
+      {_DFS, Def} when is_map(Def) ->
          Id = list_to_binary(faxe_util:uuid_string()),
          case dataflow:create_graph(Id, Def) of
             {ok, Graph} ->
@@ -420,15 +411,20 @@ export(TaskId) ->
       #task{} -> {ok, []}
    end.
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-template_to_task(#template{dfs = DFS}, TaskName, Vars) ->
-   Def = faxe_dfs:data(DFS, Vars),
+
+-spec template_to_task(#template{}, binary(), list()) -> ok | {error, term()}.
+template_to_task(Template = #template{dfs = DFS}, TaskName, Vars) ->
+   {DFSString, Def} = faxe_dfs:data(DFS, Vars),
    case Def of
       _ when is_map(Def) ->
          Task = #task{
             date = faxe_time:now_date(),
             definition = Def,
-            dfs = DFS,
-            name = TaskName},
+            dfs = DFSString,
+            name = TaskName,
+            template = Template#template.name,
+            template_vars = Vars
+            },
          faxe_db:save_task(Task);
       {error, What} -> {error, What}
    end.

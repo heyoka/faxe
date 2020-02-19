@@ -61,6 +61,10 @@
    vars = [] :: list() %% list of vars that can be overridden
 }).
 
+-record(tags, {
+%%   slug :: binary(),
+
+}).
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 -record(task_modes, {
