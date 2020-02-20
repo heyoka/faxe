@@ -22,7 +22,7 @@
    save_template/1,
    get_template/1,
    delete_template/1,
-   get_tasks_by_pids/1, get_permanent_tasks/0, get_tasks_by_template/1]).
+   get_tasks_by_pids/1, get_permanent_tasks/0, get_tasks_by_template/1, add_tags/2, remove_tags/2, get_all_tags/0, get_tags_by_task/1, get_tasks_by_tag/1]).
 
 get_all_tasks() ->
    get_all(task).
@@ -131,15 +131,27 @@ add_tag(TaskId, Tag) ->
          end
    end.
 
+remove_tags(TaskId, Tags) when is_list(Tags) ->
+   [remove_tag(TaskId, Tag) || Tag <- Tags],
+   ok.
 
-
-
-
-
-
-
-
-
+remove_tag(TaskId, Tag) ->
+   TagTasks = get_tasks_by_tag(Tag),
+   TaskTags = get_tags_by_task(TaskId),
+   case TagTasks of
+      [] -> ok;
+      [Tsks] ->
+         NewTaskList = Tsks#tag_tasks.tasks -- [TaskId],
+         mnesia:dirty_write(tag_tasks,
+            #tag_tasks{tag = Tag, tasks = NewTaskList})
+   end,
+   case TaskTags of
+      [] -> ok;
+      [Tgs] ->
+         NewTagList = Tgs#task_tags.tags -- [Tag],
+         mnesia:dirty_write(task_tags,
+               #task_tags{task_id = TaskId, tags = NewTagList})
+   end.
 
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
