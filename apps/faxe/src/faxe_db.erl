@@ -22,7 +22,18 @@
    save_template/1,
    get_template/1,
    delete_template/1,
-   get_tasks_by_pids/1, get_permanent_tasks/0, get_tasks_by_template/1, add_tags/2, remove_tags/2, get_all_tags/0, get_tags_by_task/1, get_tasks_by_tag/1]).
+   get_tasks_by_pids/1,
+   get_permanent_tasks/0,
+   get_tasks_by_template/1
+]).
+
+-export([
+   add_tags/2,
+   remove_tags/2,
+   get_all_tags/0,
+   get_tags_by_task/1,
+   get_tasks_by_tag/1
+   , get_tasks_by_tags/1]).
 
 get_all_tasks() ->
    get_all(task).
@@ -99,19 +110,47 @@ get_all_tags() ->
    mnesia:dirty_all_keys(tag_tasks).
 
 get_tags_by_task(TaskId) ->
-   mnesia:dirty_read(task_tags, TaskId).
+   case get_task_tags_by_task(TaskId) of
+      [] -> [];
+      [#task_tags{tags = Tags}] -> Tags
+   end.
 
 get_tasks_by_tag(Tag) ->
+   case get_tag_tasks_by_tag(Tag) of
+      [] -> [];
+      [#tag_tasks{tasks = Tasks}] -> Tasks
+   end.
+
+get_tasks_by_tags(Tags) ->
+   sets:to_list(sets:from_list(get_tasks_by_tags(Tags, []))).
+
+get_tasks_by_tags([], Acc) ->
+   Acc;
+get_tasks_by_tags([Tag|Tags], Acc) ->
+   NewAcc = get_tasks_by_tag(Tag) ++ Acc,
+   get_tasks_by_tags(Tags, NewAcc).
+
+get_task_tags_by_task(TaskId) ->
+   mnesia:dirty_read(task_tags, TaskId).
+
+get_tag_tasks_by_tag(Tag) ->
    mnesia:dirty_read(tag_tasks, Tag).
 
 
 add_tags(TaskId, Tags) when is_list(Tags) ->
-   [add_tag(TaskId, Tag) || Tag <- Tags],
+   [add_task_to_tag(TaskId, Tag) || Tag <- Tags],
+   TaskTags = get_task_tags_by_task(TaskId),
+   case TaskTags of
+      [] -> mnesia:dirty_write(task_tags, #task_tags{tags = Tags, task_id = TaskId});
+      [Tgs] ->
+         NewTags = lists:filter(fun(E) -> not lists:member(E, Tgs#task_tags.tags) end, Tags),
+         mnesia:dirty_write(task_tags,
+            #task_tags{task_id = TaskId, tags = Tgs#task_tags.tags ++ NewTags})
+   end,
    ok.
 
-add_tag(TaskId, Tag) ->
-   TagTasks = get_tasks_by_tag(Tag),
-   TaskTags = get_tags_by_task(TaskId),
+add_task_to_tag(TaskId, Tag) ->
+   TagTasks = get_tag_tasks_by_tag(Tag),
    case TagTasks of
       [] -> mnesia:dirty_write(tag_tasks, #tag_tasks{tag = Tag, tasks = [TaskId]});
       [Tsks] ->
@@ -120,37 +159,32 @@ add_tag(TaskId, Tag) ->
             false -> mnesia:dirty_write(tag_tasks,
                #tag_tasks{tag = Tag, tasks = [TaskId|Tsks#tag_tasks.tasks]})
          end
-   end,
-   case TaskTags of
-      [] -> mnesia:dirty_write(task_tags, #task_tags{tags = [Tag], task_id = TaskId});
-      [Tgs] ->
-         case lists:member(Tag, Tgs#task_tags.tags) of
-            true -> ok;
-            false -> mnesia:dirty_write(task_tags,
-               #task_tags{task_id = TaskId, tags = [Tag|Tgs#task_tags.tags]})
-         end
    end.
 
 remove_tags(TaskId, Tags) when is_list(Tags) ->
-   [remove_tag(TaskId, Tag) || Tag <- Tags],
+   [remove_task_from_tag(TaskId, Tag) || Tag <- Tags],
+   TaskTags = get_task_tags_by_task(TaskId),
+   case TaskTags of
+      [] -> ok;
+      [Tgs] ->
+         NewTagList = Tgs#task_tags.tags -- Tags,
+         case NewTagList of
+            [] -> mnesia:dirty_delete(task_tags, TaskId);
+            _ -> mnesia:dirty_write(task_tags, #task_tags{task_id = TaskId, tags = NewTagList})
+         end
+   end,
    ok.
 
-remove_tag(TaskId, Tag) ->
-   TagTasks = get_tasks_by_tag(Tag),
-   TaskTags = get_tags_by_task(TaskId),
+remove_task_from_tag(TaskId, Tag) ->
+   TagTasks = get_tag_tasks_by_tag(Tag),
    case TagTasks of
       [] -> ok;
       [Tsks] ->
          NewTaskList = Tsks#tag_tasks.tasks -- [TaskId],
-         mnesia:dirty_write(tag_tasks,
-            #tag_tasks{tag = Tag, tasks = NewTaskList})
-   end,
-   case TaskTags of
-      [] -> ok;
-      [Tgs] ->
-         NewTagList = Tgs#task_tags.tags -- [Tag],
-         mnesia:dirty_write(task_tags,
-               #task_tags{task_id = TaskId, tags = NewTagList})
+         case NewTaskList of
+            [] -> mnesia:dirty_delete(tag_tasks, Tag);
+            _ -> mnesia:dirty_write(tag_tasks, #tag_tasks{tag = Tag, tasks = NewTaskList})
+         end
    end.
 
 
@@ -231,6 +265,8 @@ renew_tables() ->
    mnesia:delete_table(task),
    mnesia:delete_table(template),
    mnesia:delete_table(ids),
+   mnesia:delete_table(task_tags),
+   mnesia:delete_table(tag_tasks),
    create().
 
 create() ->
@@ -253,16 +289,17 @@ create() ->
       {disc_copies, [node()]}, {index, [name]}
    ])
    ,
-   mnesia:create_table(task_tags, [
+   Res1 = mnesia:create_table(task_tags, [
       {attributes, record_info(fields, task_tags)},
       {type, set},
-      {disc_copies, [node()]}, {index, [task]}
+      {disc_copies, [node()]}
    ])
    ,
-   mnesia:create_table(tag_tasks, [
+   Res2 = mnesia:create_table(tag_tasks, [
       {attributes, record_info(fields, tag_tasks)},
       {type, set},
-      {disc_copies, [node()]}, {index, [tag]}
-   ])
+      {disc_copies, [node()]}
+   ]),
+   lager:notice("create tables: ~p~n~p", [Res1, Res2])
 
 .
