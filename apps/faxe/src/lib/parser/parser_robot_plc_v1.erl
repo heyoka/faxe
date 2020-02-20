@@ -255,7 +255,7 @@ make_reals(Num) ->
    << <<X:32/float>> || X <- L >>.
 make_dints(Num) ->
    L = part_list(Num, fun(I) -> faxe_lambda_lib:random(I) end),
-   << <<X:32/integer>> || X <- L >>.
+   << <<X:32/integer-unsigned>> || X <- L >>.
 part_list(Num, ProdFun) ->
    [ProdFun(40+R) || R <- lists:seq(1,Num)].
 

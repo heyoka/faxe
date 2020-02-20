@@ -22,7 +22,7 @@
    save_template/1,
    get_template/1,
    delete_template/1,
-   get_tasks_by_pids/1, get_permanent_tasks/0]).
+   get_tasks_by_pids/1, get_permanent_tasks/0, get_tasks_by_template/1]).
 
 get_all_tasks() ->
    get_all(task).
@@ -58,6 +58,9 @@ get_template(TemplateName) ->
 get_tasks_by_pids(PidList) ->
    lists:flatten([mnesia:dirty_index_read(task, Pid, #task.pid) || {_Name, Pid, _, _} <- PidList]).
 
+get_tasks_by_template(TemplateName) ->
+   mnesia:dirty_index_read(task, TemplateName, #task.template).
+
 get_permanent_tasks() ->
    mnesia:dirty_index_read(task, true, #task.permanent).
 
@@ -88,6 +91,58 @@ delete_template(TId) ->
       T = #template{} -> delete_template(T)
    end
 .
+
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%% Tags %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%% get a list of all used tags
+get_all_tags() ->
+   mnesia:dirty_all_keys(tag_tasks).
+
+get_tags_by_task(TaskId) ->
+   mnesia:dirty_read(task_tags, TaskId).
+
+get_tasks_by_tag(Tag) ->
+   mnesia:dirty_read(tag_tasks, Tag).
+
+
+add_tags(TaskId, Tags) when is_list(Tags) ->
+   [add_tag(TaskId, Tag) || Tag <- Tags],
+   ok.
+
+add_tag(TaskId, Tag) ->
+   TagTasks = get_tasks_by_tag(Tag),
+   TaskTags = get_tags_by_task(TaskId),
+   case TagTasks of
+      [] -> mnesia:dirty_write(tag_tasks, #tag_tasks{tag = Tag, tasks = [TaskId]});
+      [Tsks] ->
+         case lists:member(TaskId, Tsks#tag_tasks.tasks) of
+            true -> ok;
+            false -> mnesia:dirty_write(tag_tasks,
+               #tag_tasks{tag = Tag, tasks = [TaskId|Tsks#tag_tasks.tasks]})
+         end
+   end,
+   case TaskTags of
+      [] -> mnesia:dirty_write(task_tags, #task_tags{tags = [Tag], task_id = TaskId});
+      [Tgs] ->
+         case lists:member(Tag, Tgs#task_tags.tags) of
+            true -> ok;
+            false -> mnesia:dirty_write(task_tags,
+               #task_tags{task_id = TaskId, tags = [Tag|Tgs#task_tags.tags]})
+         end
+   end.
+
+
+
+
+
+
+
+
+
+
+
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 next_id(Table) ->
    mnesia:dirty_update_counter({ids, Table}, 1).
@@ -144,11 +199,19 @@ copy_tables(Node) ->
    lager:debug("remote_init add_table copy = ~p~n", [Res4])
    ,
 
+   Res5 = mnesia:add_table_copy(task_tags, Node, disc_copies),
+   lager:debug("remote_init add_table copy = ~p~n", [Res5])
+   ,
+
+   Res6 = mnesia:add_table_copy(tag_tasks, Node, disc_copies),
+   lager:debug("remote_init add_table copy = ~p~n", [Res6])
+   ,
+
 %%   Res5 = mnesia:add_table_copy(component_state, Node, disc_copies),
 %%   lager:debug("remote_init add_table copy = ~p~n", [Res5]),
 
-   Res6 = mnesia:add_table_copy(template, Node, disc_copies),
-   lager:debug("remote_init add_table copy = ~p~n", [Res6])
+   Res7 = mnesia:add_table_copy(template, Node, disc_copies),
+   lager:debug("remote_init add_table copy = ~p~n", [Res7])
 
 .
 
@@ -164,7 +227,7 @@ create() ->
    mnesia:create_table(task, [
       {attributes, record_info(fields, task)},
       {type, set},
-      {disc_copies, [node()]}, {index, [name, pid, permanent]}
+      {disc_copies, [node()]}, {index, [name, pid, permanent, template]}
    ]),
    mnesia:create_table(ids, [
       {attributes, record_info(fields, ids)},
@@ -176,6 +239,18 @@ create() ->
       {attributes, record_info(fields, template)},
       {type, set},
       {disc_copies, [node()]}, {index, [name]}
+   ])
+   ,
+   mnesia:create_table(task_tags, [
+      {attributes, record_info(fields, task_tags)},
+      {type, set},
+      {disc_copies, [node()]}, {index, [task]}
+   ])
+   ,
+   mnesia:create_table(tag_tasks, [
+      {attributes, record_info(fields, tag_tasks)},
+      {type, set},
+      {disc_copies, [node()]}, {index, [tag]}
    ])
 
 .

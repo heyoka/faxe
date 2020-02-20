@@ -1,0 +1,24 @@
+def emit_every = 2s
+def emit_every_jitter = 1s
+def debug_type = 'info'
+def rewrite_fun = lambda: str_concat("data.condition.state", '_post')
+
+|json_emitter()
+    .every(emit_every)
+    .jitter(emit_every_jitter)
+    .json(
+        <<<{"condition": {"state": "IDLE"}, "topic": "in2"} >>>,
+        <<<{"condition": {"state": "IDLE"}, "topic": "in1"} >>>,
+        <<<{"condition": {"state": "IDLE"}, "topic": "in1"} >>>,
+        <<<{"condition": {"state": "IDLE"}, "topic": "in2"} >>>,
+        <<<{"condition": {"state": "IDLE"}, "topic": "in3"} >>>,
+        <<<{"condition": {"state": "IDLE"}, "topic": "in1"} >>>,
+        <<<{"condition": {"state": "IDLER"}, "topic": "in1"} >>>,
+        <<<{"condition": {"state": "IDLE"}, "topic": "in1"} >>>,
+        <<<{"condition": {"state": "IDLE"}, "topic": "in1"} >>>
+        )
+
+|debug(debug_type)
+|change_detect('data.condition.state', 'data.topic')
+|eval(rewrite_fun).as('data.condition.endstate')
+|debug()

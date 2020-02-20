@@ -8,6 +8,8 @@
 %%%-------------------------------------------------------------------
 -module(rest_tasks_handler).
 
+-include("faxe.hrl").
+
 %%
 %% Cowboy callbacks
 -export([
@@ -36,9 +38,15 @@ content_types_provided(Req, State) ->
 
 
 list_json(Req, State=#state{mode = Mode}) ->
-   Maps = case Mode of
-             list -> L = lists:flatten(faxe:list_tasks()), [rest_helper:task_to_map(T) || T <- L];
-             list_running -> L = lists:flatten(faxe:list_running_tasks()),
-                [rest_helper:task_to_map(T) || T <- L]
+   Tasks =
+      case Mode of
+         list -> faxe:list_tasks();
+         list_running -> faxe:list_running_tasks();
+         list_by_template ->
+            TId = cowboy_req:binding(template_id, Req),
+            faxe:list_tasks_by_template(binary_to_integer(TId))
           end,
+   Fun = fun(#task{date = AId}, #task{date = BId}) -> (AId =< BId) == false end,
+   Sorted = lists:sort(Fun, Tasks),
+   Maps = [rest_helper:task_to_map(T) || T <- Sorted],
    {jiffy:encode(Maps), Req, State}.

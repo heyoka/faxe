@@ -107,12 +107,19 @@ from_register_template(Req, State) ->
 from_totask(Req, State=#state{template_id = TId}) ->
    TaskName = cowboy_req:binding(task_name, Req),
    {ok, Result, Req2} = cowboy_req:read_urlencoded_body(Req),
-   Json = proplists:get_value(<<"vars">>, Result, <<"[]">>),
-   Vars = jiffy:decode(Json),
+   Json = proplists:get_value(<<"vars">>, Result, <<"{}">>),
+   Vars = jiffy:decode(Json, [return_maps]),
    lager:notice("Body: ~p, Vars: ~p",[Result, Vars]),
    case faxe:task_from_template(binary_to_integer(TId), TaskName, Vars) of
       ok ->
-         Req3 = cowboy_req:set_resp_body(jiffy:encode(#{success => true, name => TaskName}), Req2),
+         NewTask = faxe:get_task(TaskName),
+         NewId =
+         case NewTask of
+            #task{id = NId} -> NId;
+            _  -> 0
+         end,
+         Req3 = cowboy_req:set_resp_body(jiffy:encode(
+            #{success => true, name => TaskName, id => NewId}), Req2),
          {true, Req3, State};
       {error, Error} ->
          lager:info("Error occured when generating flow from template: ~p",[Error]),

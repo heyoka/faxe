@@ -35,7 +35,9 @@ start_script(Script, Name) ->
    end.
 
 
--spec file(list(), list()) -> {list(), map()}.
+-spec file(list(), list()|map()) -> {list(), map()}.
+file(ScriptFile, Vars) when is_list(ScriptFile), is_map(Vars) ->
+   file(ScriptFile, maps:to_list(Vars));
 file(ScriptFile, Vars) when is_list(ScriptFile), is_list(Vars) ->
    {ok, DfsParams} = application:get_env(faxe, dfs),
    Path = proplists:get_value(script_path, DfsParams),
@@ -43,7 +45,9 @@ file(ScriptFile, Vars) when is_list(ScriptFile), is_list(Vars) ->
    D = dfs:parse_file(Path ++ ScriptFile, ?LAMBDA_LIBS, Vars),
    maybe_compile(D).
 
--spec data(list()|binary(), list()) -> {list(), map()}.
+-spec data(list()|binary(), list()|map()) -> {list(), map()}.
+data(DfsData, Vars) when is_map(Vars) ->
+   data(DfsData, maps:to_list(Vars));
 data(DfsData, Vars) when is_list(Vars) ->
    D = dfs:parse(DfsData, ?LAMBDA_LIBS, Vars),
    maybe_compile(D).
@@ -62,7 +66,7 @@ maybe_compile({DFSString, ParserResult}) ->
             [atom_to_binary(_Where), <<" on line ">>,
                integer_to_binary(_LN), <<": ">>, list_to_binary(_Message)])
          };
-      {_Nodes, _Connections} -> {DFSString, compile(ParserResult)};
+      {_Nodes, _Connections} -> {list_to_binary(DFSString), compile(ParserResult)};
       _ -> {error, ParserResult}
    end.
 

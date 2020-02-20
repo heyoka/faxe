@@ -48,8 +48,8 @@
    last_stop :: faxe_time:date(),
    permanent = false :: true|false,
    is_running = false,
-   template_vars = [] :: list(), %% list of template vars
-   template %% task is created from this template
+   template_vars = #{} :: map(), %% list of template vars
+   template  = <<>> %% task is created from this template
 }).
 
 -record(template, {
@@ -61,9 +61,14 @@
    vars = [] :: list() %% list of vars that can be overridden
 }).
 
--record(tags, {
-%%   slug :: binary(),
+-record(task_tags, {
+   task_id :: non_neg_integer()|binary(),
+   tags = [] :: list
+}).
 
+-record(tag_tasks, {
+   tag,
+   tasks = []
 }).
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 

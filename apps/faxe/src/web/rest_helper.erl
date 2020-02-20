@@ -15,23 +15,34 @@
 -export([task_to_map/1, template_to_map/1, do_register/3, to_bin/1, reg_fun/3]).
 
 
-task_to_map(_T = #task{id = Id, name = Name, date = Dt, is_running = Running,
-   last_start = LStart, last_stop = LStop, dfs = Dfs, permanent = Perm}) ->
-%%   lager:notice("task_to_json: ~p",[T]),
-   Map = #{id => Id, name => Name,
-      dfs => Dfs,
-      running => Running,
-      permanent => Perm,
-      created => faxe_time:to_iso8601(Dt),
-      last_start => faxe_time:to_iso8601(LStart),
-      last_stop => faxe_time:to_iso8601(LStop)},
-%%   lager:notice("theMap: ~p",[Map]),
-   Map.
+task_to_map(_T = #task{
+   id = Id, name = Name, date = Dt, is_running = Running,
+   last_start = LStart, last_stop = LStop, dfs = Dfs, permanent = Perm,
+   template = Template, template_vars = TemplateVars
+}) ->
+   Map = #{
+      <<"id">> => Id,
+      <<"name">> => Name,
+      <<"dfs">> => Dfs,
+      <<"running">> => Running,
+      <<"permanent">> => Perm,
+      <<"created">> => faxe_time:to_iso8601(Dt),
+      <<"last_start">> => faxe_time:to_iso8601(LStart),
+      <<"last_stop">> => faxe_time:to_iso8601(LStop)
+   },
+   OutMap =
+   case Template of
+      <<>> -> Map;
+      _ -> Map#{<<"template">> => Template, <<"template_vars">> => TemplateVars}
+   end,
+   OutMap.
 
 template_to_map(_T = #template{definition = _Def0, id = Id, name = Name, date = Dt, dfs = Dfs}) ->
-%%   lager:notice("template_to_json: ~p",[T]),
-   Map = #{id => Id, name => Name, dfs => to_bin(Dfs), date => faxe_time:to_iso8601(Dt)},
-%%   lager:notice("theTMap: ~p",[Map]),
+   Map = #{
+      <<"id">> => Id,
+      <<"name">> => Name,
+      <<"dfs">> => Dfs,
+      <<"date">> => faxe_time:to_iso8601(Dt)},
    Map.
 
 

@@ -38,7 +38,7 @@
 %%   start_temporary/2,
    start_temp/2,
    start_file_temp/2,
-   export/1, get_template/1, list_temporary_tasks/0]).
+   export/1, get_template/1, list_temporary_tasks/0, list_tasks_by_template/1]).
 
 start_permanent_tasks() ->
    Tasks = faxe_db:get_permanent_tasks(),
@@ -84,15 +84,7 @@ get_template(TemplateId) ->
 
 -spec list_tasks() -> list().
 list_tasks() ->
-   Running = supervisor:which_children(graph_sup),
-   F =
-      fun(#task{pid = Pid} = T) ->
-         case lists:keyfind(Pid, 2, Running) of
-            Y when is_tuple(Y) -> T#task{is_running = true};
-            false -> T
-         end
-      end,
-   lists:map(F, faxe_db:get_all_tasks()).
+   add_running_flag(faxe_db:get_all_tasks()).
 
 -spec list_templates() -> list().
 list_templates() ->
@@ -109,6 +101,25 @@ list_permanent_tasks() ->
 list_temporary_tasks() ->
    Tasks = ets:tab2list(temp_tasks),
    Tasks.
+
+list_tasks_by_template(TemplateId) when is_integer(TemplateId) ->
+   case get_template(TemplateId) of
+      #template{name = Name} -> list_tasks_by_template(Name);
+      Other -> Other
+   end;
+list_tasks_by_template(TemplateName) when is_binary(TemplateName) ->
+   add_running_flag(faxe_db:get_tasks_by_template(TemplateName)).
+
+add_running_flag(TaskList) ->
+   Running = supervisor:which_children(graph_sup),
+   F =
+      fun(#task{pid = Pid} = T) ->
+         case lists:keyfind(Pid, 2, Running) of
+            Y when is_tuple(Y) -> T#task{is_running = true};
+            false -> T
+         end
+      end,
+   lists:map(F, TaskList).
 
 -spec register_file_task(list()|binary(), any()) -> any().
 register_file_task(DfsScript, Name) ->
@@ -186,8 +197,9 @@ update_running(DfsScript, Task = #task{id = TId, pid = TPid}, ScriptType) ->
    {DFSString :: list(), GraphDefinition :: map()} | {error, term()}.
 eval_dfs(DfsScript, Type) ->
    try faxe_dfs:Type(DfsScript, []) of
-      {_DFSString, Def} = Result when is_map(Def) -> Result;
+      {_DFSString, {error, What}} -> {error, What};
       {error, What} -> {error, What};
+      {_DFSString, Def} = Result when is_map(Def) -> Result;
       E -> E
    catch
       throw:Err -> {error, Err};
@@ -251,8 +263,8 @@ register_template(DfsScript, Name, Type) ->
    end.
 
 task_from_template(TemplateId, TaskName) ->
-   task_from_template(TemplateId, TaskName, []).
-task_from_template(TemplateId, TaskName, Vars) ->
+   task_from_template(TemplateId, TaskName, #{}).
+task_from_template(TemplateId, TaskName, Vars) when is_map(Vars) ->
    case faxe_db:get_task(TaskName) of
       {error, not_found} -> case faxe_db:get_template(TemplateId) of
                                {error, not_found} -> {error, template_not_found};
@@ -412,7 +424,7 @@ export(TaskId) ->
    end.
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
--spec template_to_task(#template{}, binary(), list()) -> ok | {error, term()}.
+-spec template_to_task(#template{}, binary(), map()) -> ok | {error, term()}.
 template_to_task(Template = #template{dfs = DFS}, TaskName, Vars) ->
    {DFSString, Def} = faxe_dfs:data(DFS, Vars),
    case Def of
