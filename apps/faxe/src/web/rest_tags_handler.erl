@@ -6,7 +6,7 @@
 %%% @end
 %%% Created : $fulldate
 %%%-------------------------------------------------------------------
--module(rest_tasks_handler).
+-module(rest_tags_handler).
 
 -include("faxe.hrl").
 
@@ -52,9 +52,7 @@ list_json(Req, State=#state{mode = Mode}) ->
                _ -> L
             end;
          list_by_tags ->
-            Tags = cowboy_req:binding(tags, Req),
-            TagList = binary:split(Tags,[<<",">>, <<" ">>],[global, trim_all]),
-            faxe_db:get_tasks_by_tags(TagList)
+            #{tag := Tags} = cowboy_req:match_qs([{tag, [], []}])
           end,
    case Tasks of
       {error, What} ->

@@ -3,7 +3,7 @@
 -module(faxe_db).
 -author("Alexander Minichmair").
 -include("faxe.hrl").
-
+-include_lib("stdlib/include/ms_transform.hrl").
 
 -define(WAIT_FOR_TABLES, 10000).
 
@@ -25,7 +25,7 @@
    get_tasks_by_pids/1,
    get_permanent_tasks/0,
    get_tasks_by_template/1
-]).
+   , get_tasks_by_ids/1]).
 
 -export([
    add_tags/2,
@@ -66,7 +66,29 @@ get_template(TemplateName) ->
       [] -> {error, not_found}
    end.
 
+
+get_tasks_by_ids(IdList) ->
+   Specs =
+      lists:map(
+         fun(Id) ->
+            {#task{id = '$1',name = '$2',dfs = '_',definition = '_',
+               date = '_',pid = '_',last_start = '_',last_stop = '_',
+               permanent = '_',is_running = '_',template_vars = '_',
+               template = '_'},
+               [{'orelse', {'==', '$1', Id}, {'==', '$2', Id}}],
+               ['$_']}
+
+         end,
+         IdList
+      ),
+   mnesia:dirty_select(task, Specs).
+
+
+
 get_tasks_by_pids(PidList) ->
+%%   Spec = ets:fun2ms(
+%%      fun(#task{pid = Pid}=T) when Id == 2 orelse Id == 3 -> T end),
+%%   mnesia:dirty_select(task, Spec).
    lists:flatten([mnesia:dirty_index_read(task, Pid, #task.pid) || {_Name, Pid, _, _} <- PidList]).
 
 get_tasks_by_template(TemplateName) ->
@@ -118,7 +140,7 @@ get_tags_by_task(TaskId) ->
 get_tasks_by_tag(Tag) ->
    case get_tag_tasks_by_tag(Tag) of
       [] -> [];
-      [#tag_tasks{tasks = Tasks}] -> Tasks
+      [#tag_tasks{tasks = Tasks}] -> get_tasks_by_ids(Tasks)
    end.
 
 get_tasks_by_tags(Tags) ->

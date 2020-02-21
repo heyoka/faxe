@@ -8,6 +8,7 @@
 %%%-------------------------------------------------------------------
 -module(rest_templates_handler).
 
+-include("faxe.hrl").
 %%
 %% Cowboy callbacks
 -export([
@@ -37,6 +38,20 @@ content_types_provided(Req, State) ->
 
 
 list_json(Req, State=#state{mode = _Mode}) ->
+   #{orderby := OrderBy, dir := Direction} =
+      cowboy_req:match_qs([{orderby, [], <<"changed">>}, {dir, [], <<"desc">>}], Req),
    L = lists:flatten(faxe:list_templates()),
-   Maps = [rest_helper:template_to_map(T) || T <- L],
+   Sorted = lists:sort(order_fun(OrderBy, Direction), L),
+   Maps = [rest_helper:template_to_map(T) || T <- Sorted],
    {jiffy:encode(Maps), Req, State}.
+
+
+order_fun(<<"id">>, Dir) ->
+   fun(#template{id = AId}, #template{id = BId}) -> (AId =< BId) == order_dir(Dir) end;
+order_fun(<<"name">>, Dir) ->
+   fun(#template{name = AId}, #template{name = BId}) -> (AId =< BId) == order_dir(Dir) end;
+order_fun(_, Dir) ->
+   fun(#template{date = AId}, #template{date = BId}) -> (AId =< BId) == order_dir(Dir) end.
+
+order_dir(<<"asc">>) -> true;
+order_dir(_) -> false.

@@ -26,7 +26,7 @@ task_to_map(_T = #task{
       <<"dfs">> => Dfs,
       <<"running">> => Running,
       <<"permanent">> => Perm,
-      <<"created">> => faxe_time:to_iso8601(Dt),
+      <<"changed">> => faxe_time:to_iso8601(Dt),
       <<"last_start">> => faxe_time:to_iso8601(LStart),
       <<"last_stop">> => faxe_time:to_iso8601(LStop)
    },
@@ -42,7 +42,7 @@ template_to_map(_T = #template{definition = _Def0, id = Id, name = Name, date = 
       <<"id">> => Id,
       <<"name">> => Name,
       <<"dfs">> => Dfs,
-      <<"date">> => faxe_time:to_iso8601(Dt)},
+      <<"changed">> => faxe_time:to_iso8601(Dt)},
    Map.
 
 
