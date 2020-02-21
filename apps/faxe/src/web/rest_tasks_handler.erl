@@ -60,6 +60,7 @@ list_json(Req, State=#state{mode = Mode}) ->
       {error, What} ->
          {jiffy:encode(#{<<"error">> => rest_helper:to_bin(What)}), Req, State};
       _ ->
+
          Sorted = lists:sort(order_fun(OrderBy, Direction), Tasks),
          Maps = [rest_helper:task_to_map(T) || T <- Sorted],
          {jiffy:encode(Maps), Req, State}

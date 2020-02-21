@@ -14,11 +14,10 @@
 %% API
 -export([task_to_map/1, template_to_map/1, do_register/3, to_bin/1, reg_fun/3]).
 
-
 task_to_map(_T = #task{
    id = Id, name = Name, date = Dt, is_running = Running,
    last_start = LStart, last_stop = LStop, dfs = Dfs, permanent = Perm,
-   template = Template, template_vars = TemplateVars
+   template = Template, template_vars = TemplateVars, tags = Tags
 }) ->
    Map = #{
       <<"id">> => Id,
@@ -28,7 +27,8 @@ task_to_map(_T = #task{
       <<"permanent">> => Perm,
       <<"changed">> => faxe_time:to_iso8601(Dt),
       <<"last_start">> => faxe_time:to_iso8601(LStart),
-      <<"last_stop">> => faxe_time:to_iso8601(LStop)
+      <<"last_stop">> => faxe_time:to_iso8601(LStop),
+      <<"tags">> => Tags
    },
    OutMap =
    case Template of
@@ -50,10 +50,17 @@ do_register(Req, State, Type) ->
    {ok, Result, Req3} = cowboy_req:read_urlencoded_body(Req),
    TaskName = proplists:get_value(<<"name">>, Result),
    Dfs = proplists:get_value(<<"dfs">>, Result),
+   Tags = proplists:get_value(<<"tags">>, Result, []),
 %%   lager:notice("name: ~p: dfs: ~p, type:~p",[TaskName, Dfs, Type]),
    case reg_fun(Dfs, TaskName, Type) of
       ok ->
          Id = get_task_or_template_id(TaskName, Type),
+         case Type of
+            task -> case Tags of
+                       [] -> ok;
+                       TagJson -> faxe_db:add_tags(Id,jiffy:decode(TagJson))
+                    end
+         end,
          Req4 = cowboy_req:set_resp_body(
             jiffy:encode(#{success => true, name => TaskName, id => Id}), Req3),
          {true, Req4, State};

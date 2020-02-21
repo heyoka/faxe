@@ -38,7 +38,11 @@
 %%   start_temporary/2,
    start_temp/2,
    start_file_temp/2,
-   export/1, get_template/1, list_temporary_tasks/0, list_tasks_by_template/1]).
+   export/1,
+   get_template/1,
+   list_temporary_tasks/0,
+   list_tasks_by_template/1,
+   list_tasks_by_tags/1, get_all_tags/0]).
 
 start_permanent_tasks() ->
    Tasks = faxe_db:get_permanent_tasks(),
@@ -82,6 +86,9 @@ get_template(TemplateId) ->
       #template{} = T -> T
    end.
 
+get_all_tags() ->
+   faxe_db:get_all_tags().
+
 -spec list_tasks() -> list().
 list_tasks() ->
    add_running_flag(faxe_db:get_all_tasks()).
@@ -109,6 +116,9 @@ list_tasks_by_template(TemplateId) when is_integer(TemplateId) ->
    end;
 list_tasks_by_template(TemplateName) when is_binary(TemplateName) ->
    add_running_flag(faxe_db:get_tasks_by_template(TemplateName)).
+
+list_tasks_by_tags(TagList) when is_list(TagList) ->
+   add_running_flag(faxe_db:get_tasks_by_tags(TagList)).
 
 add_running_flag(TaskList) ->
    Running = supervisor:which_children(graph_sup),
