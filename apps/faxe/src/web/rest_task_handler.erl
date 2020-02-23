@@ -17,7 +17,7 @@
    resource_exists/2,
    content_types_accepted/2,
    delete_resource/2
-]).
+   , allow_missing_post/2, malformed_request/2]).
 
 %%
 %% Additional callbacks
@@ -37,7 +37,7 @@
 
 -include("faxe.hrl").
 
--record(state, {mode, task_id, task}).
+-record(state, {mode, task_id, task, tags, name, dfs}).
 
 init(Req, [{op, Mode}]) ->
    TId = cowboy_req:binding(task_id, Req),
@@ -69,6 +69,11 @@ allowed_methods(Req, State=#state{mode = add_tags}) ->
    {[<<"POST">>], Req, State};
 allowed_methods(Req, State=#state{}) ->
    {[], Req, State}.
+
+allow_missing_post(Req, State = #state{mode = Mode}) when Mode == remove_tags; Mode == add_tags ->
+   {false, Req, State};
+allow_missing_post(Req, State) ->
+   {true, Req, State}.
 
 content_types_accepted(Req = #{method := <<"POST">>}, State = #state{mode = register}) ->
     Value = [{{ <<"application">>, <<"x-www-form-urlencoded">>, []}, from_register_task}],
@@ -110,10 +115,6 @@ content_types_provided(Req0 = #{method := _Method}, State=#state{mode = errors})
       {{<<"application">>, <<"json">>, []}, errors_to_json},
       {{<<"text">>, <<"html">>, []}, errors_to_json}
    ], Req0, State};
-%%content_types_provided(Req0 = #{method := _Method}, State=#state{mode = remove_tags}) ->
-%%   {[
-%%      {{<<"application">>, <<"json">>, []}, remove_tags_to_json}
-%%   ], Req0, State};
 content_types_provided(Req0 = #{method := _Method}, State=#state{mode = _Mode}) ->
    {[
       {{<<"application">>, <<"json">>, []}, create_to_json},
@@ -121,6 +122,26 @@ content_types_provided(Req0 = #{method := _Method}, State=#state{mode = _Mode}) 
    ], Req0, State}.
 %%.
 
+malformed_request(Req, State=#state{mode = Mode}) when Mode == add_tags; Mode == remove_tags ->
+   {ok, Result, Req1} = cowboy_req:read_urlencoded_body(Req),
+   TagsJson = proplists:get_value(<<"tags">>, Result, undefined),
+   Malformed = TagsJson == undefined,
+   {Malformed,
+      rest_helper:report_malformed(Malformed, Req1, [<<"tags">>]), State#state{tags = TagsJson}};
+malformed_request(Req, State=#state{mode = Mode}) when Mode == register ->
+   {ok, Result, Req1} = cowboy_req:read_urlencoded_body(Req),
+   Dfs = proplists:get_value(<<"dfs">>, Result, undefined),
+   Name = proplists:get_value(<<"name">>, Result, undefined),
+   Malformed = (Dfs == undefined orelse Name == undefined),
+   {Malformed, rest_helper:report_malformed(Malformed, Req1, [<<"dfs">>, <<"name">>]),
+      State#state{dfs = Dfs, name = Name}};
+malformed_request(Req, State=#state{mode = Mode}) when Mode == update ->
+   {ok, Result, Req1} = cowboy_req:read_urlencoded_body(Req),
+   Dfs = proplists:get_value(<<"dfs">>, Result, undefined),
+   Malformed = (Dfs == undefined),
+   {Malformed, rest_helper:report_malformed(Malformed, Req1, [<<"dfs">>]), State#state{dfs = Dfs}};
+malformed_request(Req, State=#state{mode = _Mode}) ->
+   {false, Req, State}.
 
 %% check for existing resource only with get req
 resource_exists(Req = #{method := <<"GET">>}, State=#state{mode = Mode, task_id = TId})
@@ -159,9 +180,6 @@ delete_resource(Req, State=#state{task_id = TaskId}) ->
          {false, Req3, State}
    end.
 
-%%malformed_request(Req, State=state#{mode = register}) ->
-%%    Value = false,
-%%    {Value, Req, State}.
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%% costum CALLBACKS %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 
@@ -169,8 +187,8 @@ get_to_json(Req, State=#state{task = Task}) ->
    Map = rest_helper:task_to_map(Task),
    {jiffy:encode(Map), Req, State}.
 
-from_register_task(Req, State) ->
-   rest_helper:do_register(Req, State, task).
+from_register_task(Req, State = #state{name = TaskName, dfs = Dfs}) ->
+   rest_helper:do_register(Req, TaskName, Dfs, State, task).
 
 from_start_temp_task(Req, State) ->
    {ok, Result, Req3} = cowboy_req:read_urlencoded_body(Req),
@@ -187,17 +205,15 @@ from_start_temp_task(Req, State) ->
          {false, Req4, State}
    end.
 
-from_update_to_json(Req, State=#state{task_id = TaskId}) ->
-   {ok, Result, Req1} = cowboy_req:read_urlencoded_body(Req),
-   Dfs = proplists:get_value(<<"dfs">>, Result),
+from_update_to_json(Req, State=#state{task_id = TaskId, dfs = Dfs}) ->
    lager:info("update ~p with dfs: ~p",[TaskId, Dfs]),
    case faxe:update_string_task(Dfs, binary_to_integer(TaskId)) of
       ok ->
-         Req4 = cowboy_req:set_resp_body(jiffy:encode(#{success => true, id => TaskId}), Req1),
+         Req4 = cowboy_req:set_resp_body(jiffy:encode(#{success => true, id => TaskId}), Req),
          {true, Req4, State};
       {error, Error} ->
          Req3 = cowboy_req:set_resp_body(
-            jiffy:encode(#{success => false, error => rest_helper:to_bin(Error)}), Req1),
+            jiffy:encode(#{success => false, error => rest_helper:to_bin(Error)}), Req),
          {false, Req3, State}
    end.
 
@@ -213,20 +229,7 @@ from_ping_to_json(Req, State=#state{task_id = TaskId}) ->
          {false, Req3, State}
    end.
 
-%% @todo figure out, how to make the commented code work
 start_to_json(Req, State = #state{task_id = Id}) ->
-%%   case faxe:start_task(Id, is_permanent(Req)) of
-%%      {ok, _Graph} ->
-%%         Req1 = cowboy_req:reply(200, #{
-%%            <<"content-type">> => <<"application/json">>
-%%         }, jiffy:encode(#{<<"ok">> => <<"started">>}), Req),
-%%         {<<>>, Req1, State};
-%%      {error, Error} ->
-%%         Req1 = cowboy_req:reply(500, #{
-%%            <<"content-type">> => <<"application/json">>
-%%         }, jiffy:encode(#{<<"error">> => rest_helper:to_bin(Error)}), Req),
-%%         {<<>>, Req1, State}
-%%   end.
    case faxe:start_task(Id, is_permanent(Req)) of
       {ok, _Graph} ->
          {jiffy:encode(#{<<"ok">> => <<"started">>}), Req, State};
@@ -253,35 +256,29 @@ errors_to_json(Req, State = #state{task_id = Id}) ->
 create_to_json(Req, State) ->
    {stop, Req, State}.
 
-add_tags_from_json(Req, State = #state{task_id = TaskId}) ->
-   {ok, Result, Req1} = cowboy_req:read_urlencoded_body(Req),
-   TagsJson = proplists:get_value(<<"tags">>, Result),
+add_tags_from_json(Req, State = #state{task_id = TaskId, tags = TagsJson}) ->
    Tags = jiffy:decode(TagsJson),
-   case faxe_db:add_tags(TaskId, Tags) of
+   case faxe:add_tags(TaskId, Tags) of
       ok ->
          Req4 = cowboy_req:set_resp_body(
-            jiffy:encode(#{success => true}), Req1),
+            jiffy:encode(#{success => true}), Req),
          {true, Req4, State};
-%%         {jiffy:encode(#{<<"ok">> => <<"removed">>}), Req1, State};
       {error, Error} ->
          Req4 = cowboy_req:set_resp_body(
-            jiffy:encode(#{success => false, error => rest_helper:to_bin(Error)}), Req1),
+            jiffy:encode(#{success => false, error => rest_helper:to_bin(Error)}), Req),
          {false, Req4, State}
    end.
 
-remove_tags_from_json(Req, State = #state{task_id = TaskId}) ->
-   {ok, Result, Req1} = cowboy_req:read_urlencoded_body(Req),
-   TagsJson = proplists:get_value(<<"tags">>, Result),
+remove_tags_from_json(Req, State = #state{task_id = TaskId, tags = TagsJson}) ->
    Tags = jiffy:decode(TagsJson),
-   case faxe_db:remove_tags(TaskId, Tags) of
+   case faxe:remove_tags(TaskId, Tags) of
       ok ->
          Req4 = cowboy_req:set_resp_body(
-            jiffy:encode(#{success => true}), Req1),
+            jiffy:encode(#{success => true}), Req),
          {true, Req4, State};
-%%         {jiffy:encode(#{<<"ok">> => <<"removed">>}), Req1, State};
       {error, Error} ->
          Req4 = cowboy_req:set_resp_body(
-            jiffy:encode(#{success => false, error => rest_helper:to_bin(Error)}), Req1),
+            jiffy:encode(#{success => false, error => rest_helper:to_bin(Error)}), Req),
          {false, Req4, State}
    end.
 

@@ -147,19 +147,25 @@ get_tag_tasks_by_tag(Tag) ->
    mnesia:dirty_read(tag_tasks, Tag).
 
 
+-spec add_tags(any(), list(binary())) -> ok | {error, task_not_found}.
 add_tags(TaskId, Tags) when is_list(Tags) ->
-   [add_task_to_tag(TaskId, Tag) || Tag <- Tags],
    Task = get_task(TaskId),
-   TaskTags = Task#task.tags,
-   NewTags =
-   case TaskTags of
-      [] -> Tags;
-      _ ->
-         AddTags = lists:filter(fun(E) -> not lists:member(E, TaskTags) end, Tags),
-         TaskTags ++ AddTags
-   end,
-   save_task(Task#task{tags = NewTags}),
-   ok.
+   case Task of
+      #task{} ->
+         TaskTags = Task#task.tags,
+         NewTags =
+            case TaskTags of
+               [] -> Tags;
+               _ ->
+                  AddTags = lists:filter(fun(E) -> not lists:member(E, TaskTags) end, Tags),
+                  TaskTags ++ AddTags
+            end,
+         save_task(Task#task{tags = NewTags}),
+         [add_task_to_tag(TaskId, Tag) || Tag <- Tags],
+         ok;
+      _ -> {error, task_not_found}
+   end.
+
 
 add_task_to_tag(TaskId, Tag) ->
    TagTasks = get_tag_tasks_by_tag(Tag),
@@ -173,12 +179,17 @@ add_task_to_tag(TaskId, Tag) ->
          end
    end.
 
+-spec remove_tags(any(), list(binary())) -> ok | {error, task_not_found}.
 remove_tags(TaskId, Tags) when is_list(Tags) ->
-   [remove_task_from_tag(TaskId, Tag) || Tag <- Tags],
    Task = get_task(TaskId),
-   NewTags = Task#task.tags -- Tags,
-   save_task(Task#task{tags = NewTags}),
-   ok.
+   case Task of
+      #task{} ->
+         NewTags = Task#task.tags -- Tags,
+         save_task(Task#task{tags = NewTags}),
+         [remove_task_from_tag(TaskId, Tag) || Tag <- Tags],
+         ok;
+      _ -> {error, task_not_found}
+   end.
 
 remove_task_from_tag(TaskId, Tag) ->
    TagTasks = get_tag_tasks_by_tag(Tag),

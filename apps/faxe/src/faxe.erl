@@ -42,7 +42,10 @@
    get_template/1,
    list_temporary_tasks/0,
    list_tasks_by_template/1,
-   list_tasks_by_tags/1, get_all_tags/0]).
+   list_tasks_by_tags/1,
+   get_all_tags/0,
+   add_tags/2,
+   remove_tags/2]).
 
 start_permanent_tasks() ->
    Tasks = faxe_db:get_permanent_tasks(),
@@ -119,6 +122,12 @@ list_tasks_by_template(TemplateName) when is_binary(TemplateName) ->
 
 list_tasks_by_tags(TagList) when is_list(TagList) ->
    add_running_flag(faxe_db:get_tasks_by_tags(TagList)).
+
+add_tags(TaskId, Tags) ->
+   faxe_db:add_tags(TaskId, Tags).
+
+remove_tags(TaskId, Tags) ->
+   faxe_db:remove_tags(TaskId, Tags).
 
 add_running_flag(TaskList) ->
    Running = supervisor:which_children(graph_sup),

@@ -54,7 +54,7 @@ list_json(Req, State=#state{mode = Mode}) ->
          list_by_tags ->
             Tags = cowboy_req:binding(tags, Req),
             TagList = binary:split(Tags,[<<",">>, <<" ">>],[global, trim_all]),
-            faxe_db:get_tasks_by_tags(TagList)
+            faxe:list_tasks_by_tags(TagList)
           end,
    case Tasks of
       {error, What} ->
