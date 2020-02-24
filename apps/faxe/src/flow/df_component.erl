@@ -226,9 +226,7 @@ handle_call({start, Inputs, Subscriptions, FlowMode}, _From,
    %gen_event:notify(dfevent_component, {start, State#c_state.node_id, FlowMode}),
    lager:debug("component ~p starts with options; ~p", [CB, CBState]),
    Opts = CBState,
-   {NewCBOpts, NewState} = eval_args(Opts, State),
-   Inited = CB:init(NId, Inputs, NewCBOpts),
-%%   lager:warning("CB:init gives: ~p",[Inited]),
+   Inited = CB:init(NId, Inputs, Opts),
    {AReq, NewCBState} =
    case Inited of
 
@@ -244,7 +242,7 @@ handle_call({start, Inputs, Subscriptions, FlowMode}, _From,
 %%   folsom_metrics:new_histogram(NId, slide, 60),
 %%   folsom_metrics:new_history(<< NId/binary, ?FOLSOM_ERROR_HISTORY >>, 24),
    {reply, ok,
-      NewState#c_state{
+      State#c_state{
          subscriptions = Subscriptions,
          inports = Inputs,
          auto_request = AR,
@@ -286,9 +284,7 @@ handle_info({start, Inputs, Subscriptions, FlowMode},
    %gen_event:notify(dfevent_component, {start, State#c_state.node_id, FlowMode}),
    lager:debug("component ~p starts with options; ~p", [CB, CBState]),
    Opts = CBState,
-   {NewCBOpts, NewState} = eval_args(Opts, State),
-   Inited = CB:init(NId, Inputs, NewCBOpts),
-%%   lager:warning("CB:init gives: ~p",[Inited]),
+   Inited = CB:init(NId, Inputs, Opts),
    {AReq, NewCBState} =
       case Inited of
 
@@ -304,7 +300,7 @@ handle_info({start, Inputs, Subscriptions, FlowMode},
 %%   folsom_metrics:new_histogram(NId, slide, 60),
 %%   folsom_metrics:new_history(<< NId/binary, ?FOLSOM_ERROR_HISTORY >>, 24),
    {noreply,
-      NewState#c_state{
+      State#c_state{
          subscriptions = Subscriptions,
          inports = Inputs,
          auto_request = AR,
@@ -356,7 +352,7 @@ handle_info({item, {Inport, Value}},
                     end;
             false -> ok
          end,
-         handle_ls_mem(Value, State),
+%%         handle_ls_mem(Value, State),
          {noreply, NewState}
    end
    ;
@@ -466,44 +462,4 @@ inports() ->
 outports() ->
    inports().
 
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-%% evaluate component base arguments
-eval_args(A = #{}, State) ->
-   {LsMem, A0} = maps:take(ls_mem, A),
-   {LsMemSet, A00} =
-   case maps:is_key(ls_mem_set, A0) of
-      true -> case maps:take(ls_mem_set, A0) of error -> {undefined, A0}; O -> O end;
-      false -> {undefined, A0}
-   end,
-   {LsMemFields, A1} = maps:take(ls_mem_field, A00),
-   {_LsMemTTL, Args} = maps:take(ls_mem_ttl, A1),
-   NewState = State#c_state{ls_mem = LsMem, ls_mem_field = LsMemFields, ls_mem_set = LsMemSet},
-   {Args, NewState}.
-
-
-handle_ls_mem(_, #c_state{ls_mem = undefined, ls_mem_set = undefined}) ->
-   ok;
-handle_ls_mem(Item, State = #c_state{ls_mem_set = undefined, ls_mem = _LsMem}) ->
-%%   lager:notice("handle_ls_mem: ~p", [_LsMem]),
-   handle_ls_mem_val(Item, State);
-handle_ls_mem(Item, State = #c_state{ls_mem = undefined, ls_mem_set = _LsMem}) ->
-   handle_ls_mem_set(Item, State).
-
-handle_ls_mem_val(#data_batch{points = Points}, State=#c_state{}) ->
-   handle_ls_mem_val(lists:last(Points), State);
-handle_ls_mem_val(P = #data_point{}, #c_state{ls_mem = MemKey, ls_mem_field = MemField}) ->
-%%   lager:notice("handle_ls_mem: key: ~p field: ~p :: ~p", [MemKey, MemField, flowdata:value(P, MemField)]),
-   ets:insert(ls_mem, {MemKey, flowdata:value(P, MemField)}).
-%%   lager:warning("ls_mem: ~p is now: ~p", [MemKey, faxe_lambda_lib:ls_mem(MemKey)]).
-
-handle_ls_mem_set(#data_batch{points = Points}, State=#c_state{}) ->
-   [handle_ls_mem_set(P, State) || P <- Points];
-handle_ls_mem_set(P = #data_point{}, #c_state{ls_mem_set = MemKey, ls_mem_field = MemField}) ->
-%%   lager:notice("handle_ls_mem_set"),
-   Set0 =
-   case ets:lookup(ls_mem_set, MemKey) of
-      [] -> sets:new();
-      [{MemKey, List}] -> sets:from_list(List)
-   end,
-   Set = sets:add_element(flowdata:value(P, MemField), Set0),
-   ets:insert(ls_mem_set, {MemKey, sets:to_list(Set)}).
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%

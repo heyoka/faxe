@@ -35,11 +35,7 @@
    subscriptions        :: list(#subscription{}),
    auto_request         :: none | all | emit,
    history              :: list(),
-   emitted = 0          :: non_neg_integer(),
-   ls_mem,
-   ls_mem_field,
-   ls_mem_ttl,
-   ls_mem_set
+   emitted = 0          :: non_neg_integer()
 }).
 
 -record(data_point, {

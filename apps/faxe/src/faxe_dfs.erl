@@ -122,11 +122,7 @@ eval({Nodes, Connections}) ->
                                false -> throw("Component '" ++ binary_to_list(NodeName) ++ ":options' not found")
                             end
             end,
-            %% add ls_mem options as optional
-            LsMem = [{ls_mem, binary, undefined}, {ls_mem_field, binary, <<>>},
-               {ls_mem_ttl, integer, 0}, {ls_mem_set, binary, undefined}],
-            CompOptions1 = eval_options(CompOptions0, []),
-            CompOptions = CompOptions1 ++ LsMem,
+            CompOptions = eval_options(CompOptions0, []),
             %% handle all other params and options
             NOptions = convert_options(CompOptions, lists:flatten(Options ++ ParamOptions)),
             NodeOptions = NOptions ++ NOpts,
