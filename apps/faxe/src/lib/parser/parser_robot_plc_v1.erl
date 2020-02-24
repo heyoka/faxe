@@ -120,15 +120,15 @@ sixth(
 
 %% 24 bytes
 seventh(
-    <<ErrorID:?DINT, %% ??? RobotErrorState
-       ErrorID_X:?DINT,
-       ErrorID_Y:?DINT,
-       ErrorID_Z:?DINT,
-       ErrorID_Yaw:?DINT,
-       ErrorID_Pitch:?DINT, Eigth/binary>>, Acc=#{}) ->
+    <<ErrorID:?REAL, %% ??? RobotErrorState
+       ErrorID_X:?REAL,
+       ErrorID_Y:?REAL,
+       ErrorID_Z:?REAL,
+       ErrorID_Yaw:?REAL,
+       ErrorID_Pitch:?REAL, Eigth/binary>>, Acc=#{}) ->
 
    NewAcc = set_axis_val(<<"err">>,
-      [ErrorID_X, ErrorID_Y, ErrorID_Z, ErrorID_Yaw, ErrorID_Pitch], Acc),
+      [trunc(ErrorID_X), trunc(ErrorID_Y), trunc(ErrorID_Z), trunc(ErrorID_Yaw), trunc(ErrorID_Pitch)], Acc),
    eigth(Eigth, NewAcc#{<<"errcode">> => ErrorID}).
 
 %% 1 byte
