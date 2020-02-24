@@ -47,6 +47,9 @@ init([]) ->
             permanent, 5000, worker, []},
         {reconnect_watcher,
             {reconnect_watcher, start_link, []},
+            permanent, 5000, worker, []},
+        {crate_log_writer,
+            {crate_log_writer, start_link, []},
             permanent, 5000, worker, []}
 %%        ,
 %%        {initial_task_starter,

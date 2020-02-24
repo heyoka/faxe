@@ -23,7 +23,8 @@ options() ->
 check_options() ->
    [
       {one_of, level,
-         [<<"debug">>, <<"info">>, <<"notice">>, <<"warning">>, <<"error">>, <<"alert">>]}
+         [<<"debug">>, <<"info">>, <<"notice">>,
+            <<"warning">>, <<"error">>, <<"critical">>,<<"alert">>]}
    ].
 
 init(_NodeId, _Inputs, #{level := Lev}) ->
@@ -32,8 +33,17 @@ init(_NodeId, _Inputs, #{level := Lev}) ->
 
 process(_Inport, Value, State=#state{level = Level}) ->
    Format = "process [at ~p] , ~p~n", Args = [faxe_time:now(),  {_Inport, lager:pr(Value, ?MODULE)}],
-   lager:log(Level, self(), Format, Args),
+   do_log(Level, Format, Args),
    {emit, Value, State}.
 
 shutdown(_State) ->
    ok.
+
+%% we need to do it this way, so we can keep out metadata in lager
+do_log(debug, Format, Args) -> lager:debug(Format, Args);
+do_log(info, Format, Args) -> lager:info(Format, Args);
+do_log(notice, Format, Args) -> lager:notice(Format, Args);
+do_log(warning, Format, Args) -> lager:warning(Format, Args);
+do_log(error, Format, Args) -> lager:error(Format, Args);
+do_log(critical, Format, Args) -> lager:critical(Format, Args);
+do_log(alert, Format, Args) -> lager:critical(Format, Args).
