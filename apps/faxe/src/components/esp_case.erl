@@ -29,7 +29,7 @@ options() -> [
    {lambdas, lambda_list},
    {as, string}, %% key
    {values, list}, %% list of values
-   {json, is_set, false}, %% treat the values as json strings
+   {json, is_set, false}, %% treat 'values' as json strings
    {default, any}
 ].
 

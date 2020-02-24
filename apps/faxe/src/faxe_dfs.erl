@@ -167,11 +167,6 @@ eval_options([{OptName, OptType, {ConfigKey, ConfigSubKey}}|Opts], Acc) ->
 eval_options([Opt|Opts], Acc) ->
    eval_options(Opts, Acc ++ [Opt]).
 
-%%eval_node({<< "@", Name/binary >>, Id}) ->
-%%   {node_name(Name), node_id({Name, Id}), []};
-%%eval_node({{NodeName, _Id} = N, Params, Options}) ->
-%%   {node_name(NodeName), node_id(N), []}.
-
 node_id({Name, Id}) when is_binary(Name) andalso is_integer(Id) ->
    <<Name/binary, (integer_to_binary(Id))/binary>>.
 
