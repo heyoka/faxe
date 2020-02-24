@@ -35,7 +35,9 @@ start_script(Script, Name) ->
    end.
 
 
-
+-spec file(list(), list()|map()) -> {list(), map()}.
+file(ScriptFile, Vars) when is_list(ScriptFile), is_map(Vars) ->
+   file(ScriptFile, maps:to_list(Vars));
 file(ScriptFile, Vars) when is_list(ScriptFile), is_list(Vars) ->
    {ok, DfsParams} = application:get_env(faxe, dfs),
    Path = proplists:get_value(script_path, DfsParams),
@@ -43,11 +45,15 @@ file(ScriptFile, Vars) when is_list(ScriptFile), is_list(Vars) ->
    D = dfs:parse_file(Path ++ ScriptFile, ?LAMBDA_LIBS, Vars),
    maybe_compile(D).
 
-data(DfsData, Vars) ->
+-spec data(list()|binary(), list()|map()) -> {list(), map()}.
+data(DfsData, Vars) when is_map(Vars) ->
+   data(DfsData, maps:to_list(Vars));
+data(DfsData, Vars) when is_list(Vars) ->
    D = dfs:parse(DfsData, ?LAMBDA_LIBS, Vars),
    maybe_compile(D).
 
-maybe_compile(ParserResult) ->
+-spec maybe_compile({tuple(), {list(), list()}}) -> {list(), map()}.
+maybe_compile({DFSString, ParserResult}) ->
    case ParserResult of
       {{_Where, line, _LN}, {Keyword, MsgList}} = _M ->
          {error, iolist_to_binary(
@@ -60,23 +66,25 @@ maybe_compile(ParserResult) ->
             [atom_to_binary(_Where), <<" on line ">>,
                integer_to_binary(_LN), <<": ">>, list_to_binary(_Message)])
          };
-      {_Nodes, _Connections} -> compile(ParserResult);
+      {_Nodes, _Connections} -> {list_to_binary(DFSString), compile(ParserResult)};
       _ -> {error, ParserResult}
    end.
 
+-spec compile({list(), list()}) -> {error, term()} | map().
 compile(D) ->
    try eval(D) of
       GraphDef when is_map(GraphDef) ->
          GraphDef;
       Err -> {error, Err}
    catch
-      _:Err -> {error, Err}
+      _:Err ->
+%%         lager:error("error evaluating dfs result: ~p",[_Stack]),
+         {error, Err}
    end.
 
 
--spec eval(tuple()) -> map().
+-spec eval({list(), list()}) -> map().
 eval({Nodes, Connections}) ->
-
    Def = dataflow:new_graph(),
 
    %% add nodes, handle node options and parameters and build connections

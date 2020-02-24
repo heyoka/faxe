@@ -8,6 +8,8 @@
 %%%-------------------------------------------------------------------
 -module(rest_tasks_handler).
 
+-include("faxe.hrl").
+
 %%
 %% Cowboy callbacks
 -export([
@@ -36,9 +38,47 @@ content_types_provided(Req, State) ->
 
 
 list_json(Req, State=#state{mode = Mode}) ->
-   Maps = case Mode of
-             list -> L = lists:flatten(faxe:list_tasks()), [rest_helper:task_to_map(T) || T <- L];
-             list_running -> L = lists:flatten(faxe:list_running_tasks()),
-                [rest_helper:task_to_map(T) || T <- L]
+   #{orderby := OrderBy, dir := Direction} =
+      cowboy_req:match_qs([{orderby, [], <<"changed">>}, {dir, [], <<"desc">>}], Req),
+   Tasks =
+      case Mode of
+         list -> faxe:list_tasks();
+         list_running -> faxe:list_running_tasks();
+         list_by_template ->
+            TId = cowboy_req:binding(template_id, Req),
+            L = faxe:list_tasks_by_template(binary_to_integer(TId)),
+            case L of
+               {error, not_found} -> {error, template_not_found};
+               _ -> L
+            end;
+         list_by_tags ->
+            Tags = cowboy_req:binding(tags, Req),
+            TagList = binary:split(Tags,[<<",">>, <<" ">>],[global, trim_all]),
+            faxe:list_tasks_by_tags(TagList)
           end,
-   {jiffy:encode(Maps), Req, State}.
+   case Tasks of
+      {error, What} ->
+         {jiffy:encode(#{<<"error">> => rest_helper:to_bin(What)}), Req, State};
+      _ ->
+
+         Sorted = lists:sort(order_fun(OrderBy, Direction), Tasks),
+         Maps = [rest_helper:task_to_map(T) || T <- Sorted],
+         {jiffy:encode(Maps), Req, State}
+   end.
+
+
+
+order_fun(<<"id">>, Dir) ->
+   fun(#task{id = AId}, #task{id = BId}) -> (AId =< BId) == order_dir(Dir) end;
+order_fun(<<"name">>, Dir) ->
+   fun(#task{name = AId}, #task{name = BId}) -> (AId =< BId) == order_dir(Dir) end;
+order_fun(<<"last_start">>, Dir) ->
+   fun(#task{last_start = AId}, #task{last_start = BId}) -> (AId =< BId) == order_dir(Dir) end;
+order_fun(<<"last_stop">>, Dir) ->
+   fun(#task{last_stop = AId}, #task{last_stop = BId}) -> (AId =< BId) == order_dir(Dir) end;
+order_fun(_, Dir) ->
+   fun(#task{date = AId}, #task{date = BId}) -> (AId =< BId) == order_dir(Dir) end.
+
+order_dir(<<"asc">>) -> true;
+order_dir(_) -> false.
+

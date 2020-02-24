@@ -12,40 +12,57 @@
 -include("faxe.hrl").
 
 %% API
--export([task_to_map/1, template_to_map/1, do_register/3, to_bin/1, reg_fun/3]).
+-export([task_to_map/1, template_to_map/1, do_register/5,
+   to_bin/1, reg_fun/3, report_malformed/3, add_tags/2]).
 
-
-task_to_map(_T = #task{id = Id, name = Name, date = Dt, is_running = Running,
-   last_start = LStart, last_stop = LStop, dfs = Dfs, permanent = Perm}) ->
-%%   lager:notice("task_to_json: ~p",[T]),
-   Map = #{id => Id, name => Name,
-      dfs => Dfs,
-      running => Running,
-      permanent => Perm,
-      created => faxe_time:to_iso8601(Dt),
-      last_start => faxe_time:to_iso8601(LStart),
-      last_stop => faxe_time:to_iso8601(LStop)},
-%%   lager:notice("theMap: ~p",[Map]),
-   Map.
+task_to_map(_T = #task{
+   id = Id, name = Name, date = Dt, is_running = Running,
+   last_start = LStart, last_stop = LStop, dfs = Dfs, permanent = Perm,
+   template = Template, template_vars = TemplateVars, tags = Tags
+}) ->
+   Map = #{
+      <<"id">> => Id,
+      <<"name">> => Name,
+      <<"dfs">> => Dfs,
+      <<"running">> => Running,
+      <<"permanent">> => Perm,
+      <<"changed">> => faxe_time:to_iso8601(Dt),
+      <<"last_start">> => faxe_time:to_iso8601(LStart),
+      <<"last_stop">> => faxe_time:to_iso8601(LStop),
+      <<"tags">> => Tags
+   },
+   OutMap =
+   case Template of
+      <<>> -> Map;
+      _ -> Map#{<<"template">> => Template, <<"template_vars">> => TemplateVars}
+   end,
+   OutMap.
 
 template_to_map(_T = #template{definition = _Def0, id = Id, name = Name, date = Dt, dfs = Dfs}) ->
-%%   lager:notice("template_to_json: ~p",[T]),
-   Map = #{id => Id, name => Name, dfs => to_bin(Dfs), date => faxe_time:to_iso8601(Dt)},
-%%   lager:notice("theTMap: ~p",[Map]),
+   Map = #{
+      <<"id">> => Id,
+      <<"name">> => Name,
+      <<"dfs">> => Dfs,
+      <<"changed">> => faxe_time:to_iso8601(Dt)},
    Map.
 
+report_malformed(false, Req, _) -> Req;
+report_malformed(true, Req, ParamList) ->
+   Req1 = cowboy_req:set_resp_header(<<"Content-Type">>, <<"application/json">>, Req),
+   cowboy_req:set_resp_body(jiffy:encode(#{success => false, params_missing => ParamList}), Req1).
 
-do_register(Req, State, Type) ->
-   {ok, Result, Req3} = cowboy_req:read_urlencoded_body(Req),
-   TaskName = proplists:get_value(<<"name">>, Result),
-   Dfs = proplists:get_value(<<"dfs">>, Result),
-%%   lager:notice("name: ~p: dfs: ~p, type:~p",[TaskName, Dfs, Type]),
+do_register(Req, TaskName, Dfs, State, Type) ->
    case reg_fun(Dfs, TaskName, Type) of
       ok ->
          Id = get_task_or_template_id(TaskName, Type),
-         Req4 = cowboy_req:set_resp_body(
-            jiffy:encode(#{success => true, name => TaskName, id => Id}), Req3),
-         {true, Req4, State};
+         Req1 =
+         case Type of
+            task -> add_tags(Req, Id);
+            _ -> Req
+         end,
+         Req2 = cowboy_req:set_resp_body(
+            jiffy:encode(#{success => true, name => TaskName, id => Id}), Req1),
+         {true, Req2, State};
       {error, Error} ->
          Add =
             case Type of
@@ -53,12 +70,23 @@ do_register(Req, State, Type) ->
                _ -> "-template"
             end,
          lager:warning("Error occured when registering faxe-flow"++Add++": ~p",[Error]),
-         Req4 = cowboy_req:set_resp_body(jiffy:encode(#{success => false, error => to_bin(Error)}), Req3),
+         Req4 = cowboy_req:set_resp_body(jiffy:encode(#{success => false, error => to_bin(Error)}), Req),
          {false, Req4, State}
    end.
 
 reg_fun(Dfs, Name, task) -> Res = faxe:register_string_task(Dfs, Name), Res;
 reg_fun(Dfs, Name, _) -> faxe:register_template_string(Dfs, Name).
+
+-spec add_tags(Req :: cowboy:request(), any()) -> NewReq :: cowboy:request().
+add_tags(Req, TaskId) ->
+   {ok, Result, Req2} = cowboy_req:read_urlencoded_body(Req),
+   lager:warning("Body : ~p",[Result]),
+   Tags = proplists:get_value(<<"tags">>, Result, []),
+   case Tags of
+      [] -> ok;
+      TagJson -> faxe:add_tags(TaskId, jiffy:decode(TagJson))
+   end,
+   Req2.
 
 get_task_or_template_id(TName, task) ->
    NewTask = faxe:get_task(TName),

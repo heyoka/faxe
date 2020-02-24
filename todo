@@ -6,3 +6,4 @@ get last errors via rest api
 fix update flow with pyhtoncode where a new param has been added to the py code: all param are store with task !
 use client ids for mqtt
 reload task function
+make adding parsers on the fly possible

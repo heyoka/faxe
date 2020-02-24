@@ -38,7 +38,14 @@
 %%   start_temporary/2,
    start_temp/2,
    start_file_temp/2,
-   export/1, get_template/1, list_temporary_tasks/0]).
+   export/1,
+   get_template/1,
+   list_temporary_tasks/0,
+   list_tasks_by_template/1,
+   list_tasks_by_tags/1,
+   get_all_tags/0,
+   add_tags/2,
+   remove_tags/2]).
 
 start_permanent_tasks() ->
    Tasks = faxe_db:get_permanent_tasks(),
@@ -82,17 +89,12 @@ get_template(TemplateId) ->
       #template{} = T -> T
    end.
 
+get_all_tags() ->
+   faxe_db:get_all_tags().
+
 -spec list_tasks() -> list().
 list_tasks() ->
-   Running = supervisor:which_children(graph_sup),
-   F =
-      fun(#task{pid = Pid} = T) ->
-         case lists:keyfind(Pid, 2, Running) of
-            Y when is_tuple(Y) -> T#task{is_running = true};
-            false -> T
-         end
-      end,
-   lists:map(F, faxe_db:get_all_tasks()).
+   add_running_flag(faxe_db:get_all_tasks()).
 
 -spec list_templates() -> list().
 list_templates() ->
@@ -110,6 +112,34 @@ list_temporary_tasks() ->
    Tasks = ets:tab2list(temp_tasks),
    Tasks.
 
+list_tasks_by_template(TemplateId) when is_integer(TemplateId) ->
+   case get_template(TemplateId) of
+      #template{name = Name} -> list_tasks_by_template(Name);
+      Other -> Other
+   end;
+list_tasks_by_template(TemplateName) when is_binary(TemplateName) ->
+   add_running_flag(faxe_db:get_tasks_by_template(TemplateName)).
+
+list_tasks_by_tags(TagList) when is_list(TagList) ->
+   add_running_flag(faxe_db:get_tasks_by_tags(TagList)).
+
+add_tags(TaskId, Tags) ->
+   faxe_db:add_tags(TaskId, Tags).
+
+remove_tags(TaskId, Tags) ->
+   faxe_db:remove_tags(TaskId, Tags).
+
+add_running_flag(TaskList) ->
+   Running = supervisor:which_children(graph_sup),
+   F =
+      fun(#task{pid = Pid} = T) ->
+         case lists:keyfind(Pid, 2, Running) of
+            Y when is_tuple(Y) -> T#task{is_running = true};
+            false -> T
+         end
+      end,
+   lists:map(F, TaskList).
+
 -spec register_file_task(list()|binary(), any()) -> any().
 register_file_task(DfsScript, Name) ->
    register_task(DfsScript, Name, file).
@@ -123,12 +153,7 @@ register_task(DfsScript, Name, Type) ->
    case faxe_db:get_task(Name) of
       {error, not_found} ->
          case eval_dfs(DfsScript, Type) of
-            Def when is_map(Def) ->
-               DFS =
-                  case Type of
-                     file -> get_file_dfs(DfsScript);
-                     data -> DfsScript
-                  end,
+            {DFS, Def} when is_map(Def) ->
                Task = #task{
                   date = faxe_time:now_date(),
                   dfs = DFS,
@@ -163,12 +188,7 @@ update_task(DfsScript, TaskId, ScriptType) ->
 -spec update(list()|binary(), #task{}, atom()) -> ok|{error, term()}.
 update(DfsScript, Task, ScriptType) ->
    case eval_dfs(DfsScript, ScriptType) of
-      Map when is_map(Map) ->
-         DFS =
-            case ScriptType of
-               file -> get_file_dfs(DfsScript);
-               data -> DfsScript
-            end,
+      {DFS, Map} when is_map(Map) ->
          NewTask = Task#task{
             definition = Map,
             dfs = DFS,
@@ -192,11 +212,13 @@ update_running(DfsScript, Task = #task{id = TId, pid = TPid}, ScriptType) ->
          end
    end.
 
--spec eval_dfs(list()|binary(), file|data) -> map()|{error, term()}.
+-spec eval_dfs(list()|binary(), file|data) ->
+   {DFSString :: list(), GraphDefinition :: map()} | {error, term()}.
 eval_dfs(DfsScript, Type) ->
    try faxe_dfs:Type(DfsScript, []) of
-      Def when is_map(Def) -> Def;
+      {_DFSString, {error, What}} -> {error, What};
       {error, What} -> {error, What};
+      {_DFSString, Def} = Result when is_map(Def) -> Result;
       E -> E
    catch
       throw:Err -> {error, Err};
@@ -243,12 +265,12 @@ register_template(DfsScript, Name, Type) ->
       {error, not_found} ->
 
          case eval_dfs(DfsScript, Type) of
-            Def when is_map(Def) ->
+            {DFS, Def} when is_map(Def) ->
                Template = #template{
                   date = faxe_time:now_date(),
                   definition = Def,
                   name = Name,
-                  dfs = DfsScript
+                  dfs = DFS
                },
                faxe_db:save_template(Template);
 
@@ -260,8 +282,8 @@ register_template(DfsScript, Name, Type) ->
    end.
 
 task_from_template(TemplateId, TaskName) ->
-   task_from_template(TemplateId, TaskName, []).
-task_from_template(TemplateId, TaskName, Vars) ->
+   task_from_template(TemplateId, TaskName, #{}).
+task_from_template(TemplateId, TaskName, Vars) when is_map(Vars) ->
    case faxe_db:get_task(TaskName) of
       {error, not_found} -> case faxe_db:get_template(TemplateId) of
                                {error, not_found} -> {error, template_not_found};
@@ -278,7 +300,7 @@ start_temp(DfsScript, TTL) ->
    start_temp(DfsScript, data, TTL).
 start_temp(DfsScript, Type, TTL) ->
    case eval_dfs(DfsScript, Type) of
-      Def when is_map(Def) ->
+      {_DFS, Def} when is_map(Def) ->
          Id = list_to_binary(faxe_util:uuid_string()),
          case dataflow:create_graph(Id, Def) of
             {ok, Graph} ->
@@ -420,15 +442,20 @@ export(TaskId) ->
       #task{} -> {ok, []}
    end.
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-template_to_task(#template{dfs = DFS}, TaskName, Vars) ->
-   Def = faxe_dfs:data(DFS, Vars),
+
+-spec template_to_task(#template{}, binary(), map()) -> ok | {error, term()}.
+template_to_task(Template = #template{dfs = DFS}, TaskName, Vars) ->
+   {DFSString, Def} = faxe_dfs:data(DFS, Vars),
    case Def of
       _ when is_map(Def) ->
          Task = #task{
             date = faxe_time:now_date(),
             definition = Def,
-            dfs = DFS,
-            name = TaskName},
+            dfs = DFSString,
+            name = TaskName,
+            template = Template#template.name,
+            template_vars = Vars
+            },
          faxe_db:save_task(Task);
       {error, What} -> {error, What}
    end.

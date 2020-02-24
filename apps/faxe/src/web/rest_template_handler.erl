@@ -16,7 +16,7 @@
    resource_exists/2, content_types_accepted/2
    %,
    %allow_missing_post/2
-   , delete_resource/2]).
+   , delete_resource/2, malformed_request/2]).
 
 %%
 %% Additional callbacks
@@ -26,7 +26,7 @@
 
 -include("faxe.hrl").
 
--record(state, {mode, template_id, template}).
+-record(state, {mode, template_id, template, dfs, name}).
 
 init(Req, [{op, Mode}]) ->
    TId = cowboy_req:binding(template_id, Req),
@@ -70,7 +70,7 @@ resource_exists(Req = #{method := <<"GET">>}, State=#state{mode = get, template_
    {Value, NewState} =
     case TId of
        undefined -> {true, State};
-       Id -> case faxe_db:get_template(binary_to_integer(Id)) of
+       Id -> case faxe:get_template(binary_to_integer(Id)) of
                 {error, not_found} -> {false, State};
                 Task=#template{} -> {true, State#state{template = Task, template_id = Task#template.id}}
              end
@@ -79,6 +79,15 @@ resource_exists(Req = #{method := <<"GET">>}, State=#state{mode = get, template_
 resource_exists(Req, State) ->
    {true, Req, State}.
 
+malformed_request(Req, State=#state{mode = Mode}) when Mode == register ->
+   {ok, Result, Req1} = cowboy_req:read_urlencoded_body(Req),
+   Dfs = proplists:get_value(<<"dfs">>, Result, undefined),
+   Name = proplists:get_value(<<"name">>, Result, undefined),
+   Malformed = (Dfs == undefined orelse Name == undefined),
+   {Malformed, rest_helper:report_malformed(Malformed, Req1, [<<"dfs">>, <<"name">>]),
+      State#state{dfs = Dfs, name = Name}};
+malformed_request(Req, State=#state{mode = _Mode}) ->
+   {false, Req, State}.
 
 delete_resource(Req, State=#state{template_id = TaskId}) ->
    case faxe:delete_template(binary_to_integer(TaskId)) of
@@ -100,24 +109,37 @@ get_to_json(Req, State=#state{template = Task}) ->
    Map = rest_helper:template_to_map(Task),
    {jiffy:encode(Map), Req, State}.
 
-from_register_template(Req, State) ->
-   rest_helper:do_register(Req, State, template).
+from_register_template(Req, State = #state{name = Name, dfs = Dfs}) ->
+   rest_helper:do_register(Req, Name, Dfs, State, template).
 
 from_totask(Req, State=#state{template_id = TId}) ->
    TaskName = cowboy_req:binding(task_name, Req),
-   {ok, Result, Req2} = cowboy_req:read_urlencoded_body(Req),
-   Json = proplists:get_value(<<"vars">>, Result, <<"[]">>),
-   Vars = jiffy:decode(Json),
+   {ok, Result, Req1} = cowboy_req:read_urlencoded_body(Req),
+   Json = proplists:get_value(<<"vars">>, Result, <<"{}">>),
+   Vars = jiffy:decode(Json, [return_maps]),
    lager:notice("Body: ~p, Vars: ~p",[Result, Vars]),
    case faxe:task_from_template(binary_to_integer(TId), TaskName, Vars) of
       ok ->
-         Req3 = cowboy_req:set_resp_body(jiffy:encode(#{success => true, name => TaskName}), Req2),
+         NewTask = faxe:get_task(TaskName),
+         {NewId, Req2} =
+         case NewTask of
+            #task{id = NId} ->
+               Tags = proplists:get_value(<<"tags">>, Result, []),
+               case Tags of
+                  [] -> ok;
+                  TagJson -> faxe:add_tags(NId, jiffy:decode(TagJson))
+               end,
+               {NId, Req1};
+            _  -> {0, Req1}
+         end,
+         Req3 = cowboy_req:set_resp_body(jiffy:encode(
+            #{success => true, name => TaskName, id => NewId}), Req2),
          {true, Req3, State};
       {error, Error} ->
          lager:info("Error occured when generating flow from template: ~p",[Error]),
-         Req3 = cowboy_req:set_resp_body(
-            jiffy:encode(#{success => false, error => rest_helper:to_bin(Error)}), Req),
-         {false, Req3, State}
+         Req4 = cowboy_req:set_resp_body(
+            jiffy:encode(#{success => false, error => rest_helper:to_bin(Error)}), Req1),
+         {false, Req4, State}
    end.
 
 create_to_json(Req, State) ->
