@@ -33,7 +33,7 @@
    from_start_temp_task/2,
    remove_tags_from_json/2,
    add_tags_from_json/2
-]).
+   , logs_to_json/2]).
 
 -include("faxe.hrl").
 
@@ -60,6 +60,8 @@ allowed_methods(Req, State=#state{mode = stop}) ->
 allowed_methods(Req, State=#state{mode = stats}) ->
    {[<<"GET">>, <<"OPTIONS">>], Req, State};
 allowed_methods(Req, State=#state{mode = errors}) ->
+   {[<<"GET">>, <<"OPTIONS">>], Req, State};
+allowed_methods(Req, State=#state{mode = logs}) ->
    {[<<"GET">>, <<"OPTIONS">>], Req, State};
 allowed_methods(Req, State=#state{mode = delete}) ->
    {[<<"DELETE">>], Req, State};
@@ -114,6 +116,10 @@ content_types_provided(Req0 = #{method := _Method}, State=#state{mode = errors})
    {[
       {{<<"application">>, <<"json">>, []}, errors_to_json},
       {{<<"text">>, <<"html">>, []}, errors_to_json}
+   ], Req0, State};
+content_types_provided(Req0 = #{method := _Method}, State=#state{mode = logs}) ->
+   {[
+      {{<<"application">>, <<"json">>, []}, logs_to_json}
    ], Req0, State};
 content_types_provided(Req0 = #{method := _Method}, State=#state{mode = _Mode}) ->
    {[
@@ -249,6 +255,15 @@ errors_to_json(Req, State = #state{task_id = Id}) ->
    case faxe:get_errors(Id) of
       {ok, Errors} ->
          {jiffy:encode(#{<<"error">> => rest_helper:to_bin(Errors)}), Req, State};
+      {error, What} ->
+         {jiffy:encode(#{<<"error">> => rest_helper:to_bin(What)}), Req, State}
+   end.
+
+%% read log from crate db
+logs_to_json(Req, State = #state{task_id = Id}) ->
+   case faxe:get_logs(binary_to_integer(Id)) of
+      {ok, Logs} ->
+         {jiffy:encode(#{<<"logs">> => Logs}), Req, State};
       {error, What} ->
          {jiffy:encode(#{<<"error">> => rest_helper:to_bin(What)}), Req, State}
    end.

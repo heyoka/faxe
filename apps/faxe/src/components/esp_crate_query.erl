@@ -39,9 +39,9 @@
 
 options() ->
    [
-      {host, string},
-      {port, integer},
-      {user, string},
+      {host, string, {crate, host}},
+      {port, integer, {crate, port}},
+      {user, string, {crate, user}},
       {pass, string, <<>>},
       {database, string},
       {query, string},

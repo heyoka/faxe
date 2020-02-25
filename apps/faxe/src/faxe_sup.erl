@@ -50,6 +50,9 @@ init([]) ->
             permanent, 5000, worker, []},
         {crate_log_writer,
             {crate_log_writer, start_link, []},
+            permanent, 5000, worker, []},
+        {crate_log_reader,
+            {crate_log_reader, start_link, []},
             permanent, 5000, worker, []}
 %%        ,
 %%        {initial_task_starter,
