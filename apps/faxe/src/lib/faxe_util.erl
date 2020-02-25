@@ -68,7 +68,7 @@ clean_query(QueryBin) when is_binary(QueryBin) ->
 -spec check_select_statement(binary()|list()) -> true|false.
 check_select_statement(Q) ->
    Query = clean_query(Q),
-   Pattern = "^(S|s)(E|e)(L|l)(E|e)(C|c)(T|t)\s+(.*)\s+(F|f)(R|r)(O|o)(M|m)\s+(.*)",
+   Pattern = "^\s?(S|s)(E|e)(L|l)(E|e)(C|c)(T|t)\s+(.*)\s+(F|f)(R|r)(O|o)(M|m)\s+(.*)",
    case re:run(Query, Pattern) of
       nomatch -> false;
       _ -> true
@@ -138,7 +138,7 @@ check_select_1_test() ->
 check_select_2_test() ->
    ?assertEqual(
       true,
-      check_select_statement(<<"SELECT\n COUNT(*), AVG(field) FROM docs.table WHERE foo = 'bar'\n
+      check_select_statement(<<" SELECT\n COUNT(*), AVG(field) FROM docs.table WHERE foo = 'bar'\n
       GROUP BY time ORDER BY time">>)
    ).
 check_select_3_test() ->

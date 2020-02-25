@@ -1,17 +1,14 @@
 %% Date: 06.06 - 19:04
 %% Ⓒ 2019 heyoka
 %% @doc emits new point-values only if different from the previous point
-%% * normal (non-exclusive) behaviour is: the node emits every value that is either not in the fields list or it
-%% has changed
 %%
 %% * multiple fields can be monitored by this node, if no field is specified, the whole datapoint will be used for
-%% comparison, here the exclusive parameter is useless
+%% comparison
+%%
+%% if nothing is given for 'fields', the complete data-item is compared to the last one
 %%
 %% * if reset_timeout is given, all previous values are reset, if there are no points
 %% coming in for this amount of time
-%%
-%% * with the exclusive flag set, every given monitor field has to have a
-%% changed value in order for the node to emit anything
 %%
 %% * for value comparison erlang's strict equals (=:=) is used, so 1.0 is not equal to 1
 %%
