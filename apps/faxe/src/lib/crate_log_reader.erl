@@ -12,7 +12,7 @@
 -behaviour(gen_server).
 
 %% API
--export([start_link/0, read_logs/1, read_logs/2]).
+-export([start_link/0, read_logs/1, read_logs/3]).
 
 %% gen_server callbacks
 -export([init/1,
@@ -29,6 +29,8 @@
 }).
 -define(TABLE, <<"lager_test">>).
 
+-define(MAX_LOG_AGE, 1000*60*15). %% 15 minutes
+
 -record(state, {
    host,
    port,
@@ -43,9 +45,9 @@
 %%% API
 %%%===================================================================
 read_logs(Flow) ->
-   read_logs(Flow, <<"warning">>).
-read_logs(Flow, Severity) ->
-   gen_server:call(?SERVER, {read, Flow, Severity}).
+   read_logs(Flow, <<"warning">>,?MAX_LOG_AGE).
+read_logs(Flow, Severity, MaxAge) ->
+   gen_server:call(?SERVER, {read, Flow, Severity, MaxAge}).
 
 %%--------------------------------------------------------------------
 %% @doc
@@ -102,12 +104,10 @@ init([]) ->
    {ok, NewState}.
 
 %%--------------------------------------------------------------------
-handle_call({read, Flow, Severity}, _From, State = #state{client = C, table = Table}) ->
-   Query = build_query(Table, Flow, Severity),
-   lager:notice("Query is: ~p",[Query]),
+handle_call({read, Flow, Severity, MaxAge}, _From, State = #state{client = C, table = Table}) ->
+   Query = build_query(Table, Flow, Severity, MaxAge),
    Response = epgsql:squery(C, Query),
    Result = handle_result(Response),
-   lager:notice("Result is: ~p", [Result]),
    {reply, Result, State};
 handle_call(_Request, _From, State) ->
    {reply, ok, State}.
@@ -168,13 +168,12 @@ code_change(_OldVsn, State, _Extra) ->
 %%% Internal functions
 %%%===================================================================
 connect(State = #state{db_opts = Opts}) ->
-   lager:warning("db opts: ~p",[Opts]),
    {ok, C} = epgsql:connect(Opts),
    State#state{client = C}.
 
-build_query(Table, Flow, _Severity) ->
+build_query(Table, Flow, _Severity, MaxAge) ->
    Q0 = ["SELECT DATE_FORMAT(ts) as datetime,severity,flow,comp,message,meta FROM doc.", Table, " WHERE flow = ",
-      " '", Flow, "' ORDER BY ts DESC LIMIT 20;"],
+      " '", Flow, "' AND ts > (CURRENT_TIMESTAMP - ", integer_to_binary(MaxAge) ,") ORDER BY ts DESC LIMIT 20;"],
    iolist_to_binary(Q0).
 
 handle_result({ok, Columns, Rows}) ->

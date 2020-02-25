@@ -330,14 +330,9 @@ handle_info({item, {Inport, Value}},
    %gen_event:notify(dfevent_component, {item, State#c_state.node_id, {Inport, Value}}),
 %%   Result = (Module:process(Inport, Value, CBState)),
    case  catch(Module:process(Inport, Value, CBState)) of
-      {'EXIT', {Reason,Stacktrace}} ->
-         lager:error("'error' ~p in component ~p caught when processing item: ~p -- ~p",
-         [Reason, State#c_state.component, {Inport, Value}, Stacktrace]),
-%%         folsom_metrics:notify({<< NId/binary, ?FOLSOM_ERROR_HISTORY >>,
-%%%%            io_lib:format("'error' ~p in component ~p caught when processing item: ~p -- ~p",
-%%            [time_format:to_iso8601(faxe_time:now()), Reason, State#c_state.component, {Inport, Value}, Stacktrace]
-%%%%         )}
-%%         }),
+      {'EXIT', {Reason, Stacktrace}} ->
+         lager:error("'error' in component ~p caught when processing item: ~p -- ~p",
+         [State#c_state.component, {Inport, Value}, lager:pr_stacktrace(Stacktrace, {'EXIT', Reason})]),
          {noreply, State};
 
       Result ->

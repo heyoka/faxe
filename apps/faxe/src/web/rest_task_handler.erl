@@ -261,7 +261,8 @@ errors_to_json(Req, State = #state{task_id = Id}) ->
 
 %% read log from crate db
 logs_to_json(Req, State = #state{task_id = Id}) ->
-   case faxe:get_logs(binary_to_integer(Id)) of
+   #{max_age := MaxAge} = cowboy_req:match_qs([{max_age, [], <<"15">>}], Req),
+   case faxe:get_logs(binary_to_integer(Id), "", binary_to_integer(MaxAge)*60*1000) of
       {ok, Logs} ->
          {jiffy:encode(#{<<"logs">> => Logs}), Req, State};
       {error, What} ->

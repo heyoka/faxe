@@ -39,7 +39,8 @@
    cancel_field_vals,
    timer_ref,
    trigger_port = 1,
-   trigger_fun
+   trigger_fun,
+   cancel_fun
 }).
 
 options() -> [
@@ -50,7 +51,8 @@ options() -> [
    {cancel_fields, string_list, []},
    {cancel_field_values, list, []},
    %{timeout_trigger_port, integer, 1}, %% maybe later
-   {timeout_trigger, lambda, undefined}
+   {timeout_trigger, lambda, undefined},
+   {cancel_trigger, lambda, undefined}
 ].
 
 check_options() -> [{same_length, [fields, field_values]}].
@@ -58,7 +60,7 @@ check_options() -> [{same_length, [fields, field_values]}].
 init(NodeId, Ins,
     #{timeout := Timeout0, fields := Fields, field_values := Vals,
        cancel_fields := CFields, cancel_field_values := CVals,
-       timeout_trigger := Lambda
+       timeout_trigger := Lambda, cancel_trigger := CancelLambda
 %%       ,
 %%       timeout_trigger_port := TriggerPort
     }) ->
@@ -68,7 +70,7 @@ init(NodeId, Ins,
       #state{timeout = Timeout,
          fields = Fields, field_vals = Vals,
          cancel_fields = CFields, cancel_field_vals = CVals,
-         trigger_fun = Lambda,
+         trigger_fun = Lambda, cancel_fun = CancelLambda,
          node_id = NodeId},
 
    {ok, all, State}.
@@ -76,16 +78,24 @@ init(NodeId, Ins,
 
 process(InPort, _Item, State = #state{trigger_fun = undefined, trigger_port = InPort}) ->
    NewState = maybe_start_timer(State), %% ok we hit the timeout trigger
-   {ok, NewState};
+   {ok, check_cancel_trigger(_InPort, NewState)};
 process(_In, _Item, State = #state{trigger_fun = undefined}) ->
-   {ok, cancel_timer(State)};
+   {ok, check_cancel_trigger(_InPort,cancel_timer(State))};
 process(_In, P = #data_point{}, State = #state{trigger_fun = Fun}) ->
    NewState =
       case (catch faxe_lambda:execute(P, Fun)) of
          true -> maybe_start_timer(State); %% ok we hit the timeout trigger
          _ -> cancel_timer(State) %% cancel the timeout
       end,
-   {ok, NewState}.
+   {ok, check_cancel_trigger(_InPort, NewState)}.
+
+check_cancel_trigger(_, State = #state{cancel_fun = undefined}) ->
+   State;
+check_cancel_trigger(P, State = #state{cancel_fun = Fun}) ->
+   case (catch faxe_lambda:execute(P, Fun)) of
+      true -> cancel_timer(State); %% ok we hit the cancel trigger
+      _ -> State %% cancel the timeout
+   end.
 
 handle_info(timeout, State = #state{}) ->
    dataflow:emit(build_message(State)),

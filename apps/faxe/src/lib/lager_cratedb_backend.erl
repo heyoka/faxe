@@ -51,7 +51,12 @@ handle_call(_Request, State) ->
 handle_event({log, Message}, State = #state{level = Level, fields = Fields}) ->
    case lager_util:is_loggable(Message, Level, ?MODULE) of
       true ->
-         catch (crate_log_writer ! {log, format_data(Message, Fields)});
+         %% we only log messages concerning dataflows
+         MetaData = lager_msg:metadata(Message),
+         case proplists:get_value(flow, MetaData) of
+            undefined -> ok;
+            _ -> catch (crate_log_writer ! {log, format_data(Message, Fields)})
+         end;
       false ->
          ok
    end,
@@ -60,7 +65,7 @@ handle_event(_Event, State) ->
    {ok, State}.
 
 handle_info(writer_ready, State) ->
-   io:format("~n~p~n",[writer_ready]),
+%%   io:format("~n~p~n",[writer_ready]),
    {ok, State#state{writer_ready = true}};
 handle_info(_, State) ->
    {ok, State}.
@@ -124,21 +129,9 @@ safe_value(Val) ->
 -spec format_timestamp(erlang:timestamp()) -> binary().
 format_timestamp(Ts = {_, _, _Ms}) ->
    {_, _, Micro} = Ts,
-   {Date, {Hours, Minutes, Seconds}} = calendar:now_to_local_time(Ts),
+   {Date, {Hours, Minutes, Seconds}} = calendar:now_to_universal_time(Ts),
    MsDateTime = {Date, {Hours, Minutes, Seconds, Micro div 1000 rem 1000}},
    faxe_time:to_ms(MsDateTime).
-
--spec i2l(non_neg_integer()) -> string().
-i2l(I) when I < 10 ->
-   [$0, $0+I];
-i2l(I) ->
-   integer_to_list(I).
-
--spec i3l(non_neg_integer()) -> string().
-i3l(I) when I < 100 ->
-   [$0 | i2l(I)];
-i3l(I) ->
-   integer_to_list(I).
 
 -spec parse_opts([{atom(), term()}]) -> {ok, config()} | {error, init_error()}.
 parse_opts(Opts) ->
