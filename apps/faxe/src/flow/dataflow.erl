@@ -166,11 +166,7 @@ list_val(Val, Fun, Type, OptName) ->
       false -> option_error(<<"bad parameter(s) type">>, Val, Type, OptName)
    end.
 
-is_duration(Bin) when is_binary(Bin) ->
-   case catch(faxe_time:duration_to_ms(Bin)) of
-      T when is_integer(T) -> true;
-      _ -> false
-   end.
+is_duration(Bin) -> faxe_time:is_duration_string(Bin).
 
 %% further option checks
 maybe_check_opts(Opts, Module) when is_map(Opts), is_atom(Module) ->

@@ -1,7 +1,6 @@
 |mqtt_subscribe()
+.port(1883)
+.host('10.202.15.190')
 .topic('ttgw/grip_images/rovolutionstephanskirchen')
 
 |debug()
-
-
-

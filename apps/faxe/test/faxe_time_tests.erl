@@ -36,4 +36,12 @@ not_valid_duration_test() ->
    Dur = <<"25mm">>,
    ?assertError(function_clause, faxe_time:duration_to_ms(Dur)).
 
+valid_duration_test() ->
+   Dur = <<"1255ms">>,
+   ?assertEqual(true, faxe_time:is_duration_string(Dur)).
+
+not_valid_duration_2_test() ->
+   Dur = <<"1255ds">>,
+   ?assertEqual(false, faxe_time:is_duration_string(Dur)).
+
 -endif.

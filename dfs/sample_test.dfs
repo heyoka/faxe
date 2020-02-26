@@ -1,0 +1,6 @@
+|value_emitter()
+.every(50ms)
+.type(point)
+|debug('info')
+|sample(500ms)
+|debug()

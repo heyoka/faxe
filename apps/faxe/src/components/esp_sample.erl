@@ -14,7 +14,7 @@
 
 -include("faxe.hrl").
 %% API
--export([init/3, process/3, options/0, handle_info/2]).
+-export([init/3, process/3, options/0, handle_info/2, check_options/0]).
 
 -record(state, {
    node_id,
@@ -26,6 +26,13 @@
 
 options() -> [{rate, any}].
 
+check_options() ->
+   [{func, rate, fun check_rate/1, <<", must be 'integer' or 'duration'">>}].
+
+check_rate(Param) when is_integer(Param) -> true;
+check_rate(Param) when is_binary(Param) -> faxe_time:is_duration_string(Param);
+check_rate(_) -> false.
+
 init(NodeId, _Ins, #{rate := Rate}) ->
    State = #state{node_id = NodeId},
    NewState =
@@ -36,6 +43,7 @@ init(NodeId, _Ins, #{rate := Rate}) ->
          Interval = faxe_time:duration_to_ms(Rate),
          State#state{rate_interval = Interval}
    end,
+   start_timer(NewState),
    {ok, all, NewState}.
 
 process(_In, Item, State = #state{rate_interval = undefined, rate_count = Count, point_count = Count}) ->
@@ -51,5 +59,7 @@ process(_In, _Item, State) ->
 handle_info(open_gate, State) ->
    {ok, State#state{gate_open = true}}.
 
+start_timer(#state{rate_interval = undefined}) ->
+   ok;
 start_timer(#state{rate_interval = Interval}) ->
    erlang:send_after(Interval, self(), open_gate).

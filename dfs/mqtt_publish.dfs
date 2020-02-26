@@ -1,10 +1,12 @@
-def mqtt_host = '127.0.0.1'
+def mqtt_host = '10.202.15.190'
 %def mqtt_host = '10.14.204.3'
-def mqtt =
-    |mqtt_publish
+|json_emitter()
+.every(3s)
+.json(<<<{"code" : 2, "message": "this is a test"}>>>)
+    |mqtt_publish()
     .host(mqtt_host)
     .port(1883)
-    %.topic('ttgw/data/grip/rovolutionstephanskirchen/condition/robot_state')
+    .topic('ttgw/test/fest')
 
     |debug()
 

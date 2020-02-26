@@ -50,7 +50,7 @@
    to_ms/1,
    now_aligned/1,
    now_aligned/2,
-   to_htime/1, send_at/2, to_iso8601/1]).
+   to_htime/1, send_at/2, to_iso8601/1, is_duration_string/1]).
 
 %% Timer API
 -export([
@@ -360,6 +360,11 @@ r_mod(0,_Y) -> 0.
 interval(V) when is_integer(V) andalso V /= 0 -> V;
 interval(_) -> 1.
 
+is_duration_string(Bin) when is_binary(Bin) ->
+   case catch(faxe_time:duration_to_ms(Bin)) of
+      T when is_integer(T) -> true;
+      _ -> false
+   end.
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%% timer %%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %% @doc
