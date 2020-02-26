@@ -7,10 +7,10 @@
 %% When a lambda expression is given for parameter timeout_trigger, this expression must evaluate as true
 %% to start (and after a timeout has ocurred to restart) a timeout.
 %%
-%% If no lambda expression is given for the timeout_trigger, the trigger is a datapoint coming in on port 1.
+%% If no lambda expression is given for the timeout_trigger, the trigger is any datapoint coming in on port 1.
 %%
 %% A new trigger does not restart a running timeout.
-%% After a timeout ocurred, the node waits for a new trigger to come in before it starts a new timeout.
+%% After a timeout occurred, the node waits for a new trigger to come in before it starts a new timeout.
 %%
 %% After a timeout is started the node waits for data coming in,
 %% that either does not satisfy the trigger expression(when a lambda expression is given for
@@ -57,7 +57,7 @@ options() -> [
 
 check_options() -> [{same_length, [fields, field_values]}].
 
-init(NodeId, Ins,
+init(NodeId, _Ins,
     #{timeout := Timeout0, fields := Fields, field_values := Vals,
        cancel_fields := CFields, cancel_field_values := CVals,
        timeout_trigger := Lambda, cancel_trigger := CancelLambda
@@ -75,26 +75,26 @@ init(NodeId, Ins,
 
    {ok, all, State}.
 
-
-process(InPort, _Item, State = #state{trigger_fun = undefined, trigger_port = InPort}) ->
+%% if we have a trigger_fun, we do not check the cancel_fun, so they exclude each other
+process(InPort, Item, State = #state{trigger_fun = undefined, trigger_port = InPort}) ->
    NewState = maybe_start_timer(State), %% ok we hit the timeout trigger
-   {ok, check_cancel_trigger(_InPort, NewState)};
+   {ok, cancel_fun(Item, NewState)};
 process(_In, _Item, State = #state{trigger_fun = undefined}) ->
-   {ok, check_cancel_trigger(_InPort,cancel_timer(State))};
+   {ok, cancel_timer(State)};
 process(_In, P = #data_point{}, State = #state{trigger_fun = Fun}) ->
    NewState =
       case (catch faxe_lambda:execute(P, Fun)) of
          true -> maybe_start_timer(State); %% ok we hit the timeout trigger
          _ -> cancel_timer(State) %% cancel the timeout
       end,
-   {ok, check_cancel_trigger(_InPort, NewState)}.
+   {ok, NewState}.
 
-check_cancel_trigger(_, State = #state{cancel_fun = undefined}) ->
+cancel_fun(_P, State = #state{cancel_fun = undefined}) ->
    State;
-check_cancel_trigger(P, State = #state{cancel_fun = Fun}) ->
+cancel_fun(P, State = #state{cancel_fun = Fun}) ->
    case (catch faxe_lambda:execute(P, Fun)) of
-      true -> cancel_timer(State); %% ok we hit the cancel trigger
-      _ -> State %% cancel the timeout
+      true -> lager:notice("cancel_fun triggered !!!"),cancel_timer(State); %% cancel the timeout
+      _ -> State
    end.
 
 handle_info(timeout, State = #state{}) ->
@@ -110,11 +110,13 @@ build_cancel_message(#state{cancel_field_vals = Vals, cancel_fields = Fields}) -
    flowdata:set_fields(DataPoint, Fields, Vals).
 
 maybe_start_timer(State = #state{timer_ref = undefined}) ->
+   lager:info("start new timeout"),
    restart_timer(State);
 maybe_start_timer(State = #state{timer_ref = TRef}) when is_reference(TRef) ->
    State.
 
 cancel_timer(State = #state{timer_ref = TRef}) ->
+   lager:info("cancel timeout"),
    catch erlang:cancel_timer(TRef),
    dataflow:emit(build_cancel_message(State)),
    State#state{timer_ref = undefined}.

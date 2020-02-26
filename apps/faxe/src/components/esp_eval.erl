@@ -29,7 +29,6 @@ check_options() ->
    ].
 
 init(NodeId, _Ins, #{lambdas := LambdaFuns, as := As, tags := Tags}) ->
-%%   lager:notice("~p init:node~n~p",[NodeId, Ps]),
    {ok, all, #state{lambdas = LambdaFuns, node_id = NodeId, as = As, tags = Tags}}.
 
 process(_In, #data_batch{points = Points} = Batch,
@@ -38,7 +37,6 @@ process(_In, #data_batch{points = Points} = Batch,
    {emit, Batch#data_batch{points = NewPoints}, State};
 process(_Inport, #data_point{} = Point, State = #state{lambdas = LambdaFun, as = As, tags = Tags}) ->
    NewValue = eval(Point, LambdaFun, As, Tags),
-%%   lager:info("~p emitting: ~p",[?MODULE, NewValue]),
    {emit, NewValue, State}.
 
 eval(#data_point{} = Point, Lambdas, As, Tags) ->
@@ -50,9 +48,7 @@ eval(#data_point{} = Point, Lambdas, As, Tags) ->
          P1 =
          case (catch lists:nth(Index, Tags)) of
             T0 when is_binary(T0) ->
-%%               lager:notice("found Tag ~p for field ~p",[T0, As0]),
                Po = flowdata:set_tag(P0, T0, flowdata:field(P0, As0)),
-%%               lager:notice("after settag: ~p",[Po]),
                flowdata:delete_field(Po, As0);
             _ -> P0
          end,

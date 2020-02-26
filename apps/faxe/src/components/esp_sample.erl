@@ -3,6 +3,8 @@
 %%
 %% @doc
 %% Sample a stream of data based on count or duration.
+%% if rate is an integer, every rate'th message will be passed on to the next node(s)
+%% if rate is a duration literal, the first message that comes in after the timeout will be passed on
 %% @end
 -module(esp_sample).
 -author("Alexander Minichmair").
@@ -19,34 +21,35 @@
    point_count = 0,
    rate_count,
    rate_interval,
-   tolerance
+   gate_open = false
 }).
 
-options() -> [{rate, any}, {tolerance, duration, <<"1s">>}].
+options() -> [{rate, any}].
 
-init(NodeId, _Ins, #{rate := Rate, tolerance := Tol}) ->
+init(NodeId, _Ins, #{rate := Rate}) ->
    State = #state{node_id = NodeId},
    NewState =
    case Rate of
       _Int when is_integer(Rate) ->
          State#state{rate_count = Rate};
       _Dur when is_binary(Rate) ->
-         Tolerance = faxe_time:duration_to_ms(Tol),
          Interval = faxe_time:duration_to_ms(Rate),
-         State#state{rate_interval = Interval, tolerance = round(Tolerance / 2)}
+         State#state{rate_interval = Interval}
    end,
    {ok, all, NewState}.
-
 
 process(_In, Item, State = #state{rate_interval = undefined, rate_count = Count, point_count = Count}) ->
    {emit, Item, State#state{point_count = 0}};
 process(_In, _Item, State = #state{rate_interval = undefined, point_count = Count}) ->
-   {ok, State#state{point_count = Count+1}}.
-
-%%process()
-
-
-handle_info(tolerance_start, State) ->
-   {ok, State};
-handle_info(tolerance_stop, State) ->
+   {ok, State#state{point_count = Count+1}};
+process(_In, Item, State = #state{gate_open = true}) ->
+   start_timer(State),
+   {emit, Item, State#state{gate_open = false}};
+process(_In, _Item, State) ->
    {ok, State}.
+
+handle_info(open_gate, State) ->
+   {ok, State#state{gate_open = true}}.
+
+start_timer(#state{rate_interval = Interval}) ->
+   erlang:send_after(Interval, self(), open_gate).
