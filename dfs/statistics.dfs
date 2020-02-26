@@ -1,0 +1,11 @@
+|value_emitter()
+.every(200ms)
+.type(point)
+
+|batch(10)
+
+|statistics()
+.modules('avg', 'min', 'max')
+.field('val')
+
+|debug()

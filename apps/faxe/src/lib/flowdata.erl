@@ -65,7 +65,7 @@
    to_map/1, set_fields/3, set_tags/3, fields/2, tags/2,
    delete_fields/2, delete_tags/2, path/1, paths/1, set_fields/2,
    to_mapstruct/1, from_json/2, from_json_struct/1, from_json_struct/3,
-   to_map_except/2, point_from_json_map/1, point_from_json_map/3]).
+   to_map_except/2, point_from_json_map/1, point_from_json_map/3, merge_points/1]).
 
 
 -define(DEFAULT_ID, <<"00000">>).
@@ -177,6 +177,16 @@ expand_json_field(P = #data_point{}, FieldName) ->
    P0 = delete_field(P, FieldName),
    Map = jiffy:decode(JSONVal, [return_maps]),
    P0#data_point{fields = P0#data_point.fields ++ Map}.
+
+%% @doc merge a list of data_points into one
+merge_points([#data_point{ts=Ts} |_Ps] = Points) ->
+   FMaps = [P#data_point.fields || P <- Points],
+   Fields = merge_fields(FMaps, #{}),
+   #data_point{ts = Ts, fields = Fields}.
+merge_fields([], Acc) ->
+   Acc;
+merge_fields([F1|Fields], Acc) ->
+   merge_fields(Fields, maps:merge(F1, Acc)).
 
 %% @doc
 %% get the timestamp from the given field
