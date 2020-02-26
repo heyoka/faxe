@@ -1,4 +1,4 @@
--module(lager_cratedb_backend).
+-module(lager_flowlog_backend).
 
 -behaviour(gen_event).
 
@@ -13,7 +13,7 @@
 
 -record(state, { level  :: {mask, integer()}
    , fields :: [{atom(), jsx:json_term()}],
-   writer_ready = false
+   writer_ready = false, storage_backend
 }).
 
 -type init_error() :: undefined_host
@@ -139,10 +139,12 @@ parse_opts(Opts) ->
    Host = proplists:get_value(host, Opts),
    Port = proplists:get_value(port, Opts),
    Fields = proplists:get_value(fields, Opts, []),
+   Storage = proplists:get_value(storage_backend, Opts),
    validate_opts([ {level, Level}
       , {port, Port}
       , {host, Host}
       , {fields, Fields}
+      , {storage_backend, Storage}
    ], #{}).
 
 
@@ -177,6 +179,8 @@ validate_option(host, undefined) ->
    {error, undefined_host};
 validate_option(host, _) ->
    ok;
+validate_option(storage_backend, _) ->
+   ok;
 validate_option(fields, Fields) when is_list(Fields) ->
    ok;
 validate_option(fields, Fields) ->
@@ -184,8 +188,8 @@ validate_option(fields, Fields) ->
 
 -spec init_with_config(config()) -> {ok, #state{}} | {error, Error} when
    Error :: {error, {failed_to_connect, inet:posix()}}.
-init_with_config(#{ level  := Level , fields := Fields}) ->
-   State = #state{ level  = Level , fields = Fields},
+init_with_config(#{ level  := Level , fields := Fields, storage_backend := Storage}) ->
+   State = #state{ level  = Level , fields = Fields, storage_backend = Storage},
    {ok, State}.
 
 %% Local variables:

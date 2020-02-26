@@ -82,7 +82,7 @@ start_link() ->
    {stop, Reason :: term()} | ignore).
 init([]) ->
    {ok, Opts0} = application:get_env(lager, handlers),
-   Opts = proplists:get_value(lager_cratedb_backend, Opts0),
+   Opts = proplists:get_value(lager_flowlog_backend, Opts0),
    lager:info("Opts: ~p", [Opts]),
    Host0 = proplists:get_value(host, Opts),
    Port = proplists:get_value(port, Opts),
@@ -92,7 +92,7 @@ init([]) ->
    {ok, C} = fusco:start(Host, []),
    erlang:monitor(process, C),
    Q = build_stmt(<<"doc.lager_test">>, Fields),
-   catch (lager_cratedb_backend ! writer_ready),
+   catch (lager_flowlog_backend ! writer_ready),
    State = #state{
       host = Host,
       port = Port,
@@ -102,6 +102,7 @@ init([]) ->
       max_cnt = ?MAX_COUNT
    },
    {ok, start_timeout(State)}.
+
 
 %%--------------------------------------------------------------------
 %% @private

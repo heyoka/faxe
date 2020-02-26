@@ -12,7 +12,7 @@
 -behaviour(gen_server).
 
 %% API
--export([start_link/0, read_logs/1, read_logs/3]).
+-export([start_link/0, read_logs/1, read_logs/4]).
 
 %% gen_server callbacks
 -export([init/1,
@@ -20,7 +20,7 @@
    handle_cast/2,
    handle_info/2,
    terminate/2,
-   code_change/3]).
+   code_change/3, handle_continue/2]).
 
 -define(SERVER, ?MODULE).
 -define(DB_OPTIONS, #{
@@ -30,6 +30,7 @@
 -define(TABLE, <<"lager_test">>).
 
 -define(MAX_LOG_AGE, 1000*60*15). %% 15 minutes
+-define(DEFAULT_LIMIT, 20).
 
 -record(state, {
    host,
@@ -45,9 +46,11 @@
 %%% API
 %%%===================================================================
 read_logs(Flow) ->
-   read_logs(Flow, <<"warning">>,?MAX_LOG_AGE).
+   read_logs(Flow, <<"warning">>, ?MAX_LOG_AGE).
 read_logs(Flow, Severity, MaxAge) ->
-   gen_server:call(?SERVER, {read, Flow, Severity, MaxAge}).
+   read_logs(Flow, Severity, MaxAge, ?DEFAULT_LIMIT).
+read_logs(Flow, Severity, MaxAge, Limit) ->
+   gen_server:call(?SERVER, {read, Flow, Severity, MaxAge, Limit}).
 
 %%--------------------------------------------------------------------
 %% @doc
@@ -100,12 +103,15 @@ init([]) ->
       db_opts = DBOpts,
       table = ?TABLE
    },
-   NewState = connect(State),
-   {ok, NewState}.
+   {ok, State, {continue, connect}}.
 
 %%--------------------------------------------------------------------
-handle_call({read, Flow, Severity, MaxAge}, _From, State = #state{client = C, table = Table}) ->
-   Query = build_query(Table, Flow, Severity, MaxAge),
+handle_continue(connect, State) ->
+   {noreply, connect(State)}.
+
+
+handle_call({read, Flow, Severity, MaxAge, Limit}, _From, State = #state{client = C, table = Table}) ->
+   Query = build_query(Table, Flow, Severity, MaxAge, Limit),
    Response = epgsql:squery(C, Query),
    Result = handle_result(Response),
    {reply, Result, State};
@@ -171,9 +177,10 @@ connect(State = #state{db_opts = Opts}) ->
    {ok, C} = epgsql:connect(Opts),
    State#state{client = C}.
 
-build_query(Table, Flow, _Severity, MaxAge) ->
+build_query(Table, Flow, _Severity, MaxAge, Limit) when is_integer(MaxAge), is_integer(Limit) ->
    Q0 = ["SELECT DATE_FORMAT(ts) as datetime,severity,flow,comp,message,meta FROM doc.", Table, " WHERE flow = ",
-      " '", Flow, "' AND ts > (CURRENT_TIMESTAMP - ", integer_to_binary(MaxAge) ,") ORDER BY ts DESC LIMIT 20;"],
+      " '", Flow, "' AND ts > (CURRENT_TIMESTAMP - ", integer_to_binary(MaxAge) ,") ORDER BY ts DESC LIMIT ",
+      integer_to_binary(Limit)],
    iolist_to_binary(Q0).
 
 handle_result({ok, Columns, Rows}) ->

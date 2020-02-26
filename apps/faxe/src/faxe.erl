@@ -46,7 +46,7 @@
    get_all_tags/0,
    add_tags/2,
    remove_tags/2,
-   get_logs/3]).
+   get_logs/4]).
 
 start_permanent_tasks() ->
    Tasks = faxe_db:get_permanent_tasks(),
@@ -431,13 +431,13 @@ get_errors(TaskId) ->
       #task{} -> {ok, []}
    end.
 
--spec get_logs(integer()|binary(), binary(), non_neg_integer()) -> {error, term()} | {ok, list(map())}.
-get_logs(TaskId, Severity, MaxAge) ->
+-spec get_logs(integer()|binary(), binary(), non_neg_integer(), non_neg_integer()) ->
+   {error, term()} | {ok, list(map())}.
+get_logs(TaskId, Severity, MaxAge, Limit) ->
    T = faxe_db:get_task(TaskId),
    case T of
       {error, not_found} -> {error, not_found};
-      #task{name = Name} -> crate_log_reader:read_logs(Name, Severity, MaxAge)
-
+      #task{name = Name} -> crate_log_reader:read_logs(Name, Severity, MaxAge, Limit)
    end.
 
 export(TaskId) ->
