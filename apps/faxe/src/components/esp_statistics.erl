@@ -15,16 +15,10 @@
 -record(state, {
    node_id,
    field,
-   factor,
    modules :: list(),
    module_state,
    as,
-   mods_as,
-   row1 = [],
-   row2 = [],
-   row_length,
-   buffer = [] :: { Ts :: non_neg_integer(), Buffer :: list(term())},
-   buffer_time = 0
+   mods_as
 }).
 
 options() -> [
