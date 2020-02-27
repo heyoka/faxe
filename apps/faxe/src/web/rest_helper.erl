@@ -12,7 +12,7 @@
 -include("faxe.hrl").
 
 %% API
--export([task_to_map/1, template_to_map/1, do_register/5,
+-export([task_to_map/1, template_to_map/1, do_register/6,
    to_bin/1, reg_fun/3, report_malformed/3, add_tags/2]).
 
 task_to_map(_T = #task{
@@ -51,17 +51,16 @@ report_malformed(true, Req, ParamList) ->
    Req1 = cowboy_req:set_resp_header(<<"Content-Type">>, <<"application/json">>, Req),
    cowboy_req:set_resp_body(jiffy:encode(#{success => false, params_missing => ParamList}), Req1).
 
-do_register(Req, TaskName, Dfs, State, Type) ->
+do_register(Req, TaskName, Dfs, Tags, State, Type) ->
    case reg_fun(Dfs, TaskName, Type) of
       ok ->
          Id = get_task_or_template_id(TaskName, Type),
-         Req1 =
          case Type of
-            task -> add_tags(Req, Id);
-            _ -> Req
+            task -> add_tags(Tags, Id);
+            _ -> ok
          end,
          Req2 = cowboy_req:set_resp_body(
-            jiffy:encode(#{success => true, name => TaskName, id => Id}), Req1),
+            jiffy:encode(#{success => true, name => TaskName, id => Id}), Req),
          {true, Req2, State};
       {error, Error} ->
          Add =
@@ -78,15 +77,11 @@ reg_fun(Dfs, Name, task) -> Res = faxe:register_string_task(Dfs, Name), Res;
 reg_fun(Dfs, Name, _) -> faxe:register_template_string(Dfs, Name).
 
 -spec add_tags(Req :: cowboy:request(), any()) -> NewReq :: cowboy:request().
-add_tags(Req, TaskId) ->
-   {ok, Result, Req2} = cowboy_req:read_urlencoded_body(Req),
-   lager:warning("Body : ~p",[Result]),
-   Tags = proplists:get_value(<<"tags">>, Result, []),
+add_tags(Tags, TaskId) ->
    case Tags of
       [] -> ok;
       TagJson -> faxe:add_tags(TaskId, jiffy:decode(TagJson))
-   end,
-   Req2.
+   end.
 
 get_task_or_template_id(TName, task) ->
    NewTask = faxe:get_task(TName),

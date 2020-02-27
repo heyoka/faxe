@@ -138,9 +138,10 @@ malformed_request(Req, State=#state{mode = Mode}) when Mode == register ->
    {ok, Result, Req1} = cowboy_req:read_urlencoded_body(Req),
    Dfs = proplists:get_value(<<"dfs">>, Result, undefined),
    Name = proplists:get_value(<<"name">>, Result, undefined),
+   Tags = proplists:get_value(<<"tags">>, Result, []),
    Malformed = (Dfs == undefined orelse Name == undefined),
    {Malformed, rest_helper:report_malformed(Malformed, Req1, [<<"dfs">>, <<"name">>]),
-      State#state{dfs = Dfs, name = Name}};
+      State#state{dfs = Dfs, name = Name, tags = Tags}};
 malformed_request(Req, State=#state{mode = Mode}) when Mode == update ->
    {ok, Result, Req1} = cowboy_req:read_urlencoded_body(Req),
    Dfs = proplists:get_value(<<"dfs">>, Result, undefined),
@@ -193,8 +194,8 @@ get_to_json(Req, State=#state{task = Task}) ->
    Map = rest_helper:task_to_map(Task),
    {jiffy:encode(Map), Req, State}.
 
-from_register_task(Req, State = #state{name = TaskName, dfs = Dfs}) ->
-   rest_helper:do_register(Req, TaskName, Dfs, State, task).
+from_register_task(Req, State = #state{name = TaskName, dfs = Dfs, tags = Tags}) ->
+   rest_helper:do_register(Req, TaskName, Dfs, Tags, State, task).
 
 from_start_temp_task(Req, State) ->
    {ok, Result, Req3} = cowboy_req:read_urlencoded_body(Req),

@@ -110,7 +110,7 @@ get_to_json(Req, State=#state{template = Task}) ->
    {jiffy:encode(Map), Req, State}.
 
 from_register_template(Req, State = #state{name = Name, dfs = Dfs}) ->
-   rest_helper:do_register(Req, Name, Dfs, State, template).
+   rest_helper:do_register(Req, Name, Dfs, [], State, template).
 
 from_totask(Req, State=#state{template_id = TId}) ->
    TaskName = cowboy_req:binding(task_name, Req),
