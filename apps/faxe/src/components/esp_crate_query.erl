@@ -9,7 +9,7 @@
 
 -behavior(df_component).
 %% API
--export([init/3, process/3, options/0, handle_info/2, to_flowdata/2, check_options/0]).
+-export([init/3, process/3, options/0, handle_info/2, to_flowdata/2, check_options/0, shutdown/1]).
 
 -record(state, {
    host :: string(),
@@ -43,7 +43,7 @@ options() ->
       {port, integer, {crate, port}},
       {user, string, {crate, user}},
       {pass, string, <<>>},
-      {database, string},
+      {database, string, {crate, database}},
       {query, string},
       {time_field, string, <<"ts">>},
       {every, duration, <<"5s">>},
@@ -76,8 +76,8 @@ init(_NodeId, _Inputs, #{host := Host0, port := Port, user := User, every := Eve
    State = #state{host = Host, port = Port, user = User, pass = Pass, database = DB, query = Query,
       db_opts = DBOpts, every = Every, period = faxe_time:duration_to_ms(Period),
       align = Align, result_type = RType},
-   NewState = connect(State),
-   {ok, all, NewState}.
+   erlang:send_after(0, self(), reconnect),
+   {ok, all, State}.
 
 process(_In, _P = #data_point{}, State = #state{}) ->
    {ok, State};
@@ -86,39 +86,48 @@ process(_In, _B = #data_batch{}, State = #state{}) ->
 
 
 handle_info(query,
-    State = #state{timer = Timer, client = C, stmt = Q, period = Period, result_type = RType}) ->
+    State = #state{timer = Timer, client = C, stmt = _Q, period = Period, result_type = RType}) ->
    QueryMark = Timer#faxe_timer.last_time,
 %%   lager:notice("query: ~p with ~p", [Q, [QueryMark-Period, QueryMark]]),
    NewTimer = faxe_time:timer_next(Timer),
    %% do query
-   {ok, Columns, Rows} = epgsql:prepared_query(C, ?STMT, [QueryMark-Period, QueryMark]),
-%%   lager:notice("Columns: ~p",[Columns]),
-%%   lager:notice("Rows: ~p",[Rows]),
-
-   ColumnNames = columns(Columns, []),
-%%   lager:notice("ColumnName: ~p",[ColumnNames]),
-%%   {T, Batch} = timer:tc(?MODULE, to_flowdata, [ColumnNames, Rows]),
-%%   Batch = to_flowdata(ColumnNames, Rows),
-   Batch = handle_result(ColumnNames, Rows, RType),
-%%   lager:notice("Batch in ~p my: ~n~p",[T,Batch]),
-   dataflow:emit(Batch),
+   Resp = epgsql:prepared_query(C, ?STMT, [QueryMark-Period, QueryMark]),
+   handle_response(Resp, RType),
    {ok, State#state{timer = NewTimer}};
 
-handle_info({'EXIT', _C, _Reason}, State = #state{timer = Timer}) ->
-   lager:notice("EXIT epgsql"),
+handle_info({'EXIT', _C, Reason}, State = #state{timer = Timer}) ->
+   lager:warning("EXIT epgsql with reason: ~p",[Reason]),
    NewTimer = cancel_timer(Timer),
    NewState = connect(State),
    {ok, NewState#state{timer = NewTimer}};
+handle_info(reconnect, State) ->
+   {ok, connect(State)};
 handle_info(What, State) ->
    lager:warning("++other info : ~p",[What]),
    {ok, State}.
 
+shutdown(#state{client = C, stmt = _Stmt}) ->
+   catch epgsql:close(C).
+
 connect(State = #state{db_opts = Opts, query = Q}) ->
    lager:warning("db opts: ~p",[Opts]),
-   {ok, C} = epgsql:connect(Opts),
-   {ok, Statement} = epgsql:parse(C, ?STMT, Q, [int8, int8]),
-   NewState = init_timer(State#state{client = C, stmt = Statement}),
-   NewState.
+   case epgsql:connect(Opts) of
+      {ok, C} ->
+         case epgsql:parse(C, ?STMT, Q, [int8, int8]) of
+            {ok, Statement} ->
+               NewState = init_timer(State#state{client = C, stmt = Statement}),
+               NewState;
+            Other ->
+               lager:error("Can not parse prepared statement: ~p",[Other]),
+               error("parsing prepared statement failed!"),
+               State
+         end,
+         State#state{client = C};
+      {error, What} ->
+         lager:warning("Error connecting to crate: ~p",[What]),
+         State
+   end.
+
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 build_query(<<"SELECT", Query/binary>>, TimeGroup, TimeField, GroupBys) ->
@@ -161,6 +170,14 @@ init_timer(S = #state{align = Align, every = Every}) ->
    S#state{timer = Timer}.
 
 %% result handling
+
+handle_response({ok, Columns, Rows}, ResponseType) ->
+   ColumnNames = columns(Columns, []),
+   Batch = handle_result(ColumnNames, Rows, ResponseType),
+   dataflow:emit(Batch);
+handle_response(Other, _RType) ->
+   lager:warning("Response from Crate: ", [Other]).
+
 
 columns([], ColumnNames) ->
    lists:reverse(ColumnNames);

@@ -16,7 +16,7 @@
    uuid_string/0, round_float/2,
    prefix_binary/2,
    host_with_protocol/1, host_with_protocol/2
-   , decimal_part/2, check_select_statement/1, clean_query/1, stringize_lambda/1]).
+   , decimal_part/2, check_select_statement/1, clean_query/1, stringize_lambda/1, bytes/1]).
 
 -define(HTTP_PROTOCOL, <<"http://">>).
 
@@ -81,6 +81,14 @@ stringize_lambda(Fun) when is_function(Fun) ->
    {env, [{_, _, _, Abs}]} = erlang:fun_info(Fun, env),
    Str = erl_pp:expr({'fun', 1, {clauses, Abs}}),
    io_lib:format("~s~p",[lists:flatten(Str)|"\n"]).
+
+%% @doc convert words to bytes with respect to the system's wordsize
+bytes(Words) ->
+   try
+      Words * erlang:system_info(wordsize)
+   catch
+      _:_ -> 0
+   end.
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%% TESTS %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 -ifdef(TEST).
