@@ -1,6 +1,11 @@
 |mqtt_subscribe()
-.port(1883)
-.host('10.202.15.190')
-.topic('ttgw/grip_images/rovolutionstephanskirchen')
+.topics('ttgw/poettinger/+/energy')
 
-|debug()
+|batch(50)
+
+|http_post_crate()
+.table('poettinger_raw')
+.db_fields('topic')
+.faxe_fields('topic')
+.remaining_fields_as('data_obj')
+

@@ -121,8 +121,7 @@ connect(State = #state{db_opts = Opts, query = Q}) ->
                lager:error("Can not parse prepared statement: ~p",[Other]),
                error("parsing prepared statement failed!"),
                State
-         end,
-         State#state{client = C};
+         end;
       {error, What} ->
          lager:warning("Error connecting to crate: ~p",[What]),
          State
