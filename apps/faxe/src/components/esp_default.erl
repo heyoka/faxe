@@ -32,8 +32,12 @@ check_options() ->
       {same_length, [fields, field_values]}, {same_length, [tags, tag_values]}
    ].
 
-init(NodeId, _Ins, #{fields := Fields, tags := Tags,
+init(NodeId, _Ins, #{fields := Fields0, tags := Tags0,
    tag_values := TagV, field_values := FieldV}) ->
+   %% optimize field_lookup by translating the possibly deep path to its tuple form
+   Fields = [flowdata:path(F) || F <- Fields0],
+   Tags = [flowdata:path(T) || T <- Tags0],
+
    {ok, all,
       #state{fields = Fields, node_id = NodeId, tags = Tags,
          tag_values = TagV, field_values = FieldV}}.

@@ -65,7 +65,7 @@
    to_map/1, set_fields/3, set_tags/3, fields/2, tags/2,
    delete_fields/2, delete_tags/2, path/1, paths/1, set_fields/2,
    to_mapstruct/1, from_json/2, from_json_struct/1, from_json_struct/3,
-   to_map_except/2, point_from_json_map/1, point_from_json_map/3, merge_points/1]).
+   to_map_except/2, point_from_json_map/1, point_from_json_map/3, merge_points/1, set_tags/2]).
 
 
 -define(DEFAULT_ID, <<"00000">>).
@@ -313,7 +313,15 @@ set_fields(B = #data_batch{points = Points}, Keys, Values) when is_list(Keys), i
 
 set_fields(P = #data_point{fields = Fields}, KeysValues) when is_list(KeysValues) ->
    NewFields = jsn_setlist(KeysValues, Fields),
-   P#data_point{fields = NewFields}.
+   P#data_point{fields = NewFields};
+set_fields(B = #data_batch{points = Points}, KeysValues) when is_list(KeysValues) ->
+   Ps = lists:map(
+      fun(#data_point{} = D) ->
+         set_fields(D, KeysValues)
+      end,
+      Points
+   ),
+   B#data_batch{points = Ps}.
 
 %% @doc 
 %% set a key value pair into a fieldlist (which is a map)
@@ -373,6 +381,18 @@ set_tags(B = #data_batch{points = Points}, Keys, Values) when is_list(Keys), is_
    Ps = lists:map(
       fun(#data_point{} = D) ->
          set_tags(D, Keys, Values)
+      end,
+      Points
+   ),
+   B#data_batch{points = Ps}.
+
+set_tags(P = #data_point{tags = Tags}, KeysValues) when is_list(KeysValues) ->
+   NewTags = jsn_setlist(KeysValues, Tags),
+   P#data_point{tags = NewTags};
+set_tags(B = #data_batch{points = Points}, KeysValues) when is_list(KeysValues) ->
+   Ps = lists:map(
+      fun(#data_point{} = D) ->
+         set_tags(D, KeysValues)
       end,
       Points
    ),
@@ -497,6 +517,8 @@ first_ts(#data_batch{points = P}) ->
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 jsn_get(_Path, Map) when map_size(Map) == 0 ->
    undefined;
+jsn_get(Path, Map) when is_tuple(Path) ->
+   jsn:get(Path, Map);
 jsn_get(Path, Map) ->
    jsn:get(path(Path), Map).
 jsn_get(_Path, Map, Default) when map_size(Map) == 0 ->
@@ -512,6 +534,12 @@ jsn_set(Path, Val, Map) ->
    jsn:set(path(Path), Map, Val).
 jsn_setlist(Keys, Values, Map) when is_list(Keys), is_list(Values) ->
    jsn:set_list(lists:zip(paths(Keys), Values), Map).
+jsn_setlist([], Map) ->
+   Map;
+%% is the path a tuple already? then do not convert paths
+jsn_setlist([{K, _V}|_]=KeysValues, Map) when is_tuple(K) ->
+   lager:info("Key is : ~p",[K]),
+   jsn:set_list(KeysValues, Map);
 jsn_setlist(KeysValues, Map) when is_list(KeysValues) ->
    {Keys, Values} = lists:unzip(KeysValues),
    jsn_setlist(Keys, Values, Map).

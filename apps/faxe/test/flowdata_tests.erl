@@ -177,12 +177,41 @@ set_field_array_test() ->
    ).
 
 set_multiple_fields_test() ->
-   faxe_ets:start_link(),
    P = #data_point{ts = 1234567891234, id = <<"324392i09i329i2df4">>,
       fields = #{<<"val">> => <<"somestring">>, <<"var">> => 44}},
    Keys = [<<"simple">>, <<"value.into.deep">>],
    Values = [321321.5645, <<"some_string-value">>],
    SetP = flowdata:set_fields(P, Keys, Values),
+   ?assertEqual(SetP#data_point.fields,
+      #{<<"val">> => <<"somestring">>, <<"var">> => 44,
+         <<"simple">> => 321321.5645,
+         <<"value">> =>
+         #{<<"into">> =>
+         #{<<"deep">> => <<"some_string-value">>}}}
+   ).
+
+set_multiple_fields_kvlist_test() ->
+   P = #data_point{ts = 1234567891234, id = <<"324392i09i329i2df4">>,
+      fields = #{<<"val">> => <<"somestring">>, <<"var">> => 44}},
+   Keys = [<<"simple">>, <<"value.into.deep">>],
+   Values = [321321.5645, <<"some_string-value">>],
+   KVs = lists:zip(Keys, Values),
+   SetP = flowdata:set_fields(P, KVs),
+   ?assertEqual(SetP#data_point.fields,
+      #{<<"val">> => <<"somestring">>, <<"var">> => 44,
+         <<"simple">> => 321321.5645,
+         <<"value">> =>
+         #{<<"into">> =>
+         #{<<"deep">> => <<"some_string-value">>}}}
+   ).
+
+set_multiple_fields_kvlist_tuple_path_test() ->
+   P = #data_point{ts = 1234567891234, id = <<"324392i09i329i2df4">>,
+      fields = #{<<"val">> => <<"somestring">>, <<"var">> => 44}},
+   Keys = [flowdata:path(E) || E <- [<<"simple">>, <<"value.into.deep">>]],
+   Values = [321321.5645, <<"some_string-value">>],
+   KVs = lists:zip(Keys, Values),
+   SetP = flowdata:set_fields(P, KVs),
    ?assertEqual(SetP#data_point.fields,
       #{<<"val">> => <<"somestring">>, <<"var">> => 44,
          <<"simple">> => 321321.5645,
