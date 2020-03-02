@@ -44,6 +44,10 @@ init(NodeId, _Ins, #{fields := Fields0, tags := Tags0,
          fields = Fields, node_id = NodeId, tags = Tags,
          tag_values = TagV, field_values = FieldV}}.
 
+process(_In, Item, State = #state{field_kvs = Fields,  tag_kvs = []}) ->
+   {emit, flowdata:set_fields(Item, Fields), State};
+process(_In, Item, State = #state{field_kvs = [],  tag_kvs = Tags}) ->
+   {emit, flowdata:set_tags(Item, Tags), State};
 process(_In, Item, State = #state{field_kvs = Fields,  tag_kvs = Tags}) ->
    NewItem0 = flowdata:set_fields(Item, Fields),
    NewItem = flowdata:set_tags(NewItem0, Tags),
