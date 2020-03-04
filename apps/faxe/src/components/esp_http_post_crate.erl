@@ -38,8 +38,8 @@
 
 options() ->
    [
-      {host, string},
-      {port, integer},
+      {host, string, {crate_http, host}},
+      {port, integer, {crate_http, port}},
       {table, string},
       {database, string, <<"doc">>},
       {db_fields, string_list},

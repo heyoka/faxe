@@ -65,7 +65,7 @@
    to_map/1, set_fields/3, set_tags/3, fields/2, tags/2,
    delete_fields/2, delete_tags/2, path/1, paths/1, set_fields/2,
    to_mapstruct/1, from_json/2, from_json_struct/1, from_json_struct/3,
-   to_map_except/2, point_from_json_map/1, point_from_json_map/3, merge_points/1, set_tags/2]).
+   to_map_except/2, point_from_json_map/1, point_from_json_map/3, merge_points/1, set_tags/2, is_root_path/1]).
 
 
 -define(DEFAULT_ID, <<"00000">>).
@@ -592,3 +592,15 @@ extract_array_index(Bin) ->
       [Bin] = Out -> Out;
       [Part1, BinIndex] -> [Part1, binary_to_integer(BinIndex)]
    end.
+
+%% @doc whether the given path is a root path, ie: can be set with maps:put to fields or tags
+-spec is_root_path(binary()) -> true|false.
+is_root_path(Path) when is_binary(Path) ->
+   case binary:match(Path, [<<".">>,<<"[">>]) of
+      nomatch -> true;
+      _ -> false
+   end;
+is_root_path({Path}) when is_binary(Path) ->
+   true;
+is_root_path(_) ->
+   false.
