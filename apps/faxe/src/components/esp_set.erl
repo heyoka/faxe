@@ -38,7 +38,8 @@ check_options() ->
 
 init(NodeId, _Ins, #{fields := Fields0, tags := Tags0,
    tag_values := TagV, field_values := FieldV}) ->
-   %% optimize field_lookup by translating the possibly deep path to its tuple form
+   %% optimize field_lookup by translating the possibly deep path to its tuple form and if all paths are
+   %% just root paths, we work directly on the underlying map structure
    {RootFields, Fields} = prepare_paths(Fields0),
    {RootTags, Tags} = prepare_paths(Tags0),
    {ok, all,
@@ -81,3 +82,29 @@ prepare_paths(Paths) ->
    IsRootAll = lists:all(fun(E) -> flowdata:is_root_path(E) end, AllPaths),
    {IsRootAll, AllPaths}.
 
+-ifdef(TEST).
+-include_lib("eunit/include/eunit.hrl").
+set_roots_test() ->
+   S = #state{root_fields = true,
+         field_kvs = [{<<"field1">>, <<"value1">>}, {<<"field2">>, <<"value2">>}]},
+   Point = #data_point{ts = 123456, fields = #{<<"field">> => <<"value">>}},
+   PNew = #data_point{ts = 123456, fields = #{<<"field">> => <<"value">>,
+      <<"field1">> => <<"value1">>, <<"field2">> => <<"value2">>}},
+   ?assertEqual(PNew, set_fields(Point, S)).
+set_roots_overwrite_test() ->
+   S = #state{root_fields = true,
+      field_kvs = [{<<"field">>, <<"value00000">>},{<<"field1">>, <<"value1">>}, {<<"field2">>, <<"value2">>}]},
+   Point = #data_point{ts = 123456, fields = #{<<"field">> => <<"value">>}},
+   PNew = #data_point{ts = 123456, fields = #{<<"field">> => <<"value00000">>,
+      <<"field1">> => <<"value1">>, <<"field2">> => <<"value2">>}},
+   ?assertEqual(PNew, set_fields(Point, S)).
+set_misc_test() ->
+   S = #state{root_fields = false,
+      field_kvs = [{<<"a.field1">>, <<"value1">>}, {<<"field2">>, <<"value2">>}]},
+   Point = #data_point{ts = 123456, fields = #{<<"field">> => <<"value">>}},
+   PNew = #data_point{ts = 123456, fields = #{<<"field">> => <<"value">>, <<"a">> => #{
+      <<"field1">> => <<"value1">>}, <<"field2">> => <<"value2">>}},
+   ?assertEqual(PNew, set_fields(Point, S)).
+
+
+-endif.

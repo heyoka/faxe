@@ -522,6 +522,7 @@ root_path_bin_test() ->
    ?assertEqual(false, flowdata:is_root_path(<<"root.path">>)),
    ?assertEqual(false, flowdata:is_root_path(<<"root[2]">>)),
    ?assertEqual(true, flowdata:is_root_path({<<"root">>})),
+   ?assertEqual(false, flowdata:is_root_path(<<"root.a.path[13]">>)),
    ?assertEqual(false, flowdata:is_root_path({<<"root">>, <<"path">>})).
 
 -endif.
