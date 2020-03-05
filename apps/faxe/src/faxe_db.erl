@@ -10,7 +10,7 @@
 %% API
 
 %% db management
--export([renew_tables/0, create/0, db_init/0]).
+-export([renew_tables/0, create/0, db_init/0, export/1]).
 
 %% api export
 -export([
@@ -319,3 +319,19 @@ create() ->
 %%   lager:notice("create tables: ~p", [Res2])
 
 .
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+export(Table) ->
+   FileName = atom_to_list(node()) ++ "_export_" ++ atom_to_list(Table) ++ "_" ++
+      binary_to_list(faxe_time:to_iso8601(faxe_time:now())) ++ ".txt",
+   F = fun(#task{dfs = Dfs, id = Id, name = Name}, Acc) ->
+      Acc ++ [{Name, Id, Dfs}]
+      end,
+   TFun = fun() ->  mnesia:foldl(F, [], Table) end,
+   {atomic, Res} = mnesia:transaction(TFun),
+   write_terms(FileName, Res).
+
+write_terms(Filename, List) ->
+   Format = fun(Term) -> io_lib:format("~tp.~n", [Term]) end,
+   Text = lists:map(Format, List),
+   file:write_file(Filename, Text).
