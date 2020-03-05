@@ -329,6 +329,7 @@ handle_info({item, {Inport, Value}},
 %%   folsom_metrics:notify({NId, 1}),
    %gen_event:notify(dfevent_component, {item, State#c_state.node_id, {Inport, Value}}),
 %%   Result = (Module:process(Inport, Value, CBState)),
+%%   case catch(timer:tc(Module, process, [Inport, Value, CBState])) of
    case  catch(Module:process(Inport, Value, CBState)) of
       {'EXIT', {Reason, Stacktrace}} ->
          lager:error("'error' in component ~p caught when processing item: ~p -- ~p",
@@ -336,6 +337,8 @@ handle_info({item, {Inport, Value}},
          {noreply, State};
 
       Result ->
+%%      {TMic, Result} ->
+%%         lager:info("processed in ~p microsecs",[TMic]),
          {NewState, Requested, REmitted} = handle_process_result(Result, State),
          case FMode == pull of
             true -> case {Requested, AR, REmitted} of

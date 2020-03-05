@@ -83,7 +83,7 @@ start_link() ->
 init([]) ->
    {ok, Opts0} = application:get_env(lager, handlers),
    Opts = proplists:get_value(lager_flowlog_backend, Opts0),
-   lager:info("Opts: ~p", [Opts]),
+%%   lager:info("Opts: ~p", [Opts]),
    Host0 = proplists:get_value(host, Opts),
    Port = proplists:get_value(port, Opts),
    Fields = proplists:get_value(fields, Opts, []),
@@ -164,6 +164,11 @@ handle_info({log, Row}, State = #state{buffer = Rows, count = Cnt, max_cnt = Cnt
 handle_info({log, Row}, State = #state{buffer = Rows, count = Cnt}) ->
    % add row to buffer
    {noreply, State#state{buffer = [Row|Rows], count = Cnt+1}};
+handle_info({'DOWN', _MonitorRef, _Type, Pid, _Info}, State = #state{client = Pid, host = Host}) ->
+   lager:warning("fusco client is down, restart ..."),
+   {ok, C} = fusco:start(Host, []),
+   erlang:monitor(process, C),
+   {ok, State#state{client = C}};
 handle_info(_Info, State) ->
    {noreply, State}.
 

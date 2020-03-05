@@ -72,7 +72,7 @@ init(_NodeId, _Inputs, #{host := Host0, port := Port, user := User, every := Eve
 %%   lager:warning("the QUERY before: ~p",[Q0]),
    Q = faxe_util:clean_query(Q0),
    Query = build_query(Q, TimeGroup, TimeField, GroupBys),
-   lager:warning("the QUERY: ~p",[Query]),
+%%   lager:warning("the QUERY: ~p",[Query]),
    State = #state{host = Host, port = Port, user = User, pass = Pass, database = DB, query = Query,
       db_opts = DBOpts, every = Every, period = faxe_time:duration_to_ms(Period),
       align = Align, result_type = RType},
@@ -88,7 +88,8 @@ process(_In, _B = #data_batch{}, State = #state{}) ->
 handle_info(query,
     State = #state{timer = Timer, client = C, stmt = _Q, period = Period, result_type = RType}) ->
    QueryMark = Timer#faxe_timer.last_time,
-%%   lager:notice("query: ~p with ~p", [Q, [QueryMark-Period, QueryMark]]),
+%%   lager:notice("query: ~p with ~p from: ~p, to :~p",
+%%      [Q, [QueryMark-Period, QueryMark], faxe_time:to_iso8601(QueryMark-Period), faxe_time:to_iso8601(QueryMark)]),
    NewTimer = faxe_time:timer_next(Timer),
    %% do query
    Resp = epgsql:prepared_query(C, ?STMT, [QueryMark-Period, QueryMark]),
@@ -110,7 +111,7 @@ shutdown(#state{client = C, stmt = _Stmt}) ->
    catch epgsql:close(C).
 
 connect(State = #state{db_opts = Opts, query = Q}) ->
-   lager:warning("db opts: ~p",[Opts]),
+   lager:info("db opts: ~p",[Opts]),
    case epgsql:connect(Opts) of
       {ok, C} ->
          case epgsql:parse(C, ?STMT, Q, [int8, int8]) of

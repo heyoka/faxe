@@ -54,7 +54,7 @@ normal_get(N) ->
    Vals = [<<"myvalue1">>, <<"myvalue1">>,<<"myvalue1">>],
    lists:foldl(
       fun(_E, P) ->
-         [flowdata:fields(P, Keys)],
+         _ = [flowdata:fields(P, Keys)],
          flowdata:set_fields(P, Keys, Vals) end,
       #data_point{ts = 13},
       lists:seq(0,N)
@@ -77,7 +77,7 @@ zipped_get(N) ->
    KeyVal = lists:zip(Keys, Vals),
    lists:foldl(
       fun(_E, P) ->
-         [flowdata:fields(P, Keys)],
+         _ = [flowdata:fields(P, Keys)],
          flowdata:set_fields(P, KeyVal) end,
       #data_point{ts = 13},
       lists:seq(0,N)
@@ -100,7 +100,7 @@ zipped_prepath_get(N) ->
    KeyVal = lists:zip(Keys, Vals),
    lists:foldl(
       fun(_E, P) ->
-         [flowdata:fields(P, Keys)],
+         _ = [flowdata:fields(P, Keys)],
          flowdata:set_fields(P, KeyVal) end,
       #data_point{ts = 13},
       lists:seq(0,N)

@@ -68,6 +68,7 @@ process(_In, DataItem, State = #state{}) ->
 handle_info({'DOWN', _MonitorRef, _Type, Pid, _Info}, State = #state{client = Pid, host = Host}) ->
    lager:warning("fusco client is down, let's restart"),
    {ok, C} = fusco:start(Host, []),
+   erlang:monitor(process, C),
    {ok, State#state{client = C}}.
 
 %%% DATA OUT

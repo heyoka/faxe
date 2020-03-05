@@ -310,11 +310,12 @@ create() ->
 %%      {disc_copies, [node()]}
 %%   ])
 %%   ,
-   Res2 = mnesia:create_table(tag_tasks, [
+   _Res2 = mnesia:create_table(tag_tasks, [
       {attributes, record_info(fields, tag_tasks)},
       {type, set},
       {disc_copies, [node()]}
-   ]),
-   lager:notice("create tables: ~p", [Res2])
+   ])
+%%   ,
+%%   lager:notice("create tables: ~p", [Res2])
 
 .
