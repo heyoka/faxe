@@ -13,8 +13,7 @@ def point =
          "vac_on_without_contact": [0.5, 2.5, 0.44], "vac_on_with_contact": [2.06, 4.98, 2.901]} >>>)
 
 
-    |case()
-    .lambdas(
+    |case(
         lambda: "data.condition.name" == 'Alright',
         lambda: "data.condition.name" == 'Warning',
         lambda: "data.condition.name" == 'Error'
@@ -23,7 +22,6 @@ def point =
     .as('data.condition.alt_name')
     .default('Nothing matched!!!')
 
-    |keep()
-    .fields('data.condition.alt_name')
+    |keep('data.condition.alt_name')
 
     |debug()

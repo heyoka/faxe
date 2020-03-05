@@ -48,13 +48,9 @@ init([]) ->
         {reconnect_watcher,
             {reconnect_watcher, start_link, []},
             permanent, 5000, worker, []},
-        {crate_log_writer,
-            {crate_log_writer, start_link, []},
-            permanent, 5000, worker, []},
-        {crate_log_reader,
-            {crate_log_reader, start_link, []},
-            permanent, 5000, worker, []}
-%%        ,
+        {faxe_log_sup,
+            {faxe_log_sup, start_link, []},
+            permanent, infinity, supervisor, [faxe_log_sup]}
 %%        {initial_task_starter,
 %%            {initial_task_starter, start_link, []},
 %%            permanent, 5000, worker, []}
