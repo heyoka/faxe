@@ -16,7 +16,7 @@
    uuid_string/0, round_float/2,
    prefix_binary/2,
    host_with_protocol/1, host_with_protocol/2
-   , decimal_part/2, check_select_statement/1, clean_query/1, stringize_lambda/1, bytes/1]).
+   , decimal_part/2, check_select_statement/1, clean_query/1, stringize_lambda/1, bytes_from_words/1]).
 
 -define(HTTP_PROTOCOL, <<"http://">>).
 
@@ -74,8 +74,7 @@ check_select_statement(Q) ->
       _ -> true
    end.
 
-%% convert a fun() or a readable string
-
+%% convert a fun() to a readable string
 -spec stringize_lambda(function()) -> list().
 stringize_lambda(Fun) when is_function(Fun) ->
    {env, [{_, _, _, Abs}]} = erlang:fun_info(Fun, env),
@@ -83,7 +82,7 @@ stringize_lambda(Fun) when is_function(Fun) ->
    io_lib:format("~s~p",[lists:flatten(Str)|"\n"]).
 
 %% @doc convert words to bytes with respect to the system's wordsize
-bytes(Words) ->
+bytes_from_words(Words) ->
    try
       Words * erlang:system_info(wordsize)
    catch
