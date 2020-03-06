@@ -222,10 +222,12 @@ eval_dfs(DfsScript, Type) ->
       {_DFSString, Def} = Result when is_map(Def) -> Result;
       E -> E
    catch
-      throw:Err -> {error, Err};
-      exit:Err -> {error, Err};
-      error:Err -> {error, Err};
-      _:_      -> {error, unknown}
+%%      throw:Err:Stacktrace -> {error, Err};
+%%      exit:Err:Stacktrace -> {error, Err};
+%%      error:Err:Stacktrace -> {error, Err};
+      _:Err:Stacktrace      ->
+         lager:warning("stacktrace: ~p",[Stacktrace]),
+         {error, Err}
    end.
 
 %% @doc get a task by its id and also if it is currently running
