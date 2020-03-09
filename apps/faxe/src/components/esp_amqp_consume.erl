@@ -23,6 +23,8 @@
 -define(DEFAULT_PORT, 5672).
 -define(DEFAULT_SSL_PORT, 8883).
 
+-define(ESQ_BASE_DIR, <<"/tmp/">>).
+
 %% state for direct publish mode
 -record(state, {
    consumer,
@@ -39,7 +41,8 @@
    dt_field,
    dt_format,
    collected = 0,
-   points = queue:new()
+   points = queue:new(),
+   emitter
 }).
 
 options() -> [
@@ -56,7 +59,7 @@ options() -> [
 ].
 
 
-init(_NodeId, _Ins,
+init({GraphId, NodeId}, _Ins,
    #{ host := Host0, port := _Port, vhost := _VHost, queue := _Q,
       exchange := _Ex, prefetch := Prefetch, routing_key := _RoutingKey, dt_field := DTField,
       dt_format := DTFormat, ssl := _UseSSL}
@@ -64,9 +67,12 @@ init(_NodeId, _Ins,
 
    Host = binary_to_list(Host0),
    Opts = Opts0#{host => Host},
-   State = start_consumer(#state{opts = Opts, prefetch = Prefetch,
-      dt_field = DTField, dt_format = DTFormat}),
-   {ok, State}.
+   State = #state{opts = Opts, prefetch = Prefetch,
+      dt_field = DTField, dt_format = DTFormat},
+   QFile = binary_to_list(<<?ESQ_BASE_DIR/binary, GraphId/binary, "/", NodeId/binary>>),
+   {ok, Q} = esq:new(QFile, [{tts, 500}, {capacity, 10}]),
+   Emitter = q_msg_forwarder:start_link(Q),
+   {ok, start_consumer(State#state{queue = Q, emitter = Emitter})}.
 
 process(_In, _, State = #state{}) ->
    {ok, State}.
@@ -74,9 +80,9 @@ process(_In, _, State = #state{}) ->
 %%
 %% new queue-message arrives ...
 %%
-handle_info({ {DTag, RKey}, {Payload, _Headers}, From}, State=#state{prefetch = 1}) ->
+handle_info({ {DTag, RKey}, {Payload, _Headers}, From}, State=#state{prefetch = 1, queue = Q}) ->
    DataPoint = build_point(Payload, RKey, State#state.dt_field, State#state.dt_format),
-   dataflow:emit(DataPoint),
+   ok = esq:enq(DataPoint, Q),
    carrot:ack(From, DTag),
    {ok, State};
 

@@ -70,7 +70,7 @@ init_all(#{safe := Safe, topic := Topic, topic_lambda := LTopic} = Opts, State) 
 
 %% direct state
 process(_In, #data_point{} = Point, State = #state{safe = true, queue = Q}) ->
-   esq:enq(build_message(Point, State), Q),
+   ok = esq:enq(build_message(Point, State), Q),
    {ok, State};
 process(_Inport, #data_point{} = Point, State = #state{safe = false, publisher = Publisher}) ->
    Publisher ! {publish, build_message(Point, State)},

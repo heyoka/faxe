@@ -16,6 +16,7 @@
 
 -record(state, {
    queue,
+   parent,
    subscriptions,
    deq_interval = 15
 }).
@@ -28,9 +29,8 @@ start_link(Queue) ->
    gen_server:start_link({local, ?SERVER}, ?MODULE, [Queue, self()], []).
 
 init([Queue, Parent]) ->
-   {ok, Subs} = gen_server:call(Parent, get_subscribers),
-   State = #state{queue = Queue, subscriptions = Subs},
-   next(State),
+   State = #state{queue = Queue, parent = Parent},
+   erlang:send_after(0, self(), setup),
    {ok, State}.
 
 handle_call(_Request, _From, State = #state{}) ->
@@ -39,8 +39,14 @@ handle_call(_Request, _From, State = #state{}) ->
 handle_cast(_Request, State = #state{}) ->
    {noreply, State}.
 
-handle_info(_Info, State = #state{}) ->
-   {noreply, State}.
+handle_info(deq, State = #state{}) ->
+   next(State),
+   {noreply, State};
+handle_info(setup, State = #state{parent = Parent}) ->
+   {ok, Subs} = gen_server:call(Parent, get_subscribers),
+   NewState = State#state{subscriptions = Subs},
+   next(NewState),
+   {noreply, NewState}.
 
 terminate(_Reason, _State = #state{}) ->
    ok.

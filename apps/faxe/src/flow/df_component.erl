@@ -262,7 +262,7 @@ handle_call(errors, _From, State=#c_state{node_id = _NId, component = _Comp}) ->
    {reply, ok, State}
 ;
 handle_call(get_subscribers, _From, State=#c_state{subscriptions = Subs}) ->
-   {reply, Subs, State}
+   {reply, {ok, Subs}, State}
 ;
 handle_call(_What, _From, State) ->
    lager:info("~p: unexpected handle_call with ~p",[?MODULE, _What]),
