@@ -221,12 +221,12 @@ init(#c_state{} = PersistedState) ->
 
 
 handle_call({start, Inputs, Subscriptions, FlowMode}, _From,
-    State=#c_state{component = CB, cb_state = CBState, node_id = NId}) ->
+    State=#c_state{component = CB, cb_state = CBState, graph_id = GId, node_id = NId}) ->
 
    %gen_event:notify(dfevent_component, {start, State#c_state.node_id, FlowMode}),
    lager:debug("component ~p starts with options; ~p", [CB, CBState]),
    Opts = CBState,
-   Inited = CB:init(NId, Inputs, Opts),
+   Inited = CB:init({GId, NId}, Inputs, Opts),
    {AReq, NewCBState} =
    case Inited of
 
@@ -261,6 +261,9 @@ handle_call(errors, _From, State=#c_state{node_id = _NId, component = _Comp}) ->
 %%   Res = {Comp, folsom_metrics:get_history_values(<< NId/binary, ?FOLSOM_ERROR_HISTORY >>, 24)},
    {reply, ok, State}
 ;
+handle_call(get_subscribers, _From, State=#c_state{subscriptions = Subs}) ->
+   {reply, Subs, State}
+;
 handle_call(_What, _From, State) ->
    lager:info("~p: unexpected handle_call with ~p",[?MODULE, _What]),
    {reply, error, State}
@@ -279,12 +282,12 @@ handle_cast(_Request, State) ->
 %%
 %% @end
 handle_info({start, Inputs, Subscriptions, FlowMode},
-    State=#c_state{component = CB, cb_state = CBState, node_id = NId}) ->
+    State=#c_state{component = CB, cb_state = CBState, graph_id = GId, node_id = NId}) ->
 
    %gen_event:notify(dfevent_component, {start, State#c_state.node_id, FlowMode}),
    lager:debug("component ~p starts with options; ~p", [CB, CBState]),
    Opts = CBState,
-   Inited = CB:init(NId, Inputs, Opts),
+   Inited = CB:init({GId, NId}, Inputs, Opts),
    {AReq, NewCBState} =
       case Inited of
 

@@ -2,7 +2,8 @@
 %%% @author heyoka
 %%% @copyright (C) 2019, <COMPANY>
 %%% @doc
-%%% this server consumes from a persistent esq queue and publishes to a mqtt broker
+%%% there are two modes for this server, either it  consumes from a persistent esq queue and publishes to a mqtt broker or
+%%% it waits for a message from another process to directly publish messages to a broker
 %%% @end
 %%% Created : 26. Jul 2019 11:41
 %%%-------------------------------------------------------------------
@@ -12,7 +13,7 @@
 -behaviour(gen_server).
 
 %% API
--export([start_link/2]).
+-export([start_link/2, start_link/1]).
 
 %% gen_server callbacks
 -export([init/1,
@@ -22,21 +23,18 @@
    terminate/2,
    code_change/3]).
 
--define(SERVER, ?MODULE).
--define(DEFAULT_QUEUE_FILE, "/tmp/mqtt_q").
-
 -record(state, {
    client,
    connected = false,
    host,
    port,
    qos,
-   topic,
    retained = false,
    ssl = false,
-   queue_file = ?DEFAULT_QUEUE_FILE,
    queue,
-   deq_interval = 5
+   mem_queue,
+   deq_interval = 15,
+   reconnector
 }).
 
 %%%===================================================================
@@ -53,6 +51,9 @@
    {ok, Pid :: pid()} | ignore | {error, Reason :: term()}).
 start_link(Opts, Queue) ->
    gen_server:start_link( ?MODULE, [Opts, Queue], []).
+
+start_link(Opts) ->
+   gen_server:start_link( ?MODULE, [Opts], []).
 
 %%%===================================================================
 %%% gen_server callbacks
@@ -72,20 +73,20 @@ start_link(Opts, Queue) ->
 -spec(init(Args :: term()) ->
    {ok, State :: #state{}} | {ok, State :: #state{}, timeout() | hibernate} |
    {stop, Reason :: term()} | ignore).
-init([#{host := Host, port := Port, topic := Topic, retained := Retained, ssl := UseSSL, qos := Qos}, Queue]) ->
-   SslOpts =
-   case UseSSL of
-      true ->
-         [{keyfile, "certs/tgw_wildcard.key"},
-            {certfile, "certs/tgw_wildcard.pem"},
-            {cacertfile, "certs/tgw_wildcard.crt"}];
-      false -> []
-   end,
-   {ok, Client} = emqtt:start_link([{host, Host}, {port, Port}, {ssl_opts, SslOpts} ]),
-   {ok, _} = emqtt:connect(Client),
+init([#{} = Opts]) ->
+   init_all(Opts, #state{mem_queue = queue:new()});
+init([#{} = Opts, Queue]) ->
+   init_all(Opts, #state{queue = Queue}).
+
+init_all(#{host := Host, port := Port, retained := Retained, ssl := UseSSL, qos := Qos}, State) ->
+   process_flag(trap_exit, true),
+   reconnect_watcher:new(10000, 5, io_lib:format("~s:~p ~p",[Host, Port, ?MODULE])),
+   Reconnector = faxe_backoff:new({5, 1200}),
+   {ok, Reconnector1} = faxe_backoff:execute(Reconnector, reconnect),
    {ok,
-      #state{host = Host, port = Port, topic = Topic,
-         retained = Retained, ssl = UseSSL, qos = Qos, queue = Queue}}.
+      State#state{
+         host = Host, port = Port, reconnector = Reconnector1,
+         retained = Retained, ssl = UseSSL, qos = Qos}}.
 
 %%--------------------------------------------------------------------
 %% @private
@@ -129,32 +130,57 @@ handle_cast(_Request, State) ->
 %%                                   {stop, Reason, State}
 %% @end
 %%--------------------------------------------------------------------
+handle_info({mqttc, C, connected}, State=#state{queue = undefined, mem_queue = Q}) ->
+   PendingList = queue:to_list(Q),
+   NewState = State#state{client = C, connected = true, mem_queue = queue:new()},
+   [publish(M, NewState) || M <- PendingList],
+   lager:debug("mqtt client connected!!"),
+   {noreply, NewState};
 handle_info({mqttc, C, connected}, State=#state{}) ->
    lager:debug("mqtt client connected!!"),
    NewState = State#state{client = C, connected = true},
    next(NewState),
    {noreply, NewState};
-handle_info({mqttc, _C,  disconnected}, State=#state{}) ->
+handle_info({mqttc, _C,  disconnected}, State=#state{client = Client}) ->
    lager:debug("mqtt client disconnected!!"),
+   catch exit(Client, kill),
    {noreply, State#state{connected = false, client = undefined}};
 handle_info(deq, State=#state{}) ->
    next(State),
    {noreply, State};
+handle_info({publish, {Topic, Message}}, State = #state{connected = false, mem_queue = Q}) ->
+   Q1 = queue:in({Topic, Message}, Q),
+   {noreply, State#state{mem_queue = Q1}};
+handle_info({publish, {Topic, Message}}, State = #state{}) ->
+   publish({Topic, Message}, State),
+   {noreply, State};
+handle_info(reconnect, State = #state{}) ->
+   NewState = do_connect(State),
+   {noreply, NewState};
+handle_info({'EXIT', _Client, Reason},
+    State = #state{reconnector = Recon, host = H, port = P}) ->
+   lager:notice("MQTT Client exit: ~p ~p", [Reason, {H, P}]),
+   {ok, Reconnector} = faxe_backoff:execute(Recon, reconnect),
+   {noreply, State#state{connected = false, client = undefined, reconnector = Reconnector}};
 handle_info(E, S) ->
    lager:info("unexpected: ~p~n", [E]),
    {noreply, S}.
 
+
 next(State=#state{queue = Q, deq_interval = Interval}) ->
    case esq:deq(Q) of
       [] -> ok; %lager:info("Queue is empty!"), ok;
-      [#{payload := Payload}] -> lager:notice("msg from Q: ~p", [Payload]), publish(Payload, State)
+      [#{payload := {_Topic, _Message}=M}] ->
+         lager:notice("~p: msg from Q: ~p", [faxe_time:now(), M]),
+         publish(M, State)
    end,
    erlang:send_after(Interval, self(), deq).
 
-publish(Msg, #state{retained = Ret, qos = Qos, client = C, topic = Topic}) when is_binary(Msg) ->
-   lager:notice("publish ~p on topic ~p ~n",[Msg, Topic]),
-   {ok, PacketId} = emqtt:publish(C, Topic, Msg, [{qos, Qos}, {retained, Ret}]),
-   lager:notice("sent msg and got PacketId: ~p",[PacketId]).
+
+publish({Topic, Msg}, #state{retained = Ret, qos = Qos, client = C})
+   when is_binary(Msg); is_list(Msg) ->
+   lager:notice("publish ~s on topic ~p ~n",[Msg, Topic]),
+   ok = emqttc:publish(C, Topic, Msg, [{qos, Qos}, {retain, Ret}]).
 
 %%--------------------------------------------------------------------
 %% @private
@@ -189,3 +215,8 @@ code_change(_OldVsn, State, _Extra) ->
 %%%===================================================================
 %%% Internal functions
 %%%===================================================================
+do_connect(#state{host = Host, port = Port, ssl = _Ssl} = State) ->
+   reconnect_watcher:bump(),
+   Opts = [{host, Host}, {port, Port}, {keepalive, 30}],
+   {ok, _Client} = emqttc:start_link(Opts),
+   State.
