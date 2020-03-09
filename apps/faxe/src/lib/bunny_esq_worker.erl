@@ -1,7 +1,7 @@
 %%% @doc MQ publishing-worker.
 %%% @author Alexander Minichmair
 %%%
--module(bunny_worker).
+-module(bunny_esq_worker).
 
 
 -behaviour(gen_server).
@@ -25,36 +25,36 @@
    config               = []        :: proplists:proplist(),
    available            = false     :: boolean(),
    pending_acks         = []        :: list(),
-   last_confirmed_dtag  = 0         :: non_neg_integer()
+   last_confirmed_dtag  = 0         :: non_neg_integer(),
+   queue
 }).
 
 -type state():: #state{}.
 
 -define(DELIVERY_MODE, 1).
-
--define(TRY_MAX_WORKERS, 7).
+-define(INTERVAL, 15).
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %%% Exports.
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %%% Public API.
--export([deliver/2, start_link/1, stop/1, start/1]).
+-export([deliver/2, start_link/2, stop/1, start/2]).
 
 %%% gen_server/worker_pool callbacks.
 -export([
-   init/1, terminate/2, code_change/3,
+   init/2, terminate/2, code_change/3,
    handle_call/3, handle_cast/2, handle_info/2
 ]).
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %%% Public API.
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
--spec start_link(any()) -> any().
-start_link(Args) ->
-   gen_server:start_link(?MODULE, Args, []).
+-spec start_link(pid(), list()) -> any().
+start_link(Queue, Args) ->
+   gen_server:start_link(?MODULE, [Queue, Args], []).
 
-start(Args) ->
-   gen_server:start(?MODULE, Args, []).
+start(Queue, Args) ->
+   gen_server:start(?MODULE, [Queue, Args], []).
 
 stop(Server) ->
    Server ! stop.
@@ -63,28 +63,15 @@ stop(Server) ->
 deliver(Server, {Exchange, Key, Payload, Args}) ->
    gen_server:call(Server, {deliver, {Exchange, Key, Payload, Args, self()}}).
 
-%% @doc confirmation required from the mq.
-%%-spec deliver(binary(), binary(), binary(), list()) -> ok|term().
-%%deliver(Exchange, Key, Payload, Args) ->
-%%   ensure_deliver(Exchange, Key, Payload, Args, ?TRY_MAX_WORKERS).
-%%
-%%ensure_deliver(Exchange, Key, Payload, Args, 0) ->
-%%   wpool:call(?MODULE, {deliver, {Exchange, Key, Payload, Args, self()}}, next_worker);
-%%ensure_deliver(Exchange, Key, Payload, Args, Tries) ->
-%%   case wpool:call(?MODULE, {deliver, {Exchange, Key, Payload, Args, self()}}, next_worker) of
-%%      not_available ->  lager:notice("bunny-worker not available, try next worker ..."),
-%%                        ensure_deliver(Exchange, Key, Payload, Args, Tries-1);
-%%      Other -> Other
-%%   end.
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %%% gen_server API.
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
--spec init(proplists:proplist()) -> {ok, state()}.
-init(Config) ->
+-spec init(pid(), proplists:proplist()) -> {ok, state()}.
+init(Queue, Config) ->
    process_flag(trap_exit, true),
    lager:debug("bunny_worker is starting"),
    erlang:send_after(0, self(), connect),
-   {ok, #state{config = Config}}.
+   {ok, #state{queue = Queue, config = Config}}.
 
 -spec handle_cast(term(), state()) -> {noreply, state()}.
 handle_cast(Msg, State) ->
@@ -110,7 +97,9 @@ handle_info({'EXIT', MQPid, Reason}, State=#state{channel = MQPid} ) ->
       channel_ref = undefined,
       available = false
    }};
-
+handle_info(deq, State = #state{}) ->
+   next(State),
+   {noreply, State#state{}};
 
 %% @doc
 %% We handle the ack, nack, etc... - messages with these functions
@@ -223,16 +212,17 @@ code_change(_OldVsn, State, _Extra) ->
 check_for_channel(#state{} = State) ->
    Connect = fun() ->
       case connect(State#state.config) of
-         {{ok, Pid},{ok,Conn}} -> {Pid,Conn};
+         {{ok, Pid}, {ok, Conn}} -> {Pid, Conn};
          Error -> lager:warning("MQ NOT available: ~p", [Error]), not_available
       end
              end,
    {Channel, Conn} =
       case State#state.channel of
-         {Pid,Conn0} when is_pid(Pid) -> case is_process_alive(Pid) of
-                                            true -> {Pid, Conn0};
-                                            false -> Connect()
-                                         end;
+         {Pid, Conn0} when is_pid(Pid) ->
+            case is_process_alive(Pid) of
+               true -> {Pid, Conn0};
+               false -> Connect()
+            end;
          _ -> Connect()
       end,
    Available = is_pid(Channel),
@@ -290,7 +280,34 @@ configure_channel(Error) ->
 
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+next(#state{queue = Q, pending_acks = Recps}) ->
+   NewRecps =
+      case esq:deq(Q) of
+         [] ->
+%%         lager:info("Queue miss!"),
+            Recps;
+         [#{payload := Payload, receipt := Receipt}] ->
+            lager:notice("msg from Q: ~p at: ~p", [Payload, faxe_time:to_iso8601(faxe_time:now())]),
+            [Receipt | Recps]
+      end,
+   erlang:send_after(?INTERVAL, self(), deq).
 
+deliver(Exchange, Args, Key, Payload, State = #state{channel = Channel}) ->
+   NextSeqNo = amqp_channel:next_publish_seqno(Channel),
+   Ref = make_ref(),
+   Publish = #'basic.publish'{mandatory = false, exchange = Exchange, routing_key = Key},
+   Message = #amqp_msg{payload = Payload,
+      props = #'P_basic'{delivery_mode = ?DELIVERY_MODE, headers = Args}
+   },
+   {Ret, NewState} =
+      case amqp_channel:call(Channel, Publish, Message) of
+         ok ->
+            PenList = [{NextSeqNo, {Requester, Ref}} | State#state.pending_acks],
+            {{ok ,Ref}, State#state{pending_acks = PenList}};
+         Error -> {Error, State}
+      end,
+
+   NewState.
 %% @doc
 %%
 %% handle a list of acknowledged RMQ-Tags
@@ -308,7 +325,6 @@ handle_ack([Tag|Rest], PendingList) when is_list(PendingList)->
 
 
 requester_ack(DTag, Pending) ->
-
    case proplists:get_value(DTag, Pending) of
       undefined   -> false;
       {Pid, Ref}  ->  Pid ! {publisher_ack, Ref}
