@@ -27,7 +27,6 @@
 
 -define(DEFAULT_PORT, 1883).
 -define(DEFAULT_SSL_PORT, 8883).
--define(ESQ_BASE_DIR, <<"/tmp/">>).
 
 %% state for safe-mode
 -record(state, {
@@ -54,8 +53,8 @@ options() -> [
 %% safe mode with ondisc queuing
 init({GraphId, NodeId}, _Ins, #{safe := true, host := Host0}=Opts) ->
    Host = binary_to_list(Host0),
-   lager:info("NodeId is : ~p", [NodeId]),
-   QFile = binary_to_list(<<?ESQ_BASE_DIR/binary, GraphId/binary, "/", NodeId/binary>>),
+   EsqBaseDir = faxe_config:get(esq_base_dir),
+   QFile = binary_to_list(<<EsqBaseDir/binary, GraphId/binary, "/", NodeId/binary>>),
    {ok, Q} = esq:new(QFile, [{tts, 300}, {capacity, 10}]),
    {ok, Publisher} = mqtt_publisher:start_link(Opts#{host := Host}, Q),
    init_all(Opts#{host := Host}, #state{publisher = Publisher, queue = Q});

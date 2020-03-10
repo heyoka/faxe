@@ -52,7 +52,8 @@ init({GraphId, NodeId}, _Ins,
 
    Host = binary_to_list(Host0),
    Opts = Opts0#{host => Host},
-   QFile = binary_to_list(<<"/tmp/", GraphId/binary, "/", NodeId/binary>>),
+   EsqBaseDir = faxe_config:get(esq_base_dir),
+   QFile = binary_to_list(<<EsqBaseDir/binary, GraphId/binary, "/", NodeId/binary>>),
    {ok, Q} = esq:new(QFile, [{tts, 300}, {capacity, 10}, {ttf, 20000}]),
    State = start_connection(#state{opts = Opts, exchange = Ex, routing_key = RoutingKey, queue = Q}),
    {ok, State}.

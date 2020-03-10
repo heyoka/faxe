@@ -23,8 +23,6 @@
 -define(DEFAULT_PORT, 5672).
 -define(DEFAULT_SSL_PORT, 8883).
 
--define(ESQ_BASE_DIR, <<"/tmp/">>).
-
 %% state for direct publish mode
 -record(state, {
    consumer,
@@ -68,9 +66,11 @@ init({GraphId, NodeId}, _Ins,
    Host = binary_to_list(Host0),
    Opts = Opts0#{host => Host},
    State = #state{opts = Opts, prefetch = Prefetch, dt_field = DTField, dt_format = DTFormat},
-   QFile = binary_to_list(<<?ESQ_BASE_DIR/binary, GraphId/binary, "/", NodeId/binary>>),
-   {ok, Q} = esq:new(QFile, [{tts, 500}, {capacity, 10}]),
-   Emitter = q_msg_forwarder:start_link(Q),
+
+   EsqBaseDir = faxe_config:get(esq_base_dir),
+   QFile = binary_to_list(<<EsqBaseDir/binary, GraphId/binary, "/", NodeId/binary>>),
+   {ok, Q} = esq:new(QFile, [{tts, 300}, {capacity, 10}]),
+   {ok, Emitter} = q_msg_forwarder:start_link(Q),
    {ok, start_consumer(State#state{queue = Q, emitter = Emitter})}.
 
 process(_In, _, State = #state{}) ->
