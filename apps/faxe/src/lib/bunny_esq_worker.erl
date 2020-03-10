@@ -2,22 +2,12 @@
 %%% @author Alexander Minichmair
 %%%
 -module(bunny_esq_worker).
-
-
 -behaviour(gen_server).
-
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-%%% Types.
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %%% Required Types.
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 -include_lib("amqp_client/include/amqp_client.hrl").
 
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-%%% Types.
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 -record(state, {
    connection           = undefined :: undefined|pid(),
    channel              = undefined :: undefined|pid(),
@@ -33,7 +23,7 @@
 -type state():: #state{}.
 
 -define(DELIVERY_MODE, 1).
--define(INTERVAL, 15).
+-define(DEQ_INTERVAL, 15).
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %%% Exports.
@@ -59,7 +49,6 @@ start(Queue, Args) ->
 
 stop(Server) ->
    Server ! stop.
-
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %%% gen_server API.
@@ -113,8 +102,7 @@ handle_info(deq, State = #state{available = true}) ->
 %% the last delivery tag will be stored in #state
 %% if the 'multiple' flag is set, the sequence is : |- from ('#state.last_confirmed_dtag' + 1) to DTag -|
 %%
-%% this function will release the given leases (delivery_tag(s)) in sending the Tag to the
-%% requester of the corresponding publish-call
+%% this function will release the given leases (delivery_tag(s)) in acking the stored esq-receipts
 %% @end
 handle_info(#'basic.ack'{delivery_tag = DTag, multiple = Multiple},
     State = #state{queue = Q, pending_acks = Pending}) ->
@@ -157,7 +145,6 @@ handle_info(report_pendinglist_length, #state{pending_acks = P} = State) ->
    lager:notice("Bunny-Worker PendingList-length: ~p", [{self(), length(P)}]),
    {noreply, State};
 handle_info(stop, State) ->
-   lager:notice("Bunny-Worker got stop msg"),
    {stop, normal, State};
 handle_info(Msg, State) ->
    lager:notice("Bunny-Worker got unexpected msg: ~p", [Msg]),
@@ -178,7 +165,6 @@ close(Channel, Conn) ->
    amqp_channel:unregister_confirm_handler(Channel),
    amqp_channel:unregister_return_handler(Channel),
    amqp_channel:unregister_flow_handler(Channel),
-
    amqp_channel:close(Channel),
    amqp_connection:close(Conn).
 
@@ -193,12 +179,9 @@ next(#state{queue = Q} = State) ->
    NewState =
       case esq:deq(Q) of
          [] ->
-%%         lager:info("Queue miss!"),
             State;
          [#{payload := Payload, receipt := Receipt}] ->
             deliver(Payload, Receipt, State)
-%%            lager:notice("msg from Q: ~p at: ~p", [Payload, faxe_time:to_iso8601(faxe_time:now())]),
-%%            [Receipt | Recps]
       end,
    start_deq_timer(NewState).
 
@@ -213,7 +196,6 @@ deliver({Exchange, Key, Payload, Args}, QReceipt, State = #state{channel = Chann
       case amqp_channel:call(Channel, Publish, Message) of
          ok ->
             PenList = maps:put(NextSeqNo, QReceipt, State#state.pending_acks),
-%%               [{NextSeqNo, QReceipt} | State#state.pending_acks],
             State#state{pending_acks = PenList};
          Error ->
             lager:error("error when calling channel : ~p", [Error]),
@@ -222,7 +204,7 @@ deliver({Exchange, Key, Payload, Args}, QReceipt, State = #state{channel = Chann
    NewState.
 
 start_deq_timer(State = #state{}) ->
-   TRef = erlang:send_after(?INTERVAL, self(), deq),
+   TRef = erlang:send_after(?DEQ_INTERVAL, self(), deq),
    State#state{deq_timer_ref = TRef}.
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %%% MQ Connection functions.
@@ -296,29 +278,3 @@ configure_channel({ok, Channel}) ->
 
 configure_channel(Error) ->
    Error.
-
-
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-
-
-%% @doc
-%%
-%% handle a list of acknowledged RMQ-Tags
-%% informs interested processes about the acks
-%% and removes the tags from the list
-%%
-%% @end
-
--spec handle_ack(list(), list()) -> list().
-handle_ack([], PendingList) ->
-   PendingList;
-handle_ack([Tag|Rest], PendingList) when is_list(PendingList)->
-   requester_ack(Tag, PendingList),
-   handle_ack(Rest, proplists:delete(Tag, PendingList)).
-
-requester_ack(DTag, Pending) ->
-   case proplists:get_value(DTag, Pending) of
-      undefined   -> false;
-      {Pid, Ref}  ->  Pid ! {publisher_ack, Ref}
-%%                        ets:delete(?DTAGS_TABLE, DTag)
-   end.

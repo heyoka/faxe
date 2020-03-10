@@ -70,7 +70,7 @@ handle_info({'DOWN', _MonitorRef, process, Client, _Info}, #state{client = Clien
    {ok, start_connection(State)}.
 
 shutdown(#state{client = C, queue = Q}) ->
-   catch (bunny_worker:stop(C)),
+   catch (bunny_esq_worker:stop(C)),
    catch (exit(Q)).
 
 
@@ -95,7 +95,7 @@ build_config(_Opts = #{vhost := VHost, host := Host, port := Port}) ->
       {heartbeat, 60},
       {vhost, VHost}
    ],
-   lager:warning("giving bunny_worker these Configs: ~p", [HostParams]),
+   lager:info("giving bunny_esq_worker these Configs: ~p", [HostParams]),
    HostParams.
 
 
