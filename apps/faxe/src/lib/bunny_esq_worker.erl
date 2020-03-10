@@ -24,9 +24,10 @@
    channel_ref          = undefined :: undefined|reference(),
    config               = []        :: proplists:proplist(),
    available            = false     :: boolean(),
-   pending_acks         = []        :: list(),
+   pending_acks         = #{}       :: map(),
    last_confirmed_dtag  = 0         :: non_neg_integer(),
-   queue
+   queue,
+   deq_timer_ref
 }).
 
 -type state():: #state{}.
@@ -38,11 +39,11 @@
 %%% Exports.
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %%% Public API.
--export([deliver/2, start_link/2, stop/1, start/2]).
+-export([start_link/2, stop/1, start/2]).
 
 %%% gen_server/worker_pool callbacks.
 -export([
-   init/2, terminate/2, code_change/3,
+   init/1, terminate/2, code_change/3,
    handle_call/3, handle_cast/2, handle_info/2
 ]).
 
@@ -59,15 +60,12 @@ start(Queue, Args) ->
 stop(Server) ->
    Server ! stop.
 
--spec deliver(pid(), tuple()) -> {ok, reference()}|{error, term()}.
-deliver(Server, {Exchange, Key, Payload, Args}) ->
-   gen_server:call(Server, {deliver, {Exchange, Key, Payload, Args, self()}}).
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %%% gen_server API.
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
--spec init(pid(), proplists:proplist()) -> {ok, state()}.
-init(Queue, Config) ->
+-spec init(list()) -> {ok, state()}.
+init([Queue, Config]) ->
    process_flag(trap_exit, true),
    lager:debug("bunny_worker is starting"),
    erlang:send_after(0, self(), connect),
@@ -83,7 +81,12 @@ handle_cast(Msg, State) ->
 -spec handle_info(term(), state()) -> {noreply, state()}.
 handle_info(connect, State) ->
    {Available, Channel, Conn} = check_for_channel(State),
-   {noreply, State#state{
+   NewState =
+   case Available of
+      true -> start_deq_timer(State);
+      false -> State
+   end,
+   {noreply, NewState#state{
       channel = Channel,
       available = Available,
       connection = Conn
@@ -97,9 +100,13 @@ handle_info({'EXIT', MQPid, Reason}, State=#state{channel = MQPid} ) ->
       channel_ref = undefined,
       available = false
    }};
-handle_info(deq, State = #state{}) ->
-   next(State),
-   {noreply, State#state{}};
+
+%% dequeue
+handle_info(deq, State = #state{available = false}) ->
+   {noreply, State};
+handle_info(deq, State = #state{available = true}) ->
+   {noreply, next(State)};
+
 
 %% @doc
 %% We handle the ack, nack, etc... - messages with these functions
@@ -109,16 +116,18 @@ handle_info(deq, State = #state{}) ->
 %% this function will release the given leases (delivery_tag(s)) in sending the Tag to the
 %% requester of the corresponding publish-call
 %% @end
-handle_info(#'basic.ack'{delivery_tag = DTag, multiple = Multiple}, State) ->
+handle_info(#'basic.ack'{delivery_tag = DTag, multiple = Multiple},
+    State = #state{queue = Q, pending_acks = Pending}) ->
    Tags =
    case Multiple of
       true -> lager:warning("RabbitMQ confirmed MULTIPLE Tags till ~p",[DTag]),
                lists:seq(State#state.last_confirmed_dtag + 1, DTag);
       false -> lager:notice("RabbitMQ confirmed Tag ~p",[DTag]),[DTag]
    end,
-%%   lager:notice("bunny_worker ~p has pending_acks: ~p",[self(), State#state.pending_acks]),
-   NewPendingList = handle_ack(Tags, State#state.pending_acks),
-   {noreply, State#state{last_confirmed_dtag = DTag, pending_acks = NewPendingList}};
+   lager:notice("bunny_worker ~p has pending_acks: ~p~n acks: ~p",[self(), State#state.pending_acks, Tags]),
+   [esq:ack(Ack, Q) || {_T, Ack} <- maps:to_list(maps:with(Tags, Pending))],
+   lager:notice("new pending: ~p",[maps:without(Tags, Pending)]),
+   {noreply, State#state{last_confirmed_dtag = DTag, pending_acks = maps:without(Tags, Pending)}};
 
 handle_info(#'basic.return'{reply_text = RText, routing_key = RKey}, State) ->
    lager:info("Rabbit returned message: ~p",[{RText, RKey}]),
@@ -154,31 +163,6 @@ handle_info(Msg, State) ->
    lager:notice("Bunny-Worker got unexpected msg: ~p", [Msg]),
    {noreply, State}.
 
-
--spec handle_call(
-    term(), {pid(), reference()}, state()
-) -> {reply, term() | {invalid_request, term()}, state()}.
-
-handle_call({deliver, _}, _From, State=#state{available = false}) ->
-   {reply, not_available, State}
-;
-handle_call({deliver, {Exchange, Key, Payload, Args, Requester}}, _From, State=#state{channel = Channel}) ->
-   NextSeqNo = amqp_channel:next_publish_seqno(Channel),
-   Ref = make_ref(),
-   Publish = #'basic.publish'{mandatory = false, exchange = Exchange, routing_key = Key},
-   Message = #amqp_msg{payload = Payload,
-                        props = #'P_basic'{delivery_mode = ?DELIVERY_MODE, headers = Args}
-   },
-   {Ret, NewState} =
-      case amqp_channel:call(Channel, Publish, Message) of
-            ok ->
-               PenList = [{NextSeqNo, {Requester, Ref}} | State#state.pending_acks],
-               {{ok ,Ref}, State#state{pending_acks = PenList}};
-            Error -> {Error, State}
-         end,
-
-   {reply, Ret, NewState};
-
 handle_call(Req, _From, State) ->
    lager:notice("Invalid request: ~p", [Req]),
    {reply, invalid_request, State}.
@@ -205,6 +189,41 @@ code_change(_OldVsn, State, _Extra) ->
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %%% Private API.
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+next(#state{queue = Q} = State) ->
+   NewState =
+      case esq:deq(Q) of
+         [] ->
+%%         lager:info("Queue miss!"),
+            State;
+         [#{payload := Payload, receipt := Receipt}] ->
+            deliver(Payload, Receipt, State)
+%%            lager:notice("msg from Q: ~p at: ~p", [Payload, faxe_time:to_iso8601(faxe_time:now())]),
+%%            [Receipt | Recps]
+      end,
+   start_deq_timer(NewState).
+
+deliver({Exchange, Key, Payload, Args}, QReceipt, State = #state{channel = Channel}) ->
+   NextSeqNo = amqp_channel:next_publish_seqno(Channel),
+
+   Publish = #'basic.publish'{mandatory = false, exchange = Exchange, routing_key = Key},
+   Message = #amqp_msg{payload = Payload,
+      props = #'P_basic'{delivery_mode = ?DELIVERY_MODE, headers = Args}
+   },
+   NewState =
+      case amqp_channel:call(Channel, Publish, Message) of
+         ok ->
+            PenList = maps:put(NextSeqNo, QReceipt, State#state.pending_acks),
+%%               [{NextSeqNo, QReceipt} | State#state.pending_acks],
+            State#state{pending_acks = PenList};
+         Error ->
+            lager:error("error when calling channel : ~p", [Error]),
+            State
+      end,
+   NewState.
+
+start_deq_timer(State = #state{}) ->
+   TRef = erlang:send_after(?INTERVAL, self(), deq),
+   State#state{deq_timer_ref = TRef}.
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %%% MQ Connection functions.
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -280,34 +299,8 @@ configure_channel(Error) ->
 
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-next(#state{queue = Q, pending_acks = Recps}) ->
-   NewRecps =
-      case esq:deq(Q) of
-         [] ->
-%%         lager:info("Queue miss!"),
-            Recps;
-         [#{payload := Payload, receipt := Receipt}] ->
-            lager:notice("msg from Q: ~p at: ~p", [Payload, faxe_time:to_iso8601(faxe_time:now())]),
-            [Receipt | Recps]
-      end,
-   erlang:send_after(?INTERVAL, self(), deq).
 
-deliver(Exchange, Args, Key, Payload, State = #state{channel = Channel}) ->
-   NextSeqNo = amqp_channel:next_publish_seqno(Channel),
-   Ref = make_ref(),
-   Publish = #'basic.publish'{mandatory = false, exchange = Exchange, routing_key = Key},
-   Message = #amqp_msg{payload = Payload,
-      props = #'P_basic'{delivery_mode = ?DELIVERY_MODE, headers = Args}
-   },
-   {Ret, NewState} =
-      case amqp_channel:call(Channel, Publish, Message) of
-         ok ->
-            PenList = [{NextSeqNo, {Requester, Ref}} | State#state.pending_acks],
-            {{ok ,Ref}, State#state{pending_acks = PenList}};
-         Error -> {Error, State}
-      end,
 
-   NewState.
 %% @doc
 %%
 %% handle a list of acknowledged RMQ-Tags
@@ -322,7 +315,6 @@ handle_ack([], PendingList) ->
 handle_ack([Tag|Rest], PendingList) when is_list(PendingList)->
    requester_ack(Tag, PendingList),
    handle_ack(Rest, proplists:delete(Tag, PendingList)).
-
 
 requester_ack(DTag, Pending) ->
    case proplists:get_value(DTag, Pending) of

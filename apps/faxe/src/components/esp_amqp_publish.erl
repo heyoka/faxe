@@ -34,7 +34,7 @@
    routing_key = false,
    ssl = false,
    opts,
-   last_ticket
+   queue
 }).
 
 options() -> [
@@ -46,19 +46,21 @@ options() -> [
    {ssl, bool, false}].
 
 
-init(_NodeId, _Ins,
+init({GraphId, NodeId}, _Ins,
    #{ host := Host0, port := _Port, vhost := _VHost, exchange := Ex,
       routing_key := RoutingKey, ssl := _UseSSL} = Opts0) ->
 
    Host = binary_to_list(Host0),
    Opts = Opts0#{host => Host},
-   State = start_connection(#state{opts = Opts, exchange = Ex, routing_key = RoutingKey}),
+   QFile = binary_to_list(<<"/tmp/", GraphId/binary, "/", NodeId/binary>>),
+   {ok, Q} = esq:new(QFile, [{tts, 300}, {capacity, 10}, {ttf, 20000}]),
+   State = start_connection(#state{opts = Opts, exchange = Ex, routing_key = RoutingKey, queue = Q}),
    {ok, State}.
 
-process(_In, Item, State = #state{client = Server, exchange = Exchange, routing_key = Key}) ->
+process(_In, Item, State = #state{exchange = Exchange, routing_key = Key, queue = Q}) ->
    Payload = flowdata:to_json(Item),
-   {ok, Ref} = bunny_worker:deliver(Server, {Exchange, Key, Payload, []}),
-   {ok, State#state{last_ticket = Ref}}.
+   ok = esq:enq({Exchange, Key, Payload, []}, Q),
+   {ok, State}.
 
 handle_info({publisher_ack, Ref}, State) ->
    lager:notice("message acked: ~p",[Ref]),
@@ -67,15 +69,16 @@ handle_info({'DOWN', _MonitorRef, process, Client, _Info}, #state{client = Clien
    lager:notice("MQ-PubWorker ~p is 'DOWN'", [Client]),
    {ok, start_connection(State)}.
 
-shutdown(#state{client = C}) ->
-   catch (bunny_worker:stop(C)).
+shutdown(#state{client = C, queue = Q}) ->
+   catch (bunny_worker:stop(C)),
+   catch (exit(Q)).
 
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %%% internal
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-start_connection(State = #state{opts = Opts}) ->
-   {ok, Pid} = bunny_worker:start(build_config(Opts)),
+start_connection(State = #state{opts = Opts, queue = Q}) ->
+   {ok, Pid} = bunny_esq_worker:start(Q, build_config(Opts)),
    erlang:monitor(process, Pid),
    State#state{client = Pid}.
 
