@@ -112,7 +112,7 @@ handle_info(#'basic.ack'{delivery_tag = DTag, multiple = Multiple},
                lists:seq(State#state.last_confirmed_dtag + 1, DTag);
       false -> lager:notice("RabbitMQ confirmed Tag ~p",[DTag]),[DTag]
    end,
-   lager:notice("bunny_worker ~p has pending_acks: ~p~n acks: ~p",[self(), State#state.pending_acks, Tags]),
+%%   lager:notice("bunny_worker ~p has pending_acks: ~p~n acks: ~p",[self(), State#state.pending_acks, Tags]),
    [esq:ack(Ack, Q) || {_T, Ack} <- maps:to_list(maps:with(Tags, Pending))],
    lager:notice("new pending: ~p",[maps:without(Tags, Pending)]),
    {noreply, State#state{last_confirmed_dtag = DTag, pending_acks = maps:without(Tags, Pending)}};
@@ -179,8 +179,10 @@ next(#state{queue = Q} = State) ->
    NewState =
       case esq:deq(Q) of
          [] ->
+%%            lager:info("esq:deq miss"),
             State;
          [#{payload := Payload, receipt := Receipt}] ->
+%%            lager:info("esq:deq hit !"),
             deliver(Payload, Receipt, State)
       end,
    start_deq_timer(NewState).

@@ -13,4 +13,4 @@
 -export([get/1]).
 
 get(Key) ->
-   application:get_env(faxe, Key).
+   application:get_env(faxe, Key, undefined).
