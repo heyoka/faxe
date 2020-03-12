@@ -9,7 +9,7 @@
 -module(parser_wms_rmst_v1).
 -author("heyoka").
 
--behavior(tcp_msg_parser).
+-behavior(binary_msg_parser).
 
 %% API
 -export([parse/1]).

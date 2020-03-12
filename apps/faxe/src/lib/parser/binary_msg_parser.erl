@@ -6,7 +6,7 @@
 %%% @end
 %%% Created : 01. Aug 2019 16:53
 %%%-------------------------------------------------------------------
--module(tcp_msg_parser).
+-module(binary_msg_parser).
 -author("heyoka").
 
 -include("faxe.hrl").
@@ -17,12 +17,12 @@
 
 %% @doc parse and convert binary-data
 -spec convert(Data :: binary(), binary(), Parser :: atom()) -> #data_point{}.
-convert(Data, As, undefined) ->
+convert(Data, As, undefined) when is_binary(Data)->
    NewPoint = flowdata:set_field(#data_point{ts = faxe_time:now()}, As, Data),
    NewPoint;
-convert(Data, As, Parser) ->
+convert(Data, As, Parser) when is_binary(Data)->
    convert(Data, #data_point{ts = faxe_time:now()}, As, Parser).
-convert(Data, Point = #data_point{}, As, Parser) ->
+convert(Data, Point = #data_point{}, As, Parser) when is_binary(Data) ->
    {T, NPoint, D} =
    case timer:tc(Parser, parse, [Data]) of
       {Time, {_DataFormat, _Vers, _Map}=D0} -> {Time, Point, D0};

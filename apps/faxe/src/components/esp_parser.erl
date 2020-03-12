@@ -67,7 +67,7 @@ maybe_emit(Point, Data, State = #state{changes = true, prev_crc32 = PrevCheckSum
   end.
 
 do_process(DataPoint, Data, State = #state{as = As, parser = Parser}) ->
-  case (catch tcp_msg_parser:convert(Data, DataPoint, As, Parser)) of
+  case (catch binary_msg_parser:convert(Data, DataPoint, As, Parser)) of
     P when is_record(P, data_point) ->
       {emit, P, State};
     Err -> lager:warning("Parsing error [~p] ~nmessage ~p",[Parser, Err]),

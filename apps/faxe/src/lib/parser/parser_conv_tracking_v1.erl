@@ -9,7 +9,7 @@
 -module(parser_conv_tracking_v1).
 -author("heyoka").
 
--behavior(tcp_msg_parser).
+-behavior(binary_msg_parser).
 
 %% API
 -export([parse/1, test_bitmask/1, parse_datetime/1, maybe_disambiguate/1]).
