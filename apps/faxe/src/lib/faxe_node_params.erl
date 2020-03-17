@@ -23,7 +23,7 @@ options(<<"batch">>) -> [{1, <<"size">>, integer}];
 options(<<"where">>) -> [{1, <<"lambda">>, lambda}];
 options(<<"eval">>) -> [{all, <<"lambdas">>, lambda_list}];
 options(<<"keep">>) -> [{all, <<"fields">>, binary_list}];
-%options(<<"delete">>) -> [{all, <<"fields">>, binary_list}];
+options(<<"delete">>) -> [{all, <<"fields">>, binary_list}];
 options(<<"log">>) -> [{1, <<"file">>, string}];
 options(<<"sample">>) -> [{1, <<"rate">>, string}];
 options(<<"state_count">>) -> [{1, <<"lambda">>, lambda}];

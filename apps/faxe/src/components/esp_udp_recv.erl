@@ -33,6 +33,7 @@
 
 -define(SOCKOPTS,
   [
+    {ip, {127,0,0,1}},
     {active, once},
     binary,
     {reuseaddr, true},
@@ -60,6 +61,7 @@ process(_Inport, #data_point{} = _Point, State = #state{}) ->
   {ok, State}.
 
 handle_info({udp, Socket, _IP, _InPortNo, Packet}, State=#state{}) ->
+  lager:notice("udp packet arrived: ~p", [Packet]),
   NewState = maybe_emit(Packet, State),
   inet:setopts(Socket, [{active, once}]),
   {ok, NewState};
