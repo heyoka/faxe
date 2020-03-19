@@ -69,7 +69,8 @@ init(_NodeId, _Ins,
   Reconnector = faxe_backoff:new(
     {?RECON_MIN_INTERVAL, ?RECON_MAX_INTERVAL, ?RECON_MAX_RETRIES}),
 
-  {PList, TypeList} = build_addresses(Addresses),
+  {PList, TypeList} = Ads = build_addresses(Addresses),
+  lager:notice("Addresses: ~p", [Ads]),
   erlang:send_after(0, self(), do_reconnect),
 
   {ok, all,
@@ -97,6 +98,7 @@ handle_info(poll,
 
   case (catch snapclient:read_multi_vars(Client, Opts)) of
     {ok, Res} ->
+      lager:notice("got form s7: ~p", [Res]),
       maybe_emit(Diff, Res, Aliases, LastList),
       NewTimer = faxe_time:timer_next(Timer),
       {ok, State#state{timer = NewTimer, last_values = Res}};
@@ -199,7 +201,7 @@ decode(byte, Data) ->
   <<Res:8/binary>> = Data,
   Res;
 decode(char, Data) ->
-  <<Res:8/binary>> = Data,
+  <<Res:1/binary>> = Data,
   Res; %% maybe to_string ?
 decode(int, Data) ->
   <<Res:16/integer-signed>> = Data,
