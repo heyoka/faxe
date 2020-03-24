@@ -76,7 +76,7 @@ RUN mkdir -p /buildroot/rebar3/bin
 WORKDIR /buildroot
 
 # Copy faxe application
-COPY ../../.. faxe
+COPY ./ faxe
 
 WORKDIR faxe
 
