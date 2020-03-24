@@ -6,7 +6,7 @@ RUN mkdir -p /buildroot/rebar3/bin
 WORKDIR /buildroot
 
 # Copy faxe application
-COPY ./ faxe
+COPY ../.. faxe
 
 WORKDIR faxe
 
@@ -14,9 +14,9 @@ WORKDIR faxe
 RUN apt-get install git
 
 # And build the release
-RUN rebar3 as prod release
+RUN rebar3 as k8s release
 
-### Build stage 2
+### Build stage 1
 FROM erlang
 
 # Install some libs
@@ -25,7 +25,7 @@ RUN apt-get install openssl
 ENV RELX_REPLACE_OS_VARS true
 
 # Install the released application
-COPY --from=erlang /buildroot/faxe/_build/prod/rel/faxe /faxe
+COPY --from=erlang /buildroot/faxe/_build/k8s/rel/faxe /faxe
 # cleanup
 RUN rm -rf /buildroot
 

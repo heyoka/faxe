@@ -1,0 +1,9 @@
+-sname faxe
+
+-setcookie ${ERLANG_COOKIE}
+-mnesia dir '"/data"'
+
++K true
++A 64
++sbwt none
++S ${SCHEDULERS}

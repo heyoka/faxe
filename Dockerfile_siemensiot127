@@ -1,13 +1,15 @@
 ### Build stage 0
-FROM balenalib/revpi-core-3-alpine:latest as erlang
+FROM balenalib/amd64-alpine:latest as erlang
 
-ENV OTP_VERSION="22.0.7" \
-    REBAR3_VERSION="3.11.1"
+ENV OTP_VERSION="22.3" \
+    REBAR3_VERSION="3.13.1"
+
+LABEL org.opencontainers.image.version=$OTP_VERSION
 
 RUN set -xe \
 	&& OTP_DOWNLOAD_URL="https://github.com/erlang/otp/archive/OTP-${OTP_VERSION}.tar.gz" \
-	&& OTP_DOWNLOAD_SHA256="04c090b55ec4a01778e7e1a5b7fdf54012548ca72737965b7aa8c4d7878c92bc" \
-	&& REBAR3_DOWNLOAD_SHA256="a1822db5210b96b5f8ef10e433b22df19c5fc54dfd847bcaab86c65151ce4171" \
+	&& OTP_DOWNLOAD_SHA256="886e6dbe1e4823c7e8d9c9c1ba8315075a1a9f7717f5a1eaf3b98345ca6c798e" \
+	&& REBAR3_DOWNLOAD_SHA256="706cc0770062bde2674abc01964c68553398fe4d8023605b305cfe326b92520f" \
 	&& apk add --no-cache --virtual .fetch-deps \
 		curl \
 		ca-certificates \
@@ -32,7 +34,7 @@ RUN set -xe \
 	&& rm otp-src.tar.gz \
 	&& ( cd $ERL_TOP \
 	  && ./otp_build autoconf \
-	  && gnuArch="$(dpkg-architecture --query DEB_BUILD_GNU_TYPE)" \
+	  && gnuArch="$(dpkg-architecture --query DEB_HOST_GNU_TYPE)" \
 	  && ./configure --build="$gnuArch" \
 	  && make -j$(getconf _NPROCESSORS_ONLN) \
 	  && make install ) \
@@ -76,7 +78,7 @@ RUN mkdir -p /buildroot/rebar3/bin
 WORKDIR /buildroot
 
 # Copy faxe application
-COPY ./ faxe
+COPY ../../.. faxe
 
 WORKDIR faxe
 
