@@ -15,6 +15,8 @@
    host :: string(),
    port :: non_neg_integer(),
    path :: string(),
+   user :: binary(),
+   pass :: binary(),
    key :: string(),
    client,
    database,
@@ -31,6 +33,7 @@
 -define(PATH, <<"/_sql">>).
 -define(ARGS, <<"bulk_args">>).
 -define(DEFAULT_SCHEMA_HDR, <<"Default-Schema">>).
+-define(AUTH_HEADER_KEY, <<"Authorization">>).
 -define(QUERY_TIMEOUT, 5000).
 -define(FAILED_RETRIES, 3).
 
@@ -41,13 +44,15 @@ options() ->
       {host, string, {crate_http, host}},
       {port, integer, {crate_http, port}},
       {table, string},
+      {user, string, {crate_http, user}},
+      {pass, string, {crate_http, pass}},
       {database, string, <<"doc">>},
       {db_fields, string_list},
       {faxe_fields, string_list},
       {remaining_fields_as, string, undefined}].
 
 init(_NodeId, _Inputs,
-    #{host := Host0, port := Port, database := DB, table := Table,
+    #{host := Host0, port := Port, database := DB, table := Table, user := User, pass := Pass,
        db_fields := DBFields, faxe_fields := FaxeFields, remaining_fields_as := RemFieldsAs}) ->
 
    Host1 = faxe_util:host_with_protocol(Host0, ?HTTP_PROTOCOL),
@@ -56,7 +61,7 @@ init(_NodeId, _Inputs,
    {ok, C} = fusco:start(Host, []),
    erlang:monitor(process, C),
    Query = build_query(DBFields, Table, RemFieldsAs),
-   {ok, all, #state{host = Host, port = Port, client = C, database = DB,
+   {ok, all, #state{host = Host, port = Port, client = C, database = DB, user = User, pass = Pass,
       failed_retries = ?FAILED_RETRIES, remaining_fields_as = RemFieldsAs,
       table = Table, query = Query, db_fields = DBFields, faxe_fields = FaxeFields}}.
 
@@ -68,27 +73,34 @@ process(_In, DataItem, State = #state{}) ->
 handle_info({'DOWN', _MonitorRef, _Type, Pid, _Info}, State = #state{client = Pid, host = Host}) ->
    lager:warning("fusco client is down, let's restart"),
    {ok, C} = fusco:start(Host, []),
+   lager:notice("fusco client: ~p",[C]),
    erlang:monitor(process, C),
    {ok, State#state{client = C}}.
 
 %%% DATA OUT
 send(Item, State = #state{query = Q, faxe_fields = Fields, remaining_fields_as = RemFieldsAs,
-      database = Schema}) ->
-   {Headers, Query} = build(Item, Q, Schema, Fields, RemFieldsAs),
+      database = Schema, user = User, pass = Pass}) ->
+   Query = build(Item, Q, Fields, RemFieldsAs),
+   Headers0 = [{?DEFAULT_SCHEMA_HDR, Schema}],
+   Headers =
+   case Pass of
+      undefined -> Headers0;
+      _ -> UP = <<User/binary, ":", Pass/binary>>,
+         Auth = base64:encode(UP),
+         Headers0 ++ [{?AUTH_HEADER_KEY, <<"Basic ", Auth/binary>>}]
+   end,
+   lager:notice("Headers are: ~p", [Headers]),
    NewState = do_send(Query, Headers, 0, State),
    NewState.
 
-build(Item, Query, Schema, Fields, RemFieldsAs) ->
+build(Item, Query, Fields, RemFieldsAs) ->
    BulkArgs0 = build_value_stmt(Item, Fields, RemFieldsAs),
    BulkArgs =
       case Item of
          #data_point{} -> [BulkArgs0];
          _ -> BulkArgs0
       end,
-   {
-      [{?DEFAULT_SCHEMA_HDR, Schema}],
-      jiffy:encode(#{?KEY => Query, ?ARGS => BulkArgs})
-   }.
+   jiffy:encode(#{?KEY => Query, ?ARGS => BulkArgs}).
 
 do_send(_Body, _Headers, MaxFailedRetries, S = #state{failed_retries = MaxFailedRetries}) ->
    lager:warning("could not send ~p with ~p retries", [_Body, MaxFailedRetries]),
@@ -104,7 +116,7 @@ do_send(Body, Headers, Retries, S = #state{client = Client}) ->
          S;
 
       _O ->
-%%         lager:warning("sending problem :~p",[_O]),
+         lager:warning("sending problem :~p",[_O]),
          NewState =
          case is_process_alive(Client) of
             true ->
