@@ -1,12 +1,12 @@
 [
    {faxe, [
       {dfs, [
-         {script_path, ${DFS_SCRIPT_PATH}}
+         {script_path, "${DFS_SCRIPT_PATH}"}
       ]},
       {http_api_port, ${HTTP_API_PORT}},
       {python, [
-         {version, ${PYTHON_VERSION}}, %% python version to use / string !
-         {script_path, ${PYTHON_SCRIPT_PATH}}
+         {version, "${PYTHON_VERSION}"}, %% python version to use / string !
+         {script_path, "${PYTHON_SCRIPT_PATH}"}
       ]},
       {metrics, [
          {msg_queue_len_high_watermark, 15}
@@ -32,7 +32,7 @@
          {host, ${CRATE_HOST}},
          {port, ${CRATE_PORT}},
          {user, ${CRATE_USER}},
-         {database, ${CRATE_DB}}
+         {database, <<"${CRATE_DB}">>}
       ]},
       {crate_http, [
          {host, ${CRATE_HTTP_HOST}},
