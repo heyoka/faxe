@@ -1,12 +1,17 @@
-def mqtt_host = '10.202.15.190'
+%def mqtt_host = '10.202.15.190'
+%def mqtt_host = 'http://rabbitmq-cluster-balancer-connected-warehouse.apps.a239147fc03d4e91853c.westeurope.azmosa.io'
+def mqtt_host = '51.137.20.29'
 %def mqtt_host = '10.14.204.3'
 |json_emitter()
 .every(100ms)
-.json(<<<{"code" : 2, "message": "this is a test"}>>>,
-<<<{"code" : 3, "message": "this is another test"}>>>)
+.json(
+    <<<{"code" : 2, "message": "this is a test"}>>>,
+    <<<{"code" : 3, "message": "this is another test"}>>>
+)
+
     |mqtt_publish()
-    %.host('horst')
-    .topic_lambda(lambda: str_concat('ttgw/test/fest/', string(random(15))) )
+    .host(mqtt_host)
+    .topic('ttgw/test/fest/')
     .safe()
 
 

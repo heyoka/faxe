@@ -134,10 +134,10 @@ handle_info({mqttc, C, connected}, State=#state{queue = undefined, mem_queue = Q
    PendingList = queue:to_list(Q),
    NewState = State#state{client = C, connected = true, mem_queue = queue:new()},
    [publish(M, NewState) || M <- PendingList],
-   lager:debug("mqtt client connected!!"),
+   lager:info("mqtt client connected!!"),
    {noreply, NewState};
 handle_info({mqttc, C, connected}, State=#state{}) ->
-   lager:debug("mqtt client connected!!"),
+   lager:info("mqtt client connected!!"),
    NewState = State#state{client = C, connected = true},
    next(NewState),
    {noreply, NewState};
@@ -219,4 +219,5 @@ do_connect(#state{host = Host, port = Port, ssl = _Ssl} = State) ->
    reconnect_watcher:bump(),
    Opts = [{host, Host}, {port, Port}, {keepalive, 30}],
    {ok, _Client} = emqttc:start_link(Opts),
+   lager:notice("mqtt_client: ~p",[_Client]),
    State.
