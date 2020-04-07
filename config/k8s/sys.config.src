@@ -15,8 +15,8 @@
       %% default configs
       {email, [
          {from_address, <<"${EMAIL_FROM_ADDRESS}">>},
-         {smtp_relay, ${EMAIL_SMTP_RELAY}},
-         {smtp_user, ${EMAIL_SMTP_USER}},
+         {smtp_relay, <<"${EMAIL_SMTP_RELAY}">>},
+         {smtp_user, <<"${EMAIL_SMTP_USER}">>},
          {smtp_pass, <<"${EMAIL_SMTP_PASS}">>},
          {template, <<"${EMAIL_TEMPLATE}">>}
       ]},
