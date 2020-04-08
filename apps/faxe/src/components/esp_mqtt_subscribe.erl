@@ -34,6 +34,8 @@
    reconnector,
    host,
    port,
+   user,
+   pass,
    qos,
    topic,
    topics,
@@ -48,6 +50,8 @@
 options() -> [
    {host, binary, {mqtt, host}},
    {port, integer, {mqtt, port}},
+   {user, string, {mqtt, user}},
+   {pass, string, {mqtt, pass}},
    {qos, integer, 1},
    {topic, binary, undefined},
    {topics, binary_list, undefined},
@@ -63,7 +67,7 @@ check_options() ->
 
 init(_NodeId, _Ins,
    #{ host := Host0, port := Port, topic := Topic, topics := Topics, dt_field := DTField,
-      dt_format := DTFormat,
+      dt_format := DTFormat, user := User, pass := Pass,
       retained := Retained, ssl := UseSSL, qos := Qos} = _Opts) ->
 
    Host = binary_to_list(Host0),
@@ -77,7 +81,7 @@ init(_NodeId, _Ins,
 
    State = #state{host = Host, port = Port, topic = Topic, dt_field = DTField, dt_format = DTFormat,
       retained = Retained, ssl = UseSSL, qos = Qos, topics = Topics, client_id = ClientId,
-      reconnector = Reconnector1},
+      reconnector = Reconnector1, user = User, pass = Pass},
    {ok, State}.
 
 process(_In, _, State = #state{}) ->
@@ -122,12 +126,14 @@ handle_info(What, State) ->
 shutdown(#state{client = C}) ->
    catch (emqttc:disconnect(C)).
 
-connect(_State = #state{host = Host, port = Port, client_id = ClientId}) ->
+connect(_State = #state{host = Host, port = Port, client_id = ClientId, user = U, pass = P}) ->
    reconnect_watcher:bump(),
    {ok, _Client} = emqttc:start_link(
       [
          {host, Host},
          {port, Port},
+         {username, U},
+         {password, P},
          {keepalive, 25},
          {reconnect, 3, 120, 10},
          {client_id, ClientId}

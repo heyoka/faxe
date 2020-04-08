@@ -28,6 +28,8 @@
    connected = false,
    host,
    port,
+   user,
+   pass,
    qos,
    retained = false,
    ssl = false,
@@ -78,14 +80,15 @@ init([#{} = Opts]) ->
 init([#{} = Opts, Queue]) ->
    init_all(Opts, #state{queue = Queue}).
 
-init_all(#{host := Host, port := Port, retained := Retained, ssl := UseSSL, qos := Qos}, State) ->
+init_all(#{host := Host, port := Port, user := User, pass := Pass,
+      retained := Retained, ssl := UseSSL, qos := Qos}, State) ->
    process_flag(trap_exit, true),
    reconnect_watcher:new(10000, 5, io_lib:format("~s:~p ~p",[Host, Port, ?MODULE])),
    Reconnector = faxe_backoff:new({5, 1200}),
    {ok, Reconnector1} = faxe_backoff:execute(Reconnector, reconnect),
    {ok,
       State#state{
-         host = Host, port = Port, reconnector = Reconnector1,
+         host = Host, port = Port, user = User, pass = Pass, reconnector = Reconnector1,
          retained = Retained, ssl = UseSSL, qos = Qos}}.
 
 %%--------------------------------------------------------------------
@@ -155,6 +158,7 @@ handle_info({publish, {Topic, Message}}, State = #state{}) ->
    publish({Topic, Message}, State),
    {noreply, State};
 handle_info(reconnect, State = #state{}) ->
+%%   lager:notice("(re)connect to : ~p",[State#state.host]),
    NewState = do_connect(State),
    {noreply, NewState};
 handle_info({'EXIT', _Client, Reason},
@@ -163,7 +167,7 @@ handle_info({'EXIT', _Client, Reason},
    {ok, Reconnector} = faxe_backoff:execute(Recon, reconnect),
    {noreply, State#state{connected = false, client = undefined, reconnector = Reconnector}};
 handle_info(E, S) ->
-   lager:info("unexpected: ~p~n", [E]),
+   lager:warning("unexpected: ~p~n", [E]),
    {noreply, S}.
 
 
@@ -215,9 +219,8 @@ code_change(_OldVsn, State, _Extra) ->
 %%%===================================================================
 %%% Internal functions
 %%%===================================================================
-do_connect(#state{host = Host, port = Port, ssl = _Ssl} = State) ->
+do_connect(#state{host = Host, port = Port, user = User, pass = Pass, ssl = _Ssl} = State) ->
    reconnect_watcher:bump(),
-   Opts = [{host, Host}, {port, Port}, {keepalive, 30}],
+   Opts = [{host, Host}, {port, Port}, {keepalive, 30}, {username, User}, {password, Pass}],
    {ok, _Client} = emqttc:start_link(Opts),
-   lager:notice("mqtt_client: ~p",[_Client]),
    State.

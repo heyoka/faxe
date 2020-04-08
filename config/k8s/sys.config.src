@@ -31,7 +31,7 @@
       {crate, [
          {host, <<"${CRATE_HOST}">>},
          {port, ${CRATE_PORT}},
-         {user, ${CRATE_USER}},
+         {user, <<"${CRATE_USER}">>},
          {pass, <<"${CRATE_PASS}">>},
          {database, <<"${CRATE_DB}">>}
       ]},

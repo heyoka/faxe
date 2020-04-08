@@ -29,6 +29,8 @@
    connected = false,
    host,
    port,
+   user,
+   pass,
    vhost,
    queue,
    exchange,
@@ -46,6 +48,8 @@
 options() -> [
    {host, binary, {amqp, host}},
    {port, integer, {amqp, port}},
+   {user, string, {amqp, user}},
+   {pass, string, {amqp, pass}},
    {ssl, bool, false},
    {vhost, binary, <<"/">>},
    {routing_key, binary},
@@ -58,7 +62,7 @@ options() -> [
 
 
 init({GraphId, NodeId}, _Ins,
-   #{ host := Host0, port := _Port, vhost := _VHost, queue := _Q,
+   #{ host := Host0, port := _Port, user := _User, pass := _Pass, vhost := _VHost, queue := _Q,
       exchange := _Ex, prefetch := Prefetch, routing_key := _RoutingKey, dt_field := DTField,
       dt_format := DTFormat, ssl := _UseSSL}
       = Opts0) ->
@@ -122,14 +126,14 @@ start_consumer(State = #state{opts = ConsumerOpts}) ->
 
 
 -spec consumer_config(Opts :: map()) -> list().
-consumer_config(_Opts = #{vhost := VHost, queue := Q, prefetch := Prefetch,
+consumer_config(_Opts = #{vhost := VHost, queue := Q, prefetch := Prefetch, user := User, pass := Pass,
    exchange := XChange, routing_key := RoutingKey, host := Host, port := Port}) ->
 
    HostParams = %% connection parameters
    [
       {hosts, [ {Host, Port} ]},
-      {user, "admin"},
-      {pass, "admin"},
+      {user, User},
+      {pass, Pass},
       {reconnect_timeout, 2000},
       {ssl_options, none} % Optional. Can be 'none' or [ssl_option()]
    ],

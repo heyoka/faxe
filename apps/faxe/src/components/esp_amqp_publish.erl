@@ -38,8 +38,10 @@
 }).
 
 options() -> [
-   {host, binary},
-   {port, integer, ?DEFAULT_PORT},
+   {host, binary, {amqp, host}},
+   {port, integer, {amqp, port}},
+   {user, string, {amqp, user}},
+   {pass, string, {amqp, pass}},
    {vhost, binary, <<"/">>},
    {routing_key, binary},
    {exchange, binary},
@@ -47,7 +49,7 @@ options() -> [
 
 
 init({GraphId, NodeId}, _Ins,
-   #{ host := Host0, port := _Port, vhost := _VHost, exchange := Ex,
+   #{ host := Host0, port := _Port, user := _User, pass := _Pass, vhost := _VHost, exchange := Ex,
       routing_key := RoutingKey, ssl := _UseSSL} = Opts0) ->
 
    Host = binary_to_list(Host0),
@@ -86,12 +88,12 @@ start_connection(State = #state{opts = Opts, queue = Q}) ->
 
 
 -spec build_config(Opts :: map()) -> list().
-build_config(_Opts = #{vhost := VHost, host := Host, port := Port}) ->
+build_config(_Opts = #{vhost := VHost, host := Host, port := Port, user := User, pass := Pass}) ->
    HostParams = %% connection parameters
    [
       {hosts, [ {Host, Port} ]},
-      {user, "admin"},
-      {pass, "admin"},
+      {user, User},
+      {pass, Pass},
       {reconnect_timeout, 2000},
       {ssl_options, none}, % Optional. Can be 'none' or [ssl_option()]
       {heartbeat, 60},

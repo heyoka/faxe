@@ -284,6 +284,10 @@ renew_tables() ->
    mnesia:delete_table(tag_tasks),
    create().
 
+%%
+%% ip filter annotations
+%% liveness , readyness
+%% resource limits
 create() ->
    mnesia:change_table_copy_type(schema, node(), disc_copies),
 

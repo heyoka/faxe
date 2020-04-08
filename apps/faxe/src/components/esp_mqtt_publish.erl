@@ -43,6 +43,8 @@
 options() -> [
    {host, binary, {mqtt, host}},
    {port, integer, {mqtt, port}},
+   {user, string, {mqtt, user}},
+   {pass, string, {mqtt, pass}},
    {qos, integer, 1},
    {topic, binary, undefined},
    {topic_lambda, lambda, undefined},

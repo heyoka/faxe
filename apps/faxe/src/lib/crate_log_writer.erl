@@ -83,20 +83,16 @@ start_link() ->
 init([]) ->
    {ok, Opts0} = application:get_env(lager, handlers),
    Opts = proplists:get_value(lager_flowlog_backend, Opts0),
-%%   lager:info("Opts: ~p", [Opts]),
    Host0 = proplists:get_value(host, Opts),
    Port = proplists:get_value(port, Opts),
    Fields = proplists:get_value(fields, Opts, []),
-   Host1 = faxe_util:host_with_protocol(Host0, <<"http://">>),
-   Host = binary_to_list(Host1)++":"++integer_to_list(Port),
-   {ok, C} = fusco:start(Host, []),
-   erlang:monitor(process, C),
+   Host = binary_to_list(Host0),
+   erlang:send_after(0, self(), start_client),
    Q = build_stmt(<<"doc.lager_test">>, Fields),
    catch (lager_flowlog_backend ! writer_ready),
    State = #state{
       host = Host,
       port = Port,
-      client = C,
       stmt = Q,
       max_time = ?MAX_TIME,
       max_cnt = ?MAX_COUNT
@@ -164,13 +160,23 @@ handle_info({log, Row}, State = #state{buffer = Rows, count = Cnt, max_cnt = Cnt
 handle_info({log, Row}, State = #state{buffer = Rows, count = Cnt}) ->
    % add row to buffer
    {noreply, State#state{buffer = [Row|Rows], count = Cnt+1}};
-handle_info({'DOWN', _MonitorRef, _Type, Pid, _Info}, State = #state{client = Pid, host = Host}) ->
-   lager:warning("fusco client is down, restart ..."),
-   {ok, C} = fusco:start(Host, []),
-   erlang:monitor(process, C),
-   {ok, State#state{client = C}};
-handle_info(_Info, State) ->
+handle_info({'DOWN', _MonitorRef, _Type, Pid, _Info}, State = #state{client = Pid}) ->
+   lager:warning("gun is down"),
+   handle_info(start_client, State);
+handle_info(start_client, State) ->
+   NewState = start_client(State),
+   {noreply, NewState};
+handle_info(_Req, State) ->
    {noreply, State}.
+
+start_client(State = #state{host = Host, port = Port}) ->
+   {ok, C} = gun:open(Host, Port, #{transport => tls, connect_timeout => 3000}),
+   erlang:monitor(process, C),
+   case gun:await_up(C) of
+      {ok, _} -> State#state{client = C};
+      _ -> lager:warning("timeout connecting to ~p:~p", [Host, Port]),
+         erlang:send_after(1000, self(), start_client), State#state{client = undefined}
+   end.
 
 %%--------------------------------------------------------------------
 %% @private
@@ -186,7 +192,7 @@ handle_info(_Info, State) ->
 -spec(terminate(Reason :: (normal | shutdown | {shutdown, term()} | term()),
     State :: #state{}) -> term()).
 terminate(_, #state{client = Client}) ->
-   fusco:disconnect(Client).
+   gun:close(Client).
 
 %%--------------------------------------------------------------------
 %% @private
@@ -215,8 +221,9 @@ build_stmt(Table, ValueList) ->
 
 do_send(Client, Stmt, Rows) ->
    Body = jiffy:encode(#{?KEY => Stmt, ?ARGS => Rows}),
-   fusco:request(Client, ?PATH, "POST",
-      [{?DEFAULT_SCHEMA_HDR, ?DATABASE}], Body, ?QUERY_TIMEOUT).
+   Headers = [{?DEFAULT_SCHEMA_HDR, ?DATABASE}, {<<"content-type">>, <<"application/json">>}],
+   _Ref = gun:post(Client, ?PATH, Headers, Body),
+   gun:flush(Client).
 
 
 cancel_timeout(State = #state{timer_ref = Timer}) ->
