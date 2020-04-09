@@ -26,7 +26,7 @@
 %%%===================================================================
 
 start_link(Queue) ->
-   gen_server:start_link({local, ?SERVER}, ?MODULE, [Queue, self()], []).
+   gen_server:start_link(?MODULE, [Queue, self()], []).
 
 init([Queue, Parent]) ->
    State = #state{queue = Queue, parent = Parent},
