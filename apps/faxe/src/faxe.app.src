@@ -10,7 +10,6 @@
     xmerl,
     mnesia,
     lager,
-    poolboy,
     esq,
     emqttc,
     jiffy,
