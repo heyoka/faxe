@@ -44,9 +44,9 @@
 options() -> [
   {ip, binary},
   {port, integer, 102},
-  {every, duration, "1s"},
+  {every, duration, <<"1s">>},
   {align, is_set},
-  {slot, integer, 0},
+  {slot, integer, 1},
   {rack, integer, 0},
   {vars, string_list}, %% s7 addressing, ie: DB2024,Int16.1224 | DB2024.DBX12.2
   {as, binary_list},

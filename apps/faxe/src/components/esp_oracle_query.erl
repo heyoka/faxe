@@ -72,8 +72,8 @@ init(_NodeId, _Inputs, #{host := Host0, port := Port, user := User0, every := Ev
 
    State = #state{host = Host, port = Port, user = User, pass = Pass, service_name = ServiceName, query = Query,
       db_opts = DBOpts, every = Every, align = Align, result_type = ResType},
-   NewState = connect(State),
-   {ok, all, NewState}.
+   erlang:send_after(0, self(), reconnect),
+   {ok, all, State}.
 
 
 process(_In, _P = #data_point{}, State = #state{}) ->
@@ -81,14 +81,9 @@ process(_In, _P = #data_point{}, State = #state{}) ->
 process(_In, _B = #data_batch{}, State = #state{}) ->
    {ok, State}.
 
-
+handle_info(reconnect, State) ->
+   {ok, connect(State)};
 handle_info(query, State = #state{timer = Timer, client = C, result_type = RType}) ->
-%%   lager:info("do query oracle at : ~p!!",[Timer#faxe_timer.last_time]),
-%%   QueryMark = Timer#faxe_timer.last_time,
-%%   lager:notice("query: ~p with ~p", [Q, [QueryMark-Period, QueryMark]]),
-
-%%   no match of right hand value {error,socket,closed} in esp_oracle_query:handle_info/2 line 94
-
 %% use timestamp from timer, in case of aligned queries, we have a straight
    Timestamp = Timer#faxe_timer.last_time,
    NewTimer = faxe_time:timer_next(Timer),
@@ -100,17 +95,21 @@ handle_info(query, State = #state{timer = Timer, client = C, result_type = RType
 handle_info({'EXIT', _C, _Reason}, State = #state{timer = Timer}) ->
    lager:notice("EXIT jamdb"),
    NewTimer = cancel_timer(Timer),
-   NewState = connect(State),
-   {ok, NewState#state{timer = NewTimer}};
+   erlang:send_after(1000, self(), reconnect),
+   {ok, State#state{timer = NewTimer}};
 handle_info(What, State) ->
    lager:warning("++other info : ~p",[What]),
    {ok, State}.
 
+-spec connect(#state{}) -> #state{}.
 connect(State = #state{db_opts = Opts}) ->
-%%   lager:warning("db opts: ~p",[Opts]),
-   {ok, C} = jamdb_oracle:start_link(Opts),
-   NewState = init_timer(State#state{client = C}),
-   NewState.
+   case jamdb_oracle:start_link(Opts) of
+      {ok, C} ->
+         init_timer(State#state{client = C});
+      {error, _What} ->
+         State
+   end.
+
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 handle_response({ok, [{result_set, Columns, [], Rows}]}, Timestamp, RType) ->

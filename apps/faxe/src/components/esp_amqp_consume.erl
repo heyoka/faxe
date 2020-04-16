@@ -137,6 +137,8 @@ consumer_config(_Opts = #{vhost := VHost, queue := Q, prefetch := Prefetch, user
       {reconnect_timeout, 2000},
       {ssl_options, none} % Optional. Can be 'none' or [ssl_option()]
    ],
+   RMQConfig = faxe_config:get(rabbitmq),
+   RootExchange = proplists:get_value(RMQConfig, root_exchange, <<"amq.topic">>),
    Config =
       [
          {workers, 1},  % Number of connections, but not relevant here,
@@ -158,7 +160,7 @@ consumer_config(_Opts = #{vhost := VHost, queue := Q, prefetch := Prefetch, user
                {exchange, [
                          {exchange, XChange},
                          {type, <<"topic">>},
-                         {source, <<"x_lm_fanout">>}
+                         {source, RootExchange}
                          ]
                       }
             ]

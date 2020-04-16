@@ -29,6 +29,9 @@
          {host, <<"${AMQP_HOST}">>},
          {port, ${AMQP_PORT}}
       ]},
+      {rabbitmq, [
+        {root_exchange, <<"${RABBITMQ_ROOT_EXCHANGE}">>}
+      ]},
       {crate, [
          {host, <<"${CRATE_HOST}">>},
          {port, ${CRATE_PORT}},
