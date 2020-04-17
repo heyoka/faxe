@@ -12,16 +12,16 @@ parameters:
     description: "OpenShift project (current namespace)"
     required: true
   - name: CLUSTER_NAME
-    description: "Name of the RabbitMQ cluster"
-    value: rabbitmq-cluster
+    description: "Name of the FAXE cluster"
+    value: faxe-cluster
   - name: ISTAG
-    ## check for using image from internal registry
+    ## check for using image from internal os-registry
     description: "Image to deploy"
-    value: rabbitmq:3.7-management
-  - name: RABBITMQ_USER
+    value: faxe
+  - name: FAXE_USER
     description: "Username for the FAXE instance"
-    value: rabbitmq
-  - name: RABBITMQ_PASS
+    value: faxe
+  - name: FAXE_PASS
     description: "Password securing the FAXE instance"
     generate: expression
     from: "[a-zA-Z0-9]{16}"
@@ -31,14 +31,14 @@ parameters:
     from: "[a-zA-Z0-9]{16}"
   - name: SERVICE_ACCOUNT
     description: "Name of the service account used by faxe k8s peer discovery"
-    value: rabbitmq-discovery
+    value: faxe-discovery
   - name: VOLUME_SIZE
     description: "Size of the FAXE data volume"
-    value: 1Gi
+    value: 2Gi
 
 objects:
 
-  # This service account is needed for rabbit_peer_discovery_k8s plugin to be able to discover
+  # This service account is needed for faxe_peer_discovery_k8s to be able to discover
   # cluster nodes
   - apiVersion: v1
     kind: ServiceAccount
@@ -59,35 +59,13 @@ objects:
   - apiVersion: v1
     kind: Secret
     stringData:
-      username: ${RABBITMQ_USER}
-      password: ${RABBITMQ_PASS}
+      username: ${FAXE_USER}
+      password: ${FAXE_PASS}
       url: "amqp://${RABBITMQ_USER}:${RABBITMQ_PASS}@${CLUSTER_NAME}-balancer"
       cookie: ${ERLANG_COOKIE}
     metadata:
       name: ${CLUSTER_NAME}-secret
     type: Opaque
-
-  - apiVersion: v1
-    kind: ConfigMap
-    metadata:
-      name: ${CLUSTER_NAME}-config
-    data:
-      rabbitmq.conf: |
-        loopback_users.guest = false
-
-        ## Clustering
-        cluster_formation.peer_discovery_backend = rabbit_peer_discovery_k8s
-        cluster_formation.k8s.host = kubernetes.default.svc.cluster.local
-        cluster_formation.k8s.address_type = hostname
-        cluster_formation.k8s.service_name = ${CLUSTER_NAME}
-        cluster_formation.k8s.hostname_suffix = .${CLUSTER_NAME}.${NAMESPACE}.svc.cluster.local
-        cluster_formation.node_cleanup.interval = 10
-        cluster_formation.node_cleanup.only_log_warning = true
-        cluster_partition_handling = autoheal
-        ## queue master locator
-        queue_master_locator=min-masters
-      enabled_plugins: |
-        [rabbitmq_management,rabbitmq_peer_discovery_k8s].
 
   # Load balancer
   - kind: Service
@@ -102,16 +80,12 @@ objects:
       ports:
         - name: http
           protocol: TCP
-          port: 15672
-          targetPort: 15672
-        - name: amqp
-          protocol: TCP
-          port: 5672
-          targetPort: 5672
+          port: 8081
+          targetPort: 8081
       selector:
         app: ${CLUSTER_NAME}
 
-  # Headless service that makes it possible to lookup individual rabbitmq nodes
+  # Headless service that makes it possible to lookup individual faxe nodes
   - apiVersion: v1
     kind: Service
     metadata:
@@ -123,9 +97,6 @@ objects:
         app: ${CLUSTER_NAME}
       clusterIP: None
       ports:
-        - name: amqp
-          port: 5672
-          targetPort: 5672
         - name: clustering
           port: 25672
           targetPort: 25672
@@ -152,97 +123,152 @@ objects:
         app: ${CLUSTER_NAME}
     spec:
       serviceName: ${CLUSTER_NAME}
-      replicas: 2
+      replicas: 1
       selector:
         matchLabels:
           app: ${CLUSTER_NAME}
       template:
         metadata:
+          annotations:
+            ## to resolve images internally
+            alpha.image.policy.openshift.io/resolve-names: '*'
           labels:
             app: ${CLUSTER_NAME}
         spec:
           serviceAccountName: ${SERVICE_ACCOUNT}
           terminationGracePeriodSeconds: 30
           containers:
-            - name: rabbitmq
-              command:
-                - sh
-              args:
-                - -c
-                - cp -v /etc/rabbitmq/rabbitmq.conf ${RABBITMQ_CONFIG_FILE}.conf; exec docker-entrypoint.sh rabbitmq-server
+            - name: faxe
               image: ${ISTAG}
-              imagePullPolicy: IfNotPresent
+              imagePullPolicy: Always
               volumeMounts:
-                - name: config-volume
-                  mountPath: /etc/rabbitmq
-                - name: rabbitmq-storage
-                  mountPath: /var/lib/rabbitmq
-
+                - name: faxe-storage
+                  mountPath: /data
               ports:
                 - name: http
                   protocol: TCP
-                  containerPort: 15672
-                - name: amqp
-                  protocol: TCP
-                  containerPort: 5672
+                  containerPort: 8081
                 - name: clustering
                   protocol: TCP
                   containerPort: 25672
               livenessProbe:
                 exec:
-                  command: ["rabbitmqctl", "status"]
+                  command: ["faxe/bin/faxe", "ping"]
                 initialDelaySeconds: 30
                 timeoutSeconds: 10
               readinessProbe:
-                exec:
-                  command: ["rabbitmqctl", "status"]
-                initialDelaySeconds: 10
-                timeoutSeconds: 10
+                failureThreshold: 3
+                httpGet:
+                  path: /v1/stats/vm
+                  port: 8081
+                  scheme: HTTP
+                initialDelaySeconds: 3
+                periodSeconds: 10
+                successThreshold: 1
+                timeoutSeconds: 1
               env:
-                - name: RABBITMQ_DEFAULT_USER
+                - name: DFS_SCRIPT_PATH
+                  value: /faxe/dfs
+                - name: HTTP_API_PORT
+                  value: '8081'
+                - name: PYTHON_VERSION
+                  value: '3'
+                - name: PYTHON_SCRIPT_PATH
+                  value: /faxe/python
+                - name: EMAIL_FROM_ADDRESS
+                  value: noreply@tgw-group.com
+                - name: LOGGER_LEVEL
+                  value: warning
+                - name: CRATE_HOST
                   valueFrom:
                     secretKeyRef:
-                      name: ${CLUSTER_NAME}-secret
+                      key: HOST_NAME
+                      name: cratedb
+                - name: CRATE_PORT
+                  valueFrom:
+                    secretKeyRef:
+                      key: PORT
+                      name: cratedb
+                - name: CRATE_USER
+                  valueFrom:
+                    secretKeyRef:
+                      key: USER
+                      name: cratedb
+                - name: CRATE_PASS
+                  valueFrom:
+                    secretKeyRef:
+                      key: PASS
+                      name: cratedb
+                - name: CRATE_DB
+                  value: doc
+                - name: CRATE_HTTP_HOST
+                  valueFrom:
+                    secretKeyRef:
+                      key: HOST_NAME
+                      name: cratedb-http
+                - name: CRATE_HTTP_PORT
+                  valueFrom:
+                    secretKeyRef:
+                      key: PORT
+                      name: cratedb-http
+                - name: CRATE_HTTP_USER
+                  valueFrom:
+                    secretKeyRef:
+                      key: USER
+                      name: cratedb-http
+                - name: CRATE_HTTP_PASS
+                  valueFrom:
+                    secretKeyRef:
+                      key: PASS
+                      name: cratedb-http
+                - name: CRATE_HTTP_DB
+                  value: doc
+                - name: AMQP_USER
+                  valueFrom:
+                    secretKeyRef:
                       key: username
-                - name: RABBITMQ_DEFAULT_PASS
+                      name: rabbitmq-cluster-secret
+                - name: AMQP_PASS
                   valueFrom:
                     secretKeyRef:
-                      name: ${CLUSTER_NAME}-secret
                       key: password
-                - name: RABBITMQ_ERLANG_COOKIE
+                      name: rabbitmq-cluster-secret
+                - name: AMQP_HOST
+                  value: rabbitmq-cluster-balancer.connected-warehouse.svc.cluster.local
+                - name: AMQP_PORT
+                  value: '5672'
+                - name: MQTT_HOST
+                  value: rabbitmq-mqtt-lb.connected-warehouse.svc.cluster.local
+                - name: MQTT_PORT
+                  value: '1883'
+                - name: SCHEDULERS
+                  value: '4'
+                - name: ERLANG_COOKIE
                   valueFrom:
                     secretKeyRef:
-                      name: ${CLUSTER_NAME}-secret
                       key: cookie
-                - name: K8S_SERVICE_NAME
-                  value: ${CLUSTER_NAME}
-                - name: POD_IP
+                      name: ${CLUSTER_NAME}-secret
+                - name: EMAIL_SMTP_RELAY
                   valueFrom:
-                    fieldRef:
-                      fieldPath: status.podIP
-                - name: POD_NAME
+                    secretKeyRef:
+                      key: relay
+                      name: smtp
+                - name: EMAIL_SMTP_USER
                   valueFrom:
-                    fieldRef:
-                      fieldPath: metadata.name
-                - name: POD_NAMESPACE
-                  valueFrom:
-                    fieldRef:
-                      fieldPath: metadata.namespace
-                - name: RABBITMQ_USE_LONGNAME
-                  value: "true"
-                - name: RABBITMQ_NODENAME
-                  value: "faxe@$(POD_NAME).${CLUSTER_NAME}.$(POD_NAMESPACE).svc.cluster.local"
-                - name: RABBITMQ_CONFIG_FILE
-                  value: /var/lib/rabbitmq/rabbitmq
-          volumes:
-            - name: config-volume
-              configMap:
-                name: ${CLUSTER_NAME}-config
-                items:
-                  - key: rabbitmq.conf
-                    path: rabbitmq.conf
-                  - key: enabled_plugins
-                    path: enabled_plugins
+                    secretKeyRef:
+                      key: user
+                      name: smtp
+                - name: MNESIA_DIR
+                  value: /data
+#          volumes:
+#            - name: config-volume
+#              configMap:
+#                name: ${CLUSTER_NAME}-config
+#                items:
+#                  - key: rabbitmq.conf
+#                    path: rabbitmq.conf
+#                  - key: enabled_plugins
+#                    path: enabled_plugins
       volumeClaimTemplates:
         - metadata:
             name: faxe-storage
