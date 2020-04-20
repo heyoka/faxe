@@ -17,7 +17,7 @@ parameters:
   - name: ISTAG
     ## check for using image from internal os-registry
     description: "Image to deploy"
-    value: faxe
+    value: connected-warehouse/faxe:master
   - name: FAXE_USER
     description: "Username for the FAXE instance"
     value: faxe
@@ -61,6 +61,7 @@ objects:
     stringData:
       username: ${FAXE_USER}
       password: ${FAXE_PASS}
+      ## do we need this url secret?
       url: "amqp://${RABBITMQ_USER}:${RABBITMQ_PASS}@${CLUSTER_NAME}-balancer"
       cookie: ${ERLANG_COOKIE}
     metadata:
@@ -153,7 +154,7 @@ objects:
                   containerPort: 25672
               livenessProbe:
                 exec:
-                  command: ["faxe/bin/faxe", "ping"]
+                  command: ["/faxe/bin/faxe", "ping"]
                 initialDelaySeconds: 30
                 timeoutSeconds: 10
               readinessProbe:
@@ -237,6 +238,8 @@ objects:
                   value: rabbitmq-cluster-balancer.connected-warehouse.svc.cluster.local
                 - name: AMQP_PORT
                   value: '5672'
+                - name: RABBITMQ_ROOT_EXCHANGE
+                  value: x_lm_fanout
                 - name: MQTT_HOST
                   value: rabbitmq-mqtt-lb.connected-warehouse.svc.cluster.local
                 - name: MQTT_PORT

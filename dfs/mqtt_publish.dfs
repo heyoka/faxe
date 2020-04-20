@@ -18,3 +18,17 @@ def mqtt_host = '51.138.6.166'
 
 
 
+|json_emitter()
+.every(2s)
+.json(
+    <<<{"code" : 2, "message": "this is a test"}>>>,
+    <<<{"code" : 3, "message": "this is another test"}>>>
+)
+
+|mqtt_publish()
+.user(<<<faxe>>>)
+.pass(<<<faxe1234!>>>)
+.topic(<<<ttgw/test/fest>>>)
+
+
+
