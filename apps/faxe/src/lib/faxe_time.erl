@@ -21,7 +21,7 @@
 -export_type([timestamp/0, unit/0, interval/0, duration/0, date/0]).
 
 -type timestamp() :: non_neg_integer().
--type unit()      :: second|minute|hour|day|week.
+-type unit()      :: millisecond|second|minute|hour|day|week.
 -type interval()  :: integer().
 -type duration()  :: {unit(), interval()}.
 -type date()      ::
@@ -190,13 +190,12 @@ align(Ts, Unit, Interval) ->
    Intval = interval(Interval),
    DateTime = datetime_parts(Ts),
    UnitValue = get(Unit, DateTime),
-%%   lager:info("UnitValue:: ~p",[UnitValue]),
    Distance = mod(UnitValue, Intval),
-%%   lager:info("Distance:: ~p",[Distance]),
    NewUnitValue = UnitValue - Distance,
-   D = set_to_unit(Unit, DateTime, NewUnitValue),
-%%   lager:info("Date : ~p",[D]),
-   qdate:to_unixtime(D)*1000.
+   {Date, {H, Min, Sec, Milli}} = set_to_unit(Unit, DateTime, NewUnitValue),
+   Seconds = qdate:to_unixtime({Date, {H, Min, Sec}}),
+   Seconds*1000 + Milli.
+
 
 %%% @doc
 %%% convert a ms-timestamp into a date-tuple with ms
@@ -318,18 +317,21 @@ to_unit("y") -> year.
 
 %% note: returns now() format without milliseconds
 %% is also a 'rounding' timestamp function
+-spec set_to_unit(atom(), date(), any()) -> date().
+set_to_unit(millisecond, {Date, {Hour, Min, Sec, _M}}, NewMilli) ->
+   {Date, {Hour, Min, Sec, NewMilli}};
 set_to_unit(second, {Date, {Hour, Min, _Sec, _M}}, NewSec) ->
-   {Date, {Hour, Min, NewSec}};
+   {Date, {Hour, Min, NewSec, 0}};
 set_to_unit(minute, {Date, {Hour, _Min, _Sec, _M}}, NewMin) ->
-   {Date, {Hour, NewMin, 0}};
+   {Date, {Hour, NewMin, 0, 0}};
 set_to_unit(hour, {Date, {_Hour, _Min, _Sec, _M}}, NewHour) ->
-   {Date, {NewHour, 0, 0}};
+   {Date, {NewHour, 0, 0, 0}};
 set_to_unit(day, {{_Year, _Month, _Day}, _Time}, NewDay) ->
-   {{_Year, _Month, NewDay}, {0,0,0}};
+   {{_Year, _Month, NewDay}, {0, 0, 0, 0}};
 set_to_unit(month, {{_Year, _Month, _Day}, _Time}, NewMonth) ->
-   {{_Year, NewMonth, 1}, {0,0,0}};
+   {{_Year, NewMonth, 1}, {0, 0, 0, 0}};
 set_to_unit(year, {{_Year, _Month, _Day}, _Time}, NewYear) ->
-   {{NewYear, 1, 1}, {0,0,0}}.
+   {{NewYear, 1, 1}, {0, 0, 0, 0}}.
 
 
 
