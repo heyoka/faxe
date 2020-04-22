@@ -20,8 +20,8 @@
 %% API
 -export([init/3, process/3, options/0, handle_info/2, shutdown/1]).
 
--define(DEFAULT_PORT, 5672).
--define(DEFAULT_SSL_PORT, 8883).
+-define(RECONNECT_TIMEOUT, 2000).
+-define(Q_OPTS, [{tts, 300}, {capacity, 10}]).
 
 %% state for direct publish mode
 -record(state, {
@@ -61,7 +61,7 @@ options() -> [
 ].
 
 
-init({GraphId, NodeId}, _Ins,
+init({_GraphId, _NodeId} = Idx, _Ins,
    #{ host := Host0, port := _Port, user := _User, pass := _Pass, vhost := _VHost, queue := _Q,
       exchange := _Ex, prefetch := Prefetch, routing_key := _RoutingKey, dt_field := DTField,
       dt_format := DTFormat, ssl := _UseSSL}
@@ -71,11 +71,10 @@ init({GraphId, NodeId}, _Ins,
    Opts = Opts0#{host => Host},
    State = #state{opts = Opts, prefetch = Prefetch, dt_field = DTField, dt_format = DTFormat},
 
-   EsqBaseDir = faxe_config:get(esq_base_dir),
-   QFile = binary_to_list(<<EsqBaseDir/binary, GraphId/binary, "/", NodeId/binary>>),
-   {ok, Q} = esq:new(QFile, [{tts, 300}, {capacity, 10}]),
-   {ok, Emitter} = q_msg_forwarder:start_link(Q),
-   {ok, start_consumer(State#state{queue = Q, emitter = Emitter})}.
+   QFile = faxe_config:q_file(Idx),
+   {ok, Q} = esq:new(QFile, ?Q_OPTS),
+   NewState = start_emitter(State#state{queue = Q}),
+   {ok, start_consumer(NewState)}.
 
 process(_In, _, State = #state{}) ->
    {ok, State}.
@@ -97,7 +96,10 @@ handle_info({ {DTag, RKey}, {Payload, _Headers}, From},
 
 handle_info({'DOWN', _MonitorRef, process, Consumer, _Info}, #state{consumer = Consumer} = State) ->
    lager:notice("MQ-Consumer ~p is 'DOWN'",[Consumer]),
-   {ok, start_consumer(State)}.
+   {ok, start_consumer(State)};
+handle_info({'DOWN', _MonitorRef, process, Emitter, _Info}, #state{emitter = Emitter} = State) ->
+   lager:notice("Q-Emitter ~p is 'DOWN'",[Emitter]),
+   {ok, start_emitter(State)}.
 
 shutdown(#state{consumer = C}) ->
    catch (rmq_consumer:stop(C)).
@@ -124,6 +126,10 @@ start_consumer(State = #state{opts = ConsumerOpts}) ->
       rmq_consumer:start_monitor(self(), consumer_config(ConsumerOpts)),
    State#state{consumer = Pid}.
 
+start_emitter(State = #state{queue = Q}) ->
+   {ok, Emitter} = q_msg_forwarder:start_monitor(Q),
+   State#state{emitter = Emitter}.
+
 
 -spec consumer_config(Opts :: map()) -> list().
 consumer_config(_Opts = #{vhost := VHost, queue := Q, prefetch := Prefetch, user := User, pass := Pass,
@@ -134,7 +140,7 @@ consumer_config(_Opts = #{vhost := VHost, queue := Q, prefetch := Prefetch, user
       {hosts, [ {Host, Port} ]},
       {user, User},
       {pass, Pass},
-      {reconnect_timeout, 2000},
+      {reconnect_timeout, ?RECONNECT_TIMEOUT},
       {ssl_options, none} % Optional. Can be 'none' or [ssl_option()]
    ],
    RMQConfig = faxe_config:get(rabbitmq),

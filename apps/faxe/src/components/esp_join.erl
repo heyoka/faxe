@@ -100,7 +100,6 @@ process(Inport, #data_point{ts = Ts} = Point, State = #state{buffer = Buffer, ti
    end,
 
    {NewBuffer, NewTimerList} =
-%%   case length(NewRow) == RowLength of
    case is_full_row(NewRow, State) of
       true ->
          do_emit(NewRow, NewTs, State),

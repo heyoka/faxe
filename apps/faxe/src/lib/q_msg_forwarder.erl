@@ -1,6 +1,6 @@
 %%%-------------------------------------------------------------------
 %%% @author heyoka
-%%% @copyright (C) 2020, <COMPANY>
+%%% @copyright (C) 2020
 %%% @doc
 %%% @end
 %%%-------------------------------------------------------------------
@@ -8,11 +8,12 @@
 
 -behaviour(gen_server).
 
--export([start_link/1]).
+-export([start_link/1, start_monitor/1]).
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2, terminate/2,
    code_change/3]).
 
 -define(SERVER, ?MODULE).
+-define(Q_OPTS, [{tts, 300}, {capacity, 10}]).
 
 -record(state, {
    queue,
@@ -28,6 +29,15 @@
 start_link(Queue) ->
    gen_server:start_link(?MODULE, [Queue, self()], []).
 
+start_monitor(Queue) ->
+   {ok, Pid} = gen_server:start(?MODULE, [Queue, self()], []),
+   _ = erlang:monitor(process, Pid),
+   {ok, Pid}.
+
+init([{_,_}=Idx, Parent]) ->
+   QFile = faxe_config:q_file(Idx),
+   {ok, Q} = esq:new(QFile, ?Q_OPTS),
+   init([Q, Parent]);
 init([Queue, Parent]) ->
    State = #state{queue = Queue, parent = Parent},
    erlang:send_after(0, self(), setup),

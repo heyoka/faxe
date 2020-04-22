@@ -15,9 +15,9 @@ parameters:
     description: "Name of the FAXE cluster"
     value: faxe-cluster
   - name: ISTAG
-    ## check for using image from internal os-registry
+    ## using image from internal os-registry
     description: "Image to deploy"
-    value: connected-warehouse/faxe:master
+    value: faxe:master
   - name: FAXE_USER
     description: "Username for the FAXE instance"
     value: faxe
@@ -140,7 +140,7 @@ objects:
           terminationGracePeriodSeconds: 30
           containers:
             - name: faxe
-              image: ${ISTAG}
+              image: ${NAMESPACE}/${ISTAG}
               imagePullPolicy: Always
               volumeMounts:
                 - name: faxe-storage

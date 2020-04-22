@@ -21,7 +21,7 @@ def routing_key = 'ttgw.conveyor_tracking.petzold_test'
     .host(<<< http://devat-cw-ds.tgwdev.internal >>>)
     .port(4201)
     .database('doc')
-    .table('conveyortracking_parted ')
+    .table('conveyortracking_parted')
     .db_fields('id', 'df', 'vs', 'data_obj')
     .faxe_fields('id', 'df', 'vs', 'data')
 
