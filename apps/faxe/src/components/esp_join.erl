@@ -152,7 +152,7 @@ conflate(RowData, Ts, Prefixes, undefined) ->
 conflate(RowData, Ts, _Prefixes, FieldMerge) ->
    merge(RowData, Ts, FieldMerge).
 
-merge([RowData], _Ts, _MField) -> RowData;
+merge([{_Port, RowData}], _Ts, _MField) -> RowData;
 merge([{_Port, FirstRow}|RowData], Ts, MergeField) ->
    NewPoint =
       lists:foldl(
