@@ -30,7 +30,7 @@
 options() ->
    [
       {size, integer},
-      {timeout, duration, undefined}
+      {timeout, duration, <<"1h">>}
    ].
 
 init(_NodeId, _Inputs, #{size := Size, timeout := Timeout0}) ->
