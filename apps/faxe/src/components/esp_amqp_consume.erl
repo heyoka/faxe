@@ -108,9 +108,8 @@ maybe_emit(DTag, From, State = #state{prefetch = Prefetch, collected = Prefetch,
    DataBatch = #data_batch{points = queue:to_list(Points)},
    NewState = State#state{points = queue:new(), collected = 0},
    lager:notice("emit: ~p",[Prefetch]),
-   dataflow:emit(DataBatch),
    carrot:ack_multiple(From, DTag),
-   {ok, NewState};
+   {emit, {1, DataBatch}, NewState};
 maybe_emit(_DTag, _From, State = #state{}) ->
    {ok, State}.
 

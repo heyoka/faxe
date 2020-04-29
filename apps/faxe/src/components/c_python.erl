@@ -110,19 +110,16 @@ handle_info({emit_data, Data0}, State) when is_map(Data0) ->
 %%   lager:notice("conversion took: ~p ~ngot point data as map from python: ~p", [T,Map]),
    Point = flowdata:point_from_json_map(Data0),
    lager:info("emit point: ~p " ,[Point]),
-   dataflow:emit(Point),
-   {ok, State};
+   {emit, {1, Point}, State};
 handle_info({emit_data, Data}, State) when is_list(Data) ->
    lager:notice("got batch data from python: ~p", [Data]),
    Points = [flowdata:point_from_json_map(D) || D <- Data],
    Batch = #data_batch{points = Points},
-   dataflow:emit(Batch),
    lager:info("emit batch: ~p",[Batch]),
-   {ok, State};
+   {emit, {1, Batch}, State};
 handle_info({emit_data, {"Map", Data}}, State) when is_list(Data) ->
    lager:notice("got point data from python: ~p", [Data]),
-   dataflow:emit(Data),
-   {ok, State};
+   {emit, {1, Data}, State};
 handle_info({python_error, Error}, State) ->
    lager:error("error from python: ~p", [Error]),
    {ok, State};

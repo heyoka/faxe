@@ -89,8 +89,11 @@ handle_info(query, State = #state{timer = Timer, client = C, result_type = RType
    NewTimer = faxe_time:timer_next(Timer),
    %% do query
    Res = jamdb_oracle:sql_query(C, State#state.query),
-   handle_response(Res, Timestamp, RType),
-   {ok, State#state{timer = NewTimer}};
+   case handle_response(Res, Timestamp, RType) of
+      {emit, Data} -> {emit, {1, Data}, State#state{timer = NewTimer}};
+      _ -> {ok, State#state{timer = NewTimer}}
+   end;
+
 
 handle_info({'EXIT', _C, _Reason}, State = #state{timer = Timer}) ->
    lager:notice("EXIT jamdb"),
@@ -115,7 +118,7 @@ connect(State = #state{db_opts = Opts}) ->
 handle_response({ok, [{result_set, Columns, [], Rows}]}, Timestamp, RType) ->
    lager:info("RESULT-length: ~n ~p",[length(Rows)]),
    Data = handle_result(Columns, Rows, Timestamp, RType),
-   dataflow:emit(Data);
+   {emit, Data};
 handle_response({ok,[{proc_result,_ ,Message}]}, _, _) ->
    lager:warning("No query-result, but message: ~p",[Message]);
 handle_response({error,socket,closed}, _, _) ->

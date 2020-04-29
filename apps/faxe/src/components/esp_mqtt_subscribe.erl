@@ -104,14 +104,14 @@ handle_info({mqttc, _C,  disconnected}, State=#state{client = Client}) ->
 handle_info({publish, #{payload := Payload, topic := Topic} }, S=#state{dt_field = DTField, dt_format = DTFormat}) ->
    P0 = flowdata:from_json_struct(Payload, DTField, DTFormat),
    P = flowdata:set_field(P0, <<"topic">>, Topic),
-   dataflow:emit(P),
-   {ok, S};
+%%   dataflow:emit(P),
+   {emit, {1, P}, S};
 %% for emqqtc
 handle_info({publish, Topic, Payload }, S=#state{dt_field = DTField, dt_format = DTFormat}) ->
    P0 = flowdata:from_json_struct(Payload, DTField, DTFormat),
    P = flowdata:set_field(P0, <<"topic">>, Topic),
-   dataflow:emit(P),
-   {ok, S};
+%%   dataflow:emit(P),
+   {emit, {1, P}, S};
 handle_info({disconnected, shutdown, tcp_closed}=M, State = #state{}) ->
    lager:warning("emqtt : ~p", [M]),
    {ok, State};

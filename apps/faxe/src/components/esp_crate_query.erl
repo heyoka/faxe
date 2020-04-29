@@ -93,8 +93,7 @@ handle_info(query,
    NewTimer = faxe_time:timer_next(Timer),
    %% do query
    Resp = epgsql:prepared_query(C, ?STMT, [QueryMark-Period, QueryMark]),
-   handle_response(Resp, RType),
-   {ok, State#state{timer = NewTimer}};
+   handle_response(Resp, RType, State#state{timer = NewTimer});
 
 handle_info({'EXIT', _C, Reason}, State = #state{timer = Timer}) ->
    lager:warning("EXIT epgsql with reason: ~p",[Reason]),
@@ -171,12 +170,13 @@ init_timer(S = #state{align = Align, every = Every}) ->
 
 %% result handling
 
-handle_response({ok, Columns, Rows}, ResponseType) ->
+handle_response({ok, Columns, Rows}, ResponseType, State) ->
    ColumnNames = columns(Columns, []),
    Batch = handle_result(ColumnNames, Rows, ResponseType),
-   dataflow:emit(Batch);
-handle_response(Other, _RType) ->
-   lager:warning("Response from Crate: ", [Other]).
+   {emit, {1, Batch}, State};
+handle_response(Other, _RType, State) ->
+   lager:warning("Response from Crate: ", [Other]),
+   {ok, State}.
 
 
 columns([], ColumnNames) ->

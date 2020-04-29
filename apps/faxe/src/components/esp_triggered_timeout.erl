@@ -98,8 +98,7 @@ cancel_fun(P, State = #state{cancel_fun = Fun}) ->
    end.
 
 handle_info(timeout, State = #state{}) ->
-   dataflow:emit(build_message(State)),
-   {ok, State#state{timer_ref = undefined}}.
+   {emit, {1, build_message(State)}, State#state{timer_ref = undefined}}.
 
 build_message(#state{field_vals = Vals, fields = Fields}) ->
    DataPoint = #data_point{ts = faxe_time:now()},

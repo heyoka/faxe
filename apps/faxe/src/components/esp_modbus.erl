@@ -126,17 +126,14 @@ process(_In, #data_batch{points = _Points} = _Batch, State = #state{}) ->
 process(_Inport, #data_point{} = _Point, State = #state{}) ->
    {ok, State}.
 
-handle_info(poll, State=#state{client = Modbus, requests = Requests, timer = Timer}) ->
+handle_info(poll, State = #state{client = Modbus, requests = Requests, timer = Timer}) ->
    {_Time, Res} = timer:tc(?MODULE, read, [Modbus, Requests]),
-   NewState =
-      case Res of
-         {error, stop} ->
-            State#state{timer = faxe_time:timer_cancel(Timer)};
-         {ok, OutPoint} ->
-            dataflow:emit(OutPoint),
-            State#state{timer = faxe_time:timer_next(Timer)}
-      end,
-   {ok, NewState};
+   case Res of
+      {error, stop} ->
+         {ok, State#state{timer = faxe_time:timer_cancel(Timer)}};
+      {ok, OutPoint} ->
+         {emit, {1, OutPoint}, State#state{timer = faxe_time:timer_next(Timer)}}
+   end;
 handle_info({'DOWN', _MonitorRef, process, _Object, Info},
     State=#state{ip = Ip, port = Port, device_address = Device, timer = Timer}) ->
    NewTimer = faxe_time:timer_cancel(Timer),

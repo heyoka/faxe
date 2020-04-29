@@ -65,8 +65,7 @@ handle_info(emit, State=#state{every = Every, jitter = JT, ejson = JS}) ->
    erlang:send_after(After, self(), emit),
    JsonMap = lists:nth(rand:uniform(length(JS)), JS),
    Msg = #data_point{ts = faxe_time:now(), fields = #{<<"data">> => JsonMap}},
-   dataflow:emit(Msg),
-   {ok, State};
+   {emit,{1, Msg}, State};
 handle_info(_Request, State) ->
    {ok, State}.
 

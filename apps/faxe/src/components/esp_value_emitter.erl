@@ -54,8 +54,7 @@ handle_info(values, State=#state{every = Every,jitter = JT}) ->
    erlang:send_after(After, self(), values),
    Msg = build_msg(State),
 %%   lager:info("~p emitting; ~p",[?MODULE, Msg]),
-   dataflow:emit(Msg),
-   {ok, State};
+   {emit, {1, Msg}, State};
 handle_info(_Request, State) ->
    {ok, State}.
 

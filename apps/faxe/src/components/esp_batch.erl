@@ -48,8 +48,7 @@ handle_info(batch_timeout, State=#state{length = 0}) ->
    {ok, State#state{timer_ref = undefined}};
 handle_info(batch_timeout, State) ->
    {Batch, NewState} = prepare_batch(State),
-   dataflow:emit(Batch),
-   {ok, NewState};
+   {emit, {1, Batch}, NewState};
 handle_info(_Request, State) ->
    {ok, State}.
 

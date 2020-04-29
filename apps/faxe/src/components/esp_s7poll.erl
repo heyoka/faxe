@@ -15,7 +15,7 @@
 
 -include("faxe.hrl").
 %% API
--export([init/3, process/3, options/0, handle_info/2, shutdown/1, maybe_emit/4,
+-export([init/3, process/3, options/0, handle_info/2, shutdown/1, maybe_emit/5,
   check_options/0, split/2, build_addresses/1, build_point/2]).
 
 -define(MAX_READ_ITEMS, 19).
@@ -99,9 +99,9 @@ handle_info(poll,
   case (catch snapclient:read_multi_vars(Client, Opts)) of
     {ok, Res} ->
       lager:notice("got form s7: ~p", [Res]),
-      maybe_emit(Diff, Res, Aliases, LastList),
       NewTimer = faxe_time:timer_next(Timer),
-      {ok, State#state{timer = NewTimer, last_values = Res}};
+      NewState = State#state{timer = NewTimer, last_values = Res},
+      maybe_emit(Diff, Res, Aliases, LastList, NewState);
     _Other ->
       lager:warning("Error when reading S7 Vars: ~p", [_Other]),
       NewTimer = faxe_time:timer_cancel(Timer),
@@ -144,20 +144,21 @@ try_reconnect(State=#state{reconnector = Reconnector}) ->
       {stop, {shutdown, Error}, State}
   end.
 
--spec maybe_emit(Diff :: true|false, ResultList :: list(), Aliases :: list(), LastResults :: list()) -> ok | term().
+-spec maybe_emit(Diff :: true|false, ResultList :: list(), Aliases :: list(), LastResults :: list(), State :: #state{})
+      -> ok | term().
 %% no diff flag -> emit
-maybe_emit(false, Res, Aliases, _) ->
+maybe_emit(false, Res, Aliases, _, State) ->
   Out = build_point(Res, Aliases),
-  dataflow:emit(Out);
+  {emit, {1, Out}, State};
 %% no last values -> emit
-maybe_emit(true, Res, Aliases, []) ->
-  maybe_emit(false, Res, Aliases, []);
+maybe_emit(true, Res, Aliases, [], State) ->
+  maybe_emit(false, Res, Aliases, [], State);
 %% diff flag and result-list is exactly last list -> no emit
-maybe_emit(true, Result, _, Result) ->
+maybe_emit(true, Result, _, Result, State) ->
 %%  lager:warning("diff is true and there is no diff in ResultList !"),
-  ok;
+  {ok, State};
 %% diff flag -> emit diff values only
-maybe_emit(true, Result, Aliases, LastList) ->
+maybe_emit(true, Result, Aliases, LastList, State) ->
   ResAliasList = lists:zip(Aliases, Result),
   LastAliasList = lists:zip(Aliases, LastList),
 %%  lager:info("resalias: ~p ~n lastalias : ~p",[ResAliasList, LastAliasList]),
@@ -167,7 +168,7 @@ maybe_emit(true, Result, Aliases, LastList) ->
   {ResAliases, ResValues} = lists:unzip(ResList),
 %%  lager:info("unzipped again: ~p" ,[lists:unzip(ResList)]),
   Out = build_point(ResValues, ResAliases),
-  dataflow:emit(Out).
+  {emit, {1, Out}, State}.
 
 
 
