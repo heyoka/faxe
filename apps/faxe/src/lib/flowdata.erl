@@ -65,7 +65,8 @@
    to_map/1, set_fields/3, set_tags/3, fields/2, tags/2,
    delete_fields/2, delete_tags/2, path/1, paths/1, set_fields/2,
    to_mapstruct/1, from_json/2, from_json_struct/1, from_json_struct/3,
-   to_map_except/2, point_from_json_map/1, point_from_json_map/3, merge_points/1, set_tags/2, is_root_path/1]).
+   to_map_except/2, point_from_json_map/1, point_from_json_map/3,
+   merge_points/1, set_tags/2, is_root_path/1, merge/2]).
 
 
 -define(DEFAULT_ID, <<"00000">>).
@@ -604,3 +605,19 @@ is_root_path({Path}) when is_binary(Path) ->
    true;
 is_root_path(_) ->
    false.
+
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%% map merge funcs
+
+merge(M1, M2) when is_map(M1), is_map(M2) -> mapz:deep_merge(merge_fun(), #{}, [M1, M2]);
+merge(M1, M2) when is_list(M1), is_list(M2) -> lists:merge(M1, M2);
+merge(V1, V2) when is_number(V1), is_number(V2) -> V1 + V2;
+merge(S1, S2) when is_binary(S1), is_binary(S2) -> string:concat(S1, S2);
+merge(_, _) -> error(cannot_merge_wrong_or_different_datatypes).
+merge_fun() ->
+   fun
+      (Prev, Val) when is_map(Prev), is_map(Val) -> maps:merge(Prev, Val);
+      (Prev, Val) when is_list(Prev), is_list(Val) -> lists:merge(Prev, Val);
+      (_, Val) -> Val
+   end.

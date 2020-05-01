@@ -18,7 +18,7 @@
 -export([init/3, process/3, options/0, handle_info/2, shutdown/1, maybe_emit/5,
   check_options/0, split/2, build_addresses/1, build_point/2]).
 
--define(MAX_READ_ITEMS, 19).
+-define(MAX_READ_ITEMS, 119).
 
 -define(RECON_MIN_INTERVAL, 100).
 -define(RECON_MAX_INTERVAL, 6000).
@@ -70,7 +70,11 @@ init(_NodeId, _Ins,
     {?RECON_MIN_INTERVAL, ?RECON_MAX_INTERVAL, ?RECON_MAX_RETRIES}),
 
   {PList, TypeList} = Ads = build_addresses(Addresses),
+  F = fun(AsString, #{db_number := DB, start := Start}) -> {AsString, {DB, Start}} end,
+  AsAdds = lists:zipwith(F, As, PList),
   lager:notice("Addresses: ~p", [Ads]),
+  lager:notice("Addresses with db-starts: ~p", [AsAdds]),
+
   erlang:send_after(0, self(), do_reconnect),
 
   {ok, all,
@@ -98,7 +102,8 @@ handle_info(poll,
 
   case (catch snapclient:read_multi_vars(Client, Opts)) of
     {ok, Res} ->
-      lager:notice("got form s7: ~p", [Res]),
+      {ok, ExecTime} = snapclient:get_exec_time(Client),
+      lager:notice("got data form s7 in: ~pms", [ExecTime]),
       NewTimer = faxe_time:timer_next(Timer),
       NewState = State#state{timer = NewTimer, last_values = Res},
       maybe_emit(Diff, Res, Aliases, LastList, NewState);
@@ -170,14 +175,50 @@ maybe_emit(true, Result, Aliases, LastList, State) ->
   Out = build_point(ResValues, ResAliases),
   {emit, {1, Out}, State}.
 
-
-
 build_addresses(Addresses) ->
   ParamList = [s7addr:parse(Address) || Address <- Addresses],
   Splitted = [maps:take(dtype, Map) || Map <- ParamList],
   TypeList = [K || {K, _P} <- Splitted],
   PList = [P || {_K, P} <- Splitted],
+  C = byte_count(PList),
+  lager:warning("bitcount: ~p",[C]),
+  lager:notice("bit dbs are : ~p",[find_contiguous(PList)]),
   {PList, TypeList}.
+
+%% @doc finds contiguous db addresses of type bool
+find_contiguous(PList) ->
+  DBList =
+  lists:foldl(
+    fun
+      (#{word_len := bit, db_number := Db, start := Start}, Acc) ->
+        NewDb =
+        case proplists:get_value(Db, Acc, nil) of
+          nil -> [Start];
+          Dbs -> [Start] ++ Dbs
+        end,
+        [{Db, NewDb} | proplists:delete(Db, Acc)];
+      (_, Acc) -> Acc
+    end,
+    [],
+    PList
+  ),
+  [{DbNumber, lists:sort(Starts)} || {DbNumber, Starts} <- DBList].
+
+byte_count(VarList) ->
+  byte_count(VarList, 0).
+byte_count([], Acc) ->
+  Acc;
+byte_count([#{word_len := bit}|Rest], Acc) ->
+  byte_count(Rest, Acc + 1);
+byte_count([#{word_len := byte}|Rest], Acc) ->
+  byte_count(Rest, Acc + 8);
+byte_count([#{word_len := word}|Rest], Acc) ->
+  byte_count(Rest, Acc + 16);
+byte_count([#{word_len := d_word}|Rest], Acc) ->
+  byte_count(Rest, Acc + 32);
+byte_count([#{word_len := real}|Rest], Acc) ->
+  byte_count(Rest, Acc + 32).
+
 
 split([], _) -> [];
 split(L, N) when length(L) < N -> [L];
@@ -231,5 +272,9 @@ connect(Ip, Rack, Slot) ->
 do_connect(Ip, Rack, Slot) ->
   {ok, Client} = snapclient:start([]),
   ok = snapclient:connect_to(Client, [{ip, Ip}, {slot, Slot}, {rack, Rack}]),
+  {ok, CPUInfo} = snapclient:get_cpu_info(Client),
+  lager:warning("Connected to PLC : ~p",[CPUInfo]),
+  {ok, NegotiatedLength} = snapclient:get_pdu_length(Client),
+  lager:warning("PDU-Length is : ~p",[NegotiatedLength]),
   erlang:monitor(process, Client),
   Client.

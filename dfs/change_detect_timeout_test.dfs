@@ -1,0 +1,13 @@
+def emit_every = 2s
+def debug_type = 'info'
+
+|json_emitter()
+    .every(emit_every)
+    .json(
+        <<<{"condition": {"state": "IDLE"}, "topic": "in2"} >>>
+        )
+
+|debug(debug_type)
+|change_detect()
+.timeout(30s)
+|debug()

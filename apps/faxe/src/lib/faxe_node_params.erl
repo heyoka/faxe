@@ -11,10 +11,12 @@
 
 %% [{param_number, [mode,] port_number}]
 params(<<"combine">>) -> [{1, 2}];
+params(<<"merge">>) -> [{1, 2}];
 params(<<"join">>) -> {all, new_port, 1};
 params(<<"union">>) -> {all, new_port, 1};
 params(<<"state_sequence">>) -> {all, new_port, 1};
-params(<<"triggered_timeout">>) -> {all, new_port, 1}.
+params(<<"triggered_timeout">>) -> {all, new_port, 1};
+params(_) -> undefined.
 
 %% (component name binary) -> [{param number|all, param name, param_type}]
 options(<<"deadman">>) -> [{1, <<"timeout">>, duration},{2, <<"threshold">>, integer}];

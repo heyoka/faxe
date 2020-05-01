@@ -10,6 +10,9 @@
 %% * if reset_timeout is given, all previous values are reset, if there are no points
 %% coming in for this amount of time
 %%
+%% * if timeout is given, it specifies an interval where previous values are reset, even if there were dataitem coming
+%% in the meantime
+%%
 %% * for value comparison erlang's strict equals (=:=) is used, so 1.0 is not equal to 1
 %%
 -module(esp_change_detect).
@@ -27,33 +30,40 @@
    fields,
    values = [],
    reset_timeout,
+   timeout,
+   reset_timer,
    timer
 }).
 
 options() -> [
    {fields, binary_list, undefined},
-   {reset_timeout, duration, <<"3h">>}
+   {reset_timeout, duration, <<"3h">>},
+   {timeout, duration, undefined}
 ].
 
-init(_NodeId, _Ins, #{fields := FieldList, reset_timeout := Timeout}) ->
-   Time = faxe_time:duration_to_ms(Timeout),
-   {ok, all, #state{fields = FieldList, reset_timeout = Time}}.
+init(_NodeId, _Ins, #{fields := FieldList, reset_timeout := ResetTimeout, timeout := Timeout}) ->
+   ResetTime = faxe_time:duration_to_ms(ResetTimeout),
+   TimeOut = faxe_time:duration_to_ms(Timeout),
+   lager:notice("reset_timeout: ~p",[ResetTime]),
+   lager:notice("timeout: ~p",[TimeOut]),
+   Timer = start_timeout(TimeOut),
+   {ok, all, #state{fields = FieldList, reset_timeout = ResetTime, timeout = TimeOut, timer = Timer}}.
 
 process(_In, #data_batch{points = Points} = Batch,
-    State = #state{fields = FieldNames, values = Vals, timer = TRef, reset_timeout = Time}) ->
+    State = #state{fields = FieldNames, values = Vals, reset_timer = TRef, reset_timeout = Time}) ->
    cancel_timer(TRef),
    {NewPoints, LastValues} = process_points(Points, [], Vals, FieldNames),
-   NewState = State#state{values = LastValues, timer = reset_timeout(Time)},
+   NewState = State#state{values = LastValues, reset_timer = reset_timeout(Time)},
    case NewPoints of
       [] -> {ok, NewState};
       Es when is_list(Es) -> {emit, Batch#data_batch{points = NewPoints}}
    end;
 process(_Inport, #data_point{} = Point,
-    State = #state{fields = Fields, values = LastValues, timer = TRef, reset_timeout = Time}) ->
+    State = #state{fields = Fields, values = LastValues, reset_timer = TRef, reset_timeout = Time}) ->
    cancel_timer(TRef),
    {Filtered, NewValues} = process_point(Point, LastValues, Fields),
 %%   lager:info("new last values: ~p" ,[NewValues]),
-   NewState = State#state{values = NewValues, timer = reset_timeout(Time)},
+   NewState = State#state{values = NewValues, reset_timer = reset_timeout(Time)},
    case Filtered of
       Point -> {emit, Point, NewState};
       _ -> {ok, NewState}
@@ -62,7 +72,12 @@ process(_Inport, #data_point{} = Point,
 
 
 handle_info(reset_timeout, State) ->
+   lager:info("reset_timeout triggered"),
    {ok, State#state{values = []}};
+handle_info(timeout, State = #state{timeout = T}) ->
+   lager:info("timeout triggered"),
+   NewTimer = start_timeout(T),
+   {ok, State#state{values = [], timer = NewTimer}};
 handle_info(_Req, State) ->
    {ok, State}.
 
@@ -110,7 +125,14 @@ get_values(P = #data_point{}, FieldNames) ->
 
 -spec reset_timeout(undefined|non_neg_integer()) -> undefined|reference().
 reset_timeout(undefined) -> undefined;
-reset_timeout(Time) -> erlang:send_after(Time, self(), reset_timeout).
+reset_timeout(Time) ->
+   lager:notice("start reset timeout"),
+   erlang:send_after(Time, self(), reset_timeout).
+start_timeout(undefined) -> undefined;
+start_timeout(Time) ->
+   lager:notice("start timeout"),
+   erlang:send_after(Time, self(), timeout).
+
 
 -spec cancel_timer(undefined|reference()) -> ok|non_neg_integer()|false.
 cancel_timer(undefined) -> ok;
