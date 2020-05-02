@@ -76,17 +76,17 @@ init(_NodeId, _Ins,
   AsAdds = lists:zip(As, PList),
   F = fun({Alias, Params}) -> Params#{as => Alias} end,
   WithAs = lists:map(F, AsAdds),
-  lager:notice("Aliases injected: ~p", [WithAs]),
+  %lager:notice("Aliases injected: ~p", [WithAs]),
   %% sort by starts
   ParamsSorted = lists:usort(fun(#{start := StartA}, #{start := StartB}) -> StartA < StartB end, WithAs),
-  lager:notice("Sorted: ~p", [ParamsSorted]),
+%%  lager:notice("Sorted: ~p", [ParamsSorted]),
   %% find contiguous starts
   {Parts, AliasesList} = find_contiguous(ParamsSorted),
-  lager:info("~p VARS reduced to : ~p",[length(ParamsSorted), length(Parts)]),
-  [lager:notice("Partition: ~p", [Part]) || Part <- Parts],
+%%  lager:info("~p VARS reduced to : ~p",[length(ParamsSorted), length(Parts)]),
+%%  [lager:notice("Partition: ~p", [Part]) || Part <- Parts],
 
-  [lager:notice("Aliases: ~p", [Aliases]) || Aliases <- AliasesList],
-  %erlang:send_after(0, self(), do_reconnect),
+  %[lager:notice("Aliases: ~p", [Aliases]) || Aliases <- AliasesList],
+  erlang:send_after(0, self(), do_reconnect),
 
   {ok, all,
     #state{
@@ -99,14 +99,14 @@ init(_NodeId, _Ins,
       interval = Dur,
       reconnector = Reconnector,
       diff = Diff,
-      vars = PList}
+      vars = Parts}
   }.
 
 find_contiguous(ParamList) ->
   F = fun(#{start := Start, as := As, db_number := DB, dtype := DType} = E,
-      {LastStart, Current = #{aliases := CAs, amount := CAmount, db_number := CDB}, Partitions}) ->
-    lager:info("E: ~p", [E]),
-    case (DB == CDB) andalso (LastStart + 1 == Start) of
+      {LastStart, Current = #{aliases := CAs, amount := CAmount, db_number := CDB, dtype := CType}, Partitions}) ->
+%%    lager:info("E: ~p", [E]),
+    case (DType == CType) andalso (DB == CDB) andalso (LastStart + 1 == Start) of
       true ->
         NewCurrent = Current#{amount => CAmount+1, aliases => CAs++[{As, DType}]},
         {Start, NewCurrent, Partitions};
@@ -115,12 +115,13 @@ find_contiguous(ParamList) ->
     end
       end,
   {_Last, Current, [_|Parts]} =
-  lists:foldl(F, {-2, #{aliases => [], amount => 0, db_number => -1}, []}, ParamList),
+  lists:foldl(F, {-2, #{aliases => [], amount => 0, db_number => -1, dtype => nil}, []}, ParamList),
   All = [Current|Parts],
-  lager:warning("Current: ~p",[Current]),
+  lager:warning("All: ~p",[All]),
   FAs = fun(#{aliases := Aliases}) -> Aliases end,
   AliasesList = lists:map(FAs, All),
-  {All, AliasesList}.
+  AddressPartitions = [maps:without([aliases, as, dtype], M) || M <- All],
+  {AddressPartitions, AliasesList}.
 
 
 process(_In, #data_batch{points = _Points} = _Batch, State = #state{}) ->
@@ -131,11 +132,11 @@ process(_Inport, #data_point{} = _Point, State = #state{}) ->
 handle_info(poll,
     State=#state{client = Client, as = Aliases, timer = Timer,
       vars = Opts, diff = Diff, last_values = LastList}) ->
-
+  lager:notice("opts  are: ~p",[Opts]),
   case (catch snapclient:read_multi_vars(Client, Opts)) of
     {ok, Res} ->
       {ok, ExecTime} = snapclient:get_exec_time(Client),
-      lager:notice("got data form s7 in: ~pms", [ExecTime]),
+      lager:notice("got data form s7 in: ~pms ~n~p", [ExecTime, Res]),
       NewTimer = faxe_time:timer_next(Timer),
       NewState = State#state{timer = NewTimer, last_values = Res},
       maybe_emit(Diff, Res, Aliases, LastList, NewState);
@@ -239,7 +240,8 @@ split(L, N) ->
   {A, B} = lists:split(N, L),
   [A | split(B, N)].
 
-build_data_point(ResultList, AliasesList) when is_list(ResultList), is_list(AliasesList) ->
+build_point(ResultList, AliasesList) when is_list(ResultList), is_list(AliasesList) ->
+  lager:notice("RESULT: ~p~n",[lists:zip(ResultList, AliasesList)]),
   do_build(#data_point{ts=faxe_time:now()}, ResultList, AliasesList).
 
 do_build(Point=#data_point{}, [], []) ->
@@ -247,22 +249,24 @@ do_build(Point=#data_point{}, [], []) ->
 do_build(Point=#data_point{}, [Res|R], [Aliases|AliasesList]) ->
   {As, [DType|_]} = lists:unzip(Aliases),
   DataList = decode(DType, Res),
-  NewPoint = flowdata:set_fields(Point, DataList, As),
+  lager:notice("DataList: ~p",[DataList]),
+  NewPoint = flowdata:set_fields(Point, As, DataList),
   do_build(NewPoint, R, AliasesList).
 
 %%%%%%%%%%%%%%
-build_point(ResultList, AliasList) when is_list(ResultList), is_list(AliasList) ->
-  build(#data_point{ts=faxe_time:now()}, ResultList, AliasList).
-
-build(Point=#data_point{}, [], []) ->
-  Point;
-build(Point=#data_point{}, [Res|R],[{Alias, DType}|A]) ->
-  NewPoint = flowdata:set_field(Point, Alias, decode(DType, Res)),
-  build(NewPoint, R, A).
+%%build_point(ResultList, AliasList) when is_list(ResultList), is_list(AliasList) ->
+%%  build(#data_point{ts=faxe_time:now()}, ResultList, AliasList).
+%%
+%%build(Point=#data_point{}, [], []) ->
+%%  Point;
+%%build(Point=#data_point{}, [Res|R],[{Alias, DType}|A]) ->
+%%  NewPoint = flowdata:set_field(Point, Alias, decode(DType, Res)),
+%%  build(NewPoint, R, A).
 
 
 decode(bool, Data) ->
-  [X || <<X:1/unsigned>> <= Data];
+  binary_to_list(Data);
+%%  [X || <<X:1/bits>> <= Data];
 decode(byte, Data) ->
   [Res || <<Res:8/binary>> <= Data];
 decode(char, Data) ->

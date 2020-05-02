@@ -99,11 +99,11 @@ process(_Inport, #data_point{} = _Point, State = #state{}) ->
 handle_info(poll,
     State=#state{client = Client, as = Aliases, timer = Timer,
       vars = Opts, diff = Diff, last_values = LastList}) ->
-
+%%  lager:notice("opts  are: ~p",[Opts]),
   case (catch snapclient:read_multi_vars(Client, Opts)) of
     {ok, Res} ->
       {ok, ExecTime} = snapclient:get_exec_time(Client),
-      lager:notice("got data form s7 in: ~pms", [ExecTime]),
+      lager:notice("got data form s7 in: ~pms~n~p", [ExecTime, Res]),
       NewTimer = faxe_time:timer_next(Timer),
       NewState = State#state{timer = NewTimer, last_values = Res},
       maybe_emit(Diff, Res, Aliases, LastList, NewState);
