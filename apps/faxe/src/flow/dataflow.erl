@@ -266,7 +266,7 @@ do_check({one_of, Key, ValidOpts}, Opts, Mod) ->
 %% check options with a custom function
 do_check({func, Key, Fun, Message}, Opts, Mod) when is_function(Fun), is_binary(Message)->
    Val = maps:get(Key, Opts, undefined),
-%%   lager:notice("check func for :~p",[{Key, Val}]),
+   lager:notice("check func for :~p",[{Key, Val}]),
    case Fun(Val) of
       true -> ok;
       false -> erlang:error(format_error(invalid_opt, Mod,

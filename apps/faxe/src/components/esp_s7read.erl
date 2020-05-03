@@ -16,9 +16,9 @@
 -include("faxe.hrl").
 %% API
 -export([init/3, process/3, options/0, handle_info/2, shutdown/1, maybe_emit/5,
-  check_options/0, split/2, build_addresses/1, build_point/2, test_build/0]).
+  check_options/0, build_addresses/2, build_point/2, test_build/0]).
 
--define(MAX_READ_ITEMS, 119).
+-define(MAX_READ_ITEMS, 19).
 
 -define(RECON_MIN_INTERVAL, 100).
 -define(RECON_MAX_INTERVAL, 6000).
@@ -53,7 +53,13 @@ options() -> [
   {diff, is_set}].
 
 check_options() ->
-  [{same_length, [vars, as]},{max_param_count, [vars], ?MAX_READ_ITEMS}].
+  [
+    {func, vars,
+      fun(List) -> {P, _} = build_addresses(List, lists:seq(1, length(List))),
+        length(P) =< ?MAX_READ_ITEMS end,
+      <<", has to many address items">>
+    }
+  ].
 
 init(_NodeId, _Ins,
     #{ip := Ip,
@@ -68,40 +74,10 @@ init(_NodeId, _Ins,
 
   Reconnector = faxe_backoff:new(
     {?RECON_MIN_INTERVAL, ?RECON_MAX_INTERVAL, ?RECON_MAX_RETRIES}),
+  {Parts, AliasesList} = build_addresses(Addresses, As),
 
-%%  {PList, TypeList} = Ads = build_addresses(Addresses),
-  PList = [s7addr:parse(Address) || Address <- Addresses],
-
-  %% inject Aliases into parameter maps
-  AsAdds = lists:zip(As, PList),
-  F = fun({Alias, Params}) -> Params#{as => Alias} end,
-  WithAs = lists:map(F, AsAdds),
-  %lager:notice("Aliases injected: ~p", [WithAs]),
-  PartitionFun = fun(#{dtype := Dtype} = E, Acc) ->
-    case maps:is_key(Dtype, Acc) of
-      true -> Acc#{Dtype => [E|maps:get(Dtype, Acc)]};
-      false -> Acc#{Dtype => [E]}
-    end
-    end,
-  Splitted = lists:foldl(PartitionFun, #{}, WithAs),
-  [lager:notice("Splitted: ~p", [S]) || S <- maps:to_list(Splitted)],
-  %% sort by starts
-
-
-  ParamsSorted =
-    lists:flatten(
-      lists:map(fun({_Type, L}) -> sort_by_start(L) end, maps:to_list(Splitted))
-    ),
-%%  [lager:notice("Sorted: ~p", [S]) || S <- ParamsSorted],
-  [lager:notice("Flattened Sorted: ~p", [S]) || S <- ParamsSorted],
-
-%%  lager:notice("Sorted: ~p", [ParamsSorted]),
-  %% find contiguous starts
-  {Parts, AliasesList} = find_contiguous(ParamsSorted),
-  lager:info("~p VARS reduced to : ~p",[length(ParamsSorted), length(Parts)]),
+  lager:info("~p VARS reduced to : ~p",[length(Addresses), length(Parts)]),
   [lager:notice("Partition: ~p", [Part]) || Part <- Parts],
-
-  %[lager:notice("Aliases: ~p", [Aliases]) || Aliases <- AliasesList],
 %%  erlang:send_after(0, self(), do_reconnect),
 
   {ok, all,
@@ -118,43 +94,6 @@ init(_NodeId, _Ins,
       vars = Parts}
   }.
 
-sort_by_start(ParamList) ->
-  lists:sort(
-    fun(#{start := StartA}, #{start := StartB}) ->
-      StartA < StartB end,
-    ParamList).
-
-find_contiguous(ParamList) ->
-  F = fun(#{start := Start, as := As, db_number := DB, dtype := DType} = E,
-      {LastStart, Current = #{aliases := CAs, amount := CAmount, db_number := CDB, dtype := CType}, Partitions}) ->
-%%    lager:info("E: ~p", [E]),
-    case (DType == CType) andalso (DB == CDB) andalso (LastStart + word_len_size(DType) == Start) of
-      true ->
-        NewCurrent = Current#{amount => CAmount+1, aliases => CAs++[{As, DType}]},
-        {Start, NewCurrent, Partitions};
-      false ->
-        {Start, E#{aliases => [{As, DType}]}, Partitions++[Current]}
-    end
-      end,
-  {_Last, Current, [_|Parts]} =
-  lists:foldl(F, {-2, #{aliases => [], amount => 0, db_number => -1, dtype => nil}, []}, ParamList),
-  All = [Current|Parts],
-  lager:warning("All: ~p",[All]),
-  FAs = fun(#{aliases := Aliases}) -> Aliases end,
-  AliasesList = lists:map(FAs, All),
-  AddressPartitions = [maps:without([aliases, as, dtype], M) || M <- All],
-  {AddressPartitions, AliasesList}.
-
-word_len_size(bool) -> 1;
-word_len_size(byte) -> 1;
-word_len_size(char) -> 1;
-word_len_size(word) -> 2;
-word_len_size(int) -> 1;
-word_len_size(d_word) -> 4;
-word_len_size(d_int) -> 4;
-word_len_size(float) -> 4;
-word_len_size(timer) -> 4;
-word_len_size(counter) -> 4.
 
 process(_In, #data_batch{points = _Points} = _Batch, State = #state{}) ->
   {ok, State};
@@ -240,37 +179,83 @@ maybe_emit(true, Result, Aliases, LastList, State) ->
   Out = build_point(ResValues, ResAliases),
   {emit, {1, Out}, State}.
 
-build_addresses(Addresses) ->
-  ParamList = [s7addr:parse(Address) || Address <- Addresses],
-  Splitted = [maps:take(dtype, Map) || Map <- ParamList],
-  TypeList = [K || {K, _P} <- Splitted],
-  PList = [P || {_K, P} <- Splitted],
-  C = byte_count(PList),
-  lager:warning("bitcount: ~p",[C]),
-%%  lager:notice("bit dbs are : ~p",[find_contiguous(PList)]),
-  {PList, TypeList}.
+build_addresses(Addresses, As) ->
+  PList = [s7addr:parse(Address) || Address <- Addresses],
+  %% inject Aliases into parameter maps
+  AsAdds = lists:zip(As, PList),
+  F = fun({Alias, Params}) -> Params#{as => Alias} end,
+  WithAs = lists:map(F, AsAdds),
+  PartitionFun =
+    fun(#{dtype := Dtype} = E, Acc) ->
+      case maps:is_key(Dtype, Acc) of
+        true -> Acc#{Dtype => [E|maps:get(Dtype, Acc)]};
+        false -> Acc#{Dtype => [E]}
+      end
+    end,
+  Splitted = lists:foldl(PartitionFun, #{}, WithAs),
+%%  [lager:notice("Splitted: ~p", [S]) || S <- maps:to_list(Splitted)],
+  %% sort by starts
+  ParamsSorted =
+    lists:flatten(
+      lists:map(fun({_Type, L}) -> sort_by_start(L) end, maps:to_list(Splitted))
+    ),
+%%  [lager:notice("Flattened Sorted: ~p", [S]) || S <- ParamsSorted],
+  %% find contiguous starts
+  find_contiguous(ParamsSorted).
 
-byte_count(VarList) ->
-  byte_count(VarList, 0).
-byte_count([], Acc) ->
+%% sort a list of parsed s7 address maps by (db_number+)start
+sort_by_start(ParamList) ->
+  lists:sort(
+    fun(#{start := StartA, db_number := DbA}, #{start := StartB, db_number := DbB}) ->
+      %% we multiple the db_number by 10000 to avoid getting db-start addresses mixed up accidentally
+      (DbA*10000 + StartA) < (DbB*10000 + StartB) end,
+    ParamList).
+
+find_contiguous(ParamList) ->
+  F = fun(#{start := Start, as := As, db_number := DB, dtype := DType} = E,
+      {LastStart, Current = #{aliases := CAs, amount := CAmount, db_number := CDB, dtype := CType}, Partitions}) ->
+    case (DType == CType) andalso (DB == CDB) andalso (LastStart + word_len_size(DType) == Start) of
+      true ->
+        NewCurrent = Current#{amount => CAmount+1, aliases => CAs++[{As, DType}]},
+        {Start, NewCurrent, Partitions};
+      false ->
+        {Start, E#{aliases => [{As, DType}]}, Partitions++[Current]}
+    end
+      end,
+  {_Last, Current, [_|Parts]} =
+    lists:foldl(F, {-2, #{aliases => [], amount => 0, db_number => -1, dtype => nil}, []}, ParamList),
+  All = [Current|Parts],
+  FAs = fun(#{aliases := Aliases}) -> Aliases end,
+  AliasesList = lists:map(FAs, All),
+  AddressPartitions = [maps:without([aliases, as, dtype], M) || M <- All],
+  {AddressPartitions, AliasesList}.
+
+word_len_size(bool) -> 1;
+word_len_size(byte) -> 1;
+word_len_size(char) -> 1;
+word_len_size(word) -> 2;
+word_len_size(int) -> 1;
+word_len_size(d_word) -> 4;
+word_len_size(d_int) -> 4;
+word_len_size(float) -> 4;
+word_len_size(timer) -> 4;
+word_len_size(counter) -> 4.
+
+bit_count(VarList) ->
+  bit_count(VarList, 0).
+bit_count([], Acc) ->
   Acc;
-byte_count([#{word_len := bit}|Rest], Acc) ->
-  byte_count(Rest, Acc + 1);
-byte_count([#{word_len := byte}|Rest], Acc) ->
-  byte_count(Rest, Acc + 8);
-byte_count([#{word_len := word}|Rest], Acc) ->
-  byte_count(Rest, Acc + 16);
-byte_count([#{word_len := d_word}|Rest], Acc) ->
-  byte_count(Rest, Acc + 32);
-byte_count([#{word_len := real}|Rest], Acc) ->
-  byte_count(Rest, Acc + 32).
+bit_count([#{word_len := bit}|Rest], Acc) ->
+  bit_count(Rest, Acc + 1);
+bit_count([#{word_len := byte}|Rest], Acc) ->
+  bit_count(Rest, Acc + 8);
+bit_count([#{word_len := word}|Rest], Acc) ->
+  bit_count(Rest, Acc + 16);
+bit_count([#{word_len := d_word}|Rest], Acc) ->
+  bit_count(Rest, Acc + 32);
+bit_count([#{word_len := real}|Rest], Acc) ->
+  bit_count(Rest, Acc + 32).
 
-
-split([], _) -> [];
-split(L, N) when length(L) < N -> [L];
-split(L, N) ->
-  {A, B} = lists:split(N, L),
-  [A | split(B, N)].
 
 build_point(ResultList, AliasesList) when is_list(ResultList), is_list(AliasesList) ->
   lager:notice("RESULT: ~p~n",[lists:zip(ResultList, AliasesList)]),
@@ -284,17 +269,6 @@ do_build(Point=#data_point{}, [Res|R], [Aliases|AliasesList]) ->
   lager:notice("DataList: ~p",[DataList]),
   NewPoint = flowdata:set_fields(Point, As, DataList),
   do_build(NewPoint, R, AliasesList).
-
-%%%%%%%%%%%%%%
-%%build_point(ResultList, AliasList) when is_list(ResultList), is_list(AliasList) ->
-%%  build(#data_point{ts=faxe_time:now()}, ResultList, AliasList).
-%%
-%%build(Point=#data_point{}, [], []) ->
-%%  Point;
-%%build(Point=#data_point{}, [Res|R],[{Alias, DType}|A]) ->
-%%  NewPoint = flowdata:set_field(Point, Alias, decode(DType, Res)),
-%%  build(NewPoint, R, A).
-
 
 decode(bool, Data) ->
   binary_to_list(Data);
