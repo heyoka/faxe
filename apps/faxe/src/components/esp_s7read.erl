@@ -77,16 +77,32 @@ init(_NodeId, _Ins,
   F = fun({Alias, Params}) -> Params#{as => Alias} end,
   WithAs = lists:map(F, AsAdds),
   %lager:notice("Aliases injected: ~p", [WithAs]),
+  PartitionFun = fun(#{dtype := Dtype} = E, Acc) ->
+    case maps:is_key(Dtype, Acc) of
+      true -> Acc#{Dtype => [E|maps:get(Dtype, Acc)]};
+      false -> Acc#{Dtype => [E]}
+    end
+    end,
+  Splitted = lists:foldl(PartitionFun, #{}, WithAs),
+  [lager:notice("Splitted: ~p", [S]) || S <- maps:to_list(Splitted)],
   %% sort by starts
-  ParamsSorted = lists:usort(fun(#{start := StartA}, #{start := StartB}) -> StartA < StartB end, WithAs),
+
+
+  ParamsSorted =
+    lists:flatten(
+      lists:map(fun({_Type, L}) -> sort_by_start(L) end, maps:to_list(Splitted))
+    ),
+%%  [lager:notice("Sorted: ~p", [S]) || S <- ParamsSorted],
+  [lager:notice("Flattened Sorted: ~p", [S]) || S <- ParamsSorted],
+
 %%  lager:notice("Sorted: ~p", [ParamsSorted]),
   %% find contiguous starts
   {Parts, AliasesList} = find_contiguous(ParamsSorted),
-%%  lager:info("~p VARS reduced to : ~p",[length(ParamsSorted), length(Parts)]),
-%%  [lager:notice("Partition: ~p", [Part]) || Part <- Parts],
+  lager:info("~p VARS reduced to : ~p",[length(ParamsSorted), length(Parts)]),
+  [lager:notice("Partition: ~p", [Part]) || Part <- Parts],
 
   %[lager:notice("Aliases: ~p", [Aliases]) || Aliases <- AliasesList],
-  erlang:send_after(0, self(), do_reconnect),
+%%  erlang:send_after(0, self(), do_reconnect),
 
   {ok, all,
     #state{
@@ -102,11 +118,17 @@ init(_NodeId, _Ins,
       vars = Parts}
   }.
 
+sort_by_start(ParamList) ->
+  lists:sort(
+    fun(#{start := StartA}, #{start := StartB}) ->
+      StartA < StartB end,
+    ParamList).
+
 find_contiguous(ParamList) ->
   F = fun(#{start := Start, as := As, db_number := DB, dtype := DType} = E,
       {LastStart, Current = #{aliases := CAs, amount := CAmount, db_number := CDB, dtype := CType}, Partitions}) ->
 %%    lager:info("E: ~p", [E]),
-    case (DType == CType) andalso (DB == CDB) andalso (LastStart + 1 == Start) of
+    case (DType == CType) andalso (DB == CDB) andalso (LastStart + word_len_size(DType) == Start) of
       true ->
         NewCurrent = Current#{amount => CAmount+1, aliases => CAs++[{As, DType}]},
         {Start, NewCurrent, Partitions};
@@ -123,6 +145,16 @@ find_contiguous(ParamList) ->
   AddressPartitions = [maps:without([aliases, as, dtype], M) || M <- All],
   {AddressPartitions, AliasesList}.
 
+word_len_size(bool) -> 1;
+word_len_size(byte) -> 1;
+word_len_size(char) -> 1;
+word_len_size(word) -> 2;
+word_len_size(int) -> 1;
+word_len_size(d_word) -> 4;
+word_len_size(d_int) -> 4;
+word_len_size(float) -> 4;
+word_len_size(timer) -> 4;
+word_len_size(counter) -> 4.
 
 process(_In, #data_batch{points = _Points} = _Batch, State = #state{}) ->
   {ok, State};
