@@ -241,7 +241,8 @@ do_stop(#state{running = Running, nodes = Nodes, id = _Id}) ->
       %% stop all components
       true -> lists:foreach(fun({_NodeId, NPid}) -> NPid ! stop end, Nodes);
       false -> ok
-   end.
+   end,
+   timer:sleep(1000).
 
 build_node(Graph, {NodeId, Component}) ->
    build_node(Graph, {NodeId, Component, []});

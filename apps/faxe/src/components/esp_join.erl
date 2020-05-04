@@ -47,7 +47,7 @@ inports() ->
 options() -> [
    {joined, nodes, {ports, [2,3,4,5]}},
    {prefix,     string_list, [<<"">>, <<"">>]},
-   {field_merge, string, undefined},
+   {merge_field, string, undefined},
    %% @todo maybe this should be aligned to wall clock ?
    %% a wall-clock timeout will be set up per time unit to collect all values,
    %% values that do not arrive within the given timeout will be treated as missing, in ms
@@ -59,7 +59,7 @@ options() -> [
 ].
 
 init(NodeId, Ins,
-    #{prefix := Prefix, missing_timeout := MTimeOut, tolerance := Tol, field_merge := FMerge, fill := Fill}) ->
+    #{prefix := Prefix, missing_timeout := MTimeOut, tolerance := Tol, merge_field := FMerge, fill := Fill}) ->
    RowList = proplists:get_keys(Ins),
    RowLength = length(Ins),
    Prefix1 =

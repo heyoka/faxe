@@ -13,7 +13,7 @@ def v2 =
 
 v1
     |join(v2)
-    .field_merge('val')
+    .merge_field('val')
     .tolerance(3s)
     .missing_timeout(3s)
     .fill(none)

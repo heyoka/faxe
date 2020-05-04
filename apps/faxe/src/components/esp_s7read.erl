@@ -78,7 +78,7 @@ init(_NodeId, _Ins,
 
   lager:info("~p VARS reduced to : ~p",[length(Addresses), length(Parts)]),
   [lager:notice("Partition: ~p", [Part]) || Part <- Parts],
-%%  erlang:send_after(0, self(), do_reconnect),
+  erlang:send_after(0, self(), do_reconnect),
 
   {ok, all,
     #state{
@@ -141,6 +141,7 @@ handle_info(_E, S) ->
   {ok, S#state{}}.
 
 shutdown(#state{client = Client, timer = Timer}) ->
+  lager:warning("s7read shutdown"),
   catch (faxe_time:timer_cancel(Timer)),
   catch (snapclient:disconnect(Client)),
   catch (snapclient:stop(Client)).

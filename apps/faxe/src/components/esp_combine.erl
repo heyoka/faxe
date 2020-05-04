@@ -38,7 +38,8 @@
    row_buffer = undefined,
    row_aliases = [],
    prefix,
-   name_param
+   name_param,
+   merge_field
 }).
 
 inports() ->
@@ -49,17 +50,21 @@ inports() ->
 
 options() -> [
    {combined, node, {port, 2}},
-   {fields, string_list},
+   {fields, string_list, undefined},
    {tags, string_list, undefined},
    {aliases, string_list, undefined},
    {prefix, binary, undefined},
-   {prefix_delimiter, binary, ?PREFIX_DEL}].
+   {prefix_delimiter, binary, ?PREFIX_DEL},
+   {merge_field, binary, undefined}
+      ].
 
 check_options() ->
    [
-      %{one_of_params, [fields, tags, prefix]}
+      {one_of_params, [fields, merge_field]}
    ].
 
+init(NodeId, _Ins, #{fields := undefined, merge_field := MergeField}) ->
+   {ok, all, #state{node_id = NodeId, merge_field = MergeField}};
 init(NodeId, _Ins, #{fields := Fields, aliases := Aliases, prefix := Prefix, prefix_delimiter := PFL}) ->
    Asses =
    case Aliases of
@@ -78,14 +83,15 @@ init(NodeId, _Ins, #{fields := Fields, aliases := Aliases, prefix := Prefix, pre
 %% trigger port
 process(1, #data_point{} = _Point, State = #state{row_buffer = undefined}) ->
    {ok, State};
+process(1, #data_point{} = Point, State = #state{fields = undefined, row_buffer = Buffer, merge_field = MergeField}) ->
+   Merged = merge(Point, Buffer, MergeField),
+   {emit, Merged, State};
 process(1, #data_point{} = Point, State = #state{fields = Fs, row_buffer = Buffer, name_param = NP}) ->
    Combined = combine(Point, Buffer, Fs, NP),
    {emit, Combined, State}
 ;
 process(2, #data_point{} = Point, State = #state{}) ->
-   {ok, State#state{row_buffer = Point}}
-;
-
+   {ok, State#state{row_buffer = Point}};
 process(_Port, #data_batch{}, State = #state{}) ->
    {ok, State}.
 
@@ -100,6 +106,15 @@ combine(Point=#data_point{}, SPoint=#data_point{}, Fields, Names) when is_list(N
       proplists:get_value(FName, Param)
        end,
    trans(Point, SPoint, Fields, N, Names).
+
+merge(P = #data_point{fields = PointFields}, #data_point{fields = SFields}, all) ->
+   NewFields = flowdata:merge(PointFields, SFields),
+   P#data_point{fields = NewFields};
+merge(P=#data_point{}, SPoint=#data_point{}, Field) ->
+   FieldData = flowdata:field(SPoint, Field),
+   PFieldData = flowdata:field(P, Field),
+   lager:notice("merge: ~n~p with ~n~p", [PFieldData, FieldData]),
+   flowdata:set_field(P, Field, flowdata:merge(PFieldData, FieldData)).
 
 
 trans(Point, SPoint, Fields, ToNameFun, Params) ->
