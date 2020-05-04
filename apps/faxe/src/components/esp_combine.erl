@@ -113,7 +113,7 @@ merge(P = #data_point{fields = PointFields}, #data_point{fields = SFields}, all)
 merge(P=#data_point{}, SPoint=#data_point{}, Field) ->
    FieldData = flowdata:field(SPoint, Field),
    PFieldData = flowdata:field(P, Field),
-   lager:notice("merge: ~n~p with ~n~p", [PFieldData, FieldData]),
+%%   lager:notice("merge: ~n~p with ~n~p", [PFieldData, FieldData]),
    flowdata:set_field(P, Field, flowdata:merge(PFieldData, FieldData)).
 
 

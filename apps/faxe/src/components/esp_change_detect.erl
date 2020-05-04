@@ -37,15 +37,21 @@
 
 options() -> [
    {fields, binary_list, undefined},
-   {reset_timeout, duration, <<"3h">>},
+   {reset_timeout, duration, undefined},
    {timeout, duration, undefined}
 ].
 
-init(_NodeId, _Ins, #{fields := FieldList, reset_timeout := ResetTimeout, timeout := Timeout}) ->
-   ResetTime = faxe_time:duration_to_ms(ResetTimeout),
-   TimeOut = faxe_time:duration_to_ms(Timeout),
-   lager:notice("reset_timeout: ~p",[ResetTime]),
-   lager:notice("timeout: ~p",[TimeOut]),
+init(_NodeId, _Ins, #{fields := FieldList, reset_timeout := ResetTimeout, timeout := TOut}) ->
+   ResetTime =
+      case ResetTimeout of
+         undefined -> undefined;
+         _ -> faxe_time:duration_to_ms(ResetTimeout)
+      end,
+   TimeOut =
+      case TOut of
+         undefined -> undefined;
+         _ -> faxe_time:duration_to_ms(TOut)
+      end,
    Timer = start_timeout(TimeOut),
    {ok, all, #state{fields = FieldList, reset_timeout = ResetTime, timeout = TimeOut, timer = Timer}}.
 

@@ -69,11 +69,11 @@ init(_NodeId, _Ins,
   Reconnector = faxe_backoff:new(
     {?RECON_MIN_INTERVAL, ?RECON_MAX_INTERVAL, ?RECON_MAX_RETRIES}),
 
-  {PList, TypeList} = Ads = build_addresses(Addresses),
-  F = fun(AsString, #{db_number := DB, start := Start}) -> {AsString, {DB, Start}} end,
-  AsAdds = lists:zipwith(F, As, PList),
-  lager:notice("Addresses: ~p", [Ads]),
-  lager:notice("Addresses with db-starts: ~p", [AsAdds]),
+  {PList, TypeList} = build_addresses(Addresses),
+%%  F = fun(AsString, #{db_number := DB, start := Start}) -> {AsString, {DB, Start}} end,
+%%  AsAdds = lists:zipwith(F, As, PList),
+%%  lager:notice("Addresses: ~p", [Ads]),
+%%  lager:notice("Addresses with db-starts: ~p", [AsAdds]),
 
   erlang:send_after(0, self(), do_reconnect),
 
@@ -102,8 +102,8 @@ handle_info(poll,
 %%  lager:notice("opts  are: ~p",[Opts]),
   case (catch snapclient:read_multi_vars(Client, Opts)) of
     {ok, Res} ->
-      {ok, ExecTime} = snapclient:get_exec_time(Client),
-      lager:notice("got data form s7 in: ~pms~n~p", [ExecTime, Res]),
+%%      {ok, ExecTime} = snapclient:get_exec_time(Client),
+%%      lager:notice("got data form s7 in: ~pms~n~p", [ExecTime, Res]),
       NewTimer = faxe_time:timer_next(Timer),
       NewState = State#state{timer = NewTimer, last_values = Res},
       maybe_emit(Diff, Res, Aliases, LastList, NewState);
@@ -180,44 +180,10 @@ build_addresses(Addresses) ->
   Splitted = [maps:take(dtype, Map) || Map <- ParamList],
   TypeList = [K || {K, _P} <- Splitted],
   PList = [P || {_K, P} <- Splitted],
-  C = byte_count(PList),
-  lager:warning("bitcount: ~p",[C]),
-  lager:notice("bit dbs are : ~p",[find_contiguous(PList)]),
+%%  C = byte_count(PList),
+%%  lager:warning("bitcount: ~p",[C]),
+%%  lager:notice("bit dbs are : ~p",[find_contiguous(PList)]),
   {PList, TypeList}.
-
-%% @doc finds contiguous db addresses of type bool
-find_contiguous(PList) ->
-  DBList =
-  lists:foldl(
-    fun
-      (#{word_len := bit, db_number := Db, start := Start}, Acc) ->
-        NewDb =
-        case proplists:get_value(Db, Acc, nil) of
-          nil -> [Start];
-          Dbs -> [Start] ++ Dbs
-        end,
-        [{Db, NewDb} | proplists:delete(Db, Acc)];
-      (_, Acc) -> Acc
-    end,
-    [],
-    PList
-  ),
-  [{DbNumber, lists:sort(Starts)} || {DbNumber, Starts} <- DBList].
-
-byte_count(VarList) ->
-  byte_count(VarList, 0).
-byte_count([], Acc) ->
-  Acc;
-byte_count([#{word_len := bit}|Rest], Acc) ->
-  byte_count(Rest, Acc + 1);
-byte_count([#{word_len := byte}|Rest], Acc) ->
-  byte_count(Rest, Acc + 8);
-byte_count([#{word_len := word}|Rest], Acc) ->
-  byte_count(Rest, Acc + 16);
-byte_count([#{word_len := d_word}|Rest], Acc) ->
-  byte_count(Rest, Acc + 32);
-byte_count([#{word_len := real}|Rest], Acc) ->
-  byte_count(Rest, Acc + 32).
 
 
 split([], _) -> [];
