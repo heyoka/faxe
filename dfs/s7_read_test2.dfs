@@ -1,0 +1,101 @@
+def plc_host = '192.168.121.201'
+def rack = 0
+def slot = 1
+def interval = 1s
+def db_number = '13'
+def db = 'DB{{db_number}}.DB'
+def pre = 'data.'
+%% cpu s71517f
+def s7_1 =
+    |s7read()
+    .ip(plc_host)
+    .rack(rack)
+    .slot(slot)
+    .every(interval).align()
+    .vars(
+        '{{db}}X30.0', '{{db}}X30.1',
+        '{{db}}X30.2', '{{db}}X30.3',
+        '{{db}}X30.4', '{{db}}X30.5',
+        '{{db}}X30.6', '{{db}}X30.7',
+        '{{db}}X31.0', '{{db}}X31.1',
+
+        '{{db}}X33.0', '{{db}}X33.1',
+        '{{db}}X33.2', '{{db}}X33.3',
+        '{{db}}X33.5', '{{db}}X33.6',
+        '{{db}}X33.7', '{{db}}X34.3',
+
+        '{{db}}X34.4', '{{db}}X34.5',
+        '{{db}}X34.7', '{{db}}X35.1',
+        '{{db}}X35.2', '{{db}}X35.3',
+        '{{db}}X35.4', '{{db}}X35.5',
+        '{{db}}X35.6',
+
+        '{{db}}W36', '{{db}}W38',
+        '{{db}}W40', '{{db}}W42',
+        '{{db}}W44', '{{db}}W46',
+        '{{db}}W48', '{{db}}W50',
+
+
+        '{{db}}W52', '{{db}}W54',
+        '{{db}}W56', '{{db}}W58',
+        '{{db}}W60', '{{db}}W78',
+        '{{db}}W80', '{{db}}W82',
+
+        %% Module Data
+        '{{db}}X0.0', '{{db}}X0.2',
+        '{{db}}X0.3', '{{db}}X0.4',
+        '{{db}}X0.5', '{{db}}X0.6',
+
+        '{{db}}W2', '{{db}}D4',
+        '{{db}}W8', '{{db}}W10',
+
+        '{{db}}D62', '{{db}}D66',
+        '{{db}}D70', '{{db}}D74'
+        )
+    .as(
+        '{{pre}}DcrgZo1Occ', '{{pre}}DcrgZo2Occ',
+        '{{pre}}ChZZo2Occ', '{{pre}}GapChkRear',
+        '{{pre}}MtSw', '{{pre}}CcRdy',
+        '{{pre}}DcrgZo1', '{{pre}}DcrgZo2',
+        '{{pre}}TrspFrontP2toP1', '{{pre}}TrspFront',
+
+        '{{pre}}TiOutDcrgZo1', '{{pre}}DrvInop',
+        '{{pre}}TiOutCrgZo', '{{pre}}TiOutDcrgZo2',
+        '{{pre}}KdrFuncErr', '{{pre}}GapChkErr',
+        '{{pre}}TiOutLb', '{{pre}}CcNotRdy',
+
+        '{{pre}}MtSwOff', '{{pre}}TiOutReqOff',
+        '{{pre}}ModParaErr', '{{pre}}KdrMc1',
+        '{{pre}}KdrMc2', '{{pre}}KdrMc3',
+        '{{pre}}KdrMc4', '{{pre}}KdrMc5',
+        '{{pre}}KdrMc6',
+
+        '{{pre}}KdrCcNo', '{{pre}}Kdr.McNo1',
+        '{{pre}}Kdr.ErrCode1', '{{pre}}Kdr.McNo2',
+        '{{pre}}Kdr.ErrCode2', '{{pre}}Kdr.McNo3',
+        '{{pre}}Kdr.ErrCode3', '{{pre}}Kdr.McNo4',
+
+        '{{pre}}Kdr.ErrCode4', '{{pre}}Kdr.McNo5',
+        '{{pre}}Kdr.ErrCode5', '{{pre}}Kdr.McNo6',
+        '{{pre}}Kdr.ErrCode6', '{{pre}}Vel',
+        '{{pre}}Acc', '{{pre}}Fill',
+
+         %% Module Data
+        '{{pre}}State.Err', '{{pre}}State.Off',
+        '{{pre}}State.Manual', '{{pre}}State.Msg',
+        '{{pre}}State.Auto', '{{pre}}State.AutoRdy',
+
+        '{{pre}}Module.VerNo', '{{pre}}Module.ModNo',
+        '{{pre}}Module.ModType', '{{pre}}Module.LacNo',
+
+        '{{pre}}OpHrRet', '{{pre}}OpHr',
+        '{{pre}}CycCntRet', '{{pre}}CycCnt'
+
+        )
+
+
+
+|change_detect()
+.timeout(30s)
+
+|debug()
