@@ -16,7 +16,7 @@
 -include("faxe.hrl").
 %% API
 -export([init/3, process/3, options/0, handle_info/2, shutdown/1, maybe_emit/5,
-  check_options/0, build_addresses/2, build_point/2, test_build/0]).
+  check_options/0, build_addresses/2, build_point/2]).
 
 -define(MAX_READ_ITEMS, 19).
 
@@ -54,11 +54,11 @@ options() -> [
 
 check_options() ->
   [
-    {func, vars,
-      fun(List) -> {P, _} = build_addresses(List, lists:seq(1, length(List))),
-        length(P) =< ?MAX_READ_ITEMS end,
-      <<", has to many address items">>
-    }
+%%    {func, vars,
+%%      fun(List) -> {P, _} = build_addresses(List, lists:seq(1, length(List))),
+%%        length(P) =< ?MAX_READ_ITEMS end,
+%%      <<", has to many address items">>
+%%    }
   ].
 
 init(_NodeId, _Ins,
@@ -74,10 +74,12 @@ init(_NodeId, _Ins,
 
   Reconnector = faxe_backoff:new(
     {?RECON_MIN_INTERVAL, ?RECON_MAX_INTERVAL, ?RECON_MAX_RETRIES}),
-  {Parts, AliasesList} = build_addresses(Addresses, As),
+  {T, {Parts, AliasesList}} = timer:tc(?MODULE, build_addresses, [Addresses, As]),
+%%  lager:info("~p",[Addresses]),
 
-  lager:info("~p VARS reduced to : ~p",[length(Addresses), length(Parts)]),
+  lager:info("~p VARS reduced to : ~p in ~p my with bit-size: ~p",[length(Addresses), length(Parts), T, bit_count(Parts)]),
   [lager:notice("Partition: ~p", [Part]) || Part <- Parts],
+  [lager:notice("Aliases: ~p", [Part]) || Part <- AliasesList],
   erlang:send_after(0, self(), do_reconnect),
 
   {ok, all,
@@ -187,22 +189,71 @@ build_addresses(Addresses, As) ->
   F = fun({Alias, Params}) -> Params#{as => Alias} end,
   WithAs = lists:map(F, AsAdds),
   PartitionFun =
-    fun(#{dtype := Dtype} = E, Acc) ->
+    fun(#{dtype := Dtype, start := Start} = E, Acc) ->
+      Ele =
+      case Dtype == bool of
+        true -> E#{byte_num => erlang:trunc(Start/8), bit_num => Start rem 8};
+        false -> E
+      end,
       case maps:is_key(Dtype, Acc) of
-        true -> Acc#{Dtype => [E|maps:get(Dtype, Acc)]};
-        false -> Acc#{Dtype => [E]}
+        true -> Acc#{Dtype => [Ele|maps:get(Dtype, Acc)]};
+        false -> Acc#{Dtype => [Ele]}
       end
     end,
   Splitted = lists:foldl(PartitionFun, #{}, WithAs),
+
+%%  lists:foreach(fun({_T, Adds}) -> [lager:notice("A: ~p",[ASplit]) || ASplit <- Adds] end, maps:to_list(Splitted)),
 %%  [lager:notice("Splitted: ~p", [S]) || S <- maps:to_list(Splitted)],
+
+  {Bools, NonBools} =
+  case maps:take(bool, Splitted) of
+    error -> {[], Splitted};
+    Other -> Other
+  end,
+
+%%    maps:get(bool, Splitted),
+%%  lager:notice("Bool: ~p", [Bools]),
+  BoolsSorted = sort_by_start(Bools),
+%%  lager:notice("Bools Sorted: ~p", [BoolsSorted]),
+  {BoolParts, BoolAliases} = find_bool_bytes(BoolsSorted),
+
   %% sort by starts
-  ParamsSorted =
-    lists:flatten(
-      lists:map(fun({_Type, L}) -> sort_by_start(L) end, maps:to_list(Splitted))
-    ),
+  ParamsSorted = lists:flatmap(fun({_Type, L}) -> sort_by_start(L) end, maps:to_list(NonBools)),
 %%  [lager:notice("Flattened Sorted: ~p", [S]) || S <- ParamsSorted],
   %% find contiguous starts
-  find_contiguous(ParamsSorted).
+  {NonBoolParts, NonBoolAliases} = find_contiguous(ParamsSorted),
+  {BoolParts ++ NonBoolParts, BoolAliases ++ NonBoolAliases}.
+
+find_bool_bytes([]) -> {[],[]};
+find_bool_bytes(Bools) ->
+  CFun = fun(#{byte_num := Byte, db_number := DB, as := As, bit_num := Bit} = E,
+      {LastByte, Current = #{aliases := CAs, db_number := CDB, amount := CAmount, start := CStartByte}, Partitions}) ->
+    case (DB == CDB) andalso (LastByte == Byte orelse (Byte == LastByte + 1 andalso Bit == 0)) of
+      true ->
+        NewCurrent0 = Current#{aliases => CAs++[{As, bool_byte, (Bit+(Byte-CStartByte)*8)}]},
+        NewCurrent =
+        case LastByte + 1 == Byte of
+          true -> NewCurrent0#{amount => CAmount+1};
+          false -> NewCurrent0
+        end,
+        {Byte, NewCurrent, Partitions};
+      false ->
+        {Byte,
+          E#{amount => 1, start => Byte, word_len => byte,
+            aliases => [{As, bool_byte, Bit}]}, Partitions++[Current]}
+    end
+         end,
+  {_Last, Current, [_|Parts]} =
+    lists:foldl(CFun, {-2, #{aliases => [], amount => 0, db_number => -1, start => -2}, []}, Bools),
+
+  All = Parts ++ [Current],
+  FAs = fun(#{aliases := Aliases}) -> Aliases end,
+  AliasesList = lists:map(FAs, All),
+  AddressPartitions = [maps:without([aliases, as, dtype, byte_num, bit_num], M) || M <- All],
+  {AddressPartitions, AliasesList}
+%%  lager:notice("~nAddressPartitions: ~p~nAliasesList: ~p", [AddressPartitions, AliasesList])
+.
+
 
 %% sort a list of parsed s7 address maps by (db_number+)start
 sort_by_start(ParamList) ->
@@ -212,6 +263,7 @@ sort_by_start(ParamList) ->
       (DbA*10000 + StartA) < (DbB*10000 + StartB) end,
     ParamList).
 
+find_contiguous([]) -> {[], []};
 find_contiguous(ParamList) ->
   F = fun(#{start := Start, as := As, db_number := DB, dtype := DType} = E,
       {LastStart, Current = #{aliases := CAs, amount := CAmount, db_number := CDB, dtype := CType}, Partitions}) ->
@@ -246,16 +298,16 @@ bit_count(VarList) ->
   bit_count(VarList, 0).
 bit_count([], Acc) ->
   Acc;
-bit_count([#{word_len := bit}|Rest], Acc) ->
-  bit_count(Rest, Acc + 1);
-bit_count([#{word_len := byte}|Rest], Acc) ->
-  bit_count(Rest, Acc + 8);
-bit_count([#{word_len := word}|Rest], Acc) ->
-  bit_count(Rest, Acc + 16);
-bit_count([#{word_len := d_word}|Rest], Acc) ->
-  bit_count(Rest, Acc + 32);
-bit_count([#{word_len := real}|Rest], Acc) ->
-  bit_count(Rest, Acc + 32).
+bit_count([#{word_len := bit, amount := Amount}|Rest], Acc) ->
+  bit_count(Rest, Acc + 1*Amount);
+bit_count([#{word_len := byte, amount := Amount}|Rest], Acc) ->
+  bit_count(Rest, Acc + 8*Amount);
+bit_count([#{word_len := word, amount := Amount}|Rest], Acc) ->
+  bit_count(Rest, Acc + 16*Amount);
+bit_count([#{word_len := d_word, amount := Amount}|Rest], Acc) ->
+  bit_count(Rest, Acc + 32*Amount);
+bit_count([#{word_len := real, amount := Amount}|Rest], Acc) ->
+  bit_count(Rest, Acc + 32*Amount).
 
 
 build_point(ResultList, AliasesList) when is_list(ResultList), is_list(AliasesList) ->
@@ -265,15 +317,32 @@ build_point(ResultList, AliasesList) when is_list(ResultList), is_list(AliasesLi
 do_build(Point=#data_point{}, [], []) ->
   Point;
 do_build(Point=#data_point{}, [Res|R], [Aliases|AliasesList]) ->
-  {As, [DType|_]} = lists:unzip(Aliases),
+  {Keys, Values} = bld(Res, Aliases),
+  NewPoint = flowdata:set_fields(Point, Keys, Values),
+%%  {As, [DType|_]} = lists:unzip(Aliases),
+%%  DataList = decode(DType, Res),
+%%  lager:notice("DataList: ~p",[DataList]),
+%%  NewPoint = flowdata:set_fields(Point, As, DataList),
+  do_build(NewPoint, R, AliasesList).
+
+bld(Res, [{_As, _T}|_] = AList) ->
+  {As, [DType|_]} = lists:unzip(AList),
   DataList = decode(DType, Res),
   lager:notice("DataList: ~p",[DataList]),
-  NewPoint = flowdata:set_fields(Point, As, DataList),
-  do_build(NewPoint, R, AliasesList).
+  {As, DataList};
+bld(Res, [{_As, bool_byte, _Bit}|_] = AList) ->
+  {As, _, Bits} = lists:unzip3(AList),
+  DataList = decode(bool_byte, Res),
+  lager:notice("DataList: ~p",[DataList]),
+  BitList = [lists:nth(Bit+1, DataList) || Bit <- Bits],
+  {As, BitList}.
 
 decode(bool, Data) ->
   binary_to_list(Data);
-%%  [X || <<X:1/bits>> <= Data];
+%%  [X || <<X:1>> <= Data];
+decode(bool_byte, Data) ->
+  lists:reverse([X || <<X:1>> <= Data]);
+%%  [Res || <<Res:8/binary>> <= Data];
 decode(byte, Data) ->
   [Res || <<Res:8/binary>> <= Data];
 decode(char, Data) ->
@@ -308,7 +377,64 @@ do_connect(Ip, Rack, Slot) ->
   Client.
 
 
-test_build() ->
-  Data = list_to_binary([0,0,0,1,1,0,0]),
-  lager:info("binary data: ~p",[{Data, binary_to_list(Data)}]),
-  decode(bool, Data).
+
+-ifdef(TEST).
+build_addresses_test() ->
+  L = [
+    <<"DB11136.DBX88.0">>,<<"DB11136.DBX88.1">>,<<"DB11136.DBX88.2">>,<<"DB11136.DBX88.3">>,
+    <<"DB11136.DBX90.0">>,<<"DB11136.DBX90.1">>,<<"DB11136.DBX90.2">>,<<"DB11136.DBX90.3">>,
+    <<"DB11136.DBX90.4">>,<<"DB11136.DBX90.5">>,<<"DB11136.DBX90.6">>,<<"DB11136.DBX90.7">>,
+    <<"DB11136.DBX91.0">>,<<"DB11136.DBX91.1">>,<<"DB11136.DBX91.2">>,<<"DB11136.DBX91.3">>,
+    <<"DB11136.DBX91.7">>,<<"DB11136.DBX92.0">>,<<"DB11136.DBX92.1">>,<<"DB11136.DBX92.2">>,
+    <<"DB11136.DBX92.3">>,<<"DB11136.DBX92.4">>,<<"DB11136.DBX92.5">>,<<"DB11136.DBX92.6">>,
+    <<"DB11136.DBX92.7">>,<<"DB11136.DBX93.0">>,<<"DB11136.DBX93.1">>,<<"DB11136.DBX93.2">>,
+    <<"DB11136.DBX93.3">>,<<"DB11136.DBX93.4">>,<<"DB11136.DBX93.5">>,<<"DB11136.DBX93.6">>,
+    <<"DB11136.DBX93.7">>,<<"DB11136.DBX94.0">>,<<"DB11136.DBX94.1">>,<<"DB11136.DBW96">>,
+    <<"DB11136.DBW98">>,<<"DB11136.DBX100.0">>,<<"DB11136.DBX100.1">>,<<"DB11136.DBX100.2">>,
+    <<"DB11136.DBX100.4">>,<<"DB11136.DBX100.5">>,<<"DB11136.DBX100.6">>,<<"DB11136.DBX100.7">>,
+    <<"DB11136.DBX101.0">>,<<"DB11136.DBX101.1">>,<<"DB11136.DBX101.2">>,<<"DB11136.DBX101.3">>,
+    <<"DB11136.DBX101.4">>,<<"DB11136.DBX101.6">>,<<"DB11136.DBX101.7">>,<<"DB11136.DBX102.0">>,
+    <<"DB11136.DBX102.1">>],
+  As = lists:map(fun(E) -> binary:replace(E, <<".">>, <<"_">>, [global]) end, L),
+  Res = [
+    #{amount => 1,area => db,db_number => 11136,start => 88,word_len => byte},
+    #{amount => 5,area => db,db_number => 11136,start => 90,word_len => byte},
+    #{amount => 3,area => db,db_number => 11136,start => 100,word_len => byte},
+    #{amount => 2,area => db,db_number => 11136,start => 96,word_len => word}
+  ],
+  AliasesList =
+  [
+    [
+      {<<"DB11136_DBX88_0">>,bool_byte,0}, {<<"DB11136_DBX88_1">>,bool_byte,1}, {<<"DB11136_DBX88_2">>,bool_byte,2},
+      {<<"DB11136_DBX88_3">>,bool_byte,3}
+    ],
+    [
+      {<<"DB11136_DBX90_0">>,bool_byte,0}, {<<"DB11136_DBX90_1">>,bool_byte,1}, {<<"DB11136_DBX90_2">>,bool_byte,2},
+      {<<"DB11136_DBX90_3">>,bool_byte,3}, {<<"DB11136_DBX90_4">>,bool_byte,4}, {<<"DB11136_DBX90_5">>,bool_byte,5},
+      {<<"DB11136_DBX90_6">>,bool_byte,6}, {<<"DB11136_DBX90_7">>,bool_byte,7}, {<<"DB11136_DBX91_0">>,bool_byte,8},
+      {<<"DB11136_DBX91_1">>,bool_byte,9}, {<<"DB11136_DBX91_2">>,bool_byte,10}, {<<"DB11136_DBX91_3">>,bool_byte,11},
+      {<<"DB11136_DBX91_7">>,bool_byte,15}, {<<"DB11136_DBX92_0">>,bool_byte,16}, {<<"DB11136_DBX92_1">>,bool_byte,17},
+      {<<"DB11136_DBX92_2">>,bool_byte,18}, {<<"DB11136_DBX92_3">>,bool_byte,19}, {<<"DB11136_DBX92_4">>,bool_byte,20},
+      {<<"DB11136_DBX92_5">>,bool_byte,21}, {<<"DB11136_DBX92_6">>,bool_byte,22}, {<<"DB11136_DBX92_7">>,bool_byte,23},
+      {<<"DB11136_DBX93_0">>,bool_byte,24}, {<<"DB11136_DBX93_1">>,bool_byte,25},  {<<"DB11136_DBX93_2">>,bool_byte,26},
+      {<<"DB11136_DBX93_3">>,bool_byte,27}, {<<"DB11136_DBX93_4">>,bool_byte,28}, {<<"DB11136_DBX93_5">>,bool_byte,29},
+      {<<"DB11136_DBX93_6">>,bool_byte,30}, {<<"DB11136_DBX93_7">>,bool_byte,31}, {<<"DB11136_DBX94_0">>,bool_byte,32},
+      {<<"DB11136_DBX94_1">>,bool_byte,33}
+    ],
+    [
+      {<<"DB11136_DBX100_0">>,bool_byte,0}, {<<"DB11136_DBX100_1">>,bool_byte,1}, {<<"DB11136_DBX100_2">>,bool_byte,2},
+      {<<"DB11136_DBX100_4">>,bool_byte,4}, {<<"DB11136_DBX100_5">>,bool_byte,5}, {<<"DB11136_DBX100_6">>,bool_byte,6},
+      {<<"DB11136_DBX100_7">>,bool_byte,7}, {<<"DB11136_DBX101_0">>,bool_byte,8}, {<<"DB11136_DBX101_1">>,bool_byte,9},
+      {<<"DB11136_DBX101_2">>,bool_byte,10}, {<<"DB11136_DBX101_3">>,bool_byte,11}, {<<"DB11136_DBX101_4">>,bool_byte,12},
+      {<<"DB11136_DBX101_6">>,bool_byte,14}, {<<"DB11136_DBX101_7">>,bool_byte,15}, {<<"DB11136_DBX102_0">>,bool_byte,16},
+      {<<"DB11136_DBX102_1">>,bool_byte,17}
+    ],
+    [
+      {<<"DB11136_DBW96">>,word},{<<"DB11136_DBW98">>,word}
+    ]
+  ],
+  {S7Addrs, Aliases} = build_addresses(L, As),
+  ?assertEqual(Res, S7Addrs),
+  ?assertEqual(AliasesList, Aliases).
+
+-endif.

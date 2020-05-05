@@ -204,10 +204,12 @@ build(Point=#data_point{}, [Res|R],[{Alias, DType}|A]) ->
 
 
 decode(bool, Data) ->
+%%  lager:notice("booldata: ~p",[Data]),
   binary:decode_unsigned(Data);
 decode(byte, Data) ->
-  <<Res:8/binary>> = Data,
-  Res;
+  [X || <<X:1>> <= Data];
+%%  <<Res:8/binary>> = Data,
+%%  Res;
 decode(char, Data) ->
   <<Res:1/binary>> = Data,
   Res; %% maybe to_string ?
