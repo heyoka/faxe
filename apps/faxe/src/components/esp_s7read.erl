@@ -54,11 +54,11 @@ options() -> [
 
 check_options() ->
   [
-%%    {func, vars,
-%%      fun(List) -> {P, _} = build_addresses(List, lists:seq(1, length(List))),
-%%        length(P) =< ?MAX_READ_ITEMS end,
-%%      <<", has to many address items">>
-%%    }
+    {func, vars,
+      fun(List) -> {P, _} = build_addresses(List, lists:seq(1, length(List))),
+        length(P) =< ?MAX_READ_ITEMS end,
+      <<", has to many address items">>
+    }
   ].
 
 init(_NodeId, _Ins,
@@ -75,7 +75,6 @@ init(_NodeId, _Ins,
   Reconnector = faxe_backoff:new(
     {?RECON_MIN_INTERVAL, ?RECON_MAX_INTERVAL, ?RECON_MAX_RETRIES}),
   {T, {Parts, AliasesList}} = timer:tc(?MODULE, build_addresses, [Addresses, As]),
-%%  lager:info("~p",[Addresses]),
 
   lager:info("~p VARS reduced to : ~p in ~p my with bit-size: ~p",[length(Addresses), length(Parts), T, bit_count(Parts)]),
   [lager:notice("Partition: ~p", [Part]) || Part <- Parts],
@@ -182,12 +181,15 @@ maybe_emit(true, Result, Aliases, LastList, State) ->
   Out = build_point(ResValues, ResAliases),
   {emit, {1, Out}, State}.
 
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%% @todo unzip Aliases Lists
 build_addresses(Addresses, As) ->
   PList = [s7addr:parse(Address) || Address <- Addresses],
   %% inject Aliases into parameter maps
   AsAdds = lists:zip(As, PList),
   F = fun({Alias, Params}) -> Params#{as => Alias} end,
   WithAs = lists:map(F, AsAdds),
+  %% partition the list by data-type
   PartitionFun =
     fun(#{dtype := Dtype, start := Start} = E, Acc) ->
       Ele =
@@ -202,24 +204,18 @@ build_addresses(Addresses, As) ->
     end,
   Splitted = lists:foldl(PartitionFun, #{}, WithAs),
 
-%%  lists:foreach(fun({_T, Adds}) -> [lager:notice("A: ~p",[ASplit]) || ASplit <- Adds] end, maps:to_list(Splitted)),
-%%  [lager:notice("Splitted: ~p", [S]) || S <- maps:to_list(Splitted)],
-
+  %% extract bit addresses -> bool
   {Bools, NonBools} =
   case maps:take(bool, Splitted) of
     error -> {[], Splitted};
     Other -> Other
   end,
-
-%%    maps:get(bool, Splitted),
-%%  lager:notice("Bool: ~p", [Bools]),
+  %% sort bools
   BoolsSorted = sort_by_start(Bools),
-%%  lager:notice("Bools Sorted: ~p", [BoolsSorted]),
   {BoolParts, BoolAliases} = find_bool_bytes(BoolsSorted),
 
   %% sort by starts
   ParamsSorted = lists:flatmap(fun({_Type, L}) -> sort_by_start(L) end, maps:to_list(NonBools)),
-%%  [lager:notice("Flattened Sorted: ~p", [S]) || S <- ParamsSorted],
   %% find contiguous starts
   {NonBoolParts, NonBoolAliases} = find_contiguous(ParamsSorted),
   {BoolParts ++ NonBoolParts, BoolAliases ++ NonBoolAliases}.
@@ -251,7 +247,6 @@ find_bool_bytes(Bools) ->
   AliasesList = lists:map(FAs, All),
   AddressPartitions = [maps:without([aliases, as, dtype, byte_num, bit_num], M) || M <- All],
   {AddressPartitions, AliasesList}
-%%  lager:notice("~nAddressPartitions: ~p~nAliasesList: ~p", [AddressPartitions, AliasesList])
 .
 
 
@@ -282,6 +277,7 @@ find_contiguous(ParamList) ->
   AliasesList = lists:map(FAs, All),
   AddressPartitions = [maps:without([aliases, as, dtype], M) || M <- All],
   {AddressPartitions, AliasesList}.
+
 
 word_len_size(bool) -> 1;
 word_len_size(byte) -> 1;
@@ -319,16 +315,11 @@ do_build(Point=#data_point{}, [], []) ->
 do_build(Point=#data_point{}, [Res|R], [Aliases|AliasesList]) ->
   {Keys, Values} = bld(Res, Aliases),
   NewPoint = flowdata:set_fields(Point, Keys, Values),
-%%  {As, [DType|_]} = lists:unzip(Aliases),
-%%  DataList = decode(DType, Res),
-%%  lager:notice("DataList: ~p",[DataList]),
-%%  NewPoint = flowdata:set_fields(Point, As, DataList),
   do_build(NewPoint, R, AliasesList).
 
 bld(Res, [{_As, _T}|_] = AList) ->
   {As, [DType|_]} = lists:unzip(AList),
   DataList = decode(DType, Res),
-  lager:notice("DataList: ~p",[DataList]),
   {As, DataList};
 bld(Res, [{_As, bool_byte, _Bit}|_] = AList) ->
   {As, _, Bits} = lists:unzip3(AList),
@@ -339,10 +330,8 @@ bld(Res, [{_As, bool_byte, _Bit}|_] = AList) ->
 
 decode(bool, Data) ->
   binary_to_list(Data);
-%%  [X || <<X:1>> <= Data];
 decode(bool_byte, Data) ->
   lists:reverse([X || <<X:1>> <= Data]);
-%%  [Res || <<Res:8/binary>> <= Data];
 decode(byte, Data) ->
   [Res || <<Res:8/binary>> <= Data];
 decode(char, Data) ->

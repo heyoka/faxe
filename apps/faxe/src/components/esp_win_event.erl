@@ -2,7 +2,7 @@
 %% Ⓒ 2019 heyoka
 %% @doc
 %% rewrite of window with queue module
-%% this window holds "period" events and emits every "every" incomming event
+%% this window holds "period" events and emits every "every" incoming event
 %% with the "fill_period" option given, the window will only emit full windows
 %%
 -module(esp_win_event).
