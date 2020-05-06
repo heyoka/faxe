@@ -152,7 +152,6 @@ handle_info(_E, S) ->
   {ok, S#state{}}.
 
 shutdown(#state{client = Client, timer = Timer}) ->
-  lager:warning("s7read shutdown"),
   catch (faxe_time:timer_cancel(Timer)),
   catch (snapclient:disconnect(Client)),
   catch (snapclient:stop(Client)).
