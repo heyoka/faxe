@@ -1,0 +1,44 @@
+def plc_host = '192.168.121.201'
+def rack = 0
+def slot = 1
+def interval = 200ms
+def db_number = '11101'
+def db = 'DB{{db_number}}.DB'
+def pre = 'data.'
+%% cpu s71517f
+def s7_1 =
+    |s7read()
+    .ip(plc_host)
+    .rack(rack)
+    .slot(slot)
+    .every(interval).align()
+    .diff()
+    .vars(
+        '{{db}}X30.0', '{{db}}X30.1',
+        '{{db}}X30.2', '{{db}}X30.3',
+        '{{db}}X30.4', '{{db}}X30.5',
+        '{{db}}X30.6', '{{db}}X30.7',
+        '{{db}}X31.0', '{{db}}X31.1',
+
+
+
+
+        '{{db}}W8', '{{db}}W10',
+        '{{db}}D62', '{{db}}D66',
+        '{{db}}D70', '{{db}}D74'
+        )
+    .as(
+        '1', '2',
+        '3', '4',
+        '5', '6',
+        '7', '8',
+        '9', '10',
+
+
+        '11', '12',
+        '13', '14',
+        '15', '16'
+        )
+
+|debug('info')
+

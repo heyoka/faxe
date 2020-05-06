@@ -18,7 +18,7 @@
 -export([init/3, process/3, options/0, handle_info/2, shutdown/1, maybe_emit/5,
   check_options/0, split/2, build_addresses/1, build_point/2]).
 
--define(MAX_READ_ITEMS, 119).
+-define(MAX_READ_ITEMS, 19).
 
 -define(RECON_MIN_INTERVAL, 100).
 -define(RECON_MAX_INTERVAL, 6000).
@@ -70,11 +70,6 @@ init(_NodeId, _Ins,
     {?RECON_MIN_INTERVAL, ?RECON_MAX_INTERVAL, ?RECON_MAX_RETRIES}),
 
   {PList, TypeList} = build_addresses(Addresses),
-%%  F = fun(AsString, #{db_number := DB, start := Start}) -> {AsString, {DB, Start}} end,
-%%  AsAdds = lists:zipwith(F, As, PList),
-%%  lager:notice("Addresses: ~p", [Ads]),
-%%  lager:notice("Addresses with db-starts: ~p", [AsAdds]),
-
   erlang:send_after(0, self(), do_reconnect),
 
   {ok, all,
@@ -102,8 +97,6 @@ handle_info(poll,
 %%  lager:notice("opts  are: ~p",[Opts]),
   case (catch snapclient:read_multi_vars(Client, Opts)) of
     {ok, Res} ->
-%%      {ok, ExecTime} = snapclient:get_exec_time(Client),
-%%      lager:notice("got data form s7 in: ~pms~n~p", [ExecTime, Res]),
       NewTimer = faxe_time:timer_next(Timer),
       NewState = State#state{timer = NewTimer, last_values = Res},
       maybe_emit(Diff, Res, Aliases, LastList, NewState);
@@ -180,9 +173,6 @@ build_addresses(Addresses) ->
   Splitted = [maps:take(dtype, Map) || Map <- ParamList],
   TypeList = [K || {K, _P} <- Splitted],
   PList = [P || {_K, P} <- Splitted],
-%%  C = byte_count(PList),
-%%  lager:warning("bitcount: ~p",[C]),
-%%  lager:notice("bit dbs are : ~p",[find_contiguous(PList)]),
   {PList, TypeList}.
 
 
@@ -204,12 +194,9 @@ build(Point=#data_point{}, [Res|R],[{Alias, DType}|A]) ->
 
 
 decode(bool, Data) ->
-%%  lager:notice("booldata: ~p",[Data]),
   binary:decode_unsigned(Data);
 decode(byte, Data) ->
   [X || <<X:1>> <= Data];
-%%  <<Res:8/binary>> = Data,
-%%  Res;
 decode(char, Data) ->
   <<Res:1/binary>> = Data,
   Res; %% maybe to_string ?
@@ -240,9 +227,5 @@ connect(Ip, Rack, Slot) ->
 do_connect(Ip, Rack, Slot) ->
   {ok, Client} = snapclient:start([]),
   ok = snapclient:connect_to(Client, [{ip, Ip}, {slot, Slot}, {rack, Rack}]),
-  {ok, CPUInfo} = snapclient:get_cpu_info(Client),
-  lager:warning("Connected to PLC : ~p",[CPUInfo]),
-  {ok, NegotiatedLength} = snapclient:get_pdu_length(Client),
-  lager:warning("PDU-Length is : ~p",[NegotiatedLength]),
   erlang:monitor(process, Client),
   Client.
