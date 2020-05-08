@@ -1,10 +1,23 @@
-def in =
-    |value_emitter()
-    .every(3s)
-    .type(point)
+%% if val1
+
+def state =
+    |json_emitter()
+    .every(200ms).align()
+    .json(
+    <<< {"err1": 0, "val2": 132188} >>>,
+    %<<< {"err1": 0, "val2": 123318} >>>,
+   % <<< {"err1": 0, "val2": 13558480} >>>,
+    <<< {"err1": 1, "val2": 6223558} >>>,
+    <<< {"err1": 1, "val2": 32123} >>>
+    )
 
     |state_duration()
-    .lambda(lambda: "val" < 7)
-    .as('value.below.e7')
+    .lambda(lambda: "data.err1" == 1)
+    .emit_total()
+    .keep()
+    |where(lambda: defined("state_time_total"))
+    |set()
+    .fields('write_to_db', 'type', 'id')
+    .field_values('true', 'rollenfehler', 'rolle32')
 
-    |debug()
+    |debug('info')
