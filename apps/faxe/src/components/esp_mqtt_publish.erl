@@ -85,7 +85,7 @@ handle_info(_E, S) ->
    {ok, S}.
 
 shutdown(#state{publisher = P}) ->
-   catch exit(P, stop).
+   catch gen_server:stop(P).
 
 build_message(Point, State) ->
    Json = flowdata:to_json(Point),

@@ -266,11 +266,11 @@ do_check({one_of, Key, ValidOpts}, Opts, Mod) ->
 %% check options with a custom function
 do_check({func, Key, Fun, Message}, Opts, Mod) when is_function(Fun), is_binary(Message)->
    Val = maps:get(Key, Opts, undefined),
-   lager:notice("check func for :~p",[{Key, Val}]),
+%%   lager:notice("check func for :~p",[{Key, Val}]),
    case Fun(Val) of
       true -> ok;
       false -> erlang:error(format_error(invalid_opt, Mod,
-         [<<"Param '">>, atom_to_binary(Key, latin1), <<"' not valid ">>, Message]))
+         [<<"Param '">>, atom_to_binary(Key, latin1), <<"'">>, Message]))
    end;
 do_check(_, _, Mod) ->
    erlang:error(format_error(invalid_check_opts, Mod, <<"unsupported_check_options_type">>)).
@@ -282,6 +282,8 @@ option_error(OptType, Given, Should, Name) ->
       io_lib:format("~w",[Given]), <<"'), should be: ">>, atom_to_binary(Should, utf8)]).
 
 format_error(Type, Component, Error) ->
+   NodeName0 = atom_to_binary(Component, utf8),
+   NodeName = binary:replace(NodeName0, <<"esp_">>, <<>>),
    iolist_to_binary(
-   [atom_to_binary(Type, utf8), <<" for node ">>, atom_to_binary(Component, utf8), <<": ">>] ++ Error
+   [atom_to_binary(Type, utf8), <<" for node ">>, NodeName, <<": ">>] ++ Error
    ).
