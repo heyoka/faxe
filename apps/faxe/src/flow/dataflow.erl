@@ -65,8 +65,10 @@ start_graph(Graph, RunMode) ->
 request_items(Port, PublisherPids) when is_list(PublisherPids) ->
    [Pid ! {request, self(), Port} || Pid <- PublisherPids].
 
+-spec emit(any()) -> reference().
 emit(Value) ->
    emit(1, Value).
+-spec emit(any(), non_neg_integer()) -> reference().
 emit(Port, Value) ->
    erlang:send_after(0, self(), {emit, {Port, Value}}).
 
@@ -224,7 +226,7 @@ do_check({max_param_count, Keys, Max}, Opts, Mod) ->
        end,
    lists:foreach(F, Keys);
 
-%% check if one of the required parameters is given
+%% check if exactly one of the required parameters is given
 do_check({one_of_params, Keys}, Opts, Mod) ->
 %%   lager:notice("do check: ~p", [[{one_of_params, Keys}, Opts, Mod]]),
    OptsKeys = maps:keys(Opts),
@@ -239,6 +241,23 @@ do_check({one_of_params, Keys}, Opts, Mod) ->
          KeysBinList = ["'" ++ atom_to_list(K) ++ "'" || K <- Keys],
          erlang:error(format_error(invalid_opt, Mod,
          [<<"Must provide one of params: ">>, lists:join(<<", " >>, KeysBinList)]))
+   end;
+
+%% check if at least one of the required parameters is given
+do_check({oneplus_of_params, Keys}, Opts, Mod) ->
+%%   lager:notice("do check: ~p", [[{one_of_params, Keys}, Opts, Mod]]),
+   OptsKeys = maps:keys(Opts),
+   Has =
+      lists:filter(fun(E) ->
+         lists:member(E, OptsKeys) andalso maps:get(E, Opts) /= undefined
+                   end, Keys),
+%%   lager:notice("Has: ~p",[Has]),
+   case length(Has) > 0 of
+      true -> ok;
+      _ ->
+         KeysBinList = ["'" ++ atom_to_list(K) ++ "'" || K <- Keys],
+         erlang:error(format_error(invalid_opt, Mod,
+            [<<"Must provide at least one of params: ">>, lists:join(<<", " >>, KeysBinList)]))
    end;
 
 %% check if one of possible values is given for a specific param

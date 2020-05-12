@@ -69,25 +69,22 @@ ls_mem_set(#data_batch{points = Points}, State=#state{}) ->
    [ls_mem_set(P, State) || P <- Points];
 ls_mem_set(P = #data_point{}, #state{key = MemKey, field = MemField}) ->
 %%   lager:notice("handle_ls_mem_set"),
-   Set0 =
-      case ets:lookup(ls_mem_set, MemKey) of
-         [] -> sets:new();
-         [{MemKey, List}] -> sets:from_list(List)
-      end,
+   Set0 = sets:from_list(ets_set_or_list(MemKey, ls_mem_set)),
    Set = sets:add_element(flowdata:value(P, MemField), Set0),
    ets:insert(ls_mem_set, {MemKey, sets:to_list(Set)}).
 
 ls_mem_list(#data_batch{points = Points}, State=#state{}) ->
    [ls_mem_list(P, State) || P <- Points];
 ls_mem_list(P = #data_point{}, #state{key = MemKey, field = MemField}) ->
-   L0 =
-      case ets:lookup(ls_mem_list, MemKey) of
-         [] -> [];
-         [{MemKey, List0}] -> List0
-      end,
+   L0 = ets_set_or_list(MemKey, ls_mem_list),
    List = [flowdata:value(P, MemField)] ++ L0,
    ets:insert(ls_mem_list, {MemKey, List}).
 
+ets_set_or_list(MemKey, Table) ->
+   case ets:lookup(Table, MemKey) of
+      [] -> [];
+      [{MemKey, List0}] -> List0
+   end.
 
 default(<<"single">>, Key, Def) ->
    ets:insert(ls_mem, {Key, def(<<"single">>, Def)});

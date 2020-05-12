@@ -124,7 +124,8 @@ eval({Nodes, Connections}) ->
             end,
             CompOptions = eval_options(CompOptions0, []),
             %% handle all other params and options
-            NOptions = convert_options(CompOptions, lists:flatten(Options ++ ParamOptions)),
+            {NName, _Id} = N,
+            NOptions = convert_options(NName, CompOptions, lists:flatten(Options ++ ParamOptions)),
             NodeOptions = NOptions ++ NOpts,
 %%            lager:notice("~n~p wants options : ~p~n has options: ~p~n~n NodeParameters: ~p",
 %%               [Component, CompOptions, Options ++ ParamOptions, NodeOptions]),
@@ -254,8 +255,8 @@ node_conn_params({NodeName, _Id}=N, NodeParams) ->
    NewNodeParams = node_params(N, Parameters),
    {NewConns, NewNodeParams}.
 
--spec convert_options(list(), list()) -> list({binary(),list()}).
-convert_options(NodeOptions, Params) ->
+-spec convert_options(binary(), list(), list()) -> list({binary(),list()}).
+convert_options(NodeName, NodeOptions, Params) ->
 %%   lager:warning("convert options: ~p~n~p", [NodeOptions, Params]),
    Opts = lists:foldl(
       fun
@@ -267,15 +268,14 @@ convert_options(NodeOptions, Params) ->
       [],
       NodeOptions
    ),
-%%   lager:notice("Options for Node: ~p",[Opts]),
    lists:foldl(
       fun
          ({PName, PVals}, Acc) ->
 %%            lager:warning("~p :: ~p~n",[PName, proplists:get_value(PName, Opts)]),
          case proplists:get_value(PName, Opts) of
             undefined -> %% unspecified option
-               lager:warning("type is: ~p",[{PName, PVals}]),
-               Acc;
+               throw("Unknown param '" ++ binary_to_list(PName)
+                  ++"' for node '" ++ binary_to_list(NodeName) ++ "'" );
             {Name, param_list = Type} ->
                {value, {Name, Type, POpts}, _L} = lists:keytake(Name, 1, NodeOptions),
 %%               lager:warning("~nconvert param_list(~p, ~p, ~p, ~p)",[Name, Type, PVals, POpts]),
@@ -295,9 +295,6 @@ convert_options(NodeOptions, Params) ->
 
    ).
 
-%%convert(Name, param_list, PVals) ->
-%%   {Name, [convert(N, T, PVal) || {N, T}]}
-%%   lists:map(fun({N, Typ, PVal}) -> convert(N, Typ, PVal) end, Type);
 convert(Name, Type, PVals) ->
 %%   lager:notice("convert(~p,~p,~p)",[Name, Type, PVals]),
    TName = atom_to_binary(Type),

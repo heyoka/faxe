@@ -30,6 +30,7 @@ options(<<"log">>) -> [{1, <<"file">>, string}];
 options(<<"sample">>) -> [{1, <<"rate">>, string}];
 options(<<"state_count">>) -> [{1, <<"lambda">>, lambda}];
 options(<<"state_duration">>) -> [{1, <<"lambda">>, lambda}];
+options(<<"state_change">>) -> [{1, <<"lambda">>, lambda}];
 options(<<"debug">>) -> [{1, <<"level">>, string}];
 options(<<"case">>) -> [{all, <<"lambdas">>, lambda_list}];
 options(<<"change_detect">>) -> [{all, <<"fields">>, string_list}];

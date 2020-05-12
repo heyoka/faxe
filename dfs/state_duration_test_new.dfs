@@ -1,0 +1,18 @@
+def in =
+    |value_emitter()
+    .every(2s)
+    .type(point)
+
+def new =
+in
+    |state_duration_new()
+    .lambda(lambda: "val" < 7)
+    .as('val_below_7')
+    |debug('info')
+
+def old =
+in
+    |state_duration()
+    .lambda(lambda: "val" < 7)
+    .as('val_below_7')
+    |debug()

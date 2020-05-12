@@ -25,59 +25,29 @@
    node_id,
    lambda,
    as,
-   last_count = 0
+   last_count = 0,
+   state_change
 
 }).
 
-options() -> [{lambda, lambda}, {as, binary, <<"state_count">>}].
+options() -> [
+   {lambda, lambda},
+   {as, binary, <<"state_count">>}
+].
 
 init(_NodeId, _Ins, #{lambda := Lambda, as := As}) ->
-   {ok, all, #state{lambda = Lambda, as = As}}.
+   StateTrack = state_change:new(Lambda),
+   {ok, all, #state{lambda = Lambda, as = As, state_change = StateTrack}}.
 
 process(_In, #data_batch{points = _Points} = _Batch, _State = #state{lambda = _Lambda}) ->
    {error, not_implemented};
-process(_Inport, #data_point{} = Point,
-    State = #state{lambda = Lambda, last_count = LastTs, as = As}) ->
-   case process_point(Point, Lambda, LastTs) of
-      {ok, Count} ->
+process(_Inport, #data_point{} = Point, State = #state{state_change = StateTrack, as = As}) ->
+   case state_change:process(StateTrack, Point) of
+      {ok, NewStateTrack} ->
+         Count = state_change:get_count(NewStateTrack),
          NewPoint = flowdata:set_field(Point, As, Count),
-         {emit, NewPoint, State#state{last_count = Count}};
+         {emit, NewPoint, State#state{state_change = NewStateTrack}};
       {error, _Error} ->
          {ok, State}
    end.
-
-
--spec process_point(#data_point{}, function(), non_neg_integer()) ->
-   {ok, Count :: non_neg_integer()} | {error, term()}.
-process_point(Point=#data_point{}, LFun, LastCount) ->
-   case (catch exec(Point, LFun)) of
-      true when LastCount > -1 -> {ok, LastCount+1};
-      true -> {ok, 1};
-      false -> {ok, -1};
-      Error -> {error, Error}
-   end.
-
-exec(Point, LFun) -> faxe_lambda:execute(Point, LFun).
-
-
-
--ifdef(TEST).
-process_point_test_() ->
-   faxe_ets:start_link(),
-   Point = #data_point{ts = 1234, fields = #{<<"value">> => 2134}},
-   [point_count_test(Point), process_no_count_test(Point), process_first_count_test(Point)].
-point_count_test(Point) ->
-   LambdaString = "Value > 2133",
-   ?_assertEqual(process_point(Point, lambda_helper(LambdaString), 17), {ok, 18}).
-process_no_count_test(Point) ->
-   LambdaString = "Value > 2134",
-   ?_assertEqual(process_point(Point, lambda_helper(LambdaString), 17), {ok, -1}).
-process_first_count_test(Point) ->
-   LambdaString = "Value == 2134",
-   ?_assertEqual(process_point(Point, lambda_helper(LambdaString), -1), {ok, 1}).
-lambda_helper(LambdaString) ->
-   faxe_dfs:make_lambda_fun(LambdaString, ["Value"], [<<"value">>]).
--endif.
-
-
 

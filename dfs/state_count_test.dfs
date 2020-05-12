@@ -6,3 +6,5 @@ def in =
     |state_count()
     .lambda(lambda: "val" < 7)
     .as('val_below_7')
+
+    |debug()

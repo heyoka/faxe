@@ -2,22 +2,28 @@
 
 def state =
     |json_emitter()
-    .every(200ms).align()
+    .every(3s).align()
     .json(
-    <<< {"err1": 0, "val2": 132188} >>>,
-    %<<< {"err1": 0, "val2": 123318} >>>,
-   % <<< {"err1": 0, "val2": 13558480} >>>,
-    <<< {"err1": 1, "val2": 6223558} >>>,
-    <<< {"err1": 1, "val2": 32123} >>>
+    <<< {"err1": 0, "err2":0, "err3":0, "nr" : 233, "errcode1": 0, "errcode2": 0, "errcode3": 0} >>>,
+    <<< {"err1": 1, "err2":0, "err3":0, "nr" : 233, "errcode1": 111, "errcode2": 0, "errcode3": 0} >>>,
+    <<< {"err1": 1, "err2":0, "err3":0, "nr" : 233, "errcode1": 111, "errcode2": 0, "errcode3": 0} >>>,
+    <<< {"err1": 1, "err2":0, "err3":0, "nr" : 233, "errcode1": 111, "errcode2": 0, "errcode3": 0} >>>,
+    <<< {"err1": 1, "err2":0, "err3":0, "nr" : 233, "errcode1": 111, "errcode2": 0, "errcode3": 0} >>>,
+    <<< {"err1": 1, "err2":0, "err3":0, "nr" : 233, "errcode1": 111, "errcode2": 0, "errcode3": 0} >>>,
+    <<< {"err1": 1, "err2":0, "err3":0, "nr" : 233, "errcode1": 111, "errcode2": 0, "errcode3": 0} >>>,
+    <<< {"err1": 0, "err2":0, "err3":1, "nr" : 233, "errcode1": 0, "errcode2": 0, "errcode3": 333} >>>,
+    <<< {"err1": 1, "err2":0, "err3":0, "nr" : 233, "errcode1": 111, "errcode2": 0, "errcode3": 0} >>>,
+    <<< {"err1": 0, "err2":1, "err3":0, "nr" : 233, "errcode1": 0, "errcode2": 222, "errcode3": 0} >>>,
+    <<< {"err1": 0, "err2":0, "err3":1, "nr" : 233, "errcode1": 0, "errcode2": 0, "errcode3": 333} >>>
     )
 
-    |state_duration()
+def s1 =
+    state
+    |state_change()
     .lambda(lambda: "data.err1" == 1)
-    .emit_total()
-    .keep()
-    |where(lambda: defined("state_time_total"))
-    |set()
-    .fields('write_to_db', 'type', 'id')
-    .field_values('true', 'rollenfehler', 'rolle32')
+    %.emit_entered()
+    .emit_left()
+    .keep_left('data.nr', 'data.errcode1')
 
-    |debug('info')
+    |debug()
+

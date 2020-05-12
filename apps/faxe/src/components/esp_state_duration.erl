@@ -31,9 +31,8 @@
    lambda,
    as,
    unit,
-   last_state_timestamp = 0,
    emit_total = false,
-   state_enter_time
+   state_change
 
 }).
 
@@ -45,57 +44,20 @@ options() -> [
 ].
 
 init(_NodeId, _Ins, #{lambda := Lambda, as := As, unit := Unit, emit_total := EmitTotal}) ->
-   {ok, all, #state{lambda = Lambda, as = As, unit = Unit, emit_total = EmitTotal}}.
+   StateTrack = state_change:new(Lambda),
+   {ok, all, #state{lambda = Lambda, as = As, unit = Unit, emit_total = EmitTotal, state_change = StateTrack}}.
 
 process(_In, #data_batch{points = _Points} = _Batch, _State = #state{lambda = _Lambda}) ->
    {error, not_implemented};
-process(_Inport, #data_point{ts = Ts} = Point,
-    State = #state{lambda = Lambda, last_state_timestamp = LastTs, as = As}) ->
+process(_Inport, #data_point{} = Point, State = #state{ as = As, state_change = StateTrack}) ->
 
-   case process_point(Point, Lambda, LastTs) of
-      {ok, Duration, NewLastTs} ->
+   case state_change:process(StateTrack, Point) of
+      {ok, NewStateTrack} ->
+         Duration = state_change:get_duration(NewStateTrack),
          NewPoint = flowdata:set_field(Point, As, Duration),
-         %% do we just go from state == true to false
-         emit_total(LastTs, Duration, Ts, State),
-         NewState =
-         case Duration == 0 of
-            true ->
-               State#state{state_enter_time = Ts};
-            false ->
-               State
-         end,
-         {emit, NewPoint, NewState#state{last_state_timestamp = NewLastTs}};
+         {emit, NewPoint, State#state{state_change = NewStateTrack}};
       {error, Error} ->
          lager:error("Error evaluating lambda: ~p",[Error]),
          {ok, State}
    end.
-
-
--spec process_point(#data_point{}, function(), non_neg_integer()) ->
-   {Duration :: integer(), LastTs :: non_neg_integer()}.
-process_point(Point=#data_point{ts = Ts}, LFun, LastTs) ->
-   case (catch exec(Point, LFun)) of
-      true when LastTs > 0 -> {ok, Ts - LastTs, LastTs};
-      true -> {ok, 0, Ts};
-      false -> {ok, -1, 0};
-      Error -> {error, Error}
-   end.
-
-
-emit_total(LastTs, Duration, Ts, State = #state{state_enter_time = StateEnterTs}) ->
-   case LastTs > 0 andalso Duration == -1 of
-      true ->
-         maybe_build_total(Ts - StateEnterTs, State);
-      false ->
-         ok
-   end.
-%% @doc build a new data_point with the field {state.fieldname + "_total"} set to the total-duration
-maybe_build_total(_D, #state{emit_total = false}) ->
-   ok;
-maybe_build_total(Duration, _State=#state{as = As}) ->
-   P = #data_point{ts = faxe_time:now()},
-   dataflow:emit(flowdata:set_field(P, <<"state_time_total">>, Duration)).
-
-exec(Point, LFun) -> faxe_lambda:execute(Point, LFun).
-
 

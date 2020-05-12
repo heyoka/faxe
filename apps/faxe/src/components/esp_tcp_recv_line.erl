@@ -81,7 +81,7 @@ handle_info({tcp, Socket, Data}, State=#state{min_length = Min}) when byte_size(
   {ok, State};
 handle_info({tcp, Socket, Data0}, State=#state{}) ->
   Data = string:chomp(Data0),
-%%  lager:notice("NewData: ~p", [Data]),
+  lager:notice("NewData: ~p", [Data]),
   NewState = maybe_emit(Data, State),
   inet:setopts(Socket, [{active, once}]),
   {ok, NewState};
