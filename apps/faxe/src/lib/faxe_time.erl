@@ -216,7 +216,7 @@ to_htime(Ts) ->
 %% returns an empty binary if anything other is given as input
 -spec to_iso8601(timestamp()|tuple()) -> binary().
 to_iso8601(Ts) when is_integer(Ts) ->
-   to_iso8601(to_date(Ts));
+   time_format:to_iso8601(Ts);
 to_iso8601({{_Year, _Month, _Day}=D,{H, Min, SecFrac}}) when is_float(SecFrac) ->
    {Sec, Milli} = split_frac_sec(SecFrac),
    to_iso8601({D, {H, Min, Sec, Milli}});

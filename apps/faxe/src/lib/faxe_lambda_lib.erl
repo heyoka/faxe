@@ -104,6 +104,8 @@ str_concat(Strings) when is_list(Strings) ->
 %%
 %% pow(X, Y) -> float()
 %%
+%% pi() -> float()
+%%
 %% sin(X) -> float()
 %%
 %% sinh(X) -> float()
@@ -162,7 +164,7 @@ str_concat(Strings) when is_list(Strings) ->
 %%   round/1,
 %%   floor/1,
 %%   min/2,
-%%   max/2]
+%%   max/2
 %%
 %%
 %%% @end
@@ -180,6 +182,9 @@ round_float(Float, Precision) when is_float(Float), is_integer(Precision) ->
 max([]) -> 0;
 max(ValueList) when is_list(ValueList) ->
    lists:max(ValueList).
+min([]) -> 0;
+min(ValueList) when is_list(ValueList) ->
+   lists:min(ValueList).
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %%% Time related functions
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -194,6 +199,7 @@ to_date_string(Ts) ->
    qdate:to_string("Y-m-d h:ia", {D,{Hour, Minute, Second}}).
 
 to_iso8601(Ts) -> faxe_time:to_iso8601(Ts).
+to_rfc3339(Ts) -> time_format:to_rfc3339(Ts).
 
 time_convert(Ts, Format) ->
    time_format:convert(Ts, Format).

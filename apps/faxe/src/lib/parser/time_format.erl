@@ -103,12 +103,17 @@ conv_dt_to_ms(Bin) ->
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %%% FAXE Time (millisecond) to other
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+-spec to_rfc3339(non_neg_integer()) -> binary().
 to_rfc3339(Ts) when is_integer(Ts) ->
-   calendar:system_time_to_rfc3339(erlang:system_time(millisecond),
-      [{unit, millisecond}, {time_designator, $\s}, {offset, "Z"}]).
+   to_format(Ts, [{unit, millisecond}, {time_designator, $\s}, {offset, "Z"}]).
+-spec to_iso8601(non_neg_integer()) -> binary().
 to_iso8601(Ts) when is_integer(Ts) ->
-   calendar:system_time_to_rfc3339(erlang:system_time(millisecond),
-      [{unit, millisecond}, {time_designator, $T}, {offset, "Z"}]).
+   to_format(Ts, [{unit, millisecond}, {time_designator, $T}, {offset, "Z"}]).
+-spec to_format(non_neg_integer(), list()) -> binary().
+to_format(Ts, Opts) ->
+   list_to_binary(
+      calendar:system_time_to_rfc3339(Ts, Opts)
+   ).
 
 
 -ifdef(TEST).
