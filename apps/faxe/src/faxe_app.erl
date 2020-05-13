@@ -25,7 +25,9 @@ start(_StartType, _StartArgs) ->
    Dispatch = cowboy_router:compile(Routes),
    HttpPort = application:get_env(faxe, http_api_port, 8081),
    {ok, _} = cowboy:start_clear(http_rest, [{port, HttpPort}],
-      #{env =>  #{dispatch => Dispatch}}
+      #{
+         env =>  #{dispatch => Dispatch}, middlewares => [cowboy_router, cmw_headers, cowboy_handler]
+      }
    ),
    %% start top supervisor
    faxe_sup:start_link().
