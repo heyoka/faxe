@@ -2,13 +2,13 @@
 %def port = 2008
 def ip = '192.168.121.201'
 def port = 2000
-def parser = parser_conv_tracking_v1
+def parser = parser_lrep_v1
 def v1 =
     |tcp_recv_line()
     .ip(ip)
     .port(port)
     .parser(parser)
-    .min_length(61)
+    .min_length(40)
 
     |debug()
 

@@ -68,6 +68,7 @@ init(_NodeId, _Inputs,
 
 %%% DATA IN
 %% not connected -> drop message
+%% @todo buffer these messages when not connected
 process(_In, _DataItem, State = #state{client = undefined}) ->
    {ok, State};
 process(_In, DataItem, State = #state{}) ->
@@ -76,7 +77,7 @@ process(_In, DataItem, State = #state{}) ->
 
 handle_info({'DOWN', _MonitorRef, _Type, Pid, _Info}, State = #state{client = Pid}) ->
    lager:warning("gun is down"),
-   handle_info(start_client, State);
+   handle_info(start_client, State#state{client = undefined});
 handle_info(start_client, State) ->
    NewState = start_client(State),
    {ok, NewState};
@@ -93,14 +94,24 @@ start_client(State = #state{host = Host, port = Port, tls = Tls}) ->
          true -> Opts#{transport => tls};
          false -> Opts
       end,
-   {ok, C} = gun:open(Host, Port, Options),
-   erlang:monitor(process, C),
-   case gun:await_up(C) of
-      {ok, _} -> State#state{client = C};
-      _ -> lager:warning("timeout connecting to ~p:~p", [Host, Port]),
-         erlang:send_after(1000, self(), start_client), State#state{client = undefined}
+   case gun:open(Host, Port, Options) of
+      {ok, C} ->
+         erlang:monitor(process, C),
+         case gun:await_up(C) of
+            {ok, _} ->
+               State#state{client = C};
+            _ ->
+               lager:warning("timeout connecting to ~p:~p", [Host, Port]),
+               recon(State)
+         end;
+      {error, Err} ->
+         lager:warning("error connecting to ~p:~p ~p", [Host, Port, Err]),
+         recon(State)
    end.
 
+recon(State) ->
+   erlang:send_after(1000, self(), start_client),
+   State#state{client = undefined}.
 
 %%% DATA OUT
 send(Item, State = #state{query = Q, faxe_fields = Fields, remaining_fields_as = RemFieldsAs,

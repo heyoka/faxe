@@ -170,13 +170,25 @@ handle_info(_Req, State) ->
    {noreply, State}.
 
 start_client(State = #state{host = Host, port = Port}) ->
-   {ok, C} = gun:open(Host, Port, #{transport => tls, connect_timeout => 3000}),
-   erlang:monitor(process, C),
-   case gun:await_up(C) of
-      {ok, _} -> State#state{client = C};
-      _ -> lager:warning("timeout connecting to ~p:~p", [Host, Port]),
-         erlang:send_after(1000, self(), start_client), State#state{client = undefined}
+   Opts = #{connect_timeout => 3000},
+   case gun:open(Host, Port, Opts) of
+      {ok, C} ->
+         erlang:monitor(process, C),
+         case gun:await_up(C) of
+            {ok, _} ->
+               State#state{client = C};
+            _ ->
+               lager:warning("timeout connecting to ~p:~p", [Host, Port]),
+               recon(State)
+         end;
+      {error, Err} ->
+         lager:warning("error connecting to ~p:~p ~p", [Host, Port, Err]),
+         recon(State)
    end.
+
+recon(State) ->
+   erlang:send_after(1000, self(), start_client),
+   State#state{client = undefined}.
 
 %%--------------------------------------------------------------------
 %% @private
