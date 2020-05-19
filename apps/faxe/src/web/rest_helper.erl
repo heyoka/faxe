@@ -13,7 +13,7 @@
 
 %% API
 -export([task_to_map/1, template_to_map/1, do_register/6,
-   to_bin/1, reg_fun/3, report_malformed/3, add_tags/2]).
+   to_bin/1, reg_fun/3, report_malformed/3, add_tags/2, set_tags/2]).
 
 task_to_map(_T = #task{
    id = Id, name = Name, date = Dt, is_running = Running,
@@ -76,12 +76,16 @@ do_register(Req, TaskName, Dfs, Tags, State, Type) ->
 reg_fun(Dfs, Name, task) -> Res = faxe:register_string_task(Dfs, Name), Res;
 reg_fun(Dfs, Name, _) -> faxe:register_template_string(Dfs, Name).
 
--spec add_tags(Req :: cowboy:request(), any()) -> NewReq :: cowboy:request().
+-spec add_tags(list(), any()) -> ok | {error, term()}.
 add_tags(Tags, TaskId) ->
    case Tags of
       [] -> ok;
       TagJson -> faxe:add_tags(TaskId, jiffy:decode(TagJson))
    end.
+
+-spec set_tags(list(), any()) -> ok | {error, term()}.
+set_tags(Tags, TaskId) ->
+   faxe:set_tags(TaskId, jiffy:decode(Tags)).
 
 get_task_or_template_id(TName, task) ->
    NewTask = faxe:get_task(TName),

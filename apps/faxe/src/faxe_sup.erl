@@ -48,6 +48,14 @@ init([]) ->
         {reconnect_watcher,
             {reconnect_watcher, start_link, []},
             permanent, 5000, worker, []}
+        ,
+        {s7pool_manager,
+            {s7pool_manager, start_link, []},
+            permanent, 5000, worker, []}
+        ,
+        {s7pool_con_handler,
+            {s7pool_con_handler, start_link, []},
+            permanent, 5000, worker, []}
 %%        ,
 %%        {faxe_log_sup,
 %%            {faxe_log_sup, start_link, []},

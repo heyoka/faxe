@@ -7,7 +7,7 @@
 %%% @end
 %%% Created : 14. June 2019 11:32:22
 %%%-------------------------------------------------------------------
--module(esp_s7read).
+-module(esp_s7read_pool).
 -author("heyoka").
 
 %% API
@@ -16,7 +16,7 @@
 -include("faxe.hrl").
 %% API
 -export([init/3, process/3, options/0, handle_info/2, shutdown/1, maybe_emit/5,
-  check_options/0, build_addresses/2, build_point/2, do_build/3, check_pdu_length/3]).
+  check_options/0, build_addresses/2, build_point/2, do_build/3]).
 
 -define(MAX_READ_ITEMS, 19).
 -define(DEFAULT_PDU_LENGTH, 128).
@@ -39,7 +39,8 @@
   vars, var_types :: list(),
   last_values = [] :: list(),
   timer :: #faxe_timer{},
-  reconnector
+  reconnector,
+  opts
 }).
 
 options() -> [
@@ -80,7 +81,7 @@ init(_NodeId, _Ins,
       rack := Rack,
       vars := Addresses,
       as := As,
-      diff := Diff}) ->
+      diff := Diff}=Opts) ->
 
   Reconnector = faxe_backoff:new(
     {?RECON_MIN_INTERVAL, ?RECON_MAX_INTERVAL, ?RECON_MAX_RETRIES}),
@@ -90,7 +91,8 @@ init(_NodeId, _Ins,
 %%  [lager:notice("Partition: ~p", [Part]) || Part <- Parts],
 %%  [lager:notice("Aliases: ~p", [Part]) || Part <- AliasesList],
 
-  erlang:send_after(0, self(), do_reconnect),
+  s7pool_manager:ensure_pool(Opts),
+
   {ok, all,
     #state{
       ip = Ip,
@@ -102,7 +104,9 @@ init(_NodeId, _Ins,
       interval = Dur,
       reconnector = Reconnector,
       diff = Diff,
-      vars = Parts}
+      vars = Parts,
+      opts = Opts
+    }
   }.
 
 
@@ -111,65 +115,34 @@ process(_In, #data_batch{points = _Points} = _Batch, State = #state{}) ->
 process(_Inport, #data_point{} = _Point, State = #state{}) ->
   {ok, State}.
 
-handle_info({snap7_connected, Client}, State = #state{align = Align, interval = Dur, client = Client}) ->
-  lager:notice("snap7_connected: ~p", [Client]),
+handle_info(s7_connected, State = #state{align = Align, interval = Dur, client = Client}) ->
+%%  lager:notice("s7_connected"),
   Timer = faxe_time:init_timer(Align, Dur, poll),
   {ok, State#state{client = Client, timer = Timer}};
+handle_info(s7_disconnected, State = #state{timer = Timer}) ->
+%%  lager:notice("s7_disconnected"),
+  NewTimer = faxe_time:timer_cancel(Timer),
+  {ok, State#state{timer = NewTimer}};
 handle_info(poll,
-    State=#state{client = Client, as = Aliases, timer = Timer,
-      vars = Opts, diff = Diff, last_values = LastList}) ->
-  case (catch snapclient:read_multi_vars(Client, Opts)) of
+    State=#state{client = _Client, as = Aliases, timer = Timer,
+      vars = Opts, diff = Diff, last_values = LastList, opts = ConnOpts}) ->
+  {T, Result} = timer:tc(s7pool_manager, read_vars, [ConnOpts, Opts]),
+  lager:info("Time to read: ~p ms",[round(T/1000)]),
+  case Result of
     {ok, Res} ->
-%%      {ok, ExecTime} = snapclient:get_exec_time(Client),
-%%      lager:notice("got data form s7 in: ~pms ~n~p", [ExecTime, Res]),
       NewTimer = faxe_time:timer_next(Timer),
       NewState = State#state{timer = NewTimer, last_values = Res},
       maybe_emit(Diff, Res, Aliases, LastList, NewState);
     _Other ->
       lager:warning("Error when reading S7 Vars: ~p", [_Other]),
-      NewTimer = faxe_time:timer_cancel(Timer),
-      catch snapclient:stop(Client),
-      %% keep client in state, stop will trigger the DOWN message below
-      {ok, State#state{timer = NewTimer}}
-      %,
-      %try_reconnect(State#state{client = undefined, timer = NewTimer})
-  end;
-%% client process is down,
-%% we match the Object field from the DOWN message against the current client pid
-handle_info({'DOWN', _MonitorRef, _Type, Client, Info},
-    State=#state{client = Client, timer = Timer}) ->
-  lager:warning("Snap7 Client process is DOWN with : ~p ! ", [Info]),
-  NewTimer = faxe_time:timer_cancel(Timer),
-  try_reconnect(State#state{client = undefined, timer = NewTimer});
-%% old DOWN message from already restarted client process
-handle_info({'DOWN', _MonitorRef, _Type, _Object, _Info}, State) ->
-  {ok, State};
-handle_info(do_reconnect,
-    State=#state{ip = Ip, port = Port, rack = Rack, slot = Slot, align = Align, interval = Dur}) ->
-  lager:info("[~p] do_reconnect, ~p", [?MODULE, {Ip, Port}]),
-  case connect(Ip, Rack, Slot) of
-    {ok, Client} ->
-%%      Timer = faxe_time:init_timer(Align, Dur, poll),
-      {ok, State#state{client = Client}};
-    {error, Error} ->
-      lager:error("[~p] Error connecting to PLC ~p: ~p",[?MODULE, {Ip, Port},Error]),
-      try_reconnect(State)
+      {ok, State}
   end;
 handle_info(_E, S) ->
   {ok, S#state{}}.
 
-shutdown(#state{client = Client, timer = Timer}) ->
-  catch (faxe_time:timer_cancel(Timer)),
-  catch (snapclient:disconnect(Client)),
-  catch (snapclient:stop(Client)).
+shutdown(#state{timer = Timer}) ->
+  catch (faxe_time:timer_cancel(Timer)).
 
-try_reconnect(State=#state{reconnector = Reconnector}) ->
-  case faxe_backoff:execute(Reconnector, do_reconnect) of
-    {ok, Reconnector1} ->
-      {ok, State#state{reconnector = Reconnector1}};
-    {stop, Error} -> logger:error("[Client: ~p] PLC reconnect error: ~p!",[?MODULE, Error]),
-      {stop, {shutdown, Error}, State}
-  end.
 
 -spec maybe_emit(Diff :: true|false, ResultList :: list(), Aliases :: list(), LastResults :: list(), State :: #state{})
       -> ok | term().
@@ -364,35 +337,6 @@ n_length([H|T],[HAcc | TAcc],Pos,Max) ->
   n_length(T,[[H | HAcc] | TAcc],Pos+1,Max);
 n_length([H|T],[],Pos,Max) ->
   n_length(T,[[H]],Pos+1,Max).
-
-
-
-connect(Ip, Rack, Slot) ->
-  case catch do_connect(Ip, Rack, Slot) of
-    Client when is_pid(Client) -> {ok, Client};
-    Err -> {error, Err}
-  end.
-
-do_connect(Ip, Rack, Slot) ->
-%%  {ok, Client} = snapclient:start([]),
-  {ok, Client} = snapclient:start_connect(#{ip => Ip, rack => Rack, slot => Slot}),
-%%  ok = snapclient:connect_to(Client, [{ip, Ip}, {slot, Slot}, {rack, Rack}]),
-%%  {ok, CPUInfo} = snapclient:get_cpu_info(Client),
-%%  lager:warning("Connected to PLC : ~p",[CPUInfo]),
-  erlang:monitor(process, Client),
-  Client.
-
-check_pdu_length(Ip, Slot, Rack) ->
-  try do_connect(Ip, Slot, Rack) of
-    Client when is_pid(Client) ->
-      {ok, NegotiatedLength} = snapclient:get_pdu_length(Client), NegotiatedLength;
-    _ -> ?DEFAULT_PDU_LENGTH
-
-  catch
-    _ -> ?DEFAULT_PDU_LENGTH
-  end.
-
-
 
 
 -ifdef(TEST).

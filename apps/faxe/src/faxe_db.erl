@@ -32,7 +32,8 @@
    remove_tags/2,
    get_all_tags/0,
    get_tasks_by_tag/1
-   , get_tasks_by_tags/1
+   , get_tasks_by_tags/1,
+   set_tags/2
 ]).
 
 get_all_tasks() ->
@@ -203,7 +204,15 @@ remove_task_from_tag(TaskId, Tag) ->
          end
    end.
 
-
+%% @doc overwrite existing tags with new ones
+set_tags(TaskId, Tags) ->
+   Task = get_task(TaskId),
+   case Task of
+      #task{tags = OldTags} ->
+         ok = remove_tags(TaskId, OldTags),
+         ok = add_tags(TaskId, Tags);
+      _ -> {error, task_not_found}
+   end.
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 next_id(Table) ->

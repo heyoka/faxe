@@ -10,10 +10,13 @@
 -author("heyoka").
 
 %% API
--export([get/1, q_file/1]).
+-export([get/1, get/2, q_file/1]).
 
 get(Key) ->
    application:get_env(faxe, Key, undefined).
+
+get(Key, Default) ->
+   application:get_env(faxe, Key, Default).
 
 %% @doc get the base dir for esq q-files
 q_file({GraphId, NodeId}) ->

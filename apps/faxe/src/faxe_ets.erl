@@ -60,6 +60,8 @@ init([]) ->
    ok = new_table(ls_mem_list, set),
    ok = new_table(field_paths, set),
    ok = new_table(temp_tasks, set),
+   ets:new(s7_pools, [set, public, named_table, {read_concurrency,false},{heir, self(), s7_pools} ]),
+   ok = new_table(s7_pool_last, set),
    {ok, #state{}}.
 
 

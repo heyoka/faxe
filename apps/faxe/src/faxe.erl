@@ -46,7 +46,7 @@
    get_all_tags/0,
    add_tags/2,
    remove_tags/2,
-   get_logs/4]).
+   get_logs/4, set_tags/2]).
 
 start_permanent_tasks() ->
    Tasks = faxe_db:get_permanent_tasks(),
@@ -129,6 +129,9 @@ add_tags(TaskId, Tags) ->
 
 remove_tags(TaskId, Tags) ->
    faxe_db:remove_tags(TaskId, Tags).
+
+set_tags(TaskId, Tags) ->
+   faxe_db:set_tags(TaskId, Tags).
 
 add_running_flag(TaskList) ->
    Running = supervisor:which_children(graph_sup),

@@ -608,7 +608,7 @@ is_root_path(_) ->
 
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-%% map merge funcs
+%% merge funcs
 
 merge(M1, M2) when is_map(M1), is_map(M2) -> mapz:deep_merge(merge_fun(), #{}, [M1, M2]);
 merge(M1, M2) when is_list(M1), is_list(M2) -> lists:merge(M1, M2);

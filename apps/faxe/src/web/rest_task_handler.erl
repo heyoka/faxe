@@ -145,8 +145,10 @@ malformed_request(Req, State=#state{mode = Mode}) when Mode == register ->
 malformed_request(Req, State=#state{mode = Mode}) when Mode == update ->
    {ok, Result, Req1} = cowboy_req:read_urlencoded_body(Req),
    Dfs = proplists:get_value(<<"dfs">>, Result, undefined),
+   Tags = proplists:get_value(<<"tags">>, Result, []),
    Malformed = (Dfs == undefined),
-   {Malformed, rest_helper:report_malformed(Malformed, Req1, [<<"dfs">>]), State#state{dfs = Dfs}};
+   {Malformed, rest_helper:report_malformed(Malformed, Req1, [<<"dfs">>]),
+      State#state{dfs = Dfs, tags = Tags}};
 malformed_request(Req, State=#state{mode = _Mode}) ->
    {false, Req, State}.
 
@@ -212,11 +214,12 @@ from_start_temp_task(Req, State) ->
          {false, Req4, State}
    end.
 
-from_update_to_json(Req, State=#state{task_id = TaskId, dfs = Dfs}) ->
+from_update_to_json(Req, State=#state{task_id = TaskId, dfs = Dfs, tags = Tags}) ->
    lager:info("update ~p with dfs: ~p",[TaskId, Dfs]),
    case faxe:update_string_task(Dfs, binary_to_integer(TaskId)) of
       ok ->
          Req4 = cowboy_req:set_resp_body(jiffy:encode(#{success => true, id => TaskId}), Req),
+         rest_helper:set_tags(TaskId, Tags),
          {true, Req4, State};
       {error, Error} ->
          Req3 = cowboy_req:set_resp_body(
