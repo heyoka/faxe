@@ -16,7 +16,8 @@
 -include("faxe.hrl").
 %% API
 -export([init/3, process/3, options/0, handle_info/2, shutdown/1, maybe_emit/5,
-  check_options/0, build_addresses/2, build_point/2, do_build/3, check_pdu_length/3]).
+%%  check_options/0,
+  build_addresses/2, build_point/2, do_build/3, check_pdu_length/3, n_length/2, check_options/0]).
 
 -define(MAX_READ_ITEMS, 19).
 -define(DEFAULT_PDU_LENGTH, 128).
@@ -86,7 +87,7 @@ init(_NodeId, _Ins,
     {?RECON_MIN_INTERVAL, ?RECON_MAX_INTERVAL, ?RECON_MAX_RETRIES}),
   {Parts, AliasesList} = build_addresses(Addresses, As),
 
-  lager:info("~p VARS reduced to : ~p  with byte-size: ~p",[length(Addresses), length(Parts), bit_count(Parts)/8]),
+%%  lager:info("~p VARS reduced to : ~p  with byte-size: ~p",[length(Addresses), length(Parts), bit_count(Parts)/8]),
 %%  [lager:notice("Partition: ~p", [Part]) || Part <- Parts],
 %%  [lager:notice("Aliases: ~p", [Part]) || Part <- AliasesList],
 
@@ -121,7 +122,7 @@ handle_info(poll,
   case (catch snapclient:read_multi_vars(Client, Opts)) of
     {ok, Res} ->
 %%      {ok, ExecTime} = snapclient:get_exec_time(Client),
-%%      lager:notice("got data form s7 in: ~pms ~n~p", [ExecTime, Res]),
+      lager:notice("got data form s7 ~n~p", [Res]),
       NewTimer = faxe_time:timer_next(Timer),
       NewState = State#state{timer = NewTimer, last_values = Res},
       maybe_emit(Diff, Res, Aliases, LastList, NewState);
@@ -131,8 +132,6 @@ handle_info(poll,
       catch snapclient:stop(Client),
       %% keep client in state, stop will trigger the DOWN message below
       {ok, State#state{timer = NewTimer}}
-      %,
-      %try_reconnect(State#state{client = undefined, timer = NewTimer})
   end;
 %% client process is down,
 %% we match the Object field from the DOWN message against the current client pid
@@ -145,11 +144,10 @@ handle_info({'DOWN', _MonitorRef, _Type, Client, Info},
 handle_info({'DOWN', _MonitorRef, _Type, _Object, _Info}, State) ->
   {ok, State};
 handle_info(do_reconnect,
-    State=#state{ip = Ip, port = Port, rack = Rack, slot = Slot, align = Align, interval = Dur}) ->
+    State=#state{ip = Ip, port = Port, rack = Rack, slot = Slot}) ->
   lager:info("[~p] do_reconnect, ~p", [?MODULE, {Ip, Port}]),
   case connect(Ip, Rack, Slot) of
     {ok, Client} ->
-%%      Timer = faxe_time:init_timer(Align, Dur, poll),
       {ok, State#state{client = Client}};
     {error, Error} ->
       lager:error("[~p] Error connecting to PLC ~p: ~p",[?MODULE, {Ip, Port},Error]),
@@ -187,6 +185,7 @@ maybe_emit(true, Result, Aliases, _Last, State) ->
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 build_addresses(Addresses, As) ->
   PList = [s7addr:parse(Address) || Address <- Addresses],
+  lager:notice("Addresses: ~p",[PList]),
   %% inject Aliases into parameter maps
   AsAdds = lists:zip(As, PList),
   F = fun({Alias, Params}) -> Params#{as => Alias} end,
@@ -194,6 +193,7 @@ build_addresses(Addresses, As) ->
   %% partition addresses+aliases by data-type
   PartitionFun =
     fun(#{dtype := Dtype, start := Start} = E, Acc) ->
+      lager:notice("DType: ~p, E: ~p",[Dtype, E]),
       Ele =
       case Dtype == bool of
         true -> E#{byte_num => erlang:trunc(Start/8), bit_num => Start rem 8};
@@ -205,14 +205,14 @@ build_addresses(Addresses, As) ->
       end
     end,
   Splitted = lists:foldl(PartitionFun, #{}, WithAs),
-
+%%  lager:notice("Splitted: ~p",[Splitted]),
   %% extract bit addresses
   {Bools, NonBools} =
   case maps:take(bool, Splitted) of
     error -> {[], Splitted};
     Other -> Other
   end,
-
+  lager:notice("NonBools: ~p",[NonBools]),
   %% sort bit addresses
   BoolsSorted = sort_by_start(Bools),
   %% build byte addresses for bits
@@ -288,6 +288,7 @@ find_contiguous(ParamList) ->
 word_len_size(bool) -> 1;
 word_len_size(byte) -> 1;
 word_len_size(char) -> 1;
+word_len_size(string) -> 1;
 word_len_size(word) -> 2;
 word_len_size(int) -> 1;
 word_len_size(d_word) -> 4;
@@ -322,10 +323,20 @@ do_build(Point=#data_point{}, [Res|R], [Aliases|AliasesList]) ->
   NewPoint = flowdata:set_fields(Point, Keys, Values),
   do_build(NewPoint, R, AliasesList).
 
+%% string is a special case, multiple chars(bytes) form one string
+-spec bld(list()|binary(), {list(), list()}) -> {list(), list()}.
+bld(Res, {[As], [string]}) ->
+  lager:notice("bld string single: ~p, ~p",[Res, As]),
+  Data = decode(string, Res),
+  {[As], [Data]};
+%% non-bool, non-single, string
 bld(Res, {As, [DType|_]}) ->
+  lager:notice("bld: ~p, ~p",[Res, As]),
   DataList = decode(DType, Res),
   {As, DataList};
+%% bits from bytes
 bld(Res, {As, _, Bits}) ->
+  lager:notice("bld bool: ~p, ~p",[Res, As]),
   DataList = decode(bool_byte, Res),
   BitList = [lists:nth(Bit+1, DataList) || Bit <- Bits],
   {As, BitList}.
@@ -339,6 +350,12 @@ decode(byte, Data) ->
   [Res || <<Res:8/binary>> <= Data];
 decode(char, Data) ->
   [Res || <<Res:1/binary>> <= Data];
+decode(string, Data) ->
+  %% strip null-bytes / control-chars
+%%  L = [binary_to_list(Res) || <<Res:1/binary>> <= Data, Res /= <<0>>],
+  L = [binary_to_list(Res) || <<Res:1/binary>> <= Data, Res > <<31>>],
+  lager:info("~p",[L]),
+  list_to_binary(lists:concat(L));
 decode(int, Data) ->
   [Res || <<Res:16/integer-signed>> <= Data];
 decode(d_int, Data) ->
@@ -374,11 +391,7 @@ connect(Ip, Rack, Slot) ->
   end.
 
 do_connect(Ip, Rack, Slot) ->
-%%  {ok, Client} = snapclient:start([]),
   {ok, Client} = snapclient:start_connect(#{ip => Ip, rack => Rack, slot => Slot}),
-%%  ok = snapclient:connect_to(Client, [{ip, Ip}, {slot, Slot}, {rack, Rack}]),
-%%  {ok, CPUInfo} = snapclient:get_cpu_info(Client),
-%%  lager:warning("Connected to PLC : ~p",[CPUInfo]),
   erlang:monitor(process, Client),
   Client.
 

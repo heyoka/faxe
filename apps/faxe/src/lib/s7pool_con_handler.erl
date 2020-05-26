@@ -74,4 +74,4 @@ get_connection(Ip, Index) ->
 
 next_index(L, I) when I > length(L) -> length(L);
 next_index(L, I) when I == length(L) -> 1;
-next_index(L, I) -> I + 1.
+next_index(_L, I) -> I + 1.

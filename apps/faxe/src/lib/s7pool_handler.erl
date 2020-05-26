@@ -42,8 +42,7 @@ init(#{ip := Ip, port := Port} = Opts) ->
   MaxSize = faxe_config:get(s7pool_max_size, ?MAX_SIZE),
   S = #state{ip = Ip, port = Port, opts = Opts, pool_index = 1, initial_size = Initial, max_size = MaxSize},
   %% start with initial-number of  connections
-  Conns = lists:map(fun(_) -> {ok, Con} = s7worker:start_link(Opts), Con end, lists:seq(1, Initial)),
-  {ok, S#state{waiting_cons = Conns}}.
+  {ok, add_initial(S)}.
 
 handle_call(_Request, _From, State = #state{}) ->
   {reply, ok, State}.
@@ -56,10 +55,10 @@ handle_info({up, Worker},
   NewState =
   case lists:member(Worker, Waiting) of
     true ->
-%%      lager:warning("found waiting_con now up: ~p",[Worker]),
+      lager:warning("found waiting_con now up: ~p",[Worker]),
       State#state{pool = Pool ++ [Worker], waiting_cons = lists:delete(Worker, Waiting)};
     false ->
-%%      lager:alert("s7 worker is up, but not waiting for it: ~p",[Worker]),
+      lager:alert("s7 worker is up, but not waiting for it: ~p",[Worker]),
       State#state{pool = Pool ++ [Worker]}
   end,
   update_ets(NewState),
@@ -67,7 +66,7 @@ handle_info({up, Worker},
     true -> s7pool_manager ! {up, Ip};
     false -> ok
   end,
-%%  lager:alert("[~p] Pool: ~p, Waiting: ~p",[?MODULE, NewState#state.pool, NewState#state.waiting_cons]),
+  lager:alert("[~p] Pool: ~p, Waiting: ~p",[?MODULE, NewState#state.pool, NewState#state.waiting_cons]),
   {noreply, NewState};
 handle_info({down, Worker},
     State = #state{pool = Pool, waiting_cons = Waiting, opts = #{ip := Ip}, initial_size = Initial}) ->
@@ -89,7 +88,7 @@ handle_info({down, Worker},
   end,
   {noreply, NewState};
 handle_info({demand, Num}, State = #state{pool = Pool, waiting_cons = Waiting, max_size = MAX}) ->
-%%  lager:notice("[~p] demand is: ~p",[?MODULE, Num]),
+  lager:notice("[~p] demand is: ~p",[?MODULE, Num]),
   Size = length(Pool) + length(Waiting),
   NewState =
   case Num of
@@ -97,6 +96,7 @@ handle_info({demand, Num}, State = #state{pool = Pool, waiting_cons = Waiting, m
       remove_all(State);
     _ ->
       case Size of
+        0 -> add_initial(State); %% demand is > 0, but we have no conns in pool yet, start with initial size
         _ when Num == Size -> State;
         _ when Num > Size, Size == MAX -> State;
         _ when Num > Size -> add_worker(State);
@@ -160,3 +160,8 @@ stop_worker(Pid) ->
     true -> unlink(Pid), catch gen_server:stop(Pid);
     false -> ok
   end.
+
+add_initial(State = #state{initial_size = Initial, opts = Opts}) ->
+  %% start with initial-number of  connections
+  Conns = lists:map(fun(_) -> {ok, Con} = s7worker:start_link(Opts), Con end, lists:seq(1, Initial)),
+  State#state{waiting_cons = Conns}.

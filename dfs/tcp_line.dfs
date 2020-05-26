@@ -1,15 +1,31 @@
 %def ip = '10.200.190.123'
 %def port = 2008
+def parser = parser_lrep_v1
 def ip = '192.168.121.201'
 def port = 2000
-def parser = parser_lrep_v1
-def v1 =
+
     |tcp_recv_line()
     .ip(ip)
     .port(port)
     .parser(parser)
     .min_length(40)
+    .changed()
 
-    |debug()
+|set()
+.fields('df', 'id').field_values('11.001', 'KDR_LREP')
+
+%% write to crate
+
+|batch(5)
+.timeout(10s)
+
+|http_post_crate()
+.table('teckdr')
+.db_fields('id', 'df', 'data_obj')
+.faxe_fields('id', 'df', 'data')
+
+%% publish mqtt
+|mqtt_publish()
+.topic('ttgw/data/kdr_lrep')
 
 

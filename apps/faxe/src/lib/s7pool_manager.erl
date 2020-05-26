@@ -29,7 +29,7 @@
 ensure_pool(Opts) ->
   ?SERVER ! {ensure_pool, Opts, self()}.
 
-read_vars(Opts=#{ip := Ip}, Vars) ->
+read_vars(_Opts=#{ip := Ip}, Vars) ->
 %%  case get_connection(Opts) of
   case s7pool_con_handler:get_connection(Ip) of
     {ok, Worker} ->
@@ -39,7 +39,8 @@ read_vars(Opts=#{ip := Ip}, Vars) ->
       Other
   end.
 
-%% not used any more, but kept for reference
+%% not used any more, but kept for reference; does not work ;)
+%% @deprecated
 get_connection(#{ip := Ip}) ->
   case ets:lookup(s7_pools, Ip) of
     [] -> {error, no_pool_found};
@@ -77,7 +78,7 @@ handle_cast(_Request, State = #state{}) ->
 handle_info({ensure_pool, #{ip := Ip} = Opts, User},
     State = #state{ips_pools = Ips, pools_ips = Pools, ip_opts = IpOpts, pool_user = PUsers,
       users_waiting = UsersWaiting, pools_up = Up}) ->
-%%  lager:notice("ensure_pool for ip :~p for user: ~p",[Ip, User]),
+  lager:notice("ensure_pool for ip :~p for user: ~p",[Ip, User]),
   erlang:monitor(process, User),
   NewPUsers = add_user(Ip, PUsers, User),
   IpDemand = check_demand(Ip, NewPUsers),
