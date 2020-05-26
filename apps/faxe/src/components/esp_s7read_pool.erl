@@ -126,9 +126,13 @@ handle_info(s7_disconnected, State = #state{timer = Timer}) ->
 handle_info(poll,
     State=#state{client = _Client, as = Aliases, timer = Timer,
       vars = Opts, diff = Diff, last_values = LastList, opts = ConnOpts}) ->
-  Result = s7pool_manager:read_vars(ConnOpts, Opts),
-%%  {T, Result} = timer:tc(s7pool_manager, read_vars, [ConnOpts, Opts]),
-%%  lager:info("Time to read: ~p ms",[round(T/1000)]),
+%%  Result = s7pool_manager:read_vars(ConnOpts, Opts),
+  {T, Result} = timer:tc(s7pool_manager, read_vars, [ConnOpts, Opts]),
+  TMs = round(T/1000),
+  case TMs > Timer#faxe_timer.interval of
+    true -> lager:warning("[~p] Time to read: ~p ms",[self(), TMs]);
+    false -> ok
+  end,
   case Result of
     {ok, Res} ->
       NewTimer = faxe_time:timer_next(Timer),
