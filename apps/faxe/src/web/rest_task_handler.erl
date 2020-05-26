@@ -214,12 +214,13 @@ from_start_temp_task(Req, State) ->
          {false, Req4, State}
    end.
 
-from_update_to_json(Req, State=#state{task_id = TaskId, dfs = Dfs, tags = Tags}) ->
-   lager:info("update ~p with dfs: ~p",[TaskId, Dfs]),
-   case faxe:update_string_task(Dfs, binary_to_integer(TaskId)) of
+from_update_to_json(Req, State=#state{task_id = TaskId0, dfs = Dfs, tags = Tags}) ->
+   TaskId = binary_to_integer(TaskId0),
+   lager:info("update ~p with dfs: ~p~nand tags: ~p",[TaskId, Dfs,Tags]),
+   case faxe:update_string_task(Dfs, TaskId) of
       ok ->
          Req4 = cowboy_req:set_resp_body(jiffy:encode(#{success => true, id => TaskId}), Req),
-         rest_helper:set_tags(TaskId, Tags),
+         rest_helper:set_tags(Tags, TaskId),
          {true, Req4, State};
       {error, Error} ->
          Req3 = cowboy_req:set_resp_body(
