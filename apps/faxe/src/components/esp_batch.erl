@@ -44,7 +44,7 @@ process(_, #data_point{} = Point, State=#state{} ) ->
 
 %% this should not be possible, cause the timer starts on an incoming point
 handle_info(batch_timeout, State=#state{length = 0}) ->
-   lager:warning("timeout when Q is empty!!"),
+%%   lager:warning("timeout when Q is empty!!"),
    {ok, State#state{timer_ref = undefined}};
 handle_info(batch_timeout, State) ->
    {Batch, NewState} = prepare_batch(State),
