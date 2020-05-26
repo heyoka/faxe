@@ -91,7 +91,7 @@ init(_NodeId, _Ins,
 %%  [lager:notice("Partition: ~p", [Part]) || Part <- Parts],
 %%  [lager:notice("Aliases: ~p", [Part]) || Part <- AliasesList],
 
-  s7pool_manager:ensure_pool(Opts),
+  s7pool_manager:connect(Opts),
 
   {ok, all,
     #state{

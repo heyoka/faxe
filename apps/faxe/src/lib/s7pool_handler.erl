@@ -55,7 +55,7 @@ handle_info({up, Worker},
   NewState =
   case lists:member(Worker, Waiting) of
     true ->
-      lager:warning("found waiting_con now up: ~p",[Worker]),
+%%      lager:warning("found waiting_con now up: ~p",[Worker]),
       State#state{pool = Pool ++ [Worker], waiting_cons = lists:delete(Worker, Waiting)};
     false ->
       lager:alert("s7 worker is up, but not waiting for it: ~p",[Worker]),
@@ -66,7 +66,7 @@ handle_info({up, Worker},
     true -> s7pool_manager ! {up, Ip};
     false -> ok
   end,
-  lager:alert("[~p] Pool: ~p, Waiting: ~p",[?MODULE, NewState#state.pool, NewState#state.waiting_cons]),
+%%  lager:alert("[~p] Pool: ~p, Waiting: ~p",[?MODULE, NewState#state.pool, NewState#state.waiting_cons]),
   {noreply, NewState};
 handle_info({down, Worker},
     State = #state{pool = Pool, waiting_cons = Waiting, opts = #{ip := Ip}, initial_size = Initial}) ->
@@ -88,7 +88,7 @@ handle_info({down, Worker},
   end,
   {noreply, NewState};
 handle_info({demand, Num}, State = #state{pool = Pool, waiting_cons = Waiting, max_size = MAX}) ->
-  lager:notice("[~p] demand is: ~p",[?MODULE, Num]),
+%%  lager:notice("[~p] demand is: ~p",[?MODULE, Num]),
   Size = length(Pool) + length(Waiting),
   NewState =
   case Num of

@@ -8,7 +8,7 @@
 
 -behaviour(gen_server).
 
--export([start_link/0, ensure_pool/1, get_connection/1, read_vars/2]).
+-export([start_link/0, connect/1, get_connection/1, read_vars/2]).
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2, terminate/2,
   code_change/3]).
 
@@ -26,7 +26,7 @@
 %%%===================================================================
 %%% Spawning and gen_server implementation
 %%%===================================================================
-ensure_pool(Opts) ->
+connect(Opts) ->
   ?SERVER ! {ensure_pool, Opts, self()}.
 
 read_vars(_Opts=#{ip := Ip}, Vars) ->
@@ -78,7 +78,7 @@ handle_cast(_Request, State = #state{}) ->
 handle_info({ensure_pool, #{ip := Ip} = Opts, User},
     State = #state{ips_pools = Ips, pools_ips = Pools, ip_opts = IpOpts, pool_user = PUsers,
       users_waiting = UsersWaiting, pools_up = Up}) ->
-  lager:notice("ensure_pool for ip :~p for user: ~p",[Ip, User]),
+%%  lager:notice("ensure_pool for ip :~p for user: ~p",[Ip, User]),
   erlang:monitor(process, User),
   NewPUsers = add_user(Ip, PUsers, User),
   IpDemand = check_demand(Ip, NewPUsers),
