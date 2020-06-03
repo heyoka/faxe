@@ -23,7 +23,7 @@
 
 -include("faxe.hrl").
 %% API
--export([init/3, process/3, options/0, handle_info/2, shutdown/1]).
+-export([init/3, process/3, options/0, handle_info/2, shutdown/1, metrics/0]).
 
 -define(DEFAULT_PORT, 1883).
 -define(DEFAULT_SSL_PORT, 8883).
@@ -36,7 +36,8 @@
    queue,
    topic,
    topic_lambda,
-   safe = false
+   safe = false,
+   fn_id
 }).
 %% state for direct publish mode
 
@@ -52,19 +53,25 @@ options() -> [
    {ssl, is_set},
    {safe, is_set}].
 
+metrics() ->
+   [
+      {?METRIC_SENDING_TIME, histogram, [slide, 60], "Network time for sending a message."},
+      {?METRIC_BYTES_SENT, histogram, [slide, 60], "Size of item sent in kib."}
+   ].
+
 %% safe mode with ondisc queuing
-init({GraphId, NodeId}, _Ins, #{safe := true, host := Host0}=Opts) ->
+init({GraphId, NodeId} = GId, _Ins, #{safe := true, host := Host0}=Opts) ->
    Host = binary_to_list(Host0),
    EsqBaseDir = faxe_config:get(esq_base_dir),
    QFile = binary_to_list(<<EsqBaseDir/binary, GraphId/binary, "/", NodeId/binary>>),
    {ok, Q} = esq:new(QFile, [{tts, 300}, {capacity, 10}]),
-   {ok, Publisher} = mqtt_publisher:start_link(Opts#{host := Host}, Q),
-   init_all(Opts#{host := Host}, #state{publisher = Publisher, queue = Q});
+   {ok, Publisher} = mqtt_publisher:start_link(Opts#{host := Host, node_id => GId}, Q),
+   init_all(Opts#{host := Host}, #state{publisher = Publisher, queue = Q, fn_id = GId});
 %% direct publish mode
-init(_NodeId, _Ins, #{safe := false, host := Host0} = Opts) ->
+init(NodeId, _Ins, #{safe := false, host := Host0} = Opts) ->
    Host = binary_to_list(Host0),
-   {ok, Publisher} = mqtt_publisher:start_link(Opts#{host := Host}),
-   init_all(Opts#{host := Host}, #state{publisher = Publisher}).
+   {ok, Publisher} = mqtt_publisher:start_link(Opts#{host := Host, node_id => NodeId}),
+   init_all(Opts#{host := Host}, #state{publisher = Publisher, fn_id = NodeId}).
 
 init_all(#{safe := Safe, topic := Topic, topic_lambda := LTopic} = Opts, State) ->
    {ok, all, State#state{options = Opts, safe = Safe, topic = Topic, topic_lambda = LTopic}}.
@@ -87,8 +94,10 @@ handle_info(_E, S) ->
 shutdown(#state{publisher = P}) ->
    catch gen_server:stop(P).
 
-build_message(Point, State) ->
+build_message(Point, State = #state{fn_id = FNId}) ->
    Json = flowdata:to_json(Point),
+   node_metrics:metric(?METRIC_BYTES_SENT, byte_size(Json), FNId),
+   node_metrics:metric(?METRIC_ITEMS_OUT, 1, FNId),
    {get_topic(Point, State), Json}.
 
 get_topic(#data_point{} = _P, # state{topic_lambda = undefined, topic = Topic}) ->

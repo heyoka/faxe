@@ -15,11 +15,18 @@
 
 -include("faxe.hrl").
 %% API
--export([init/3, process/3, options/0, handle_info/2, shutdown/1, maybe_emit/5,
-  check_options/0, build_addresses/2, build_point/2, do_build/3]).
+-export([
+  init/3, process/3, options/0,
+  handle_info/2, shutdown/1,
+  check_options/0
+  , metrics/0]).
+
+-export([
+  maybe_emit/5, build_addresses/3,
+  build_point/2, do_build/3]).
 
 -define(MAX_READ_ITEMS, 19).
--define(DEFAULT_PDU_LENGTH, 128).
+-define(DEFAULT_BYTE_LIMIT, 128).
 
 -define(RECON_MIN_INTERVAL, 100).
 -define(RECON_MAX_INTERVAL, 6000).
@@ -39,40 +46,55 @@
   vars, var_types :: list(),
   last_values = [] :: list(),
   timer :: #faxe_timer{},
-  reconnector,
-  opts
+  opts,
+  node_id,
+  byte_size,
+  connected = false,
+  merge_field,
+  port_data,
+  address_offset
 }).
 
 options() -> [
   {ip, binary},
   {port, integer, 102},
-  {every, duration, <<"1s">>},
+  {every, duration, undefined},
   {align, is_set},
   {slot, integer, 1},
   {rack, integer, 0},
   {vars, string_list}, %% s7 addressing, ie: DB2024,Int16.1224 | DB2024.DBX12.2
   {as, binary_list},
-  {diff, is_set}].
+  {diff, is_set},
+  {merge_field, string, undefined},
+  {byte_offset, integer, 0}
+].
 
 check_options() ->
   [
     {func, vars,
       fun(List) ->
-        {P, _} = build_addresses(List, lists:seq(1, length(List))),
+        {P, _} = build_addresses(List, lists:seq(1, length(List)), 0),
         length(P) =< ?MAX_READ_ITEMS
       end,
       <<", has to many address items!">>
     },
     {func, vars,
       fun(List) ->
-        {P, _} = build_addresses(List, lists:seq(1, length(List))),
-        bit_count(P)/8 =< ?DEFAULT_PDU_LENGTH
+        {P, _} = build_addresses(List, lists:seq(1, length(List)), 0),
+        bit_count(P)/8 =< ?DEFAULT_BYTE_LIMIT
       end,
-      <<", byte-size ", ?DEFAULT_PDU_LENGTH, " bytes exceeded!">>
-    }
+      <<", byte-limit of ", ?DEFAULT_BYTE_LIMIT, " bytes exceeded!">>
+    },
+    {same_length, [vars, as]}
   ].
 
-init(_NodeId, _Ins,
+metrics() ->
+  [
+    {?METRIC_READING_TIME, histogram, [slide, 60]},
+    {?METRIC_BYTES_READ, histogram, [slide, 60]}
+  ].
+
+init({_, _NId}=NodeId, _Ins,
     #{ip := Ip,
       port := Port,
       every := Dur,
@@ -81,17 +103,21 @@ init(_NodeId, _Ins,
       rack := Rack,
       vars := Addresses,
       as := As,
-      diff := Diff}=Opts) ->
+      diff := _Diff,
+      merge_field := MergeField,
+      byte_offset := Offset}=Opts) ->
 
-  Reconnector = faxe_backoff:new(
-    {?RECON_MIN_INTERVAL, ?RECON_MAX_INTERVAL, ?RECON_MAX_RETRIES}),
-  {Parts, AliasesList} = build_addresses(Addresses, As),
 
-%%  lager:info("~p VARS reduced to : ~p  with byte-size: ~p",[length(Addresses), length(Parts), bit_count(Parts)/8]),
-%%  [lager:notice("Partition: ~p", [Part]) || Part <- Parts],
-%%  [lager:notice("Aliases: ~p", [Part]) || Part <- AliasesList],
+  {Parts, AliasesList} = build_addresses(Addresses, As, Offset),
+  ByteSize = bit_count(Parts)/8/1024,
 
+  connection_registry:reg(NodeId, Ip, Port),
   s7pool_manager:connect(Opts),
+  connection_registry:connecting(),
+
+  %%  lager:info("~p VARS reduced to : ~p  with byte-size: ~p",[length(Addresses), length(Parts), bit_count(Parts)/8]),
+  %%  [lager:notice("Partition: ~p", [Part]) || Part <- Parts],
+  %%  [lager:notice("Aliases: ~p", [Part]) || Part <- AliasesList],
 
   {ok, all,
     #state{
@@ -102,45 +128,55 @@ init(_NodeId, _Ins,
       rack = Rack,
       align = Align,
       interval = Dur,
-      reconnector = Reconnector,
-      diff = Diff,
+      diff = false, %Diff,
       vars = Parts,
-      opts = Opts
+      opts = Opts,
+      node_id = NodeId,
+      byte_size = ByteSize,
+      merge_field = MergeField,
+      address_offset = Offset
     }
   }.
 
 
-process(_In, #data_batch{points = _Points} = _Batch, State = #state{}) ->
+process(_Inport, _Item, State = #state{connected = false}) ->
   {ok, State};
-process(_Inport, #data_point{} = _Point, State = #state{}) ->
-  {ok, State}.
+process(_Inport, Item, State = #state{connected = true}) ->
+  % read now trigger
+  lager:info("read trigger!", []),
+  handle_info(poll, State#state{port_data = Item}).
 
 handle_info(s7_connected, State = #state{align = Align, interval = Dur, client = Client}) ->
-%%  lager:notice("s7_connected"),
+  connection_registry:connected(),
   Timer = faxe_time:init_timer(Align, Dur, poll),
-  {ok, State#state{client = Client, timer = Timer}};
+  {ok, State#state{client = Client, timer = Timer, connected = true}};
 handle_info(s7_disconnected, State = #state{timer = Timer}) ->
-%%  lager:notice("s7_disconnected"),
+  connection_registry:disconnected(),
   NewTimer = faxe_time:timer_cancel(Timer),
-  {ok, State#state{timer = NewTimer}};
+  {ok, State#state{timer = NewTimer, connected = false}};
 handle_info(poll,
-    State=#state{client = _Client, as = Aliases, timer = Timer,
-      vars = Opts, diff = Diff, last_values = LastList, opts = ConnOpts}) ->
-%%  Result = s7pool_manager:read_vars(ConnOpts, Opts),
-  {T, Result} = timer:tc(s7pool_manager, read_vars, [ConnOpts, Opts]),
-  TMs = round(T/1000),
-  case TMs > Timer#faxe_timer.interval of
+    State=#state{client = _Client, as = Aliases, timer = Timer, byte_size = ByteSize,
+      vars = Opts, diff = Diff, last_values = LastList, opts = ConnOpts, node_id = FlowIdNodeId}) ->
+
+  TStart = erlang:monotonic_time(microsecond),
+  Result = s7pool_manager:read_vars(ConnOpts, Opts),
+  TMs = round((erlang:monotonic_time(microsecond)-TStart)/1000),
+  case Timer /= undefined andalso TMs > Timer#faxe_timer.interval of
     true -> lager:warning("[~p] Time to read: ~p ms",[self(), TMs]);
     false -> ok
   end,
   case Result of
     {ok, Res} ->
+      node_metrics:metric(?METRIC_READING_TIME, TMs, FlowIdNodeId),
+      node_metrics:metric(?METRIC_ITEMS_IN, 1, FlowIdNodeId),
+      node_metrics:metric(?METRIC_BYTES_READ, ByteSize, FlowIdNodeId),
       NewTimer = faxe_time:timer_next(Timer),
       NewState = State#state{timer = NewTimer, last_values = Res},
       maybe_emit(Diff, Res, Aliases, LastList, NewState);
     _Other ->
-      lager:warning("Error when reading S7 Vars: ~p", [_Other]),
-      {ok, State}
+      node_metrics:metric(?METRIC_ERRORS, 1, FlowIdNodeId),
+      lager:warning("Error reading S7 Vars: ~p", [_Other]),
+      {ok, State#state{timer = faxe_time:timer_next(Timer)}}
   end;
 handle_info(_E, S) ->
   {ok, S#state{}}.
@@ -149,24 +185,33 @@ shutdown(#state{timer = Timer}) ->
   catch (faxe_time:timer_cancel(Timer)).
 
 
+%%% @doc no diff flag -> emit
 -spec maybe_emit(Diff :: true|false, ResultList :: list(), Aliases :: list(), LastResults :: list(), State :: #state{})
-      -> ok | term().
-%% no diff flag -> emit
-maybe_emit(false, Res, Aliases, _, State) ->
-  Out = build_point(Res, Aliases),
-  {emit, {1, Out}, State};
-%% diff flag and result-list is exactly last list -> no emit
+    -> ok | term().
+maybe_emit(false, Res, Aliases, _, State = #state{merge_field = MField, port_data = PData}) ->
+  Out0 = build_point(Res, Aliases),
+  Out =
+  case PData == undefined orelse MField == undefined of
+    true -> Out0;
+    _ ->
+      flowdata:merge_points([PData, Out0], MField)
+  end,
+  {emit, {1, Out}, State#state{port_data = undefined}};
+%%% @doc diff flag and result-list is exactly last list -> no emit
+%% the power and the beauty of pattern matching ...
 maybe_emit(true, Result, _, Result, State) ->
   {ok, State};
-%% diff flag -> emit values
+%%% @doc diff flag -> emit values
 maybe_emit(true, Result, Aliases, _Last, State) ->
   maybe_emit(false, Result, Aliases, [], State).
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-build_addresses(Addresses, As) ->
-  PList = [s7addr:parse(Address) || Address <- Addresses],
+build_addresses(Addresses, As, Offset) ->
+  PList = [s7addr:parse(Address, Offset) || Address <- Addresses],
   %% inject Aliases into parameter maps
+
   AsAdds = lists:zip(As, PList),
+%%  lager:info("after lists:zip" ,[AsAdds]),
   F = fun({Alias, Params}) -> Params#{as => Alias} end,
   WithAs = lists:map(F, AsAdds),
   %% partition addresses+aliases by data-type
@@ -325,7 +370,7 @@ decode(bool_byte, Data) ->
   D = [X || <<X:1>> <= Data],
   prepare_byte_list(D);
 decode(byte, Data) ->
-  [Res || <<Res:8/binary>> <= Data];
+  [Res || <<Res:8/integer-unsigned>> <= Data];
 decode(char, Data) ->
   [Res || <<Res:1/binary>> <= Data];
 decode(string, Data) ->
@@ -432,7 +477,7 @@ build_addresses_test() ->
       {[<<"DB11136_DBW96">>,<<"DB11136_DBW98">>],[word,word]}
     ],
 
-  {S7Addrs, Aliases} = build_addresses(L, As),
+  {S7Addrs, Aliases} = build_addresses(L, As, 0),
   ?assertEqual(Res, S7Addrs),
   ?assertEqual(AliasesList, Aliases).
 

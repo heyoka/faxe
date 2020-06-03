@@ -40,7 +40,7 @@
 
 -include("faxe.hrl").
 %% API
--export([init/3, process/3, options/0, handle_info/2, shutdown/1, read/2, check_options/0]).
+-export([init/3, process/3, options/0, handle_info/2, shutdown/1, read/2, check_options/0, metrics/0]).
 
 -record(state, {
    ip,
@@ -56,7 +56,9 @@
    signed,
    requests,
    timer,
-   align = false
+   align = false,
+   connected = false,
+   fn_id
 }).
 
 -define(FUNCTIONS, [<<"coils">>, <<"hregs">>, <<"iregs">>, <<"inputs">>, <<"memory">>]).
@@ -66,7 +68,7 @@
 options() -> [
    {ip, string},
    {port, integer, 502},
-   {every, duration, <<"1s">>},
+   {every, duration, undefined},
    {align, is_set, false},
    {device, integer, 255},
    {function, binary_list},
@@ -81,8 +83,15 @@ check_options() ->
       {same_length, [function, from, count, as, output, signed]}
    ].
 
-init(_NodeId, _Ins, #{} = Opts) ->
+metrics() ->
+   [
+      {?METRIC_BYTES_READ, histogram, [slide, 60]}
+   ].
+
+init(NodeId, _Ins, #{} = Opts) ->
    State = init_opts(maps:to_list(Opts), #state{}),
+   connection_registry:reg(NodeId, State#state.ip, State#state.port),
+   connection_registry:connecting(),
    {ok, Modbus} = modbus:connect(
       State#state.ip, State#state.port, State#state.device_address),
    erlang:monitor(process, Modbus),
@@ -93,7 +102,7 @@ init(_NodeId, _Ins, #{} = Opts) ->
          L when is_list(L) -> L
       end,
    Requests = lists:zip(Req0, ReqOpts),
-   NewState = State#state{client = Modbus, requests = Requests},
+   NewState = State#state{client = Modbus, requests = Requests, fn_id = NodeId},
    {ok, all, NewState}.
 
 init_opts([{ip, Ip0}|Opts], State) ->
@@ -121,35 +130,41 @@ init_opts([{align, Align}|Opts], State) ->
 init_opts(_O, State) ->
    State.
 
-process(_In, #data_batch{points = _Points} = _Batch, State = #state{}) ->
+process(_Inport, _Item, State = #state{connected = false}) ->
    {ok, State};
-process(_Inport, #data_point{} = _Point, State = #state{}) ->
-   {ok, State}.
+process(_Inport, _Item, State = #state{connected = true}) ->
+   handle_info(poll, State).
 
-handle_info(poll, State = #state{client = Modbus, requests = Requests, timer = Timer}) ->
+handle_info(poll, State = #state{client = Modbus, requests = Requests, timer = Timer, fn_id = Id}) ->
    {_Time, Res} = timer:tc(?MODULE, read, [Modbus, Requests]),
    case Res of
       {error, stop} ->
          {ok, State#state{timer = faxe_time:timer_cancel(Timer)}};
       {ok, OutPoint} ->
+         BSize = byte_size(flowdata:to_json(OutPoint)),
+         node_metrics:metric(?METRIC_BYTES_READ, BSize, Id),
+         node_metrics:metric(?METRIC_ITEMS_IN, 1, Id),
          {emit, {1, OutPoint}, State#state{timer = faxe_time:timer_next(Timer)}}
    end;
 handle_info({'DOWN', _MonitorRef, process, _Object, Info},
     State=#state{ip = Ip, port = Port, device_address = Device, timer = Timer}) ->
+   connection_registry:disconnected(),
    NewTimer = faxe_time:timer_cancel(Timer),
    lager:warning("Modbus process is DOWN with : ~p !", [Info]),
    {ok, Modbus} = modbus:connect([{host, Ip}, {port,Port}, {unit_id, Device}, {max_retries, 7}]),
    erlang:monitor(process, Modbus),
    {ok, State#state{client = Modbus, timer = NewTimer}};
 handle_info({modbus, _From, connected}, S = #state{}) ->
+   connection_registry:connected(),
 %%   lager:notice("Modbus is connected, lets start polling ..."),
    Timer = faxe_time:init_timer(S#state.align, S#state.interval, poll),
-   NewState = S#state{timer = Timer},
+   NewState = S#state{timer = Timer, connected = true},
    {ok, NewState};
 %% if disconnected, we just wait for a connected message and stop polling in the mean time
 handle_info({modbus, _From, disconnected}, State=#state{timer = Timer}) ->
+   connection_registry:disconnected(),
    lager:notice("Modbus is disconnected!!, stop polling ...."),
-   {ok, State#state{timer = faxe_time:timer_cancel(Timer)}};
+   {ok, State#state{timer = faxe_time:timer_cancel(Timer), connected = false}};
 handle_info(_E, S) ->
    {ok, S#state{}}.
 

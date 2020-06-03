@@ -9,7 +9,7 @@
 
 -behavior(df_component).
 %% API
--export([init/3, process/3, options/0, handle_info/2, do_send/4, shutdown/1]).
+-export([init/3, process/3, options/0, handle_info/2, do_send/4, shutdown/1, metrics/0]).
 
 -record(state, {
    host :: string(),
@@ -27,7 +27,8 @@
    remaining_fields_as,
    failed_retries,
    tries,
-   tls
+   tls,
+   fn_id
 }).
 
 -define(KEY, <<"stmt">>).
@@ -54,7 +55,12 @@ options() ->
       {faxe_fields, string_list},
       {remaining_fields_as, string, undefined}].
 
-init(_NodeId, _Inputs,
+metrics() ->
+   [
+      {?METRIC_BYTES_SENT, histogram, [slide, 60]}
+   ].
+
+init(NodeId, _Inputs,
     #{host := Host0, port := Port, database := DB, table := Table, user := User, pass := Pass,
        tls := Tls,
        db_fields := DBFields, faxe_fields := FaxeFields, remaining_fields_as := RemFieldsAs}) ->
@@ -62,9 +68,10 @@ init(_NodeId, _Inputs,
    Host = binary_to_list(Host0),
    erlang:send_after(0, self(), start_client),
    Query = build_query(DBFields, Table, RemFieldsAs),
+   connection_registry:reg(NodeId, Host, Port),
    {ok, all, #state{host = Host, port = Port, database = DB, user = User, pass = Pass,
       failed_retries = ?FAILED_RETRIES, remaining_fields_as = RemFieldsAs, tls = Tls,
-      table = Table, query = Query, db_fields = DBFields, faxe_fields = FaxeFields}}.
+      table = Table, query = Query, db_fields = DBFields, faxe_fields = FaxeFields, fn_id = NodeId}}.
 
 %%% DATA IN
 %% not connected -> drop message
@@ -76,6 +83,7 @@ process(_In, DataItem, State = #state{}) ->
    {ok, State}.
 
 handle_info({'DOWN', _MonitorRef, _Type, Pid, _Info}, State = #state{client = Pid}) ->
+   connection_registry:disconnected(),
    lager:warning("gun is down"),
    handle_info(start_client, State#state{client = undefined});
 handle_info(start_client, State) ->
@@ -88,6 +96,7 @@ shutdown(#state{client = C}) ->
    gun:close(C).
 
 start_client(State = #state{host = Host, port = Port, tls = Tls}) ->
+   connection_registry:connecting(),
    Opts = #{connect_timeout => 3000},
    Options =
       case Tls of
@@ -99,6 +108,7 @@ start_client(State = #state{host = Host, port = Port, tls = Tls}) ->
          erlang:monitor(process, C),
          case gun:await_up(C) of
             {ok, _} ->
+               connection_registry:connected(),
                State#state{client = C};
             _ ->
                lager:warning("timeout connecting to ~p:~p", [Host, Port]),
@@ -126,8 +136,11 @@ send(Item, State = #state{query = Q, faxe_fields = Fields, remaining_fields_as =
          Headers0 ++ [{?AUTH_HEADER_KEY, <<"Basic ", Auth/binary>>}]
    end,
    NewState = do_send(Query, Headers, 0, State),
+   node_metrics:metric(?METRIC_BYTES_SENT, byte_size(Query), State#state.fn_id),
+   node_metrics:metric(?METRIC_ITEMS_OUT, 1, State#state.fn_id),
    NewState.
 
+-spec build(#data_point{}|#data_batch{}, binary(), list(), binary()) -> iodata().
 build(Item, Query, Fields, RemFieldsAs) ->
    BulkArgs0 = build_value_stmt(Item, Fields, RemFieldsAs),
    BulkArgs =

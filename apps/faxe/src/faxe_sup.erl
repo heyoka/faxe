@@ -56,6 +56,18 @@ init([]) ->
         {s7pool_con_handler,
             {s7pool_con_handler, start_link, []},
             permanent, 5000, worker, []}
+        ,
+        {connection_registry,
+            {connection_registry, start_link, []},
+            permanent, 5000, worker, []}
+        ,
+        {metrics_collector,
+            {metrics_collector, start_link, []},
+            permanent, 5000, worker, []}
+        ,
+        {faxe_metrics,
+            {gen_event, start_link, [{local, faxe_metrics}]},
+            permanent, 5000, worker, []}
 %%        ,
 %%        {faxe_log_sup,
 %%            {faxe_log_sup, start_link, []},

@@ -30,7 +30,9 @@ start(_StartType, _StartArgs) ->
       }
    ),
    %% start top supervisor
-   faxe_sup:start_link().
+   Res = faxe_sup:start_link(),
+   dataflow:add_metrics_handler(),
+   Res.
 
 %%--------------------------------------------------------------------
 stop(_State) ->

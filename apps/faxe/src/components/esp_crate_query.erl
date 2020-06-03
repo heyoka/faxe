@@ -9,7 +9,7 @@
 
 -behavior(df_component).
 %% API
--export([init/3, process/3, options/0, handle_info/2, to_flowdata/2, check_options/0, shutdown/1]).
+-export([init/3, process/3, options/0, handle_info/2, to_flowdata/2, check_options/0, shutdown/1, metrics/0]).
 
 -record(state, {
    host :: string(),
@@ -26,7 +26,8 @@
    period,
    result_type,
    align = false,
-   timer
+   timer,
+   fn_id
 }).
 
 -define(DB_OPTIONS, #{
@@ -60,7 +61,12 @@ check_options() ->
       {func, query, fun faxe_util:check_select_statement/1, <<"seems not to be a valid sql select statement">>}
    ].
 
-init(_NodeId, _Inputs, #{host := Host0, port := Port, user := User, every := Every, period := Period,
+metrics() ->
+   [
+      {?METRIC_BYTES_READ, histogram, [slide, 60]}
+   ].
+
+init(NodeId, _Inputs, #{host := Host0, port := Port, user := User, every := Every, period := Period,
       pass := Pass, database := DB, query := Q0, align := Align, group_by_time := TimeGroup,
       time_field := TimeField, group_by := GroupBys, result_type := RType}) ->
 
@@ -75,7 +81,8 @@ init(_NodeId, _Inputs, #{host := Host0, port := Port, user := User, every := Eve
 %%   lager:warning("the QUERY: ~p",[Query]),
    State = #state{host = Host, port = Port, user = User, pass = Pass, database = DB, query = Query,
       db_opts = DBOpts, every = Every, period = faxe_time:duration_to_ms(Period),
-      align = Align, result_type = RType},
+      align = Align, result_type = RType, fn_id = NodeId},
+   connection_registry:reg(NodeId, Host, Port),
    erlang:send_after(0, self(), reconnect),
    {ok, all, State}.
 
@@ -110,9 +117,11 @@ shutdown(#state{client = C, stmt = _Stmt}) ->
    catch epgsql:close(C).
 
 connect(State = #state{db_opts = Opts, query = Q}) ->
+   connection_registry:connecting(),
    lager:info("db opts: ~p",[Opts]),
    case epgsql:connect(Opts) of
       {ok, C} ->
+         connection_registry:connected(),
          case epgsql:parse(C, ?STMT, Q, [int8, int8]) of
             {ok, Statement} ->
                NewState = init_timer(State#state{client = C, stmt = Statement}),
@@ -173,6 +182,7 @@ init_timer(S = #state{align = Align, every = Every}) ->
 handle_response({ok, Columns, Rows}, ResponseType, State) ->
    ColumnNames = columns(Columns, []),
    Batch = handle_result(ColumnNames, Rows, ResponseType),
+   node_metrics:metric(?METRIC_ITEMS_IN, 1, State#state.fn_id),
    {emit, {1, Batch}, State};
 handle_response(Other, _RType, State) ->
    lager:warning("Response from Crate: ", [Other]),

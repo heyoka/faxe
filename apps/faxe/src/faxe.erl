@@ -306,14 +306,19 @@ start_temp(DfsScript, TTL) ->
    start_temp(DfsScript, data, TTL).
 start_temp(DfsScript, Type, TTL) ->
    case eval_dfs(DfsScript, Type) of
-      {_DFS, Def} when is_map(Def) ->
+      {DFS, Def} when is_map(Def) ->
          Id = list_to_binary(faxe_util:uuid_string()),
          case dataflow:create_graph(Id, Def) of
             {ok, Graph} ->
+               _Task = #task{
+                  date = faxe_time:now_date(),
+                  dfs = DFS,
+                  definition = Def,
+                  name = Id
+               },
                ets:insert(temp_tasks, {Id, Graph}),
                try dataflow:start_graph(Graph, #task_modes{temporary = true, temp_ttl = TTL}) of
                   ok ->
-
                      {ok, Id}
                catch
                   _:E = E -> {error, graph_start_error}

@@ -21,7 +21,7 @@
 
 -include("faxe.hrl").
 %% API
--export([init/3, process/3, options/0, handle_info/2, shutdown/1]).
+-export([init/3, process/3, options/0, handle_info/2, shutdown/1, metrics/0]).
 
 -record(state, {
   ip,
@@ -33,7 +33,8 @@
   reconnector,
   parser = undefined :: undefined|atom(), %% parser module
   changes = false,
-  prev_crc32
+  prev_crc32,
+  fn_id
 }).
 
 -define(SOCKOPTS,
@@ -59,34 +60,45 @@ options() -> [
   {changed, is_set, false} %% only emit, when new data is different to previous
 ].
 
+metrics() ->
+  [
+    {?METRIC_BYTES_READ, histogram, [slide, 60]}
+  ].
 
-init(_NodeId, _Ins,
+init(NodeId, _Ins,
     #{ip := Ip, port := Port, as := As, parser := Parser, extract := Extract, changed := Changed}) ->
   Reconnector = faxe_backoff:new(
     {?RECON_MIN_INTERVAL, ?RECON_MAX_INTERVAL, ?RECON_MAX_RETRIES}),
   {ok, Reconnector1} = faxe_backoff:execute(Reconnector, do_reconnect),
   reconnect_watcher:new(20000, 15, io_lib:format("~s:~p ~p",[Ip, Port, ?MODULE])),
+  connection_registry:reg(NodeId, Ip, Port),
   {ok, all,
     #state{ip = Ip, port = Port, as = As, extract = Extract, changes = Changed,
-      parser = Parser, reconnector = Reconnector1}}.
+      parser = Parser, reconnector = Reconnector1, fn_id = NodeId}}.
 
 process(_In, #data_batch{points = _Points} = _Batch, State = #state{}) ->
   {ok, State};
 process(_Inport, #data_point{} = _Point, State = #state{}) ->
   {ok, State}.
 
-handle_info({tcp, Socket, Data}, State=#state{}) ->
+handle_info({tcp, Socket, Data}, State=#state{fn_id = FNId}) ->
+  node_metrics:metric(?METRIC_ITEMS_IN, 1, FNId),
+  node_metrics:metric(?METRIC_BYTES_READ, byte_size(Data), FNId),
   NewState = maybe_emit(Data, State),
   inet:setopts(Socket, [{active, once}]),
   {ok, NewState};
 handle_info({tcp_closed, _S}, S=#state{}) ->
+  connection_registry:disconnected(),
   try_reconnect(S#state{socket = undefined});
 handle_info({tcp_error, Socket, _}, State) ->
   inet:setopts(Socket, [{active, once}]),
   {ok, State};
 handle_info(do_reconnect, State=#state{ip = Ip, port = Port}) ->
+  connection_registry:connecting(),
   case connect(Ip, Port) of
-    {ok, Socket} -> inet:setopts(Socket, [{active, once}]),
+    {ok, Socket} ->
+      connection_registry:connected(),
+      inet:setopts(Socket, [{active, once}]),
       {ok, State#state{socket = Socket}};
     {error, Error} -> lager:error("[~p] Error connecting to ~p: ~p",[?MODULE, {Ip, Port},Error]),
       try_reconnect(State)

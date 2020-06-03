@@ -12,7 +12,6 @@
 -export([start_node/4, inports/1, outports/1, start_async/4]).
 
 %% Callback API
-%%-export([request_items/2, emit/1, emit/2]).
 
 %% gen_server callbacks
 -export([init/1,
@@ -154,11 +153,11 @@
 -callback shutdown(State :: cbstate())
     -> any().
 
-%% these are optional
+%% these are optional (%% erlang 18+)
 -optional_callbacks([
    options/0, check_options/0,
    inports/0, outports/0,
-   handle_info/2, shutdown/1]). %% erlang 18+
+   handle_info/2, shutdown/1]).
 
 
 
@@ -190,21 +189,6 @@ outports(Module) ->
    end.
 
 
-%%%==========================================================
-%%% Callback API
-%%%
-%%% these are exposed in the dataflow module now !
-%%%==========================================================
-%%request_items(Port, PublisherPids) when is_list(PublisherPids) ->
-%%   [Pid ! {request, self(), Port} || Pid <- PublisherPids].
-%%
-%%emit(Value) ->
-%%   emit(1, Value).
-%%emit(Port, Value) ->
-%%   erlang:send_after(0, self(), {emit, {Port, Value}}).
-
-
-%%% %%%%%%%%%%%%%%%%
 %%%===================================================================
 %%% gen_server callbacks
 %%%===================================================================
@@ -216,8 +200,11 @@ init([Component, GraphId, NodeId, Inports, _Outports, Args]) ->
    code:ensure_loaded(Component),
    lager:md([{flow, GraphId}, {comp, NodeId}]),
    InputPorts = lists:map(fun({_Pid, Port}) -> Port end, Inports),
-   {ok, #c_state{component = Component, graph_id = GraphId, node_id = NodeId, subscriptions = [],
-      inports = InputPorts, cb_state = Args}};
+   NId = <<GraphId/binary, "==", NodeId/binary>>,
+   {ok, #c_state{
+      component = Component, graph_id = GraphId, node_id = NodeId, flow_node_id = NId,
+      subscriptions = [], inports = InputPorts, cb_state = Args}
+   };
 init(#c_state{} = PersistedState) ->
    {ok, PersistedState}.
 
@@ -250,19 +237,8 @@ handle_call({start, Inputs, Subscriptions, FlowMode}, _From,
          auto_request = AR,
          cb_state = NewCBState,
          flow_mode = FlowMode,
-         cb_handle_info = CallbackHandlesInfo}}
-;
-handle_call(stats, _From, State=#c_state{node_id = _NId, component = _Comp}) ->
-%%   Res = {Comp,#{
-%%      <<"processing_errors">> => folsom_metrics:get_history_values(<< NId/binary, ?FOLSOM_ERROR_HISTORY >>, 24),
-%%      <<"items processed">> => folsom_metrics:get_histogram_statistics(NId)
-%%   }},
-   {reply, ok, State}
-;
-handle_call(errors, _From, State=#c_state{node_id = _NId, component = _Comp}) ->
-%%   Res = {Comp, folsom_metrics:get_history_values(<< NId/binary, ?FOLSOM_ERROR_HISTORY >>, 24)},
-   {reply, ok, State}
-;
+         cb_handle_info = CallbackHandlesInfo}
+   };
 handle_call(get_subscribers, _From, State=#c_state{subscriptions = Subs}) ->
    {reply, {ok, Subs}, State}
 ;
@@ -301,9 +277,7 @@ handle_info({start, Inputs, Subscriptions, FlowMode},
 
    AR = case FlowMode of pull -> AReq; push -> none end,
    CallbackHandlesInfo = erlang:function_exported(CB, handle_info, 2),
-   %% metrics
-%%   folsom_metrics:new_histogram(NId, slide, 60),
-%%   folsom_metrics:new_history(<< NId/binary, ?FOLSOM_ERROR_HISTORY >>, 24),
+
    {noreply,
       State#c_state{
          subscriptions = Subscriptions,
@@ -323,28 +297,19 @@ handle_info({item, {Inport, Value}},
     State=#c_state{
        cb_state = CBState, component = Module, flow_mode = FMode, auto_request = AR, node_id = _NId}) ->
 
-   {message_queue_len, MsgQueueLength} = erlang:process_info(self(), message_queue_len),
-   case MsgQueueLength > ?MSG_Q_LENGTH_HIGH_WATERMARK of
-      true -> lager:warning("[~p] Process-Q-Length: ~p", [Module, MsgQueueLength]);
-      false -> ok
-   end,
-%%
-%%   lager:notice("stats for ~p: ~p",[NId, folsom_metrics:get_histogram_statistics(NId)]),
-%%lager:warning("cb state is: ~p",[CBState]),
-%%   folsom_metrics:notify({NId, 1}),
-   %gen_event:notify(dfevent_component, {item, State#c_state.node_id, {Inport, Value}}),
+   metric(?METRIC_ITEMS_IN, 1, State),
+   TStart = erlang:monotonic_time(microsecond),
 %%   Result = (Module:process(Inport, Value, CBState)),
-%%   case catch(timer:tc(Module, process, [Inport, Value, CBState])) of
    case  catch(Module:process(Inport, Value, CBState)) of
       {'EXIT', {Reason, Stacktrace}} ->
          lager:error("'error' in component ~p caught when processing item: ~p -- ~p",
          [State#c_state.component, {Inport, Value}, lager:pr_stacktrace(Stacktrace, {'EXIT', Reason})]),
+         metric(?METRIC_ERRORS, 1, State),
          {noreply, State};
 
       Result ->
-%%      {TMic, Result} ->
-%%         lager:info("processed in ~p microsecs",[TMic]),
          {NewState, Requested, REmitted} = handle_process_result(Result, State),
+         metric(?METRIC_PROCESSING_TIME, (erlang:monotonic_time(microsecond)-TStart)/1000, State),
          case FMode == pull of
             true -> case {Requested, AR, REmitted} of
                        {true, _, _} -> ok;
@@ -363,11 +328,11 @@ handle_info({item, {Inport, Value}},
 handle_info({emit, {Outport, Value}}, State=#c_state{subscriptions = Ss, node_id = _NId,
       flow_mode = FMode, auto_request = AR, emitted = EmitCount}) ->
 
-%%   lager:notice("stats for ~p: ~p",[NId, folsom_metrics:get_histogram_statistics(NId)]),
    %gen_event:notify(dfevent_component, {emitting, State#c_state.node_id, {Outport, Value}}),
    lager:debug("Component: ~p emitting: ~p on port ~p", [State#c_state.node_id, Value, Outport]),
 
    NewSubs = df_subscription:output(Ss, Value, Outport),
+   metric(?METRIC_ITEMS_OUT, 1, State),
    NewState = State#c_state{subscriptions = NewSubs},
    case AR of
       none  -> ok;
@@ -406,7 +371,7 @@ handle_info(_Req, State=#c_state{cb_handle_info = false}) ->
 %%--------------------------------------------------------------------
 -spec(terminate(Reason :: (normal | shutdown | {shutdown, term()} | term()),
     State :: #c_state{}) -> term()).
-terminate(_Reason, _State) ->
+terminate(_Reason, #c_state{flow_node_id = NId}) ->
    ok.
 
 
@@ -423,9 +388,11 @@ code_change(_OldVsn, State, _Extra) ->
 -spec handle_process_result(tuple(), #c_state{}) -> {NewState::#c_state{}, boolean(), boolean()}.
 handle_process_result({emit, {Port, Emitted}, NState}, State=#c_state{subscriptions = Subs}) when is_integer(Port) ->
    NewSubs = df_subscription:output(Subs, Emitted, Port),
+   metric(?METRIC_ITEMS_OUT, 1, State),
    {State#c_state{subscriptions = NewSubs, cb_state = NState},false, true};
 handle_process_result({emit, Emitted, NState}, State=#c_state{subscriptions = Subs}) ->
    NewSubs = df_subscription:output(Subs, Emitted, 1),
+   metric(?METRIC_ITEMS_OUT, 1, State),
    {State#c_state{subscriptions = NewSubs, cb_state = NState},false, true};
 handle_process_result({request, {Port, PPids}, NState}, State=#c_state{flow_mode = FMode}) when is_list(PPids) ->
    maybe_request_items(Port, PPids, FMode),
@@ -434,18 +401,20 @@ handle_process_result({request, {Port, PPids}, NState}, State=#c_state{flow_mode
 handle_process_result({emit_request, {Port, Emitted}, {ReqPort, PPids}, NState},
     State=#c_state{flow_mode = FMode, subscriptions = Subs}) when is_list(PPids) ->
    NewSubs = df_subscription:output(Subs, Emitted, Port),
+   metric(?METRIC_ITEMS_OUT, 1, State),
    maybe_request_items(ReqPort, PPids, FMode),
    {State#c_state{subscriptions = NewSubs, cb_state = NState}, true, false};
 handle_process_result({emit_request, Emitted, {ReqPort, PPids}, NState},
     State=#c_state{flow_mode = FMode, subscriptions = Subs}) when is_list(PPids) ->
    NewSubs = df_subscription:output(Subs, Emitted, 1),
+   metric(?METRIC_ITEMS_OUT, 1, State),
    maybe_request_items(ReqPort, PPids, FMode),
    {State#c_state{subscriptions = NewSubs, cb_state = NState}, true, false};
 handle_process_result({ok, NewCBState}, State=#c_state{}) ->
    {State#c_state{cb_state = NewCBState}, false, false};
-handle_process_result({error, _What}, _State=#c_state{}) ->
+handle_process_result({error, _What}, State=#c_state{}) ->
+   metric(?METRIC_ERRORS, 1, State),
    exit(_What).
-
 
 
 request_all(_Inports, push) ->
@@ -469,4 +438,7 @@ inports() ->
 outports() ->
    inports().
 
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%% METRICS %%%%%%%%%%%%%%%%%%%%%%%%%%%
+metric(Name, Value, #c_state{flow_node_id = NId}) ->
+   node_metrics:metric(NId, Name, Value).

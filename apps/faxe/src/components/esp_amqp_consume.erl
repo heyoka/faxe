@@ -18,7 +18,7 @@
 
 -include("faxe.hrl").
 %% API
--export([init/3, process/3, options/0, handle_info/2, shutdown/1]).
+-export([init/3, process/3, options/0, handle_info/2, shutdown/1, metrics/0]).
 
 -define(RECONNECT_TIMEOUT, 2000).
 -define(Q_OPTS, [{tts, 300}, {capacity, 10}]).
@@ -42,7 +42,8 @@
    dt_format,
    collected = 0,
    points = queue:new(),
-   emitter
+   emitter,
+   flownodeid
 }).
 
 options() -> [
@@ -60,9 +61,13 @@ options() -> [
    {dt_format, string, ?TF_TS_MILLI}
 ].
 
+metrics() ->
+   [
+      {?METRIC_BYTES_READ, histogram, [slide, 60]}
+   ].
 
 init({_GraphId, _NodeId} = Idx, _Ins,
-   #{ host := Host0, port := _Port, user := _User, pass := _Pass, vhost := _VHost, queue := _Q,
+   #{ host := Host0, port := Port, user := _User, pass := _Pass, vhost := _VHost, queue := _Q,
       exchange := _Ex, prefetch := Prefetch, routing_key := _RoutingKey, dt_field := DTField,
       dt_format := DTFormat, ssl := _UseSSL}
       = Opts0) ->
@@ -73,7 +78,9 @@ init({_GraphId, _NodeId} = Idx, _Ins,
 
    QFile = faxe_config:q_file(Idx),
    {ok, Q} = esq:new(QFile, ?Q_OPTS),
-   NewState = start_emitter(State#state{queue = Q}),
+
+   NewState = start_emitter(State#state{queue = Q, flownodeid = Idx}),
+   connection_registry:reg(Idx, Host, Port),
    {ok, start_consumer(NewState)}.
 
 process(_In, _, State = #state{}) ->
@@ -82,7 +89,9 @@ process(_In, _, State = #state{}) ->
 %%
 %% new queue-message arrives ...
 %%
-handle_info({ {DTag, RKey}, {Payload, _Headers}, From}, State=#state{prefetch = 1, queue = Q}) ->
+handle_info({ {DTag, RKey}, {Payload, _Headers}, From}, State=#state{prefetch = 1, queue = Q, flownodeid = FNId}) ->
+   node_metrics:metric(?METRIC_BYTES_READ, byte_size(Payload), FNId),
+   node_metrics:metric(?METRIC_ITEMS_IN, 1, FNId),
    DataPoint = build_point(Payload, RKey, State#state.dt_field, State#state.dt_format),
    ok = esq:enq(DataPoint, Q),
    carrot:ack(From, DTag),
@@ -95,6 +104,7 @@ handle_info({ {DTag, RKey}, {Payload, _Headers}, From},
    maybe_emit(DTag, From, NewState);
 
 handle_info({'DOWN', _MonitorRef, process, Consumer, _Info}, #state{consumer = Consumer} = State) ->
+   connection_registry:disconnected(),
    lager:notice("MQ-Consumer ~p is 'DOWN'",[Consumer]),
    {ok, start_consumer(State)};
 handle_info({'DOWN', _MonitorRef, process, Emitter, _Info}, #state{emitter = Emitter} = State) ->
@@ -121,8 +131,10 @@ build_point(Payload, RKey, DTField, DTFormat) ->
    flowdata:set_field(Msg0, <<"topic">>, RKey).
 
 start_consumer(State = #state{opts = ConsumerOpts}) ->
+   connection_registry:connecting(),
    {ok, Pid, _NewConsumer} =
       rmq_consumer:start_monitor(self(), consumer_config(ConsumerOpts)),
+   connection_registry:connected(),
    State#state{consumer = Pid}.
 
 start_emitter(State = #state{queue = Q}) ->

@@ -14,7 +14,7 @@
 
 -include("faxe.hrl").
 %% API
--export([init/3, process/3, options/0, handle_info/2, shutdown/1]).
+-export([init/3, process/3, options/0, handle_info/2, shutdown/1, metrics/0]).
 
 -record(state, {
   ip,
@@ -28,7 +28,8 @@
   parser = undefined :: undefined|atom(), %% parser module
   min_length,
   changes = false,
-  prev_crc32
+  prev_crc32,
+  fn_id
 }).
 
 -define(SOCKOPTS,
@@ -57,17 +58,21 @@ options() -> [
   {changed, is_set}
 ].
 
+metrics() ->
+  [
+    {?METRIC_BYTES_READ, histogram, [slide, 60]}
+  ].
 
-init(_NodeId, _Ins,
+init(NodeId, _Ins,
     #{ip := Ip, port := Port, as := As, extract := Extract, changed := Changed,
       line_delimiter := Delimit, parser := Parser, min_length := MinL}) ->
   Reconnector = faxe_backoff:new({?RECON_MIN_INTERVAL, ?RECON_MAX_INTERVAL, ?RECON_MAX_RETRIES}),
   {ok, Reconnector1} = faxe_backoff:execute(Reconnector, do_reconnect),
   reconnect_watcher:new(20000, 15, io_lib:format("~s:~p ~p",[Ip, Port, ?MODULE])),
-  erlang:send_after(30000, self(), die),
+  connection_registry:reg(NodeId, Ip, Port),
   {ok, all,
     #state{ip = Ip, port = Port, as = As, extract = Extract, parser = Parser, min_length = MinL,
-      reconnector = Reconnector1, line_delimiter = Delimit, changes = Changed}}.
+      reconnector = Reconnector1, line_delimiter = Delimit, changes = Changed, fn_id = NodeId}}.
 
 process(_In, #data_batch{points = _Points} = _Batch, State = #state{}) ->
   {ok, State};
@@ -79,13 +84,16 @@ handle_info({tcp, Socket, Data}, State=#state{min_length = Min}) when byte_size(
   inet:setopts(Socket, [{active, once}]),
   lager:notice("message dropped: ~p :: ~p",[byte_size(Data), Data]),
   {ok, State};
-handle_info({tcp, Socket, Data0}, State=#state{}) ->
+handle_info({tcp, Socket, Data0}, State=#state{fn_id = FNId}) ->
   Data = string:chomp(Data0),
 %%  lager:notice("NewData: ~p", [Data]),
+  node_metrics:metric(?METRIC_ITEMS_IN, 1, FNId),
+  node_metrics:metric(?METRIC_BYTES_READ, byte_size(Data), FNId),
   NewState = maybe_emit(Data, State),
   inet:setopts(Socket, [{active, once}]),
   {ok, NewState};
 handle_info({tcp_closed, _S}, S=#state{}) ->
+  connection_registry:disconnected(),
   lager:notice("tcp_closed"),
   try_reconnect(S#state{socket = undefined});
 handle_info({tcp_error, Socket, _E}, State) ->
@@ -93,9 +101,13 @@ handle_info({tcp_error, Socket, _E}, State) ->
   inet:setopts(Socket, [{active, once}]),
   {ok, State};
 handle_info(do_reconnect, State=#state{ip = Ip, port = Port, line_delimiter = LD}) ->
+  connection_registry:connecting(),
   case connect(Ip, Port, LD) of
-    {ok, Socket} -> lager:notice("connected to ~p" ,[Ip] ),
-      inet:setopts(Socket, [{active, once}]), {ok, State#state{socket = Socket}};
+    {ok, Socket} ->
+      connection_registry:connected(),
+      lager:notice("connected to ~p" ,[Ip] ),
+      inet:setopts(Socket, [{active, once}]),
+      {ok, State#state{socket = Socket}};
     {error, Error} -> lager:warning("[~p] Error connecting to ~p: ~p",[?MODULE, {Ip, Port},Error]), try_reconnect(State)
   end;
 handle_info(_R, S) ->
@@ -134,9 +146,11 @@ maybe_emit(Data, State = #state{changes = true, prev_crc32 = PrevCheckSum}) ->
     false -> NewState
   end.
 
-do_emit(Data, State = #state{as = As, parser = Parser, extract = _Extract}) ->
+do_emit(Data, State = #state{as = As, parser = Parser, extract = _Extract, fn_id = FNId}) ->
   case (catch binary_msg_parser:convert(Data, As, Parser)) of
-    P when is_record(P, data_point) -> dataflow:emit(P);
+    P when is_record(P, data_point) ->
+      node_metrics:metric(?METRIC_ITEMS_OUT, 1, FNId),
+      dataflow:emit(P);
     Err -> lager:warning("Parsing error [~p] ~nmessage ~p",[Parser, Err])
   end,
   State.

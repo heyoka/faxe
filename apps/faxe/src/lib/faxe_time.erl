@@ -374,7 +374,9 @@ is_duration_string(Bin) when is_binary(Bin) ->
 %% note that Interval is a duration() / binary here, ie: 15s
 %% if Align is given as false, this function has the same behaviour as the "timer_start" function
 %%
--spec init_timer(true|false, duration(), term()) -> #faxe_timer{}.
+-spec init_timer(true|false, undefined|duration(), term()) -> #faxe_timer{}.
+init_timer(_Align, undefined, _Message) ->
+   undefined;
 init_timer(Align, Interval, Message) when is_atom(Align), is_binary(Interval) ->
    Now = faxe_time:now(),
    NewTs =
@@ -410,20 +412,42 @@ timer_now(Timer = #faxe_timer{message = Message}) ->
    Timer#faxe_timer{last_time = Now, timer_ref = TRef}.
 
 %% @doc sends the timeout message in interval milliseconds
--spec timer_next(#faxe_timer{}) -> #faxe_timer{}.
+-spec timer_next(undefined|#faxe_timer{}) -> #faxe_timer{}.
+timer_next(undefined) ->
+   undefined;
 timer_next(Timer = #faxe_timer{interval = Interval, message = Message, last_time = Last}) ->
    NewAt = Last + Interval,
 %%   lager:notice("timer next send in: ~p ms for :~p || ~p",[NewAt-faxe_time:now(), NewAt, Timer]),
    TRef = faxe_time:send_at(NewAt, Message),
    Timer#faxe_timer{last_time = NewAt, timer_ref = TRef}.
 
+
 %% @doc cancel a running timer
--spec timer_cancel(#faxe_timer{}) -> #faxe_timer{}.
+-spec timer_cancel(undefined|#faxe_timer{}) -> #faxe_timer{}.
+timer_cancel(undefined) ->
+   undefined;
 timer_cancel(Timer = #faxe_timer{timer_ref = undefined}) ->
    Timer;
 timer_cancel(Timer = #faxe_timer{timer_ref = TRef}) ->
 %%   lager:notice("timer cancel: ~p", [Timer]),
    catch erlang:cancel_timer(TRef),
    Timer#faxe_timer{timer_ref = undefined}.
+
+
+
+%%timer_init(#state{interval = undefined}) ->
+%%   undefined;
+%%timer_init(#state{interval = Interval, align = Align}) ->
+%%   faxe_time:init_timer(Align, Interval, poll).
+%%
+%%timer_cancel(undefined) ->
+%%   undefined;
+%%timer_cancel(T) ->
+%%   faxe_time:timer_cancel(T).
+%%
+%%timer_next(undefined) ->
+%%   undefined;
+%%timer_next(T) ->
+%%   faxe_time:timer_next(T).
 
 

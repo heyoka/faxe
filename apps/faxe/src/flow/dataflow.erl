@@ -6,6 +6,7 @@
 -export([new_graph/0, create_graph/2, start_graph/1, start_graph/2,
    add_node/2, add_edge/2, add_debug_handler/0, remove_debug_handler/0]).
 
+-export([add_metrics_handler/0, add_metrics_handler/1]).
 -export([request_items/2, emit/1, build_options/3, maybe_check_opts/2]).
 
 %%====================================================================
@@ -15,6 +16,10 @@
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %%%
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+add_metrics_handler() ->
+   add_metrics_handler(node_metrics_handler).
+add_metrics_handler(Name) when is_atom(Name) ->
+   gen_event:add_handler(faxe_metrics, Name, []).
 
 add_debug_handler() ->
    dataflow_events:add_handler(dfevent_graph),
@@ -119,7 +124,7 @@ do_build_options(Opts, L) when is_list(L), is_list(Opts) ->
 %% Internal functions
 %%====================================================================
 
-%% @todo convert types accordingly, ie: string(binary) to real string(list)
+%%
 -spec val(option_value(), {Name :: binary(), option_name()}) -> option_value().
 val(Val, {OptName, duration}) when is_binary(Val) ->
    case is_duration(Val) of

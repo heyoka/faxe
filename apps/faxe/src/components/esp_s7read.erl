@@ -20,7 +20,7 @@
   build_addresses/2, build_point/2, do_build/3, check_pdu_length/3, n_length/2, check_options/0]).
 
 -define(MAX_READ_ITEMS, 19).
--define(DEFAULT_PDU_LENGTH, 128).
+-define(DEFAULT_BYTE_LIMIT, 128).
 
 -define(RECON_MIN_INTERVAL, 100).
 -define(RECON_MAX_INTERVAL, 6000).
@@ -66,9 +66,9 @@ check_options() ->
     {func, vars,
       fun(List) ->
         {P, _} = build_addresses(List, lists:seq(1, length(List))),
-        bit_count(P)/8 =< ?DEFAULT_PDU_LENGTH
+        bit_count(P)/8 =< ?DEFAULT_BYTE_LIMIT
       end,
-      <<", byte-size ", ?DEFAULT_PDU_LENGTH, " bytes exceeded!">>
+      <<", byte-size ", ?DEFAULT_BYTE_LIMIT, " bytes exceeded!">>
     }
   ].
 
@@ -398,11 +398,12 @@ do_connect(Ip, Rack, Slot) ->
 check_pdu_length(Ip, Slot, Rack) ->
   try do_connect(Ip, Slot, Rack) of
     Client when is_pid(Client) ->
-      {ok, NegotiatedLength} = snapclient:get_pdu_length(Client), NegotiatedLength;
-    _ -> ?DEFAULT_PDU_LENGTH
-
+      {ok, NegotiatedLength} = snapclient:get_pdu_length(Client),
+      NegotiatedLength;
+    _ ->
+      ?DEFAULT_BYTE_LIMIT
   catch
-    _ -> ?DEFAULT_PDU_LENGTH
+    _ -> ?DEFAULT_BYTE_LIMIT
   end.
 
 

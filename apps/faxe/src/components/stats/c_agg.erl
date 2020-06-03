@@ -18,7 +18,7 @@ result({first, Value}, As, Tss) ->
    Timestamp = lists:last(Tss),
    result({Timestamp, Value}, As, Tss)
 ;
-result({last, Value}, As, [Timestamp, _R]=Tss) ->
+result({last, Value}, As, [Timestamp |_R]=Tss) ->
    result({Timestamp, Value}, As, Tss)
 ;
 result({Timestamp, Value}, As, _T) when is_integer(Timestamp) ->

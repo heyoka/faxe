@@ -17,6 +17,7 @@
    add_edge/5,
    add_edge/6,
    nodes/1,
+   vertices/1,
    edges/1,
    start_graph/2,
    stop/1,
@@ -44,6 +45,8 @@
    is_leader = false    :: true|false
 }).
 
+%% node metrics collection interval in ms
+-define(METRICS_INTERVAL, 5000).
 %%%===================================================================
 %%% API
 %%%===================================================================
@@ -67,7 +70,7 @@ stop(Graph) ->
 
 %% ping a temporary running graph to keep it alive
 ping(Graph) ->
-   gen_server:call(Graph, ping).
+   call(Graph, ping).
 
 add_node(Graph, NodeId, Component) ->
    add_node(Graph, NodeId, Component, []).
@@ -80,26 +83,31 @@ add_edge(Graph, SourceNode, SourcePort, TargetNode, TargetPort, Metadata) ->
    gen_server:call(Graph, {add_edge, SourceNode, SourcePort, TargetNode, TargetPort, Metadata}).
 
 nodes(Graph) ->
-   gen_server:call(Graph, {nodes}).
+   call(Graph, nodes).
+
+vertices(Graph) ->
+   call(Graph, vertices).
 
 edges(Graph) ->
-   gen_server:call(Graph, {edges}).
+   call(Graph, edges).
 
 sink_nodes(Graph) ->
-   gen_server:call(Graph, {sink_nodes}).
+   call(Graph, sink_nodes).
 
 source_nodes(Graph) ->
-   gen_server:call(Graph, {source_nodes}).
+   call(Graph, source_nodes).
 
 get_stats(Graph) ->
-   gen_server:call(Graph, {stats}).
+   call(Graph, stats).
 
 get_errors(Graph) ->
-   gen_server:call(Graph, {get_errors}).
+   call(Graph, get_errors).
 
 export(Graph) ->
-   gen_server:call(Graph, export).
+   call(Graph, export).
 
+call(Graph, Mode) ->
+   gen_server:call(Graph, {Mode}).
 %%%===================================================================
 %%% gen_server callbacks
 %%%===================================================================
@@ -143,9 +151,19 @@ handle_call({add_edge, SourceNode, SourcePort, TargetNode, TargetPort, Metadata}
    Label = #{src_port => SourcePort, tgt_port => TargetPort, metadata => Metadata},
    _NewEdge = digraph:add_edge(State#state.graph, SourceNode, TargetNode, Label),
    {reply, ok, State};
-handle_call({nodes}, _From, State) ->
-   All = digraph:vertices(State#state.graph),
-   {reply, All, State};
+handle_call({nodes}, _From, State=#state{nodes = Nodes}) ->
+   {reply, Nodes, State};
+%%handle_call({flownodes}, _From, State = #state{graph = G}) ->
+%%   Vs = [digraph:vertex(G, V) || V <- digraph:vertices(G)],
+%%   F = fun({NId, #{component := Comp}) ->
+%%      {NId, Comp},
+%%      end,
+%%   Out = [{NId, maps:get(component, DataMap)} || {NId, DataMap} <- Vs],
+%%   {reply, Out, State};
+handle_call({vertices}, _From, State = #state{graph = G}) ->
+   All = digraph:vertices(G),
+   Out = [digraph:vertex(G, V) || V <- All],
+   {reply, Out, State};
 handle_call({sink_nodes}, _From, State = #state{graph = G}) ->
    OutNodes = digraph:sink_vertices(G),
    {reply, OutNodes, State};
@@ -171,18 +189,18 @@ handle_call({get_errors}, _From, State=#state{nodes = Nodes}) ->
       fun(NodeId) ->
          {NodeId, #{
             <<"processing_errors">> =>
-            folsom_metrics:get_history_values(<< NodeId/binary, ?FOLSOM_ERROR_HISTORY >>, 24)}
+            folsom_metrics:get_history_values(<< NodeId/binary, ?METRIC_ERRORS/binary >>, 24)}
          }
       end,
    Res = [GetHistory(NodeId) || {NodeId, _NPid} <- Nodes],
    {reply, {ok, Res}, State};
-handle_call(ping, _From, State = #state{timeout_ref = TRef, start_mode = #task_modes{temp_ttl = TTL}}) ->
+handle_call({ping}, _From, State = #state{timeout_ref = TRef, start_mode = #task_modes{temp_ttl = TTL}}) ->
    erlang:cancel_timer(TRef),
    NewTimer = erlang:send_after(TTL, self(), timeout),
    {reply, {ok, TTL}, State#state{timeout_ref = NewTimer}};
-handle_call(export, _From, State = #state{graph = Graph, id = GraphId}) ->
+handle_call({export}, _From, State = #state{graph = Graph, id = GraphId}) ->
    Nodes = digraph:vertices(Graph),
-   lager:notice("nodes: ~p~n",[Nodes]),
+%%   lager:notice("nodes: ~p~n",[Nodes]),
    ExportGraph = digraph_utils:subgraph(Graph, Nodes, [{keep_labels, false}]),
    GraphDot = digraph_export:convert(ExportGraph, dot, [pretty]),
    {ok, F} = file:open(<<GraphId/binary, ".dot">>, [write]),
@@ -213,6 +231,12 @@ handle_info(timeout, State) ->
 handle_info({swarm, die}, State) ->
    lager:warning("~p ~p must (and will) DIE!",[?MODULE, State#state.id]),
    {stop, shutdown, State};
+handle_info(collect_metrics, State = #state{nodes = Nodes, id = Id, graph = Graph}) ->
+%%   lager:notice("collect node metrics: ~p :: ~p",[Id, Nodes]),
+%%   lager:notice("collect node metrics GRAPH: ~p",[digraph:vertices(Graph)]),
+   [node_metrics:process_metrics(Id, N) || N <- Nodes],
+   erlang:send_after(?METRICS_INTERVAL, self(), collect_metrics),
+   {noreply, State};
 handle_info(stop, State=#state{}) ->
    do_stop(State),
    %gen_event:notify(dfevent_graph, {stop, Id}),
@@ -229,17 +253,17 @@ code_change(_OldVsn, State, _Extra) ->
    {ok, State}.
 
 
-
-
-
 %%%===================================================================
 %%% Internal functions
 %%%===================================================================
-do_stop(#state{running = Running, nodes = Nodes, id = _Id}) ->
+do_stop(#state{running = Running, nodes = Nodes, id = Id}) ->
    lager:warning("stop graph when running:~p",[Running]),
    case Running of
       %% stop all components
-      true -> lists:foreach(fun({_NodeId, NPid}) -> NPid ! stop end, Nodes);
+      true ->
+         %% destroy all metrics
+%%         lists:foreach(fun({NodeId, Comp, _NPid}) -> node_metrics:destroy(Id, NodeId, Comp) end, Nodes),
+         lists:foreach(fun({_NodeId, _Comp, NPid}) -> NPid ! stop end, Nodes);
       false -> ok
    end,
    timer:sleep(1000).
@@ -266,8 +290,9 @@ build_subscriptions(Graph, Node, Nodes, FlowMode) ->
       fun(E, Acc) ->
          {_E, V1, V2, Label} = digraph:edge(Graph, E),
          #{src_port := SourcePort, tgt_port := TargetPort, metadata := _Metadata} = Label,
-         S = df_subscription:new(FlowMode, proplists:get_value(V1, Nodes), SourcePort,
-            proplists:get_value(V2, Nodes), TargetPort),
+         {_, _, PubPid} = lists:keyfind(V1, 1, Nodes),
+         {_, _, SubPid} = lists:keyfind(V2, 1, Nodes),
+         S = df_subscription:new(FlowMode, PubPid, SourcePort, SubPid, TargetPort),
          case proplists:get_value(SourcePort, Acc) of
             undefined ->
                [{SourcePort,[S]}|Acc];
@@ -281,8 +306,7 @@ build_subscriptions(Graph, Node, Nodes, FlowMode) ->
    InEdges = digraph:in_edges(Graph, Node),
    Inports = lists:map(
       fun(E) ->
-         {_E, V1, _V2, Label} = digraph:edge(Graph, E),
-         #{tgt_port := TargetPort, metadata := _Metadata} = Label,
+         {_E, V1, _V2, _Label = #{tgt_port := TargetPort}} = digraph:edge(Graph, E),
          {TargetPort, proplists:get_value(V1, Nodes)}
       end,
       InEdges),
@@ -294,26 +318,29 @@ build_subscriptions(Graph, Node, Nodes, FlowMode) ->
 -spec start(#task_modes{}, #state{}) -> #state{}.
 start(ModeOpts=#task_modes{run_mode = RunMode, temporary = Temp, temp_ttl = TTL},
     State=#state{graph = G, id = Id}) ->
+   erlang:send_after(?METRICS_INTERVAL, self(), collect_metrics),
    Nodes0 = digraph:vertices(G),
 
 %% build : [{NodeId, Pid}]
    Nodes = lists:map(
-      fun(E) ->
-         {NodeId, Label} = digraph:vertex(G, E),
+      fun(NodeId) ->
+         {NodeId, Label} = digraph:vertex(G, NodeId),
+%%         lager:notice("vertex: ~p", [{NodeId, Label}]),
          #{component := Component, inports := Inports, outports := OutPorts, metadata := Metadata}
             = Label,
          {ok, Pid} = df_component:start_link(Component, Id, NodeId, Inports, OutPorts, Metadata),
-         {E, Pid}
+         {NodeId, Component, Pid}
       end, lists:reverse(Nodes0)),
    %% Inports and Subscriptions
-   Subscriptions = lists:foldl(fun({NId, _N}, Acc) ->
+   Subscriptions = lists:foldl(fun({NId, _C, _Pid}, Acc) ->
       [{NId, build_subscriptions(G, NId, Nodes, RunMode)}|Acc]
                                end, [], Nodes),
 
    %% start the nodes with subscriptions
    lists:foreach(
-      fun({NodeId, NPid}) ->
+      fun({NodeId, Comp, NPid}) ->
          {Inputs, Subs} = proplists:get_value(NodeId, Subscriptions),
+         node_metrics:setup(Id, NodeId, Comp),
          df_component:start_async(NPid, Inputs, Subs, RunMode)
 %%         NodeStart = df_component:start_node(NPid, Inputs, Subs, FlowMode),
 %%         lager:debug("NodeStart for ~p gives: ~p",[NodeId, NodeStart] )
@@ -322,7 +349,7 @@ start(ModeOpts=#task_modes{run_mode = RunMode, temporary = Temp, temp_ttl = TTL}
    %% if in pull mode initially let all components send requests to their producers
    case RunMode of
       push -> ok;
-      pull -> lists:foreach(fun({_NodeId, NPid}) -> NPid ! pull end, Nodes)
+      pull -> lists:foreach(fun({_NodeId, _C, NPid}) -> NPid ! pull end, Nodes)
    end,
    %% are we starting temporary
    TimerRef =

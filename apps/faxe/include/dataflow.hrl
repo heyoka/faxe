@@ -26,8 +26,9 @@
 
 -record(c_state, {
    flow_mode = push     :: push | pull,
-   graph_id             :: term(), %% the id of the graph this node belongs to
-   node_id              :: term(), %% this nodes id
+   graph_id             :: binary(), %% the id of the graph this node belongs to
+   node_id              :: binary(), %% this nodes id
+   flow_node_id         :: binary(), %% combination of graph_id and node_id
    component            :: atom(), %% callbacks module name
    cb_state             :: cbstate(), %% state for callback
    cb_handle_info       :: true | false,

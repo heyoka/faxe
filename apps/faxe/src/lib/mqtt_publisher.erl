@@ -36,7 +36,8 @@
    queue,
    mem_queue,
    deq_interval = 15,
-   reconnector
+   reconnector,
+   node_id
 }).
 
 %%%===================================================================
@@ -81,15 +82,22 @@ init([#{} = Opts, Queue]) ->
    init_all(Opts, #state{queue = Queue}).
 
 init_all(#{host := Host, port := Port, user := User, pass := Pass,
-      retained := Retained, ssl := UseSSL, qos := Qos}, State) ->
+      retained := Retained, ssl := UseSSL, qos := Qos} = Opts, State) ->
+   NId =
+   case maps:is_key(node_id, Opts) of
+      true -> maps:get(node_id, Opts);
+      false -> {<<"sys">>, <<"sys">>}
+   end,
    process_flag(trap_exit, true),
    reconnect_watcher:new(10000, 5, io_lib:format("~s:~p ~p",[Host, Port, ?MODULE])),
-   Reconnector = faxe_backoff:new({5, 1200}),
+   Reconnector = faxe_backoff:new({10, 1200}),
+   connection_registry:reg(NId, Host, Port),
    {ok, Reconnector1} = faxe_backoff:execute(Reconnector, reconnect),
+   connection_registry:connecting(),
    {ok,
       State#state{
          host = Host, port = Port, user = User, pass = Pass, reconnector = Reconnector1,
-         retained = Retained, ssl = UseSSL, qos = Qos}}.
+         retained = Retained, ssl = UseSSL, qos = Qos, node_id = NId}}.
 
 %%--------------------------------------------------------------------
 %% @private
@@ -133,18 +141,22 @@ handle_cast(_Request, State) ->
 %%                                   {stop, Reason, State}
 %% @end
 %%--------------------------------------------------------------------
-handle_info({mqttc, C, connected}, State=#state{queue = undefined, mem_queue = Q}) ->
+handle_info({mqttc, C, connected},
+    State=#state{queue = undefined, mem_queue = Q}) ->
+   connection_registry:connected(),
    PendingList = queue:to_list(Q),
    NewState = State#state{client = C, connected = true, mem_queue = queue:new()},
    [publish(M, NewState) || M <- PendingList],
    lager:info("mqtt client connected!!"),
    {noreply, NewState};
 handle_info({mqttc, C, connected}, State=#state{}) ->
+   connection_registry:connected(),
    lager:info("mqtt client connected!!"),
    NewState = State#state{client = C, connected = true},
    next(NewState),
    {noreply, NewState};
 handle_info({mqttc, _C,  disconnected}, State=#state{client = Client}) ->
+   connection_registry:disconnected(),
    lager:debug("mqtt client disconnected!!"),
    catch exit(Client, kill),
    {noreply, State#state{connected = false, client = undefined}};
@@ -161,8 +173,8 @@ handle_info(reconnect, State = #state{}) ->
 %%   lager:notice("(re)connect to : ~p",[State#state.host]),
    NewState = do_connect(State),
    {noreply, NewState};
-handle_info({'EXIT', _Client, Reason},
-    State = #state{reconnector = Recon, host = H, port = P}) ->
+handle_info({'EXIT', _Client, Reason}, State = #state{reconnector = Recon, host = H, port = P}) ->
+   connection_registry:disconnected(),
    lager:notice("MQTT Client exit: ~p ~p", [Reason, {H, P}]),
    {ok, Reconnector} = faxe_backoff:execute(Recon, reconnect),
    {noreply, State#state{connected = false, client = undefined, reconnector = Reconnector}};
@@ -183,7 +195,7 @@ next(State=#state{queue = Q, deq_interval = Interval}) ->
 
 publish({Topic, Msg}, #state{retained = Ret, qos = Qos, client = C})
    when is_binary(Msg); is_list(Msg) ->
-   lager:notice("publish ~s on topic ~p ~n",[Msg, Topic]),
+%%   lager:notice("publish ~s on topic ~p ~n",[Msg, Topic]),
    ok = emqttc:publish(C, Topic, Msg, [{qos, Qos}, {retain, Ret}]).
 
 %%--------------------------------------------------------------------
@@ -221,6 +233,7 @@ code_change(_OldVsn, State, _Extra) ->
 %%%===================================================================
 do_connect(#state{host = Host, port = Port, user = User, pass = Pass, ssl = _Ssl} = State) ->
    reconnect_watcher:bump(),
+   connection_registry:connecting(),
    Opts = [{host, Host}, {port, Port}, {keepalive, 30}, {username, User}, {password, Pass}],
    {ok, _Client} = emqttc:start_link(Opts),
    State.

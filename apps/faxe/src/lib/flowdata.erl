@@ -66,7 +66,8 @@
    delete_fields/2, delete_tags/2, path/1, paths/1, set_fields/2,
    to_mapstruct/1, from_json/2, from_json_struct/1, from_json_struct/3,
    to_map_except/2, point_from_json_map/1, point_from_json_map/3,
-   merge_points/1, set_tags/2, is_root_path/1, merge/2]).
+   set_tags/2, is_root_path/1,
+   merge_points/1, merge/2, merge_points/2]).
 
 
 -define(DEFAULT_ID, <<"00000">>).
@@ -77,6 +78,7 @@
 -define(DEFAULT_TS_FIELD, <<"ts">>).
 
 
+-spec to_json(#data_point{} | #data_batch{}) -> binary().
 to_json(P) when is_record(P, data_point) orelse is_record(P, data_batch) ->
 %%   lager:notice("MapStruct: ~p", [to_mapstruct(P)]),
    case jiffy:encode(to_mapstruct(P), []) of
@@ -180,14 +182,20 @@ expand_json_field(P = #data_point{}, FieldName) ->
    P0#data_point{fields = P0#data_point.fields ++ Map}.
 
 %% @doc merge a list of data_points into one
+merge_points([#data_point{ts=Ts} |_Ps] = Points, Field) ->
+   FMaps = [flowdata:field(P, Field) || P <- Points],
+   Res = merge_fields(FMaps),
+   set_field(#data_point{ts = Ts}, Field, Res).
 merge_points([#data_point{ts=Ts} |_Ps] = Points) ->
    FMaps = [P#data_point.fields || P <- Points],
-   Fields = merge_fields(FMaps, #{}),
-   #data_point{ts = Ts, fields = Fields}.
+   Res = merge_fields(FMaps),
+   #data_point{ts = Ts, fields = Res}.
+merge_fields(FieldMaps) ->
+   merge_fields(FieldMaps, #{}).
 merge_fields([], Acc) ->
    Acc;
 merge_fields([F1|Fields], Acc) ->
-   merge_fields(Fields, maps:merge(F1, Acc)).
+   merge_fields(Fields, merge(F1, Acc)).
 
 %% @doc
 %% get the timestamp from the given field
@@ -456,7 +464,7 @@ delete_tags(B = #data_batch{points = Points}, KeyList) when is_list(KeyList) ->
    B#data_batch{points = Ps}.
 
 %% @doc
-%% rename fields and tags, does no inserting value, when field(s) / tag(s) are not found
+%% rename fields and tags, does not insert any value, when field(s) / tag(s) are not found
 %% @end
 -spec rename_fields(#data_point{}, list(jsonpath:path()), list(jsonpath:path())) -> #data_point{}.
 rename_fields(#data_point{fields = Fields} = P, FieldNames, Aliases) ->

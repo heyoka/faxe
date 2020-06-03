@@ -9,7 +9,10 @@
 
 -behavior(df_component).
 %% API
--export([init/3, process/3, options/0, handle_info/2, to_flowdata/3, handle_result/4, check_options/0]).
+-export([
+   init/3, process/3, options/0, handle_info/2,
+   to_flowdata/3, handle_result/4, check_options/0,
+   metrics/0]).
 
 -record(state, {
    host :: string(),
@@ -26,7 +29,8 @@
    db_opts,
    every,
    align = false,
-   timer
+   timer,
+   fn_id
 }).
 
 -define(DB_OPTIONS, #{
@@ -56,7 +60,13 @@ check_options() ->
          <<"seems not to be a valid sql select statement">>}
    ].
 
-init(_NodeId, _Inputs, #{host := Host0, port := Port, user := User0, every := Every,
+metrics() ->
+   [
+      {?METRIC_READING_TIME, histogram, [slide, 60], "Network time for sending a message."}
+%%      {?METRIC_BYTES_READ, histogram, [slide, 60], "Size of item sent in kib."}
+   ].
+
+init(NodeId, _Inputs, #{host := Host0, port := Port, user := User0, every := Every,
       pass := Pass0, service_name := DB, query := Q0, align := Align, result_type := ResType}) ->
 
    process_flag(trap_exit, true),
@@ -69,9 +79,9 @@ init(_NodeId, _Inputs, #{host := Host0, port := Port, user := User0, every := Ev
    DBOpts = [{host, Host}, {port, Port}, {user, User}, {password, Pass}, {service_name, ServiceName}],
 
    lager:notice("the QUERY : ~p",[Query]),
-
+   connection_registry:reg(NodeId, Host, Port),
    State = #state{host = Host, port = Port, user = User, pass = Pass, service_name = ServiceName, query = Query,
-      db_opts = DBOpts, every = Every, align = Align, result_type = ResType},
+      db_opts = DBOpts, every = Every, align = Align, result_type = ResType, fn_id = NodeId},
    erlang:send_after(0, self(), reconnect),
    {ok, all, State}.
 
@@ -89,6 +99,7 @@ handle_info(query, State = #state{timer = Timer, client = C, result_type = RType
    NewTimer = faxe_time:timer_next(Timer),
    %% do query
    Res = jamdb_oracle:sql_query(C, State#state.query),
+   node_metrics:metric(?METRIC_ITEMS_IN, 1, State#state.fn_id),
    case handle_response(Res, Timestamp, RType) of
       {emit, Data} -> {emit, {1, Data}, State#state{timer = NewTimer}};
       _ -> {ok, State#state{timer = NewTimer}}
@@ -96,6 +107,7 @@ handle_info(query, State = #state{timer = Timer, client = C, result_type = RType
 
 
 handle_info({'EXIT', _C, _Reason}, State = #state{timer = Timer}) ->
+   connection_registry:disconnected(),
    lager:notice("EXIT jamdb"),
    NewTimer = cancel_timer(Timer),
    erlang:send_after(1000, self(), reconnect),
@@ -106,8 +118,10 @@ handle_info(What, State) ->
 
 -spec connect(#state{}) -> #state{}.
 connect(State = #state{db_opts = Opts}) ->
+   connection_registry:connecting(),
    case jamdb_oracle:start_link(Opts) of
       {ok, C} ->
+         connection_registry:connected(),
          init_timer(State#state{client = C});
       {error, _What} ->
          State
