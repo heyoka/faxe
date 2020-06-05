@@ -85,7 +85,7 @@ check_options() ->
 
 metrics() ->
    [
-      {?METRIC_BYTES_READ, histogram, [slide, 60]}
+      {?METRIC_BYTES_READ, meter, []}
    ].
 
 init(NodeId, _Ins, #{} = Opts) ->

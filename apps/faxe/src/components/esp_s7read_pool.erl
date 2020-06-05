@@ -91,7 +91,7 @@ check_options() ->
 metrics() ->
   [
     {?METRIC_READING_TIME, histogram, [slide, 60]},
-    {?METRIC_BYTES_READ, histogram, [slide, 60]}
+    {?METRIC_BYTES_READ, meter, []}
   ].
 
 init({_, _NId}=NodeId, _Ins,
@@ -109,7 +109,7 @@ init({_, _NId}=NodeId, _Ins,
 
 
   {Parts, AliasesList} = build_addresses(Addresses, As, Offset),
-  ByteSize = bit_count(Parts)/8/1024,
+  ByteSize = bit_count(Parts)/8,
 
   connection_registry:reg(NodeId, Ip, Port),
   s7pool_manager:connect(Opts),

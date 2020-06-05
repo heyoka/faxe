@@ -16,7 +16,7 @@
    uuid_string/0, round_float/2,
    prefix_binary/2,
    host_with_protocol/1, host_with_protocol/2
-   , decimal_part/2, check_select_statement/1, clean_query/1, stringize_lambda/1, bytes_from_words/1]).
+   , decimal_part/2, check_select_statement/1, clean_query/1, stringize_lambda/1, bytes_from_words/1, local_ip_v4/0, ip_to_bin/1]).
 
 -define(HTTP_PROTOCOL, <<"http://">>).
 
@@ -89,6 +89,19 @@ bytes_from_words(Words) ->
       _:_ -> 0
    end.
 
+-spec local_ip_v4() -> tuple().
+local_ip_v4() ->
+   {ok, Addrs} = inet:getifaddrs(),
+   hd([
+      Addr || {_, Opts} <- Addrs, {addr, Addr} <- Opts,
+      size(Addr) == 4, Addr =/= {127,0,0,1}
+   ]).
+
+-spec ip_to_bin(tuple()) -> binary().
+ip_to_bin({_A, _B, _C, _D} = Ip) ->
+   list_to_binary(inet:ntoa(Ip)).
+
+
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%% TESTS %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 -ifdef(TEST).
 decimal_part_test() ->
@@ -160,5 +173,10 @@ check_select_4_test() ->
       true,
       check_select_statement(Sql)
    ).
+
+ip_to_bin_test() ->
+   Ip = {127, 0, 0, 1},
+   ?assertEqual(<<"127.0.0.1">>, ip_to_bin(Ip)).
+
 -endif.
 

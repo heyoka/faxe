@@ -37,38 +37,15 @@ handle_cast(_Request, State = #metrics_collector_state{}) ->
 
 handle_info(collect, State = #metrics_collector_state{}) ->
   {TimeToCollect, All} = timer:tc(?MODULE, do_collect, []),
-%%  Ms = metrics(),
   lager:info("Metrics collection took: ~p my",[TimeToCollect]),
-%%  All = [collect(M) || M <- Ms],
-  lists:foreach(fun({_FlowId, NMS}) ->
-%%    {faxe_metrics, flow}
-    [gen_event:notify(faxe_metrics, {node, Met}) || Met <- NMS]
-%%    {faxe_metrics, node, }
-%%    [lager:notice("~p",[Met]) ]
+  lists:foreach(
+    fun({FlowId, NMS} = DP) ->
+      lager:info("~p",[NMS]),
+      publish(DP),
+      lager:notice("FlowMetrics: ~p",[publish_flow_metrics(FlowId, NMS)])
     end,
     All),
 
-%%  Vals = folsom_metrics:get_metrics_value(?METRIC_ITEMS_PROCESSED),
-%%  Errs = folsom_metrics:get_metrics_value(?METRIC_ERRORS),
-%%  NId = <<"change_detect2">>,
-%%  NId = <<"s7read_pool1">>,
-%%  ItemsIn = folsom_metrics:get_metric_value(<<NId/binary, ?METRIC_ITEMS_IN/binary>>),
-%%  ItemsOut = folsom_metrics:get_metric_value(<<NId/binary, ?METRIC_ITEMS_OUT/binary>>),
-%%%%  ProcTime = folsom_metrics:get_metric_value(<<NId/binary, ?METRIC_PROCESSING_TIME/binary>>),
-%%  ProcTime = folsom_metrics:get_histogram_statistics(<<NId/binary, ?METRIC_PROCESSING_TIME/binary>>),
-%%%%  ReadTime = folsom_metrics:get_histogram_statistics(<<NId/binary, ?METRIC_READING_TIME/binary>>),
-%%%%  BytesRead = folsom_metrics:get_histogram_statistics(<<NId/binary, ?METRIC_BYTES_READ/binary>>),
-%%  MemUsed = folsom_metrics:get_histogram_statistics(<<NId/binary, ?METRIC_MEM_USED/binary>>),
-%%  QSize = folsom_metrics:get_histogram_statistics(<<NId/binary, ?METRIC_MSG_Q_SIZE/binary>>),
-%%%%  lager:warning("Processing Time: ~p",[ProcTime]),
-%%  lager:warning("Message Q Size: ~p",[QSize]),
-%%  lager:warning("Memory consumption: ~p",[MemUsed]),
-%%%%  lager:warning("Bytes Read: ~p",[BytesRead]),
-%%%%  lager:warning("Reading Time: ~p",[ReadTime]),
-%%  lager:warning("Items In: ~p",[ItemsIn]),
-%%  lager:warning("Items Out: ~p" ,[ItemsOut]),
-%%  [lager:warning("items_processed: ~p",[{Name, Val}]) || {Name, Val} <- Vals],
-%%  [lager:warning("errors: ~p",[{Name, Val}]) || {Name, Val} <- Errs],
   erlang:send_after(?INTERVAL, self(), collect),
   {noreply, State};
 handle_info(_Info, State = #metrics_collector_state{}) ->
@@ -83,6 +60,15 @@ code_change(_OldVsn, State = #metrics_collector_state{}, _Extra) ->
 %%%===================================================================
 %%% Internal functions
 %%%===================================================================
+publish({FlowId, Metrics}) ->
+  F = fun(#data_point{fields = Fields} = P) ->
+    NodeId = maps:get(<<"node_id">>, Fields),
+    MetricName = maps:get(<<"metric_name">>, Fields),
+%%    lager:notice("event: ~p",[{{FlowId, NodeId, MetricName}, P}]),
+    gen_event:notify(faxe_metrics, {{FlowId, NodeId, MetricName}, P})
+      end,
+  lists:foreach(F, Metrics).
+
 do_collect() ->
   Ms = metrics(),
   All = [collect(M) || M <- Ms],
@@ -107,7 +93,6 @@ flow_nodes(FlowList) ->
 
 metrics() ->
   FlowNodes = flow_nodes(get_flows()),
-%%  lager:notice("FlowNodes: ~p",[FlowNodes]),
   metrics(FlowNodes, []).
 
 metrics([], Acc) ->
@@ -118,7 +103,7 @@ metrics([{FlowId, Nodes}| R]=L, Acc) ->
     AllNodeMetrics = node_metrics:node_metrics(Comp),
     [#{
       name => node_metrics:metric_name(FlowId, NId, MetricName),
-      %flow_id => FlowId,
+      flow_id => FlowId,
       node_id => NId,
       metric_name => MetricName,
       type => MetricType
@@ -129,21 +114,77 @@ metrics([{FlowId, Nodes}| R]=L, Acc) ->
       end,
   metrics(R, Acc ++ [{FlowId, lists:flatmap(F, Nodes)}]).
 
+publish_flow_metrics(FlowId, Metrics) ->
+  F =
+  fun(#data_point{fields = #{<<"metric_name">> := MName}=Fields}=_P, Acc) ->
+    Val =
+    case MName of
+      ?METRIC_ERRORS -> maps:get(<<"counter">>, Fields);
+      ?METRIC_ITEMS_IN -> maps:get(<<"count">>, Fields);
+      ?METRIC_ITEMS_OUT -> maps:get(<<"count">>, Fields);
+      ?METRIC_BYTES_READ -> maps:get(<<"count">>, Fields);
+      ?METRIC_BYTES_SENT -> maps:get(<<"count">>, Fields);
+      ?METRIC_MSG_Q_SIZE -> maps:get(<<"gauge">>, Fields);
+      ?METRIC_MEM_USED -> maps:get(<<"gauge">>, Fields);
+      ?METRIC_PROCESSING_TIME -> maps:get(<<"mean">>, Fields);
+      _ -> 0
+    end,
+    case maps:is_key(MName, Acc) of
+      true -> Acc#{MName => [Val|maps:get(MName, Acc)]};
+      false -> Acc#{MName => [Val]}
+    end
+  end,
+  Grouped = lists:foldl(F, #{}, Metrics),
+  FL =
+  fun(K, V) ->
+    case K of
+      ?METRIC_ITEMS_IN -> lists:max(V);
+      ?METRIC_ITEMS_OUT -> lists:max(V);
+      ?METRIC_PROCESSING_TIME -> lists:sum(V)/length(V);
+      ?METRIC_BYTES_SENT -> round(lists:sum(V)/1024);
+      ?METRIC_BYTES_READ -> round(lists:sum(V)/1024);
+      _ -> lists:sum(V)
+    end
+  end,
+  FlowFields = maps:map(FL,  Grouped),
+  P = #data_point{ts = faxe_time:now(), fields = maps:merge(FlowFields, #{<<"flow_id">> => FlowId})},
+  gen_event:notify(faxe_metrics, {{FlowId}, P}).
+
+
+
 collect({FId, Metrics}) ->
   {FId, collect(Metrics, [])}.
 collect([], Acc) ->
   Acc;
-collect([#{type := Type, name := Name} = M|R], Acc) ->
-  collect(R, [M#{data => get_data(Type, Name)}|Acc]).
+collect([#{type := Type, name := Name, node_id := NId, flow_id := FId, metric_name := MName} = M|R], Acc) ->
+  MTrans =
+  #{
+    <<"type">> => atom_to_binary(Type, latin1), <<"node_id">> => NId,
+    <<"flow_id">> => FId, <<"metric_name">> => MName
+  },
+  collect(R, [#data_point{ts = faxe_time:now(), fields = maps:merge(MTrans, get_data(Type, Name))} | Acc]).
 
 get_data(histogram, Name) ->
   S = folsom_metrics:get_histogram_statistics(Name),
-  maps:to_list(maps:with([arithmetic_mean, min, max, n], maps:from_list(S)));
+  M = maps:from_list(S),
+  #{
+    <<"mean">> => maps:get(arithmetic_mean, M),
+    <<"min">> => maps:get(min, M),
+    <<"max">> => maps:get(max, M),
+    <<"n">> => maps:get(n, M)
+  };
 get_data(meter, Name) ->
   S = folsom_metrics:get_metric_value(Name),
-  maps:to_list(maps:with([count, instant, one, five, fifteen], maps:from_list(S)));
-get_data(_, Name) ->
+  M = maps:from_list(S),
+  #{
+    <<"count">> => maps:get(count, M),
+    <<"instant">> => maps:get(instant, M),
+    <<"one">> => maps:get(one, M),
+    <<"five">> => maps:get(five, M),
+    <<"fifteen">> => maps:get(fifteen, M)
+  };
+get_data(Type, Name) ->
   D = folsom_metrics:get_metric_value(Name),
-  D.
+  #{atom_to_binary(Type, latin1) => D}.
 
 

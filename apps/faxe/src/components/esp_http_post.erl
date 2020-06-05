@@ -36,7 +36,7 @@ options() ->
 
 metrics() ->
    [
-      {?METRIC_BYTES_SENT, histogram, [slide, 60]}
+      {?METRIC_BYTES_SENT, meter, []}
    ].
 
 init(NodeId, _Inputs, #{host := Host0, port := Port, path := Path, tls := Tls}) ->

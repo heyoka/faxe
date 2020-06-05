@@ -69,7 +69,7 @@ check_options() ->
 metrics() ->
    [
       {?METRIC_SENDING_TIME, histogram, [slide, 60], "Network time for sending a message."},
-      {?METRIC_BYTES_READ, histogram, [slide, 60], "Size of item sent in kib."}
+      {?METRIC_BYTES_READ, meter, [], "Size of item sent in kib."}
    ].
 
 init(NodeId, _Ins,

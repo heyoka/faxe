@@ -2,17 +2,17 @@
 
 
 %%% NODE METRICS
--define(METRIC_ERRORS,           <<"_processing_errors">>).
--define(METRIC_ITEMS_IN,         <<"_items_in">>).
--define(METRIC_ITEMS_OUT,        <<"_items_out">>).
--define(METRIC_ITEMS_PROCESSED,  <<"_items_processed">>).
--define(METRIC_MEM_USED,         <<"_mem_used">>).
--define(METRIC_MSG_Q_SIZE,       <<"_msg_q_size">>).
--define(METRIC_PROCESSING_TIME,  <<"_processing_time">>).
--define(METRIC_READING_TIME,     <<"_reading_time">>).
--define(METRIC_BYTES_READ,       <<"_bytes_read">>).
--define(METRIC_SENDING_TIME,     <<"_sending_time">>).
--define(METRIC_BYTES_SENT,       <<"_bytes_sent">>).
+-define(METRIC_ERRORS,           <<"processing_errors">>). %% keep flow total
+-define(METRIC_ITEMS_IN,         <<"items_in">>). %% keep flow total
+-define(METRIC_ITEMS_OUT,        <<"items_out">>). %% keep flow total
+-define(METRIC_ITEMS_PROCESSED,  <<"items_processed">>). %% flow only, max(items_in)
+-define(METRIC_MEM_USED,         <<"mem_used">>). %% calc flow total
+-define(METRIC_MSG_Q_SIZE,       <<"msg_q_size">>). %% calc flow total
+-define(METRIC_PROCESSING_TIME,  <<"processing_time">>).
+-define(METRIC_READING_TIME,     <<"reading_time">>).
+-define(METRIC_BYTES_READ,       <<"bytes_read">>). %% keep flow total
+-define(METRIC_SENDING_TIME,     <<"sending_time">>).
+-define(METRIC_BYTES_SENT,       <<"bytes_sent">>). %% keep flow total
 
 %% metrics common to all nodes
 -define(NODE_COMMON_METRICS, [

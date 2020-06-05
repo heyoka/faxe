@@ -50,7 +50,7 @@ options() -> [
 
 metrics() ->
    [
-      {?METRIC_BYTES_SENT, histogram, [slide, 60]}
+      {?METRIC_BYTES_SENT, meter, []}
    ].
 
 init({GraphId, NodeId} = Idx, _Ins,

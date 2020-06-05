@@ -31,7 +31,7 @@ start(_StartType, _StartArgs) ->
    ),
    %% start top supervisor
    Res = faxe_sup:start_link(),
-   dataflow:add_metrics_handler(),
+   install_metrics_handler(),
    Res.
 
 %%--------------------------------------------------------------------
@@ -41,3 +41,17 @@ stop(_State) ->
 %%====================================================================
 %% Internal functions
 %%====================================================================
+install_metrics_handler() ->
+   %% standard handler
+   dataflow:add_metrics_handler(),
+   Handlers = proplists:get_value(handler, faxe_config:get(metrics, [{handler, []}])),
+   lager:notice("HAndlers: ~p",[Handlers]),
+   F = fun({HandlerType, Opts}) ->
+      case HandlerType of
+         mqtt -> dataflow:add_metrics_handler(metrics_handler_mqtt, Opts);
+         amqp -> dataflow:add_metrics_handler(metrics_handler_amqp, Opts);
+         _ -> ok
+      end
+      end,
+   lists:foreach(F, Handlers).
+
