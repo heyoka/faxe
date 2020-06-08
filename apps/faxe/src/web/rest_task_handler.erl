@@ -24,6 +24,7 @@
 -export([
    from_register_task/2,
    get_to_json/2,
+   get_graph_to_json/2,
    from_update_to_json/2,
    create_to_json/2,
    start_to_json/2,
@@ -44,6 +45,8 @@ init(Req, [{op, Mode}]) ->
    {cowboy_rest, Req, #state{mode = Mode, task_id = TId}}.
 
 allowed_methods(Req, State=#state{mode = get}) ->
+   {[<<"GET">>, <<"OPTIONS">>], Req, State};
+allowed_methods(Req, State=#state{mode = get_graph}) ->
    {[<<"GET">>, <<"OPTIONS">>], Req, State};
 allowed_methods(Req, State=#state{mode = register}) ->
    {[<<"POST">>], Req, State};
@@ -102,6 +105,11 @@ content_types_provided(Req, State=#state{mode = get}) ->
        {{<<"application">>, <<"json">>, []}, get_to_json},
        {{<<"text">>, <<"html">>, []}, get_to_json}
     ], Req, State};
+content_types_provided(Req, State=#state{mode = get_graph}) ->
+   {[
+      {{<<"application">>, <<"json">>, []}, get_graph_to_json},
+      {{<<"text">>, <<"html">>, []}, get_graph_to_json}
+   ], Req, State};
 content_types_provided(Req, State=#state{mode = start}) ->
    {[
       {{<<"application">>, <<"json">>, []}, start_to_json},
@@ -154,7 +162,7 @@ malformed_request(Req, State=#state{mode = _Mode}) ->
 
 %% check for existing resource only with get req
 resource_exists(Req = #{method := <<"GET">>}, State=#state{mode = Mode, task_id = TId})
-   when Mode == get orelse Mode == start orelse Mode == stop ->
+   when Mode == get orelse Mode == get_graph orelse Mode == start orelse Mode == stop ->
    check_resource(TId, Req, State);
 resource_exists(Req = #{method := <<"POST">>}, State=#state{mode = Mode, task_id = TId})
    when Mode == remove_tags orelse Mode == add_tags ->
@@ -195,6 +203,9 @@ delete_resource(Req, State=#state{task_id = TaskId}) ->
 get_to_json(Req, State=#state{task = Task}) ->
    Map = rest_helper:task_to_map(Task),
    {jiffy:encode(Map), Req, State}.
+
+get_graph_to_json(Req, State=#state{task = Task}) ->
+   {jiffy:encode(faxe:task_to_graph(Task)), Req, State}.
 
 from_register_task(Req, State = #state{name = TaskName, dfs = Dfs, tags = Tags}) ->
    rest_helper:do_register(Req, TaskName, Dfs, Tags, State, task).

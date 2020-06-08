@@ -46,7 +46,7 @@
    add_tags/2,
    remove_tags/2,
    get_logs/4,
-   set_tags/2]).
+   set_tags/2, get_graph/1, task_to_graph/1]).
 
 start_permanent_tasks() ->
    Tasks = faxe_db:get_permanent_tasks(),
@@ -82,6 +82,25 @@ get_task(TaskId) ->
             false -> T
          end
    end.
+
+%% @doc get the graph definition (nodes and edges) as a map
+-spec get_graph(non_neg_integer()|binary()) -> map() | {error, term()}.
+get_graph(TaskId) ->
+   case get_task(TaskId) of
+      #task{} = T ->
+         task_to_graph(T);
+      O -> O
+   end.
+
+task_to_graph(#task{definition = #{edges := Edges, nodes := Nodes}}) ->
+   EdgesOut = [
+      #{<<"src">> => Source, <<"src_port">> => PortOut, <<"dest">> => Dest, <<"dest_port">> => PortIn}
+      || {Source, PortOut, Dest, PortIn, _} <- Edges
+   ],
+   NodesOut = [
+      #{<<"name">> => NName, <<"type">> => NType} || {NName, NType, _Opts} <- Nodes
+   ],
+   #{nodes => NodesOut, edges => EdgesOut}.
 
 -spec get_template(term()) -> {error, not_found}|#template{}.
 get_template(TemplateId) ->
