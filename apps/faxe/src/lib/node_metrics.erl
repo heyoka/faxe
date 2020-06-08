@@ -37,7 +37,7 @@ destroy(FlowId, NodeId, Component) ->
 node_metrics(Component) ->
   Common = ?NODE_COMMON_METRICS,
   AddMetrics = get_node_metrics(Component),
-  lager:notice("component for metrics: ~p ::: ~p" ,[Component, AddMetrics]),
+%%  lager:notice("component for metrics: ~p ::: ~p" ,[Component, AddMetrics]),
   Common ++ AddMetrics.
   %,
   %lager:notice("nodemetrics: ~p : ~p",[{FlowId, NodeId, Component}, Ms]),

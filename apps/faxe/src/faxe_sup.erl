@@ -47,31 +47,15 @@ init([]) ->
             permanent, 5000, worker, []},
         {reconnect_watcher,
             {reconnect_watcher, start_link, []},
-            permanent, 5000, worker, []}
-        ,
-        {s7pool_manager,
-            {s7pool_manager, start_link, []},
-            permanent, 5000, worker, []}
-        ,
-        {s7pool_con_handler,
-            {s7pool_con_handler, start_link, []},
-            permanent, 5000, worker, []}
-        ,
-        {connection_registry,
-            {connection_registry, start_link, []},
-            permanent, 5000, worker, []}
-        ,
-        {metrics_collector,
-            {metrics_collector, start_link, []},
-            permanent, 5000, worker, []}
-        ,
-        {faxe_metrics,
-            {gen_event, start_link, [{local, faxe_metrics}]},
-            permanent, 5000, worker, []}
-        ,
-        {conn_status,
-            {gen_event, start_link, [{local, conn_status}]},
-            permanent, 5000, worker, []}
+            permanent, 5000, worker, []},
+
+        {s7pool_sup,
+            {s7pool_sup, start_link, []},
+            permanent, infinity, supervisor, [s7pool_sup]},
+        {faxe_metrics_sup,
+            {faxe_metrics_sup, start_link, []},
+            permanent, infinity, supervisor, [faxe_metrics_sup]}
+
 %%        ,
 %%        {faxe_log_sup,
 %%            {faxe_log_sup, start_link, []},
@@ -80,7 +64,7 @@ init([]) ->
 %%            {initial_task_starter, start_link, []},
 %%            permanent, 5000, worker, []}
    ],
-   {ok, { {one_for_one, 5, 10}, Procs} }.
+   {ok, { {one_for_one, 5, 20}, Procs} }.
 
 %%====================================================================
 %% Internal functions

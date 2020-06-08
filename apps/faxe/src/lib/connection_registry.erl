@@ -15,7 +15,7 @@
 -include("faxe.hrl").
 
 -define(SERVER, ?MODULE).
-
+-define(DATA_FORMAT, <<"92.003">>).
 %%
 %% status: 0 = disconnected, 1 = connected, 2 = connecting
 -record(conreg, {
@@ -148,7 +148,8 @@ publish(#conreg{connected = Connected, status = Status, flowid = FId,
     <<"node_id">> => NId,
     <<"peer">> => Peer,
     <<"port">> => Port,
-    <<"conn_type">> => Type
+    <<"conn_type">> => Type,
+    <<"df">> => ?DATA_FORMAT
   },
   P = #data_point{ts = faxe_time:now(), fields = Fields},
   gen_event:notify(conn_status, {{FId, NId}, P}).

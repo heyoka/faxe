@@ -18,6 +18,9 @@
 -record(metrics_collector_state, {}).
 
 -define(INTERVAL, 20000).
+
+-define(DATA_FORMAT_NODE, <<"92.001">>).
+-define(DATA_FORMAT_FLOW, <<"92.002">>).
 %%%===================================================================
 %%% Spawning and gen_server implementation
 %%%===================================================================
@@ -148,7 +151,8 @@ publish_flow_metrics(FlowId, Metrics) ->
     end
   end,
   FlowFields = maps:map(FL,  Grouped),
-  P = #data_point{ts = faxe_time:now(), fields = maps:merge(FlowFields, #{<<"flow_id">> => FlowId})},
+  P = #data_point{ts = faxe_time:now(),
+    fields = maps:merge(FlowFields, #{<<"flow_id">> => FlowId, <<"df">> => ?DATA_FORMAT_FLOW})},
   gen_event:notify(faxe_metrics, {{FlowId}, P}).
 
 
@@ -161,7 +165,7 @@ collect([#{type := Type, name := Name, node_id := NId, flow_id := FId, metric_na
   MTrans =
   #{
     <<"type">> => atom_to_binary(Type, latin1), <<"node_id">> => NId,
-    <<"flow_id">> => FId, <<"metric_name">> => MName
+    <<"flow_id">> => FId, <<"metric_name">> => MName, <<"df">> => ?DATA_FORMAT_NODE
   },
   collect(R, [#data_point{ts = faxe_time:now(), fields = maps:merge(MTrans, get_data(Type, Name))} | Acc]).
 
