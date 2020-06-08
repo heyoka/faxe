@@ -69,7 +69,7 @@ init(NodeId, _Ins,
   Reconnector = faxe_backoff:new({?RECON_MIN_INTERVAL, ?RECON_MAX_INTERVAL, ?RECON_MAX_RETRIES}),
   {ok, Reconnector1} = faxe_backoff:execute(Reconnector, do_reconnect),
   reconnect_watcher:new(20000, 15, io_lib:format("~s:~p ~p",[Ip, Port, ?MODULE])),
-  connection_registry:reg(NodeId, Ip, Port),
+  connection_registry:reg(NodeId, Ip, Port, <<"tcp">>),
   {ok, all,
     #state{ip = Ip, port = Port, as = As, extract = Extract, parser = Parser, min_length = MinL,
       reconnector = Reconnector1, line_delimiter = Delimit, changes = Changed, fn_id = NodeId}}.

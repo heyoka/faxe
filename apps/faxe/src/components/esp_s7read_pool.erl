@@ -111,7 +111,7 @@ init({_, _NId}=NodeId, _Ins,
   {Parts, AliasesList} = build_addresses(Addresses, As, Offset),
   ByteSize = bit_count(Parts)/8,
 
-  connection_registry:reg(NodeId, Ip, Port),
+  connection_registry:reg(NodeId, Ip, Port, <<"s7">>),
   s7pool_manager:connect(Opts),
   connection_registry:connecting(),
 

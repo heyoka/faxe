@@ -1,6 +1,6 @@
 %% Date: 06.04.20 - 08:27
 %% Ⓒ 2020 heyoka
--module(metrics_handler_mqtt).
+-module(conn_status_handler_mqtt).
 -author("Alexander Minichmair").
 
 -behaviour(gen_event).
@@ -80,7 +80,7 @@ init(Args) ->
    Ip0 = faxe_util:ip_to_bin(faxe_util:local_ip_v4()),
    Ip = binary:replace(Ip0, <<".">>, <<"_">>, [global]),
 
-   Topic = <<?TOPIC_BASE/binary, Ip/binary, "/metrics">>,
+   Topic = <<?TOPIC_BASE/binary, Ip/binary, "/conn_status">>,
    {ok, #state{host = Host, port = Port, publisher = Publisher, topic = Topic}}.
 
 %%--------------------------------------------------------------------
@@ -98,13 +98,8 @@ init(Args) ->
    {swap_handler, Args1 :: term(), NewState :: #state{},
       Handler2 :: (atom() | {atom(), Id :: term()}), Args2 :: term()} |
    remove_handler).
-handle_event({{FlowId}, Item}, State = #state{publisher = Publisher, topic = Topic}) ->
-   T = <<Topic/binary, "/", FlowId/binary>>,
-   publish(T, Item, Publisher),
-   lager:info("MQTT-METRIC FLOW :: ~p to topic:~p~n",[Item, T]),
-   {ok, State};
-handle_event({{FlowId, NodeId, MetricName}, Item}, State = #state{publisher = Publisher, topic = Topic}) ->
-   T = <<Topic/binary, "/", FlowId/binary, "/", NodeId/binary, "/", MetricName/binary>>,
+handle_event({{FlowId, NodeId}, Item}, State = #state{publisher = Publisher, topic = Topic}) ->
+   T = <<Topic/binary, "/", FlowId/binary, "/", NodeId/binary>>,
    publish(T, Item, Publisher),
 %%   lager:info("MQTT-METRIC :: ~p to topic:~p~n",[Item, T]),
    {ok, State}.
@@ -179,4 +174,5 @@ code_change(_OldVsn, State, _Extra) ->
 %%% Internal functions
 %%%===================================================================
 publish(T, Item, Publisher) ->
+   lager:info("publish: ~p to ~p",[Item, T]),
    Publisher ! {publish, {T, flowdata:to_json(Item)}}.

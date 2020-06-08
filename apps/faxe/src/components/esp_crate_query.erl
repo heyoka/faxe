@@ -82,7 +82,7 @@ init(NodeId, _Inputs, #{host := Host0, port := Port, user := User, every := Ever
    State = #state{host = Host, port = Port, user = User, pass = Pass, database = DB, query = Query,
       db_opts = DBOpts, every = Every, period = faxe_time:duration_to_ms(Period),
       align = Align, result_type = RType, fn_id = NodeId},
-   connection_registry:reg(NodeId, Host, Port),
+   connection_registry:reg(NodeId, Host, Port, <<"pgsql">>),
    erlang:send_after(0, self(), reconnect),
    {ok, all, State}.
 

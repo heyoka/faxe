@@ -79,7 +79,7 @@ init(NodeId, _Inputs, #{host := Host0, port := Port, user := User0, every := Eve
    DBOpts = [{host, Host}, {port, Port}, {user, User}, {password, Pass}, {service_name, ServiceName}],
 
    lager:notice("the QUERY : ~p",[Query]),
-   connection_registry:reg(NodeId, Host, Port),
+   connection_registry:reg(NodeId, Host, Port, <<"oracle_sql">>),
    State = #state{host = Host, port = Port, user = User, pass = Pass, service_name = ServiceName, query = Query,
       db_opts = DBOpts, every = Every, align = Align, result_type = ResType, fn_id = NodeId},
    erlang:send_after(0, self(), reconnect),

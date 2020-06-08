@@ -68,6 +68,10 @@ init([]) ->
         {faxe_metrics,
             {gen_event, start_link, [{local, faxe_metrics}]},
             permanent, 5000, worker, []}
+        ,
+        {conn_status,
+            {gen_event, start_link, [{local, conn_status}]},
+            permanent, 5000, worker, []}
 %%        ,
 %%        {faxe_log_sup,
 %%            {faxe_log_sup, start_link, []},

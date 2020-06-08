@@ -80,7 +80,7 @@ init({_GraphId, _NodeId} = Idx, _Ins,
    {ok, Q} = esq:new(QFile, ?Q_OPTS),
 
    NewState = start_emitter(State#state{queue = Q, flownodeid = Idx}),
-   connection_registry:reg(Idx, Host, Port),
+   connection_registry:reg(Idx, Host, Port, <<"amqp">>),
    {ok, start_consumer(NewState)}.
 
 process(_In, _, State = #state{}) ->

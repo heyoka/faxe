@@ -41,7 +41,7 @@ metrics() ->
 
 init(NodeId, _Inputs, #{host := Host0, port := Port, path := Path, tls := Tls}) ->
    Host = binary_to_list(Host0),
-   connection_registry:reg(NodeId, Host, Port),
+   connection_registry:reg(NodeId, Host, Port, <<"http">>),
    erlang:send_after(0, self(), start_client),
    {ok, all,
       #state{host = Host, port = Port, path = Path, tls = Tls, failed_retries = ?FAILED_RETRIES, fn_id = NodeId}}.

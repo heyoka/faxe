@@ -86,7 +86,7 @@ init(NodeId, _Ins,
    Reconnector = faxe_backoff:new({5,1200}),
    {ok, Reconnector1} = faxe_backoff:execute(Reconnector, connect),
 
-   connection_registry:reg(NodeId, Host, Port),
+   connection_registry:reg(NodeId, Host, Port, <<"mqtt">>),
    State = #state{host = Host, port = Port, topic = Topic, dt_field = DTField, dt_format = DTFormat,
       retained = Retained, ssl = UseSSL, qos = Qos, topics = Topics, client_id = ClientId,
       reconnector = Reconnector1, user = User, pass = Pass, fn_id = NodeId},

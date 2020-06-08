@@ -68,7 +68,7 @@ init(NodeId, _Inputs,
    Host = binary_to_list(Host0),
    erlang:send_after(0, self(), start_client),
    Query = build_query(DBFields, Table, RemFieldsAs),
-   connection_registry:reg(NodeId, Host, Port),
+   connection_registry:reg(NodeId, Host, Port, <<"http">>),
    {ok, all, #state{host = Host, port = Port, database = DB, user = User, pass = Pass,
       failed_retries = ?FAILED_RETRIES, remaining_fields_as = RemFieldsAs, tls = Tls,
       table = Table, query = Query, db_fields = DBFields, faxe_fields = FaxeFields, fn_id = NodeId}}.

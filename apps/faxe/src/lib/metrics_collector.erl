@@ -40,9 +40,10 @@ handle_info(collect, State = #metrics_collector_state{}) ->
   lager:info("Metrics collection took: ~p my",[TimeToCollect]),
   lists:foreach(
     fun({FlowId, NMS} = DP) ->
-      lager:info("~p",[NMS]),
+%%      lager:info("~p",[NMS]),
       publish(DP),
-      lager:notice("FlowMetrics: ~p",[publish_flow_metrics(FlowId, NMS)])
+      publish_flow_metrics(FlowId, NMS)
+%%      lager:notice("FlowMetrics: ~p",[publish_flow_metrics(FlowId, NMS)])
     end,
     All),
 

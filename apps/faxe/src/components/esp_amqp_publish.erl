@@ -63,7 +63,7 @@ init({GraphId, NodeId} = Idx, _Ins,
    lager:info("esq_base_dir: ~p", [EsqBaseDir]),
    QFile = binary_to_list(<<EsqBaseDir/binary, GraphId/binary, "/", NodeId/binary>>),
    {ok, Q} = esq:new(QFile, [{tts, 300}, {capacity, 10}, {ttf, 20000}]),
-   connection_registry:reg(Idx, Host, Port),
+   connection_registry:reg(Idx, Host, Port, <<"amqp">>),
    connection_registry:connecting(),
    State = start_connection(#state{opts = Opts, exchange = Ex, routing_key = RoutingKey, queue = Q}),
    {ok, State#state{flowid_nodeid = Idx}}.

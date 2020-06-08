@@ -32,6 +32,7 @@ start(_StartType, _StartArgs) ->
    %% start top supervisor
    Res = faxe_sup:start_link(),
    install_metrics_handler(),
+   install_conn_status_handler(),
    Res.
 
 %%--------------------------------------------------------------------
@@ -53,5 +54,19 @@ install_metrics_handler() ->
          _ -> ok
       end
       end,
+   lists:foreach(F, Handlers).
+
+install_conn_status_handler() ->
+   %% standard handler
+   dataflow:add_conn_status_handler(),
+   Handlers = proplists:get_value(handler, faxe_config:get(conn_status, [{handler, []}])),
+   lager:notice("HAndlers: ~p",[Handlers]),
+   F = fun({HandlerType, Opts}) ->
+      case HandlerType of
+         mqtt -> dataflow:add_conn_status_handler(conn_status_handler_mqtt, Opts);
+         amqp -> dataflow:add_conn_status_handler(conn_status_handler_amqp, Opts);
+         _ -> ok
+      end
+       end,
    lists:foreach(F, Handlers).
 

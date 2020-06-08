@@ -90,7 +90,7 @@ metrics() ->
 
 init(NodeId, _Ins, #{} = Opts) ->
    State = init_opts(maps:to_list(Opts), #state{}),
-   connection_registry:reg(NodeId, State#state.ip, State#state.port),
+   connection_registry:reg(NodeId, State#state.ip, State#state.port, <<"modbus_tcp">>),
    connection_registry:connecting(),
    {ok, Modbus} = modbus:connect(
       State#state.ip, State#state.port, State#state.device_address),
