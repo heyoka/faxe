@@ -371,7 +371,7 @@ handle_info(_Req, State=#c_state{cb_handle_info = false}) ->
 %%--------------------------------------------------------------------
 -spec(terminate(Reason :: (normal | shutdown | {shutdown, term()} | term()),
     State :: #c_state{}) -> term()).
-terminate(_Reason, #c_state{flow_node_id = NId}) ->
+terminate(_Reason, #c_state{}) ->
    ok.
 
 

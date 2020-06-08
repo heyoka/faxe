@@ -101,7 +101,7 @@ metrics() ->
 
 metrics([], Acc) ->
   Acc;
-metrics([{FlowId, Nodes}| R]=L, Acc) ->
+metrics([{FlowId, Nodes}| R] = _L, Acc) ->
 %%  lager:notice("metrics_names: ~p, ~p",[L,  Acc]),
   F = fun({NId, Comp, _Pid}) ->
     AllNodeMetrics = node_metrics:node_metrics(Comp),
@@ -161,7 +161,7 @@ collect({FId, Metrics}) ->
   {FId, collect(Metrics, [])}.
 collect([], Acc) ->
   Acc;
-collect([#{type := Type, name := Name, node_id := NId, flow_id := FId, metric_name := MName} = M|R], Acc) ->
+collect([#{type := Type, name := Name, node_id := NId, flow_id := FId, metric_name := MName} = _M|R], Acc) ->
   MTrans =
   #{
     <<"type">> => atom_to_binary(Type, latin1), <<"node_id">> => NId,

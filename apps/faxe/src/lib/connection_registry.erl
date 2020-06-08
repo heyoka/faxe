@@ -82,7 +82,7 @@ handle_info({connecting, Client} = _R, State) ->
       out(Client, Con#conreg{connected = false, status = 2})
   end,
   {noreply, State};
-handle_info({connected, Client }=R, State) ->
+handle_info({connected, Client } = _R, State) ->
   Con = get_connection(Client),
   case Con#conreg.status of
     1 ->
@@ -91,7 +91,7 @@ handle_info({connected, Client }=R, State) ->
       out(Client, Con#conreg{connected = true, status = 1})
   end,
   {noreply, State};
-handle_info({disconnected, Client} = R, State) ->
+handle_info({disconnected, Client} = _R, State) ->
   Con = get_connection(Client),
   case Con#conreg.status of
     0 ->

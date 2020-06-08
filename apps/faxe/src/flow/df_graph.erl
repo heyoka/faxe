@@ -231,9 +231,7 @@ handle_info(timeout, State) ->
 handle_info({swarm, die}, State) ->
    lager:warning("~p ~p must (and will) DIE!",[?MODULE, State#state.id]),
    {stop, shutdown, State};
-handle_info(collect_metrics, State = #state{nodes = Nodes, id = Id, graph = Graph}) ->
-%%   lager:notice("collect node metrics: ~p :: ~p",[Id, Nodes]),
-%%   lager:notice("collect node metrics GRAPH: ~p",[digraph:vertices(Graph)]),
+handle_info(collect_metrics, State = #state{nodes = Nodes, id = Id}) ->
    [node_metrics:process_metrics(Id, N) || N <- Nodes],
    erlang:send_after(?METRICS_INTERVAL, self(), collect_metrics),
    {noreply, State};
@@ -256,12 +254,12 @@ code_change(_OldVsn, State, _Extra) ->
 %%%===================================================================
 %%% Internal functions
 %%%===================================================================
-do_stop(#state{running = Running, nodes = Nodes, id = Id}) ->
+do_stop(#state{running = Running, nodes = Nodes}) ->
    lager:warning("stop graph when running:~p",[Running]),
    case Running of
       %% stop all components
       true ->
-         %% destroy all metrics
+         %% destroy all metrics (NOT)
 %%         lists:foreach(fun({NodeId, Comp, _NPid}) -> node_metrics:destroy(Id, NodeId, Comp) end, Nodes),
          lists:foreach(fun({_NodeId, _Comp, NPid}) -> NPid ! stop end, Nodes);
       false -> ok

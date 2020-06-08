@@ -1,7 +1,7 @@
 %% Date: 16.02.2020
 %% Ⓒ 2020 heyoka
 %% @doc
-%% collect internal flow metrics data_points
+%% collect internal connection status events
 %%
 %%
 %%
@@ -44,7 +44,7 @@ process(_, _Item, State=#state{} ) ->
 handle_info({_, Point}, State = #state{conn_type = undefined}) ->
    {emit, {1, Point}, State};
 handle_info({_, Point}, State = #state{conn_type = Type}) ->
-   lager:notice("got datapoint: ~p :: conn_type: ~p",[Point, flowdata:field(Point, <<"conn_type">>)]),
+%%   lager:notice("got datapoint: ~p :: conn_type: ~p",[Point, flowdata:field(Point, <<"conn_type">>)]),
    case flowdata:field(Point, <<"conn_type">>) == Type of
       true -> {emit, {1, Point}, State};
       false -> {ok, State}

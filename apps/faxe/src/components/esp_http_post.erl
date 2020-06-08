@@ -64,7 +64,7 @@ handle_info(start_client, State) ->
 shutdown(#state{client = C}) ->
    gun:close(C).
 
-send(Item, State = #state{fn_id = FNId}) ->
+send(Item, State = #state{}) ->
    M = flowdata:to_mapstruct(Item),
    Body = jiffy:encode(M),
    Headers = [{<<"content-type">>, <<"application/json">>}],

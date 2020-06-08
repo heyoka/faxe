@@ -35,7 +35,6 @@
    list_permanent_tasks/0,
    get_task/1,
    ping_task/1,
-%%   start_temporary/2,
    start_temp/2,
    start_file_temp/2,
    export/1,
@@ -46,7 +45,8 @@
    get_all_tags/0,
    add_tags/2,
    remove_tags/2,
-   get_logs/4, set_tags/2]).
+   get_logs/4,
+   set_tags/2]).
 
 start_permanent_tasks() ->
    Tasks = faxe_db:get_permanent_tasks(),

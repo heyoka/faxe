@@ -101,7 +101,7 @@ init(Args) ->
 handle_event({{FlowId}, Item}, State = #state{publisher = Publisher, topic = Topic}) ->
    T = <<Topic/binary, "/", FlowId/binary>>,
    publish(T, Item, Publisher),
-   lager:info("MQTT-METRIC FLOW :: ~p to topic:~p~n",[Item, T]),
+%%   lager:info("MQTT-METRIC FLOW :: ~p to topic:~p~n",[Item, T]),
    {ok, State};
 handle_event({{FlowId, NodeId, MetricName}, Item}, State = #state{publisher = Publisher, topic = Topic}) ->
    T = <<Topic/binary, "/", FlowId/binary, "/", NodeId/binary, "/", MetricName/binary>>,

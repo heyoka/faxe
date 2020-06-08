@@ -96,11 +96,11 @@ init(#{parent := Parent, flow_id := FlowId} = Opts) ->
    {swap_handler, Args1 :: term(), NewState :: #state{},
       Handler2 :: (atom() | {atom(), Id :: term()}), Args2 :: term()} |
    remove_handler).
-handle_event({{FlowId}, Item} = P, State = #state{node_id = undefined, flow_id = FlowId, parent = Parent}) ->
+handle_event({{FlowId}, Item} = _P, State = #state{node_id = undefined, flow_id = FlowId, parent = Parent}) ->
    Parent ! {flow_metric, Item},
 %%   lager:info("metrics dataflow handler :: ~p",[P]),
    {ok, State};
-handle_event({{FlowId, NodeId, MetricName}=P, Item},
+handle_event({{FlowId, NodeId, MetricName} = _P, Item},
     State = #state{flow_id = FlowId, node_id = NodeId, metrics_list = Ms, parent = Parent}) ->
 %%   lager:info("node metrics dataflow handler :: ~p",[P]),
     case Ms == undefined orelse lists:member(MetricName, Ms) of
