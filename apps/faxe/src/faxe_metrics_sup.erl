@@ -15,20 +15,20 @@ start_link() ->
 
 init([]) ->
   P = [
-    {connection_registry,
-      {connection_registry, start_link, []},
-      permanent, 5000, worker, []}
-    ,
-    {metrics_collector,
-      {metrics_collector, start_link, []},
-      permanent, 5000, worker, []}
-    ,
     {faxe_metrics,
       {gen_event, start_link, [{local, faxe_metrics}]},
       permanent, 5000, worker, []}
     ,
     {conn_status,
       {gen_event, start_link, [{local, conn_status}]},
+      permanent, 5000, worker, []}
+    ,
+    {connection_registry,
+      {connection_registry, start_link, []},
+      permanent, 5000, worker, []}
+    ,
+    {metrics_collector,
+      {metrics_collector, start_link, []},
       permanent, 5000, worker, []}
   ],
 
