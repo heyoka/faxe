@@ -104,7 +104,6 @@ maybe_restart_timer(State) ->
    restart_timer(State).
 
 restart_timer(State = #state{timer_ref = TRef, timeout = Timeout}) ->
-   lager:info("start new timeout"),
    catch erlang:cancel_timer(TRef),
    NewTimer = erlang:send_after(Timeout, self(), timeout),
    State#state{timer_ref = NewTimer}.

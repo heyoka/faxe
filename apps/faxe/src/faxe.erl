@@ -92,6 +92,7 @@ get_graph(TaskId) ->
       O -> O
    end.
 
+
 task_to_graph(#task{definition = #{edges := Edges, nodes := Nodes}}) ->
    EdgesOut = [
       #{<<"src">> => Source, <<"src_port">> => PortOut, <<"dest">> => Dest, <<"dest_port">> => PortIn}
