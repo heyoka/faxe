@@ -78,7 +78,7 @@ handle_info({'DOWN', _MonitorRef, _Type, _Object, _Info}, State) ->
   {noreply, State};
 handle_info(connect,
     State=#state{ip = Ip, port = Port, rack = Rack, slot = Slot}) ->
-  lager:info("[~p] do_reconnect, ~p", [?MODULE, {Ip, Port}]),
+%%  lager:info("[~p] do_reconnect, ~p", [?MODULE, {Ip, Port}]),
   case connect(Ip, Rack, Slot) of
     {ok, Client} ->
       {noreply, State#state{client = Client}};
