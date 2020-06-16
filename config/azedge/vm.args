@@ -1,0 +1,8 @@
+-sname faxe
+
+-setcookie azedgecookie
+-mnesia dir '"${MNESIA_DIR}"'
+
++K true
++A 64
++Q 65536
