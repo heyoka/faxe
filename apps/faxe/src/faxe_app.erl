@@ -46,7 +46,7 @@ install_metrics_handler() ->
    %% standard handler
 %%   dataflow:add_metrics_handler(),
    Handlers = proplists:get_value(handler, faxe_config:get(metrics, [{handler, []}])),
-   lager:notice("HAndlers: ~p",[Handlers]),
+%%   lager:notice("HAndlers: ~p",[Handlers]),
    F = fun({HandlerType, Opts}) ->
       case HandlerType of
          mqtt -> dataflow:add_metrics_handler(metrics_handler_mqtt, Opts);
@@ -60,7 +60,7 @@ install_conn_status_handler() ->
    %% standard handler
 %%   dataflow:add_conn_status_handler(),
    Handlers = proplists:get_value(handler, faxe_config:get(conn_status, [{handler, []}])),
-   lager:notice("HAndlers: ~p",[Handlers]),
+%%   lager:notice("HAndlers: ~p",[Handlers]),
    F = fun({HandlerType, Opts}) ->
       case HandlerType of
          mqtt -> dataflow:add_conn_status_handler(conn_status_handler_mqtt, Opts);
