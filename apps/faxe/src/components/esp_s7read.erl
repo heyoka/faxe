@@ -38,11 +38,13 @@
   slot,
   rack,
   interval,
-  as,
+  as :: list(binary()),
+  as_prefix :: binary(),
   align,
   diff,
   timer_ref,
-  vars, var_types :: list(),
+  vars, var_types :: list(binary()),
+  vars_prefix :: binary(),
   last_values = [] :: list(),
   timer :: #faxe_timer{},
   opts,
@@ -62,7 +64,9 @@ options() -> [
   {slot, integer, 1},
   {rack, integer, 0},
   {vars, string_list}, %% s7 addressing, ie: DB2024,Int16.1224 | DB2024.DBX12.2
+  {vars_prefix, string, undefined},
   {as, binary_list},
+  {as_prefix, string, undefined},
   {diff, is_set},
   {merge_field, string, undefined},
   {byte_offset, integer, 0}
@@ -71,15 +75,17 @@ options() -> [
 check_options() ->
   [
     {func, vars,
-      fun(List) ->
-        {P, _} = build_addresses(List, lists:seq(1, length(List)), 0),
+      fun(List, #{vars_prefix := VarsPrefix}) ->
+        List1 = translate_vars(List, VarsPrefix),
+        {P, _} = build_addresses(List1, lists:seq(1, length(List1)), 0),
         length(P) =< ?MAX_READ_ITEMS
       end,
       <<", has to many address items!">>
     },
     {func, vars,
-      fun(List) ->
-        {P, _} = build_addresses(List, lists:seq(1, length(List)), 0),
+      fun(List, #{vars_prefix := VarsPrefix}) ->
+        List1 = translate_vars(List, VarsPrefix),
+        {P, _} = build_addresses(List1, lists:seq(1, length(List1)), 0),
         bit_count(P)/8 =< ?DEFAULT_BYTE_LIMIT
       end,
       <<", byte-limit of ", ?DEFAULT_BYTE_LIMIT, " bytes exceeded!">>
@@ -101,13 +107,20 @@ init({_, _NId}=NodeId, _Ins,
       slot := Slot,
       rack := Rack,
       vars := Addresses,
+      vars_prefix := Vars_Prefix,
       as := As,
+      as_prefix := As_Prefix,
       diff := _Diff,
       merge_field := MergeField,
       byte_offset := Offset}=Opts) ->
 
-
-  {Parts, AliasesList} = build_addresses(Addresses, As, Offset),
+%%  lager:notice("before: ~p ~n",[As]),
+  As1 = translate_as(As, As_Prefix),
+%%  lager:notice("after: ~p ~n",[As1]),
+%%  lager:notice("before: ~p ~n",[Addresses]),
+  Addresses1 = translate_vars(Addresses, Vars_Prefix),
+%%  lager:notice("after: ~p ~n",[Addresses1]),
+  {Parts, AliasesList} = build_addresses(Addresses1, As1, Offset),
   ByteSize = bit_count(Parts)/8,
 
   connection_registry:reg(NodeId, Ip, Port, <<"s7">>),
@@ -204,7 +217,19 @@ maybe_emit(true, Result, _, Result, State) ->
 maybe_emit(true, Result, Aliases, _Last, State) ->
   maybe_emit(false, Result, Aliases, [], State).
 
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+translate_as(As, undefined) ->
+  As;
+translate_as(As, Prefix) ->
+  [iolist_to_binary([Prefix, A]) || A <- As].
+
+translate_vars(Vs, undefined) ->
+  Vs;
+translate_vars(Vs, Prefix) ->
+  [iolist_to_binary([Prefix, V]) || V <- Vs].
+
+
 build_addresses(Addresses, As, Offset) ->
   PList = [s7addr:parse(Address, Offset) || Address <- Addresses],
   %% inject Aliases into parameter maps
@@ -404,6 +429,11 @@ n_length([H|T],[HAcc | TAcc],Pos,Max) ->
 n_length([H|T],[],Pos,Max) ->
   n_length(T,[[H]],Pos+1,Max).
 
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%%
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%%
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%% TEST %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 -ifdef(TEST).
 build_addresses_test() ->
@@ -421,13 +451,15 @@ build_addresses_test() ->
     <<"DB11136.DBX100.4">>,<<"DB11136.DBX100.5">>,<<"DB11136.DBX100.6">>,<<"DB11136.DBX100.7">>,
     <<"DB11136.DBX101.0">>,<<"DB11136.DBX101.1">>,<<"DB11136.DBX101.2">>,<<"DB11136.DBX101.3">>,
     <<"DB11136.DBX101.4">>,<<"DB11136.DBX101.6">>,<<"DB11136.DBX101.7">>,<<"DB11136.DBX102.0">>,
-    <<"DB11136.DBX102.1">>],
+    <<"DB11136.DBX102.1">>,
+    <<"DB8034.DBS66.30">>],
   As = lists:map(fun(E) -> binary:replace(E, <<".">>, <<"_">>, [global]) end, L),
   Res = [
     #{amount => 1,area => db,db_number => 11136,start => 88,word_len => byte},
     #{amount => 5,area => db,db_number => 11136,start => 90,word_len => byte},
     #{amount => 3,area => db,db_number => 11136,start => 100,word_len => byte},
-    #{amount => 2,area => db,db_number => 11136,start => 96,word_len => word}
+    #{amount => 2,area => db,db_number => 11136,start => 96,word_len => word},
+    #{amount => 30,area => db,db_number => 8034,start => 66, word_len => byte}
   ],
   AliasesList =
     [
@@ -473,7 +505,8 @@ build_addresses_test() ->
           bool_byte,bool_byte,bool_byte,bool_byte,bool_byte,
           bool_byte],
         [0,1,2,4,5,6,7,8,9,10,11,12,14,15,16,17]},
-      {[<<"DB11136_DBW96">>,<<"DB11136_DBW98">>],[word,word]}
+      {[<<"DB11136_DBW96">>,<<"DB11136_DBW98">>],[word,word]},
+      {[<<"DB8034_DBS66_30">>], [string]}
     ],
 
   {S7Addrs, Aliases} = build_addresses(L, As, 0),

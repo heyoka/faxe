@@ -12,13 +12,6 @@ def stream =
     .fields('id', 'df', 'vs')
     .field_values('zu23zui23zi2uz3i', '05.007', 1)
 
-stream
-    |mqtt_publish()
-        .host(mqtt_host)
-        .port(1883)
-        .qos(1)
-        .topic(topic)
-        .retained()
 
 stream
 

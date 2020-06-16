@@ -283,11 +283,11 @@ do_check({oneplus_of_params, Keys}, Opts, Mod) ->
 
 %% check if one of possible values is given for a specific param
 do_check({one_of, Key, ValidOpts}, Opts, Mod) ->
-   lager:notice("do check: ~p",[[{one_of, Key, ValidOpts}, Opts, Mod]]),
+%%   lager:notice("do check: ~p",[[{one_of, Key, ValidOpts}, Opts, Mod]]),
    case maps:get(Key, Opts, undefined) of
       undefined -> ok; %% should not happen
       Params when is_list(Params) ->
-         lager:warning("params: ~p", [Params]),
+%%         lager:warning("params: ~p", [Params]),
          lists:foreach(fun(E) ->
                         case lists:member(E, ValidOpts) of
                            true -> ok;
@@ -307,7 +307,12 @@ do_check({one_of, Key, ValidOpts}, Opts, Mod) ->
 do_check({func, Key, Fun, Message}, Opts, Mod) when is_function(Fun), is_binary(Message)->
    Val = maps:get(Key, Opts, undefined),
 %%   lager:notice("check func for :~p",[{Key, Val}]),
-   case Fun(Val) of
+   Res =
+   case erlang:fun_info(Fun, arity) of
+      {arity, 1} -> Fun(Val);
+      {arity, 2} -> Fun(Val, Opts)
+   end,
+   case Res of
       true -> ok;
       false -> erlang:error(format_error(invalid_opt, Mod,
          [<<"Param '">>, atom_to_binary(Key, latin1), <<"'">>, Message]))
