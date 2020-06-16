@@ -1,5 +1,4 @@
 -sname faxe
-
 -setcookie azedgecookie
 -mnesia dir '"${MNESIA_DIR}"'
 
