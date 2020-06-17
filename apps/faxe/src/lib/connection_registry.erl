@@ -152,4 +152,5 @@ publish(#conreg{connected = Connected, status = Status, flowid = FId,
     <<"df">> => ?DATA_FORMAT
   },
   P = #data_point{ts = faxe_time:now(), fields = Fields},
+%%  lager:notice("CONN: ~s",[flowdata:to_json(P)]),
   gen_event:notify(conn_status, {{FId, NId}, P}).

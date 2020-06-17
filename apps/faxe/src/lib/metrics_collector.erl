@@ -68,7 +68,7 @@ publish({FlowId, Metrics}) ->
   F = fun(#data_point{fields = Fields} = P) ->
     NodeId = maps:get(<<"node_id">>, Fields),
     MetricName = maps:get(<<"metric_name">>, Fields),
-%%    lager:notice("event: ~p",[{{FlowId, NodeId, MetricName}, P}]),
+%%    lager:notice("event: ~p ~n~s",[{FlowId, NodeId, MetricName}, flowdata:to_json(P)]),
     gen_event:notify(faxe_metrics, {{FlowId, NodeId, MetricName}, P})
       end,
   lists:foreach(F, Metrics).
@@ -147,12 +147,14 @@ publish_flow_metrics(FlowId, Metrics) ->
       ?METRIC_PROCESSING_TIME -> lists:sum(V)/length(V);
       ?METRIC_BYTES_SENT -> round(lists:sum(V)/1024);
       ?METRIC_BYTES_READ -> round(lists:sum(V)/1024);
+      ?METRIC_MEM_USED -> round(lists:sum(V)/1024);
       _ -> lists:sum(V)
     end
   end,
   FlowFields = maps:map(FL,  Grouped),
   P = #data_point{ts = faxe_time:now(),
     fields = maps:merge(FlowFields, #{<<"flow_id">> => FlowId, <<"df">> => ?DATA_FORMAT_FLOW})},
+%%  lager:warning("FlowMETRICS: ~s" ,[flowdata:to_json(P)]),
   gen_event:notify(faxe_metrics, {{FlowId}, P}).
 
 

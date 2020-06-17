@@ -53,6 +53,7 @@ init(NodeId, _Ins,
     #{timeout := Timeout0, fields := Fields, repeat_last := Repeat, no_forward := NoForward,
        trigger_on_value := Trigger, field_values := Vals, silent_time := QTime0}) ->
 
+
    Timeout = faxe_time:duration_to_ms(Timeout0),
    QTimeout = faxe_time:duration_to_ms(QTime0),
    State =

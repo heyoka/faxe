@@ -99,7 +99,7 @@ to_mapstruct(P=#data_point{ts = Ts, fields = Fields, tags = _Tags}) ->
       end,
    #{?DEFAULT_TS_FIELD => Ts,
       <<"id">> => field(P ,<<"id">>, ?DEFAULT_ID),
-      <<"vs">> => field(P, <<"vs">>, ?DEFAULT_VS),
+%%      <<"vs">> => field(P, <<"vs">>, ?DEFAULT_VS),
       <<"df">> => field(P, <<"df">>, ?DEFAULT_DF),
       <<"data">> => DataFields};
 
