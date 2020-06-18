@@ -305,7 +305,8 @@ build_subscriptions(Graph, Node, Nodes, FlowMode) ->
    Inports = lists:map(
       fun(E) ->
          {_E, V1, _V2, _Label = #{tgt_port := TargetPort}} = digraph:edge(Graph, E),
-         {TargetPort, proplists:get_value(V1, Nodes)}
+         {_, _, PubPid} = lists:keyfind(V1, 1, Nodes),
+         {TargetPort, PubPid}
       end,
       InEdges),
    {Inports, Subscriptions}.
@@ -355,5 +356,6 @@ start(ModeOpts=#task_modes{run_mode = RunMode, temporary = Temp, temp_ttl = TTL}
       false -> undefined;
       true -> erlang:send_after(TTL, self(), timeout)
    end,
+   lager:warning("run_mode is :~p",[RunMode]),
    State#state{running = true, started = true, nodes = Nodes,
       timeout_ref = TimerRef, start_mode = ModeOpts}.

@@ -276,7 +276,6 @@ json_basic_test() ->
    ?assertEqual(jiffy:decode(to_json(P), [return_maps]),
       #{<<"ts">> =>1568029511598,
          <<"id">> => <<"ioi2u34oiu23oi4u2oi4u2">>,
-         <<"vs">> => 1,
          <<"df">> => <<"01.002">>,
          <<"data">> => #{<<"value1">> => 323424, <<"value2">> => <<"somestringvalue">>}}
 
@@ -284,12 +283,11 @@ json_basic_test() ->
 
 json_basic_vs_test() ->
    P = #data_point{ts = 1568029511598, fields = #{<<"id">> => <<"ioi2u34oiu23oi4u2oi4u2">>,
-      <<"df">> => <<"01.002">>, <<"vs">> => 2, <<"value1">> => 323424,
+      <<"df">> => <<"01.002">>,  <<"value1">> => 323424,
       <<"value2">> => <<"somestringvalue">>}},
    ?assertEqual(jiffy:decode(to_json(P), [return_maps]),
       #{<<"ts">> =>1568029511598,
          <<"id">> => <<"ioi2u34oiu23oi4u2oi4u2">>,
-         <<"vs">> => 2,
          <<"df">> => <<"01.002">>,
          <<"data">> => #{<<"value1">> => 323424, <<"value2">> => <<"somestringvalue">>}}
 
@@ -297,13 +295,12 @@ json_basic_vs_test() ->
 
 json_basic_datamap_test() ->
    P = #data_point{ts = 1568029511598, fields = #{<<"id">> => <<"ioi2u34oiu23oi4u2oi4u2">>,
-      <<"df">> => <<"01.002">>, <<"vs">> => 2, <<"value1">> => 323424,
+      <<"df">> => <<"01.002">>, <<"value1">> => 323424,
       <<"data">> => #{<<"value2">> => <<"somestringvalue">>}}
    },
    ?assertEqual(jiffy:decode(to_json(P), [return_maps]),
       #{<<"ts">> =>1568029511598,
          <<"id">> => <<"ioi2u34oiu23oi4u2oi4u2">>,
-         <<"vs">> => 2,
          <<"df">> => <<"01.002">>,
          <<"data">> => #{<<"value1">> => 323424, <<"value2">> => <<"somestringvalue">>}}
 
@@ -315,7 +312,6 @@ json_basic_default_test() ->
    ?assertEqual(jiffy:decode(to_json(P), [return_maps]),
       #{<<"ts">> =>1568029511598,
          <<"id">> => <<"00000">>,
-         <<"vs">> => 1,
          <<"df">> => <<"00.000">>,
          <<"data">> => #{<<"value1">> => 323424, <<"value2">> => <<"somestringvalue">>}}
    ).
@@ -323,7 +319,7 @@ json_basic_default_test() ->
 json_basic_data_test() ->
    P = #data_point{ts = 1568029511598, fields =
    #{<<"id">> => <<"ioi2u34oiu23oi4u2oi4u2">>,
-      <<"df">> => <<"01.002">>, <<"vs">> => 2,
+      <<"df">> => <<"01.002">>,
       <<"data">> => #{<<"value1">> => 323424, <<"value2">> => <<"somestringvalue">>}}
    },
 
@@ -331,7 +327,6 @@ json_basic_data_test() ->
 
       #{<<"ts">> =>1568029511598,
          <<"id">> => <<"ioi2u34oiu23oi4u2oi4u2">>,
-         <<"vs">> => 2,
          <<"df">> => <<"01.002">>,
          <<"data">> => #{<<"value1">> => 323424, <<"value2">> => <<"somestringvalue">>}}
 
@@ -341,13 +336,12 @@ json_basic_data_test() ->
 json_basic_data_excl_test() ->
    P = #data_point{ts = 1568029511598, fields =
       #{<<"id">> => <<"ioi2u34oiu23oi4u2oi4u2">>,
-         <<"df">> => <<"01.002">>, <<"vs">> => 2, <<"value1">> => 2323422, <<"value2">> => <<"savoi">>,
+         <<"df">> => <<"01.002">>, <<"value1">> => 2323422, <<"value2">> => <<"savoi">>,
          <<"data">> => #{<<"value1">> => 323424, <<"value2">> => <<"somestringvalue">>}}
    },
    ?assertEqual(jiffy:decode(to_json(P), [return_maps]),
       #{<<"ts">> =>1568029511598,
          <<"id">> => <<"ioi2u34oiu23oi4u2oi4u2">>,
-         <<"vs">> => 2,
          <<"df">> => <<"01.002">>,
          <<"data">> => #{<<"value1">> => 323424, <<"value2">> => <<"somestringvalue">>}}
 
@@ -357,7 +351,7 @@ json_basic_data_excl_test() ->
 batch_to_json_test() ->
    P = #data_point{ts = 1568029511598, fields =
    #{<<"id">> => <<"ioi2u34oiu23oi4u2oi4u2">>,
-      <<"df">> => <<"01.002">>, <<"vs">> => 2, <<"value1">> => 2323422, <<"value2">> => <<"savoi">>,
+      <<"df">> => <<"01.002">>,  <<"value1">> => 2323422, <<"value2">> => <<"savoi">>,
       <<"data">> => #{<<"value1">> => 323424, <<"value2">> => <<"somestringvalue">>}}
    },
    Points = [P#data_point{ts = P#data_point.ts+(X*1000)} || X <- lists:seq(1,5)],
@@ -368,31 +362,31 @@ batch_to_json_test() ->
          <<"value2">> => <<"somestringvalue">>},
          <<"df">> => <<"01.002">>,
          <<"id">> => <<"ioi2u34oiu23oi4u2oi4u2">>,
-         <<"ts">> => 1568029512598,<<"vs">> => 2},
+         <<"ts">> => 1568029512598},
          #{<<"data">> =>
          #{<<"value1">> => 323424,
             <<"value2">> => <<"somestringvalue">>},
             <<"df">> => <<"01.002">>,
             <<"id">> => <<"ioi2u34oiu23oi4u2oi4u2">>,
-            <<"ts">> => 1568029513598,<<"vs">> => 2},
+            <<"ts">> => 1568029513598},
          #{<<"data">> =>
          #{<<"value1">> => 323424,
             <<"value2">> => <<"somestringvalue">>},
             <<"df">> => <<"01.002">>,
             <<"id">> => <<"ioi2u34oiu23oi4u2oi4u2">>,
-            <<"ts">> => 1568029514598,<<"vs">> => 2},
+            <<"ts">> => 1568029514598},
          #{<<"data">> =>
          #{<<"value1">> => 323424,
             <<"value2">> => <<"somestringvalue">>},
             <<"df">> => <<"01.002">>,
             <<"id">> => <<"ioi2u34oiu23oi4u2oi4u2">>,
-            <<"ts">> => 1568029515598,<<"vs">> => 2},
+            <<"ts">> => 1568029515598},
          #{<<"data">> =>
          #{<<"value1">> => 323424,
             <<"value2">> => <<"somestringvalue">>},
             <<"df">> => <<"01.002">>,
             <<"id">> => <<"ioi2u34oiu23oi4u2oi4u2">>,
-            <<"ts">> => 1568029516598,<<"vs">> => 2}]
+            <<"ts">> => 1568029516598}]
 
    ).
 
@@ -406,7 +400,7 @@ empty_data_test() ->
 empty_data_json_test() ->
    P = #data_point{ts = 1568029511598, fields =
    #{<<"id">> => <<"ioi2u34oiu23oi4u2oi4u2">>,
-      <<"df">> => <<"01.002">>, <<"vs">> => 2,
+      <<"df">> => <<"01.002">>,
       <<"data">> => #{}}
    },
    Json = to_json(P),
@@ -504,13 +498,12 @@ from_map_basic_test() ->
 
 msgpack_basic_test() ->
    P = #data_point{ts = 1568029511598, fields = #{<<"id">> => <<"ioi2u34oiu23oi4u2oi4u2">>,
-      <<"df">> => <<"01.002">>, <<"vs">> => 2,
+      <<"df">> => <<"01.002">>,
       <<"data">> => #{<<"value1">> => 323424, <<"value2">> => <<"somestringvalue">>}}
    },
    ?assertEqual(msgpack:unpack(flowdata:to_s_msgpack(P),[{map_format,map}]),
       {ok,#{<<"ts">> =>1568029511598,
          <<"id">> => <<"ioi2u34oiu23oi4u2oi4u2">>,
-         <<"vs">> => 2,
          <<"df">> => <<"01.002">>,
          <<"data">> => #{<<"value1">> => 323424, <<"value2">> => <<"somestringvalue">>}}
       }

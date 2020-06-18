@@ -75,7 +75,7 @@ create_graph(Id, Definitions) when is_map(Definitions) ->
 start_graph(Graph) ->
    start_graph(Graph, push).
 start_graph(Graph, #task_modes{} = TM) ->
-   df_graph:start_graph(Graph, TM#task_modes{run_mode = push});
+   df_graph:start_graph(Graph, TM); %#task_modes{run_mode = push});
 start_graph(Graph, RunMode) ->
    df_graph:start_graph(Graph, #task_modes{run_mode = RunMode}).
 
@@ -84,6 +84,7 @@ start_graph(Graph, RunMode) ->
 %%% component functions
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 request_items(Port, PublisherPids) when is_list(PublisherPids) ->
+%%   lager:notice("request item: ~p",[{Port, PublisherPids}]),
    [Pid ! {request, self(), Port} || Pid <- PublisherPids].
 
 -spec emit(any()) -> reference().

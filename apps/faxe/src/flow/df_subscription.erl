@@ -62,7 +62,7 @@ request(S = #subscription{flow_mode = pull}, _Pid, _Port) ->
 
 do_request(S = #subscription{flow_mode = pull, out_buffer = Buffer, subscriber_pid = SPid,
       subscriber_port = Port, pending = _Pending}) ->
-%%   io:format("Buffer when requesting value: ~p~n",[Buffer]),
+%%   io:format("Buffer when requesting value: ~p~n",[queue:len(Buffer)]),
    NewSubscription =
       case queue:out(Buffer) of
          {{value, Item }, Q2} -> SPid ! {item, {Port, Item}},

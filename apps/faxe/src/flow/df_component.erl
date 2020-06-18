@@ -197,6 +197,7 @@ outports(Module) ->
    {ok, State :: #c_state{}} | {ok, State :: #c_state{}, timeout() | hibernate} |
    {stop, Reason :: term()} | ignore).
 init([Component, GraphId, NodeId, Inports, _Outports, Args]) ->
+%%   lager:warning("inports: ~p" ,[Inports]),
    code:ensure_loaded(Component),
    lager:md([{flow, GraphId}, {comp, NodeId}]),
    InputPorts = lists:map(fun({_Pid, Port}) -> Port end, Inports),
@@ -263,7 +264,7 @@ handle_info({start, Inputs, Subscriptions, FlowMode},
     State=#c_state{component = CB, cb_state = CBState, graph_id = GId, node_id = NId}) ->
 
    %gen_event:notify(dfevent_component, {start, State#c_state.node_id, FlowMode}),
-   lager:debug("component ~p starts with options; ~p", [CB, CBState]),
+%%   lager:info("component ~p starts with options; ~p and inputs: ~p", [CB, CBState, Inputs]),
    Opts = CBState,
    Inited = CB:init({GId, NId}, Inputs, Opts),
    {AReq, NewCBState} =

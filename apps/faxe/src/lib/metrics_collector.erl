@@ -15,9 +15,9 @@
 -include("faxe.hrl").
 -define(SERVER, ?MODULE).
 
--record(metrics_collector_state, {}).
+-record(metrics_collector_state, {timer}).
 
--define(INTERVAL, 20000).
+-define(INTERVAL, <<"10s">>).
 
 -define(DATA_FORMAT_NODE, <<"92.001">>).
 -define(DATA_FORMAT_FLOW, <<"92.002">>).
@@ -29,8 +29,9 @@ start_link() ->
   gen_server:start_link({local, ?SERVER}, ?MODULE, [], []).
 
 init([]) ->
-  erlang:send_after(?INTERVAL, self(), collect),
-  {ok, #metrics_collector_state{}}.
+  Timer = faxe_time:init_timer(true, ?INTERVAL, collect),
+%%  erlang:send_after(?INTERVAL, self(), collect),
+  {ok, #metrics_collector_state{timer = Timer}}.
 
 handle_call(_Request, _From, State = #metrics_collector_state{}) ->
   {reply, ok, State}.
@@ -38,20 +39,22 @@ handle_call(_Request, _From, State = #metrics_collector_state{}) ->
 handle_cast(_Request, State = #metrics_collector_state{}) ->
   {noreply, State}.
 
-handle_info(collect, State = #metrics_collector_state{}) ->
-  {TimeToCollect, All} = timer:tc(?MODULE, do_collect, []),
-  lager:info("Metrics collection took: ~p my",[TimeToCollect]),
+handle_info(collect, State = #metrics_collector_state{timer = Timer}) ->
+  All = do_collect(),
+  Ts = Timer#faxe_timer.last_time,
+%%  {TimeToCollect, All} = timer:tc(?MODULE, do_collect, []),
+%%  lager:info("Metrics collection took: ~p my",[TimeToCollect]),
   lists:foreach(
     fun({FlowId, NMS} = DP) ->
 %%      lager:info("~p",[NMS]),
-      publish(DP),
-      publish_flow_metrics(FlowId, NMS)
+      publish(DP, Ts),
+      publish_flow_metrics(FlowId, NMS, Ts)
 %%      lager:notice("FlowMetrics: ~p",[publish_flow_metrics(FlowId, NMS)])
     end,
     All),
 
-  erlang:send_after(?INTERVAL, self(), collect),
-  {noreply, State};
+%%  erlang:send_after(?INTERVAL, self(), collect),
+  {noreply, State#metrics_collector_state{timer = faxe_time:timer_next(Timer)}};
 handle_info(_Info, State = #metrics_collector_state{}) ->
   {noreply, State}.
 
@@ -64,12 +67,12 @@ code_change(_OldVsn, State = #metrics_collector_state{}, _Extra) ->
 %%%===================================================================
 %%% Internal functions
 %%%===================================================================
-publish({FlowId, Metrics}) ->
+publish({FlowId, Metrics}, Ts) ->
   F = fun(#data_point{fields = Fields} = P) ->
     NodeId = maps:get(<<"node_id">>, Fields),
     MetricName = maps:get(<<"metric_name">>, Fields),
-%%    lager:notice("event: ~p ~n~s",[{FlowId, NodeId, MetricName}, flowdata:to_json(P)]),
-    gen_event:notify(faxe_metrics, {{FlowId, NodeId, MetricName}, P})
+%%    lager:notice("event: ~p ~n~s",[{FlowId, NodeId, MetricName}, flowdata:to_json(P#data_point{ts = Ts})]),
+    gen_event:notify(faxe_metrics, {{FlowId, NodeId, MetricName}, P#data_point{ts = Ts}})
       end,
   lists:foreach(F, Metrics).
 
@@ -118,7 +121,7 @@ metrics([{FlowId, Nodes}| R] = _L, Acc) ->
       end,
   metrics(R, Acc ++ [{FlowId, lists:flatmap(F, Nodes)}]).
 
-publish_flow_metrics(FlowId, Metrics) ->
+publish_flow_metrics(FlowId, Metrics, Ts) ->
   F =
   fun(#data_point{fields = #{<<"metric_name">> := MName}=Fields}=_P, Acc) ->
     Val =
@@ -152,7 +155,7 @@ publish_flow_metrics(FlowId, Metrics) ->
     end
   end,
   FlowFields = maps:map(FL,  Grouped),
-  P = #data_point{ts = faxe_time:now(),
+  P = #data_point{ts = Ts,
     fields = maps:merge(FlowFields, #{<<"flow_id">> => FlowId, <<"df">> => ?DATA_FORMAT_FLOW})},
 %%  lager:warning("FlowMETRICS: ~s" ,[flowdata:to_json(P)]),
   gen_event:notify(faxe_metrics, {{FlowId}, P}).

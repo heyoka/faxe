@@ -93,8 +93,7 @@ get_graph(TaskId) ->
    end.
 
 
-task_to_graph(#task{definition = #{edges := Edges, nodes := Nodes}=D} = T) ->
-   lager:notice("Task is: ~p",[D]),
+task_to_graph(#task{definition = #{edges := Edges, nodes := Nodes} } = _T) ->
    EdgesOut = [
       #{<<"src">> => Source, <<"src_port">> => PortOut, <<"dest">> => Dest, <<"dest_port">> => PortIn}
       || {Source, PortOut, Dest, PortIn, _} <- Edges
