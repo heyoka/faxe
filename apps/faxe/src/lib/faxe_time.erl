@@ -81,7 +81,7 @@ send_at(Timestamp, Message) ->
    erlang:send_after(Time, self(), Message).
 
 %%% @doc
-%%% get "now" date-tuple with milliseconds added
+%%% get "now" datetime-tuple with milliseconds added
 %%% @end
 %%
 -spec now_date() -> tuple().
