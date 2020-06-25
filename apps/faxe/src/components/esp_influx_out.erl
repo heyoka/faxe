@@ -9,7 +9,7 @@
 
 -behavior(df_component).
 %% API
--export([init/3, process/3, options/0, handle_info/2, do_send/4, shutdown/1, metrics/0, test_encode/0]).
+-export([init/3, process/3, options/0, handle_info/2, do_send/4, shutdown/1, metrics/0]).
 
 -record(state, {
    host :: string(),
