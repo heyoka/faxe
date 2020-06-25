@@ -1,0 +1,18 @@
+|value_emitter()
+.every(100ms)
+.type(point)
+
+|set()
+.tags('mytag').tag_values('mytags_value 123546')
+
+|batch(20)
+.timeout(7s)
+
+|debug()
+
+|influx_out()
+.host('127.0.0.1')
+.port(8086)
+.measurement('m1')
+.database('mydb')
+%.retpol('myretpol')

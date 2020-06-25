@@ -30,7 +30,12 @@
 
 init(Req, [{op, Mode}]) ->
    TId = cowboy_req:binding(template_id, Req),
-   {cowboy_rest, Req, #state{mode = Mode, template_id = TId}}.
+   TaskId =
+      case catch binary_to_integer(TId) of
+         I when is_integer(I) -> I;
+         _ -> TId
+      end,
+   {cowboy_rest, Req, #state{mode = Mode, template_id = TaskId}}.
 
 allowed_methods(Req, State=#state{mode = get}) ->
    {[<<"GET">>, <<"OPTIONS">>], Req, State};
@@ -70,7 +75,7 @@ resource_exists(Req = #{method := <<"GET">>}, State=#state{mode = get, template_
    {Value, NewState} =
     case TId of
        undefined -> {true, State};
-       Id -> case faxe:get_template(binary_to_integer(Id)) of
+       Id -> case faxe:get_template(Id) of
                 {error, not_found} -> {false, State};
                 Task=#template{} -> {true, State#state{template = Task, template_id = Task#template.id}}
              end
@@ -90,7 +95,7 @@ malformed_request(Req, State=#state{mode = _Mode}) ->
    {false, Req, State}.
 
 delete_resource(Req, State=#state{template_id = TaskId}) ->
-   case faxe:delete_template(binary_to_integer(TaskId)) of
+   case faxe:delete_template(TaskId) of
       ok ->
          RespMap = #{success => true, message =>
          iolist_to_binary([<<"Template ">>, TaskId, <<" successfully deleted.">>])},
@@ -118,7 +123,7 @@ from_totask(Req, State=#state{template_id = TId}) ->
    Json = proplists:get_value(<<"vars">>, Result, <<"{}">>),
    Vars = jiffy:decode(Json, [return_maps]),
    lager:notice("Body: ~p, Vars: ~p",[Result, Vars]),
-   case faxe:task_from_template(binary_to_integer(TId), TaskName, Vars) of
+   case faxe:task_from_template(TId, TaskName, Vars) of
       ok ->
          NewTask = faxe:get_task(TaskName),
          {NewId, Req2} =

@@ -80,12 +80,18 @@ reg_fun(Dfs, Name, _) -> faxe:register_template_string(Dfs, Name).
 add_tags(Tags, TaskId) ->
    case Tags of
       [] -> ok;
-      TagJson -> faxe:add_tags(TaskId, jiffy:decode(TagJson))
+      TagJson ->
+         faxe:add_tags(TaskId, jiffy:decode(TagJson))
    end.
 
 -spec set_tags(list(), any()) -> ok | {error, term()}.
 set_tags(Tags, TaskId) ->
-   faxe:set_tags(TaskId, jiffy:decode(Tags)).
+   Tags1 =
+   case Tags of
+      [] -> [];
+      _ -> jiffy:decode(Tags)
+   end,
+   faxe:set_tags(TaskId, Tags1).
 
 get_task_or_template_id(TName, task) ->
    NewTask = faxe:get_task(TName),

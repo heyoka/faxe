@@ -210,7 +210,10 @@ set_tags(TaskId, Tags) ->
    case Task of
       #task{tags = OldTags} ->
          ok = remove_tags(TaskId, OldTags),
-         ok = add_tags(TaskId, Tags);
+         case Tags of
+            [] -> ok;
+            _T -> ok = add_tags(TaskId, Tags)
+         end;
       _ -> {error, task_not_found}
    end.
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%

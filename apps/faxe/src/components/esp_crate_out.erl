@@ -215,11 +215,11 @@ get_response(Client, Ref) ->
 -spec handle_response(integer(), binary()) -> ok|{error, invalid}|{failed, term()}.
 handle_response(<<"200">>, _BodyJSON) ->
    ok;
-handle_response(<<"4", _/binary>>,_BodyJSON) ->
-   lager:error("Error 400: ~p",[_BodyJSON]), {error, invalid};
+handle_response(<<"4", _/binary>> = S,_BodyJSON) ->
+   lager:error("Error ~p: ~p",[S, _BodyJSON]), {error, invalid};
 handle_response(<<"503">>, _BodyJSON) ->
    {failed, not_available};
 handle_response(<<"5", _/binary>>,_BodyJSON) ->
-   lager:error("Error 400: ~p",[_BodyJSON]), {failed, server_error};
+   lager:error("Error 5__: ~p",[_BodyJSON]), {failed, server_error};
 handle_response({error, What}, {error, Reason}) ->
    {failed, {What, Reason}}.

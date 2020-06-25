@@ -42,7 +42,12 @@
 
 init(Req, [{op, Mode}]) ->
    TId = cowboy_req:binding(task_id, Req),
-   {cowboy_rest, Req, #state{mode = Mode, task_id = TId}}.
+   TaskId =
+   case catch binary_to_integer(TId) of
+      I when is_integer(I) -> I;
+      _ -> TId
+   end,
+   {cowboy_rest, Req, #state{mode = Mode, task_id = TaskId}}.
 
 allowed_methods(Req, State=#state{mode = get}) ->
    {[<<"GET">>, <<"OPTIONS">>], Req, State};
@@ -176,7 +181,7 @@ check_resource(TId, Req, State) ->
    {Value, NewState} =
    case TId of
       undefined -> {true, State};
-      Id -> case faxe:get_task(binary_to_integer(Id)) of
+      Id -> case faxe:get_task(Id) of
                {error, not_found} -> {false, State};
                Task=#task{} -> {true, State#state{task = Task, task_id = Task#task.id}}
             end
@@ -184,7 +189,7 @@ check_resource(TId, Req, State) ->
    {Value, Req, NewState}.
 
 delete_resource(Req, State=#state{task_id = TaskId}) ->
-   case faxe:delete_task(binary_to_integer(TaskId)) of
+   case faxe:delete_task(TaskId) of
       ok ->
          RespMap = #{success => true, message =>
             iolist_to_binary([<<"Task ">>, TaskId, <<" successfully deleted.">>])},
@@ -225,8 +230,7 @@ from_start_temp_task(Req, State) ->
          {false, Req4, State}
    end.
 
-from_update_to_json(Req, State=#state{task_id = TaskId0, dfs = Dfs, tags = Tags}) ->
-   TaskId = binary_to_integer(TaskId0),
+from_update_to_json(Req, State=#state{task_id = TaskId, dfs = Dfs, tags = Tags}) ->
    lager:info("update ~p with dfs: ~p~nand tags: ~p",[TaskId, Dfs,Tags]),
    case faxe:update_string_task(Dfs, TaskId) of
       ok ->
@@ -279,8 +283,7 @@ errors_to_json(Req, State = #state{task_id = Id}) ->
 logs_to_json(Req, State = #state{task_id = Id}) ->
    #{max_age := MaxAge, limit := Limit} =
       cowboy_req:match_qs([{max_age, [], <<"15">>}, {limit, [], <<"20">>}], Req),
-   case faxe:get_logs(
-      binary_to_integer(Id), "",
+   case faxe:get_logs(Id, "",
       binary_to_integer(MaxAge)*60*1000, binary_to_integer(Limit)
    ) of
       {ok, Logs} ->
