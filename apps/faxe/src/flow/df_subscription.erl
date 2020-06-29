@@ -27,7 +27,7 @@ new(FlowMode, Publisher, PublisherPort, Subscriber, SubscriberPort) ->
 
 %% outputting a value on a specific out-port
 output(Subscriptions, Value, Port) when is_list(Subscriptions) ->
-   Subs = get(Port, Subscriptions),
+   Subs = proplists:get_value(Port, Subscriptions, []),
    NewSubs = lists:map(fun(X) -> output(X, Value) end, Subs),
    OSubs = proplists:delete(Port, Subscriptions),
    [{Port, NewSubs}| OSubs].
@@ -76,6 +76,3 @@ req_do([], _Pid, _Port, Acc) ->
    Acc;
 req_do([H|T], Pid, Port, Acc) ->
    req_do(T, Pid, Port, [request(H, Pid, Port)|Acc]).
-
-get(Key, Subscriptions) ->
-   proplists:get_value(Key, Subscriptions, []).

@@ -35,8 +35,8 @@
    inports              :: list(), %% list of inputs {port, pid}
    subscriptions        :: list(#subscription{}),
    auto_request         :: none | all | emit,
-   history              :: list(),
-   emitted = 0          :: non_neg_integer()
+   emitted = 0          :: non_neg_integer(),
+   emit_debug = false   :: true | false
 }).
 
 -record(data_point, {

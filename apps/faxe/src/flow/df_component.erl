@@ -289,7 +289,10 @@ handle_info({start, Inputs, Subscriptions, FlowMode},
          cb_handle_info = CallbackHandlesInfo}}
 ;
 
-
+handle_info(start_debug, State) ->
+   {noreply, State#c_state{emit_debug = true}};
+handle_info(stop_debug, State) ->
+   {noreply, State#c_state{emit_debug = false}};
 handle_info({request, ReqPid, ReqPort}, State=#c_state{subscriptions = Ss}) ->
    NewSubs = df_subscription:request(Ss, ReqPid, ReqPort),
    {noreply, State#c_state{subscriptions =  NewSubs}};
@@ -321,19 +324,14 @@ handle_info({item, {Inport, Value}},
                     end;
             false -> ok
          end,
-%%         handle_ls_mem(Value, State),
          {noreply, NewState}
    end
    ;
 
-handle_info({emit, {Outport, Value}}, State=#c_state{subscriptions = Ss, node_id = _NId,
+handle_info({emit, {Outport, Value}}, State=#c_state{node_id = _NId,
       flow_mode = FMode, auto_request = AR, emitted = EmitCount}) ->
-
-   %gen_event:notify(dfevent_component, {emitting, State#c_state.node_id, {Outport, Value}}),
    lager:debug("Component: ~p emitting: ~p on port ~p", [State#c_state.node_id, Value, Outport]),
-
-   NewSubs = df_subscription:output(Ss, Value, Outport),
-   metric(?METRIC_ITEMS_OUT, 1, State),
+   NewSubs = emit(Outport, Value, State),
    NewState = State#c_state{subscriptions = NewSubs},
    case AR of
       none  -> ok;
@@ -387,28 +385,24 @@ code_change(_OldVsn, State, _Extra) ->
 %%%===================================================================
 
 -spec handle_process_result(tuple(), #c_state{}) -> {NewState::#c_state{}, boolean(), boolean()}.
-handle_process_result({emit, {Port, Emitted}, NState}, State=#c_state{subscriptions = Subs}) when is_integer(Port) ->
-   NewSubs = df_subscription:output(Subs, Emitted, Port),
-   metric(?METRIC_ITEMS_OUT, 1, State),
+handle_process_result({emit, {Port, Emitted}, NState}, State=#c_state{}) when is_integer(Port) ->
+   NewSubs = emit(Port, Emitted, State),
    {State#c_state{subscriptions = NewSubs, cb_state = NState},false, true};
-handle_process_result({emit, Emitted, NState}, State=#c_state{subscriptions = Subs}) ->
-   NewSubs = df_subscription:output(Subs, Emitted, 1),
-   metric(?METRIC_ITEMS_OUT, 1, State),
+handle_process_result({emit, Emitted, NState}, State=#c_state{}) ->
+   NewSubs = emit(1, Emitted, State),
    {State#c_state{subscriptions = NewSubs, cb_state = NState},false, true};
 handle_process_result({request, {Port, PPids}, NState}, State=#c_state{flow_mode = FMode}) when is_list(PPids) ->
    maybe_request_items(Port, PPids, FMode),
    {State#c_state{cb_state = NState},
       true, false};
 handle_process_result({emit_request, {Port, Emitted}, {ReqPort, PPids}, NState},
-    State=#c_state{flow_mode = FMode, subscriptions = Subs}) when is_list(PPids) ->
-   NewSubs = df_subscription:output(Subs, Emitted, Port),
-   metric(?METRIC_ITEMS_OUT, 1, State),
+    State=#c_state{flow_mode = FMode}) when is_list(PPids) ->
+   NewSubs = emit(Port, Emitted, State),
    maybe_request_items(ReqPort, PPids, FMode),
    {State#c_state{subscriptions = NewSubs, cb_state = NState}, true, false};
 handle_process_result({emit_request, Emitted, {ReqPort, PPids}, NState},
-    State=#c_state{flow_mode = FMode, subscriptions = Subs}) when is_list(PPids) ->
-   NewSubs = df_subscription:output(Subs, Emitted, 1),
-   metric(?METRIC_ITEMS_OUT, 1, State),
+    State=#c_state{flow_mode = FMode}) when is_list(PPids) ->
+   NewSubs = emit(1, Emitted, State),
    maybe_request_items(ReqPort, PPids, FMode),
    {State#c_state{subscriptions = NewSubs, cb_state = NState}, true, false};
 handle_process_result({ok, NewCBState}, State=#c_state{}) ->
@@ -416,6 +410,19 @@ handle_process_result({ok, NewCBState}, State=#c_state{}) ->
 handle_process_result({error, _What}, State=#c_state{}) ->
    metric(?METRIC_ERRORS, 1, State),
    exit(_What).
+
+%%% @doc emits a value on a defined port
+emit(Port, Value, State = #c_state{subscriptions = Subscriptions}) ->
+   NewSubs = df_subscription:output(Subscriptions, Value, Port),
+   metric(?METRIC_ITEMS_OUT, 1, State),
+   maybe_debug(emit, Port, Value, State),
+   NewSubs.
+
+%% @doc emit debug events
+maybe_debug(_Key, _Port, _Value, #c_state{emit_debug = false}) ->
+   ok;
+maybe_debug(Key, Port, Value, #c_state{emit_debug = true, node_id = NId, graph_id = GId}) ->
+   gen_event:notify(faxe_debug, {Key, {GId, NId}, Port, Value}).
 
 
 request_all(_Inports, push) ->

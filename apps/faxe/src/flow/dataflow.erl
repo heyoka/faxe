@@ -3,8 +3,14 @@
 -include("faxe.hrl").
 
 %% API exports
--export([new_graph/0, create_graph/2, start_graph/1, start_graph/2,
-   add_node/2, add_edge/2, add_debug_handler/0, remove_debug_handler/0]).
+-export([
+   new_graph/0,
+   create_graph/2,
+   start_graph/1,
+   start_graph/2,
+   add_node/2,
+   add_edge/2
+]).
 
 -export([
    add_metrics_handler/0,
@@ -12,7 +18,10 @@
    add_metrics_handler/2,
    add_conn_status_handler/0,
    add_conn_status_handler/1,
-   add_conn_status_handler/2]).
+   add_conn_status_handler/2,
+   add_trace_handler/0,
+   add_trace_handler/1,
+   add_trace_handler/2]).
 
 -export([request_items/2, emit/1, build_options/3, maybe_check_opts/2]).
 
@@ -31,19 +40,19 @@ add_metrics_handler(Name, Args) when is_atom(Name) ->
    gen_event:add_handler(faxe_metrics, Name, Args).
 
 add_conn_status_handler() ->
-   add_metrics_handler(node_metrics_handler).
+   add_conn_status_handler(node_metrics_handler).
 add_conn_status_handler(Name) when is_atom(Name) ->
-   add_metrics_handler(Name, []).
+   add_conn_status_handler(Name, []).
 add_conn_status_handler(Name, Args) when is_atom(Name) ->
    gen_event:add_handler(conn_status, Name, Args).
 
-add_debug_handler() ->
-   dataflow_events:add_handler(dfevent_graph),
-   dataflow_events:add_handler(dfevent_component).
+add_trace_handler() ->
+   add_trace_handler(debug_handler).
+add_trace_handler(Name) when is_atom(Name) ->
+   add_trace_handler(Name, []).
+add_trace_handler(Name, Args) ->
+   gen_event:add_handler(faxe_debug, Name, Args).
 
-remove_debug_handler() ->
-   dataflow_events:add_handler(dfevent_graph),
-   dataflow_events:add_handler(dfevent_component).
 
 %% @doc get a new graph definition map
 -spec new_graph() -> graph_definition().

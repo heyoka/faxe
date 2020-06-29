@@ -24,7 +24,8 @@
    sink_nodes/1,
    source_nodes/1,
    get_stats/1,
-   ping/1, export/1]).
+   ping/1, export/1,
+   start_trace/1, stop_trace/1]).
 
 %% gen_server callbacks
 -export([init/1,
@@ -96,6 +97,12 @@ sink_nodes(Graph) ->
 
 source_nodes(Graph) ->
    call(Graph, source_nodes).
+
+start_trace(Graph) ->
+   Graph ! start_trace.
+
+stop_trace(Graph) ->
+   Graph ! stop_trace.
 
 get_stats(Graph) ->
    call(Graph, stats).
@@ -220,6 +227,12 @@ handle_cast(_Request, State) ->
    {noreply, State}.
 
 
+handle_info(start_trace, State = #state{nodes = Nodes}) ->
+   [Pid ! start_debug || {_, _, Pid} <- Nodes],
+   {noreply, State};
+handle_info(stop_trace, State = #state{nodes = Nodes}) ->
+   [Pid ! stop_debug || {_, _, Pid} <- Nodes],
+   {noreply, State};
 handle_info({start, RunMode}, State) ->
    {noreply, start(RunMode, State)};
 handle_info(timeout, State) ->
@@ -227,9 +240,6 @@ handle_info(timeout, State) ->
    %% delete the task here
    ets:delete(temp_tasks, State#state.id),
    do_stop(State),
-   {stop, shutdown, State};
-handle_info({swarm, die}, State) ->
-   lager:warning("~p ~p must (and will) DIE!",[?MODULE, State#state.id]),
    {stop, shutdown, State};
 handle_info(collect_metrics, State = #state{nodes = Nodes, id = Id}) ->
    [node_metrics:process_metrics(Id, N) || N <- Nodes],

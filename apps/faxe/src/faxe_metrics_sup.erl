@@ -23,6 +23,10 @@ init([]) ->
       {gen_event, start_link, [{local, conn_status}]},
       permanent, 5000, worker, []}
     ,
+    {faxe_debug,
+      {gen_event, start_link, [{local, faxe_debug}]},
+      permanent, 5000, worker, []}
+    ,
     {connection_registry,
       {connection_registry, start_link, []},
       permanent, 5000, worker, []}

@@ -33,6 +33,7 @@ start(_StartType, _StartArgs) ->
    Res = faxe_sup:start_link(),
    install_metrics_handler(),
    install_conn_status_handler(),
+   dataflow:add_trace_handler(debug_handler),
    Res.
 
 %%--------------------------------------------------------------------
@@ -45,7 +46,7 @@ stop(_State) ->
 install_metrics_handler() ->
    %% standard handler
 %%   dataflow:add_metrics_handler(),
-   Handlers = proplists:get_value(handler, faxe_config:get(metrics, [{handler, []}])),
+   Handlers = proplists:get_value(handler, faxe_config:get(metrics, [{handler, []}] )),
 %%   lager:notice("HAndlers: ~p",[Handlers]),
    F = fun({HandlerType, Opts}) ->
       case HandlerType of

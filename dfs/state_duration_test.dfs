@@ -2,7 +2,7 @@
 
 def state =
     |json_emitter()
-    .every(3s).align()
+    .every(1s).align()
     .json(
     <<< {"err1": 0, "err2":0, "err3":0, "nr" : 233, "errcode1": 0, "errcode2": 0, "errcode3": 0} >>>,
     <<< {"err1": 1, "err2":0, "err3":0, "nr" : 233, "errcode1": 111, "errcode2": 0, "errcode3": 0} >>>,
@@ -17,13 +17,12 @@ def state =
     <<< {"err1": 0, "err2":0, "err3":1, "nr" : 233, "errcode1": 0, "errcode2": 0, "errcode3": 333} >>>
     )
 
-def s1 =
-    state
+|debug('info')
+
     |state_change()
     .lambda(lambda: "data.err1" == 1)
-    %.emit_entered()
-    .emit_left()
-    .keep_left('data.nr', 'data.errcode1')
+    .leave()
+    .leave_keep('data.nr', 'data.errcode1')
 
     |debug()
 
