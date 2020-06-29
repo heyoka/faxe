@@ -113,6 +113,7 @@ handle_info({mqttc, _C,  disconnected}, State=#state{client = Client}) ->
 %% for emqtt
 handle_info({publish, #{payload := Payload, topic := Topic} }, S=#state{dt_field = DTField, dt_format = DTFormat}) ->
    node_metrics:metric(?METRIC_BYTES_READ, byte_size(Payload), S#state.fn_id),
+   node_metrics:metric(?METRIC_ITEMS_IN, 1, S#state.fn_id),
    P0 = flowdata:from_json_struct(Payload, DTField, DTFormat),
    P = flowdata:set_field(P0, <<"topic">>, Topic),
 %%   dataflow:emit(P),
