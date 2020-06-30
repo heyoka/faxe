@@ -67,7 +67,10 @@
    to_mapstruct/1, from_json/2, from_json_struct/1, from_json_struct/3,
    to_map_except/2, point_from_json_map/1, point_from_json_map/3,
    set_tags/2, is_root_path/1,
-   merge_points/1, merge/2, merge_points/2]).
+   merge_points/1, merge/2, merge_points/2
+%%   ,
+%%   get_schema/1
+]).
 
 
 -define(DEFAULT_ID, <<"00000">>).
@@ -629,3 +632,23 @@ merge_fun() ->
       (Prev, Val) when is_list(Prev), is_list(Val) -> lists:merge(Prev, Val);
       (_, Val) -> Val
    end.
+
+%%%%%%%%%%%%%%%%%%%%%
+%%get_schema(P = #data_point{ts = Ts, fields = Fields, tags = Tags}) ->
+%%   translate(Fields).
+%%
+%%translate(Fields) when is_map(Fields) ->
+%%   Fun = fun
+%%            (K, V, Acc) when is_map(V) -> Acc#{K => ok};
+%%            (K, V, Acc) when is_list(V) -> Acc#{K => ok};
+%%            (K, V, Acc) when is_float(V) -> Acc#{K => float};
+%%            (K, V, Acc) when is_integer(V) -> Acc#{K => int};
+%%            (K, V, Acc) when is_binary(V) -> Acc#{K => string}
+%%         end,
+%%   maps:fold(Fun, #{}, Fields).
+%%
+%%translate(K, V, Acc) when is_map(V) -> Acc#{K => ok};
+%%translate(K, V, Acc) when is_list(V) -> Acc#{K => ok};
+%%translate(K, V, Acc) when is_float(V) -> Acc#{K => float};
+%%translate(K, V, Acc) when is_integer(V) -> Acc#{K => int};
+%%translate(K, V, Acc) when is_binary(V) -> Acc#{K => string}.

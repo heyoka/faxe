@@ -57,11 +57,8 @@ process(_In, #data_batch{points = _Points} = _Batch, _State = #state{lambdas = _
 process(_Inport, #data_point{} = Point, State = #state{current_index = Index, lambdas = Lambdas}) ->
    lager:notice("in on port :~p~n~p",[_Inport, lager:pr(Point, ?MODULE)]),
    case exec(Point, lists:nth(Index, Lambdas)) of
-      true ->
-         eval_true(Point, State);
-      false ->
-         lager:info("not what we are waiting for .... "),
-         eval_false(State)
+      true -> eval_true(Point, State);
+      false -> eval_false(State)
    end.
 
 
@@ -69,7 +66,7 @@ handle_info(state_timeout, State = #state{}) ->
    lager:warning("state_timeout when index: ~p",[State#state.current_index]),
    {ok, reset(State)}.
 
-exec(Point, LFun) -> faxe_lambda:execute(Point, LFun).
+exec(Point, LFun) -> faxe_lambda:execute_bool(Point, LFun).
 
 eval_true(Point, State = #state{current_index = Current, tref = TRef, lambdas = Lambdas, durations = DurList}) ->
    lager:info("ok, go to next state from (~p)" , [Current]),
