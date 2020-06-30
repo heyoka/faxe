@@ -12,8 +12,8 @@ pool:
 steps:
 - task: Docker@2
   inputs:
-    containerRegistry: 'openshift'
-    repository: 'connected-warehouse/faxe'
+    containerRegistry: 'openshift-registry'
+    repository: 'connected-warehouse-d/faxe'
     command: 'buildAndPush'
     Dockerfile: '**/Dockerfile_k8s'
     tags: |
