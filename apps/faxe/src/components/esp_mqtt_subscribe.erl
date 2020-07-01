@@ -44,6 +44,7 @@
    dt_field,
    dt_format,
    ssl = false,
+   ssl_opts = [],
    topics_seen = [],
    fn_id
 }).
@@ -59,7 +60,7 @@ options() -> [
    {retained, is_set},
    {dt_field, string, <<"ts">>},
    {dt_format, string, ?TF_TS_MILLI},
-   {ssl, bool, false}].
+   {ssl, is_set}].
 
 check_options() ->
    [
@@ -89,8 +90,14 @@ init(NodeId, _Ins,
    connection_registry:reg(NodeId, Host, Port, <<"mqtt">>),
    State = #state{host = Host, port = Port, topic = Topic, dt_field = DTField, dt_format = DTFormat,
       retained = Retained, ssl = UseSSL, qos = Qos, topics = Topics, client_id = ClientId,
-      reconnector = Reconnector1, user = User, pass = Pass, fn_id = NodeId},
+      reconnector = Reconnector1, user = User, pass = Pass, fn_id = NodeId, ssl_opts = ssl_opts(UseSSL)},
    {ok, State}.
+
+ssl_opts(false) ->
+   [];
+ssl_opts(true) ->
+   SslOpts = faxe_config:get(mqtt, []),
+   proplists:get_value(ssl, SslOpts, []).
 
 process(_In, _, State = #state{}) ->
    {ok, State}.
@@ -141,20 +148,30 @@ handle_info(What, State) ->
 shutdown(#state{client = C}) ->
    catch (emqttc:disconnect(C)).
 
-connect(_State = #state{host = Host, port = Port, client_id = ClientId, user = U, pass = P}) ->
+connect(State = #state{host = Host, port = Port, client_id = ClientId, user = U, pass = P}) ->
    connection_registry:connecting(),
    reconnect_watcher:bump(),
-   {ok, _Client} = emqttc:start_link(
-      [
-         {host, Host},
-         {port, Port},
-         {username, U},
-         {password, P},
-         {keepalive, 25},
-         {reconnect, 3, 120, 10},
-         {client_id, ClientId}
-      ])
+   Opts0 = [
+      {host, Host},
+      {port, Port},
+      {keepalive, 25},
+      {reconnect, 3, 120, 10},
+      {client_id, ClientId}
+   ],
+   Opts1 = opts_auth(State, Opts0),
+   Opts = opts_ssl(State, Opts1),
+   lager:info("connect to mqtt broker with: ~p",[Opts]),
+   {ok, _Client} = emqttc:start_link(Opts)
 .
+
+opts_auth(#state{user = <<>>}, Opts) -> Opts;
+opts_auth(#state{user = undefined}, Opts) -> Opts;
+opts_auth(#state{user = User, pass = Pass}, Opts) ->
+   [{username, User},{password, Pass}] ++ Opts.
+opts_ssl(#state{ssl = false}, Opts) -> Opts;
+opts_ssl(#state{ssl = true, ssl_opts = SslOpts}, Opts) ->
+   [{ssl, SslOpts}]++ Opts.
+
 
 subscribe(#state{qos = Qos, client = C, topic = Topic, topics = undefined}) when is_binary(Topic) ->
    lager:notice("mqtt_client subscribe: ~p", [Topic]),
