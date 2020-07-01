@@ -33,6 +33,7 @@
    qos,
    retained = false,
    ssl = false,
+   ssl_opts = [],
    queue,
    mem_queue,
    deq_interval = 15,
@@ -88,6 +89,7 @@ init_all(#{host := Host, port := Port, user := User, pass := Pass,
       true -> maps:get(node_id, Opts);
       false -> {<<"sys">>, <<"sys">>}
    end,
+
    process_flag(trap_exit, true),
    reconnect_watcher:new(10000, 5, io_lib:format("~s:~p ~p",[Host, Port, ?MODULE])),
    Reconnector = faxe_backoff:new({10, 1200}),
@@ -97,7 +99,13 @@ init_all(#{host := Host, port := Port, user := User, pass := Pass,
    {ok,
       State#state{
          host = Host, port = Port, user = User, pass = Pass, reconnector = Reconnector1,
-         retained = Retained, ssl = UseSSL, qos = Qos, node_id = NId}}.
+         retained = Retained, ssl = UseSSL, qos = Qos, node_id = NId, ssl_opts = ssl_opts(UseSSL)}}.
+
+ssl_opts(false) ->
+   [];
+ssl_opts(true) ->
+   SslOpts = faxe_config:get(mqtt, []),
+   proplists:get_value(ssl, SslOpts, []).
 
 %%--------------------------------------------------------------------
 %% @private
@@ -231,9 +239,20 @@ code_change(_OldVsn, State, _Extra) ->
 %%%===================================================================
 %%% Internal functions
 %%%===================================================================
-do_connect(#state{host = Host, port = Port, user = User, pass = Pass, ssl = _Ssl} = State) ->
+do_connect(#state{host = Host, port = Port} = State) ->
    reconnect_watcher:bump(),
    connection_registry:connecting(),
-   Opts = [{host, Host}, {port, Port}, {keepalive, 30}, {username, User}, {password, Pass}],
+   Opts0 = [{host, Host}, {port, Port}, {keepalive, 30}],
+   Opts1 = opts_auth(State, Opts0),
+   Opts = opts_ssl(State, Opts1),
+   lager:info("connect to mqtt broker with: ~p",[Opts]),
    {ok, _Client} = emqttc:start_link(Opts),
    State.
+
+opts_auth(#state{user = <<>>}, Opts) -> Opts;
+opts_auth(#state{user = undefined}, Opts) -> Opts;
+opts_auth(#state{user = User, pass = Pass}, Opts) ->
+   [{username, User},{password, Pass}] ++ Opts.
+opts_ssl(#state{ssl = false}, Opts) -> Opts;
+opts_ssl(#state{ssl = true, ssl_opts = SslOpts}, Opts) ->
+   [{ssl, SslOpts}]++ Opts.

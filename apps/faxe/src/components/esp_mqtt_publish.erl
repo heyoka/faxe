@@ -74,7 +74,9 @@ init(NodeId, _Ins, #{safe := false, host := Host0} = Opts) ->
    init_all(Opts#{host := Host}, #state{publisher = Publisher, fn_id = NodeId}).
 
 init_all(#{safe := Safe, topic := Topic, topic_lambda := LTopic} = Opts, State) ->
+%%   lager:notice("mqtt SSLOpts: ~p" ,[SSLOpts]),
    {ok, all, State#state{options = Opts, safe = Safe, topic = Topic, topic_lambda = LTopic}}.
+
 
 %% direct state
 process(_In, #data_point{} = Point, State = #state{safe = true, queue = Q}) ->
