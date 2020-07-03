@@ -119,6 +119,7 @@ maybe_emit(DTag, From, State = #state{prefetch = Prefetch, collected = Prefetch,
    NewState = State#state{points = queue:new(), collected = 0},
    lager:notice("emit: ~p",[Prefetch]),
    carrot:ack_multiple(From, DTag),
+%%   gen_event:notify(faxe_debug, {Key, {GId, NId}, Port, Value}).
    {emit, {1, DataBatch}, NewState};
 maybe_emit(_DTag, _From, State = #state{}) ->
    {ok, State}.

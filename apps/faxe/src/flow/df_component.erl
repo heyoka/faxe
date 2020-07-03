@@ -288,20 +288,27 @@ handle_info({start, Inputs, Subscriptions, FlowMode},
          flow_mode = FlowMode,
          cb_handle_info = CallbackHandlesInfo}}
 ;
+%%% DEBUG
+handle_info(start_debug, State = #c_state{}) ->
+   lager:notice("start_debug!"),
+   NewState = cb_handle_info(start_debug, State),
+   {noreply, NewState#c_state{emit_debug = true}};
+handle_info(stop_debug, State = #c_state{}) ->
+   NewState = cb_handle_info(stop_debug, State),
+   {noreply, NewState#c_state{emit_debug = false}};
 
-handle_info(start_debug, State) ->
-   {noreply, State#c_state{emit_debug = true}};
-handle_info(stop_debug, State) ->
-   {noreply, State#c_state{emit_debug = false}};
 handle_info({request, ReqPid, ReqPort}, State=#c_state{subscriptions = Ss}) ->
    NewSubs = df_subscription:request(Ss, ReqPid, ReqPort),
    {noreply, State#c_state{subscriptions =  NewSubs}};
 
+%% RECEIVING ITEM
 handle_info({item, {Inport, Value}},
     State=#c_state{
-       cb_state = CBState, component = Module, flow_mode = FMode, auto_request = AR, node_id = _NId}) ->
+       cb_state = CBState, component = Module, flow_mode = FMode, auto_request = AR}) ->
 
    metric(?METRIC_ITEMS_IN, 1, State),
+   maybe_debug(item_in, Inport, Value, State),
+
    TStart = erlang:monotonic_time(microsecond),
 %%   Result = (Module:process(Inport, Value, CBState)),
    case  catch(Module:process(Inport, Value, CBState)) of
@@ -327,7 +334,7 @@ handle_info({item, {Inport, Value}},
          {noreply, NewState}
    end
    ;
-
+%% EMITTING ITEM
 handle_info({emit, {Outport, Value}}, State=#c_state{node_id = _NId,
       flow_mode = FMode, auto_request = AR, emitted = EmitCount}) ->
    lager:debug("Component: ~p emitting: ~p on port ~p", [State#c_state.node_id, Value, Outport]),
@@ -344,14 +351,13 @@ handle_info(pull, State=#c_state{inports = Ins}) ->
    {noreply, State}
 ;
 handle_info(stop, State=#c_state{node_id = _N, component = Mod, cb_state = CBState}) ->
-
-   %gen_event:notify(dfevent_component, {stopping, N, Mod}),
    case erlang:function_exported(Mod, shutdown, 1) of
       true -> Mod:shutdown(CBState);
       false -> ok
    end,
    {stop, normal, State}
 ;
+%% Callback Module handle_info
 handle_info(Req, State=#c_state{component = Module, cb_state = CB, cb_handle_info = true}) ->
    case Module:handle_info(Req, CB) of
               {ok, CB0} ->
@@ -366,6 +372,15 @@ handle_info(Req, State=#c_state{component = Module, cb_state = CB, cb_handle_inf
 handle_info(_Req, State=#c_state{cb_handle_info = false}) ->
    {noreply, State}
 .
+
+cb_handle_info(_Req, State = #c_state{cb_handle_info = false}) -> State;
+cb_handle_info(Req, State = #c_state{cb_state = CB, component = Module}) ->
+   case Module:handle_info(Req, CB) of
+      {ok, CB0} ->
+         State#c_state{cb_state = CB0};
+      {error, _Reason} ->
+         State
+   end.
 
 %%--------------------------------------------------------------------
 -spec(terminate(Reason :: (normal | shutdown | {shutdown, term()} | term()),

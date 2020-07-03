@@ -35,7 +35,8 @@
    ssl = false,
    opts,
    queue,
-   flowid_nodeid
+   flowid_nodeid,
+   debug_mode = false
 }).
 
 options() -> [
@@ -68,13 +69,18 @@ init({GraphId, NodeId} = Idx, _Ins,
    State = start_connection(#state{opts = Opts, exchange = Ex, routing_key = RoutingKey, queue = Q}),
    {ok, State#state{flowid_nodeid = Idx}}.
 
-process(_In, Item, State = #state{exchange = Exchange, routing_key = Key, queue = Q, flowid_nodeid = FNId}) ->
+process(_In, Item, State = #state{exchange = Exchange, routing_key = Key, queue = Q,
+   flowid_nodeid = FNId, debug_mode = Debug}) ->
+
    Payload = flowdata:to_json(Item),
    node_metrics:metric(?METRIC_BYTES_SENT, byte_size(Payload), FNId),
    node_metrics:metric(?METRIC_ITEMS_OUT, 1, FNId),
    ok = esq:enq({Exchange, Key, Payload, []}, Q),
+   dataflow:maybe_debug(emit, 1, Item, FNId, Debug),
    {ok, State}.
 
+handle_info(start_debug, State) -> {ok, State#state{debug_mode = true}};
+handle_info(stop_debug, State) -> {ok, State#state{debug_mode = false}};
 handle_info({publisher_ack, Ref}, State) ->
    lager:notice("message acked: ~p",[Ref]),
    {ok, State};

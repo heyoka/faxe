@@ -91,6 +91,7 @@ process(In, #data_batch{points = Points}, State = #state{}) ->
    {ok, State}.
 
 handle_info(_E, S) ->
+%%   lager:info()
    {ok, S}.
 
 shutdown(#state{publisher = P}) ->

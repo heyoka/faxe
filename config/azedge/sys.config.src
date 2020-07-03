@@ -9,27 +9,26 @@
          {script_path, "/home/heyoka/workspace/faxe/python/"}
       ]},
       {esq_base_dir, <<"/tmp/">>},
-      {metrics, [
-        %% {msg_queue_len_high_watermark, 15}
+      %{metrics, [
         %% install metrics handlers
-         {handler, [
-            {mqtt, [
-                {host, <<"10.14.204.3">>},
-                {port, 1883}
-                ]
-            }]}
-      ]},
-      {conn_status, [
+      %   {handler, [
+      %      {mqtt, [
+      %          {host, <<"10.14.204.3">>},
+      %          {port, 1883}
+      %          ]
+      %      }]}
+      %]},
+      %{conn_status, [
         %% install conn_status handlers
-        {handler, [
-            {mqtt, [
-                {host, <<"10.14.204.3">>},
-                {port, 2883},
-                {user, <<"admin">>},
-                {pass, <<"admin">>}
-                ]
-             }]}
-      ]},
+      %  {handler, [
+      %      {mqtt, [
+      %          {host, <<"10.14.204.3">>},
+      %          {port, 2883},
+      %          {user, <<"admin">>},
+      %          {pass, <<"admin">>}
+      %          ]
+      %       }]}
+      %]},
       %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
       %% default configs
       {s7pool_initial_size, 2},
@@ -47,7 +46,7 @@
                {host, <<"10.14.204.3">>},
                {port, 8883},
                {ssl, [
-                  {certfile, "/path/to/cert/ssl_wildcard.crt"}
+                  {certfile, "/path/to/cert/ssl_wildcard.pem"}
                   ]}
             ]},
       {amqp, [

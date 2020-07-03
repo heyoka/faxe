@@ -4,9 +4,7 @@ def message = <<< {"message": "test"} >>>
 def host = '10.14.204.3'
 
 |json_emitter()
-.every(5s)
+.every(2s)
 .json(message)
 
-|mqtt_publish()
-.host(host)
-.topic(topic)
+|debug()

@@ -23,7 +23,7 @@
    add_trace_handler/1,
    add_trace_handler/2]).
 
--export([request_items/2, emit/1, build_options/3, maybe_check_opts/2]).
+-export([request_items/2, emit/1, build_options/3, maybe_check_opts/2, maybe_debug/5]).
 
 %%====================================================================
 %% CALLBACK API functions
@@ -102,6 +102,11 @@ emit(Value) ->
 -spec emit(any(), non_neg_integer()) -> reference().
 emit(Port, Value) ->
    erlang:send_after(0, self(), {emit, {Port, Value}}).
+
+maybe_debug(_Key, _Port, _Value, _Idx, false) ->
+   ok;
+maybe_debug(Key, Port, Value, Idx, true) ->
+   gen_event:notify(faxe_debug, {Key, Idx, Port, Value}).
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %%%

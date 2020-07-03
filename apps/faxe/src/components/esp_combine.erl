@@ -13,6 +13,9 @@
 %%
 %% No output is given, if there has never arrived a value on port 2 to combine with.
 %%
+%% given 'fields' will be copied from the point on port 2 and added to points coming in on port 1
+%% if instead param 'merge_field' is given then the two points on each port will be merge on base of that field
+
 %% the 'fields' parameter defines the fields to inject into the combination for the stream on port 2
 %% to rename these fields, parameter 'prefix' or 'aliases' can be used
 %% with 'prefix_delimiter' a delimiter can be given, defaults to: '_'
@@ -49,7 +52,6 @@ inports() ->
    ].
 
 options() -> [
-   {combined, node, {port, 2}},
    {fields, string_list, undefined},
    {tags, string_list, undefined},
    {aliases, string_list, undefined},

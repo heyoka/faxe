@@ -25,7 +25,8 @@
    source_nodes/1,
    get_stats/1,
    ping/1, export/1,
-   start_trace/1, stop_trace/1]).
+   start_trace/1,
+   stop_trace/1]).
 
 %% gen_server callbacks
 -export([init/1,
@@ -350,7 +351,8 @@ start(ModeOpts=#task_modes{run_mode = RunMode, temporary = Temp, temp_ttl = TTL}
       fun({NodeId, Comp, NPid}) ->
          {Inputs, Subs} = proplists:get_value(NodeId, Subscriptions),
          node_metrics:setup(Id, NodeId, Comp),
-         df_component:start_async(NPid, Inputs, Subs, RunMode)
+         df_component:start_async(NPid, Inputs, Subs, RunMode),
+         NPid ! start_debug
 %%         NodeStart = df_component:start_node(NPid, Inputs, Subs, FlowMode),
 %%         lager:debug("NodeStart for ~p gives: ~p",[NodeId, NodeStart] )
       end,
