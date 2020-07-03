@@ -15,13 +15,13 @@
 -export([
    add_metrics_handler/0,
    add_metrics_handler/1,
-   add_metrics_handler/2,
+   add_metrics_handler/3,
    add_conn_status_handler/0,
    add_conn_status_handler/1,
-   add_conn_status_handler/2,
+   add_conn_status_handler/3,
    add_trace_handler/0,
    add_trace_handler/1,
-   add_trace_handler/2]).
+   add_trace_handler/3]).
 
 -export([request_items/2, emit/1, build_options/3, maybe_check_opts/2, maybe_debug/5]).
 
@@ -35,23 +35,23 @@
 add_metrics_handler() ->
    add_metrics_handler(node_metrics_handler).
 add_metrics_handler(Name) when is_atom(Name) ->
-   add_metrics_handler(Name, []).
-add_metrics_handler(Name, Args) when is_atom(Name) ->
-   gen_event:add_handler(faxe_metrics, Name, Args).
+   add_metrics_handler(Name, event_handler_mqtt, []).
+add_metrics_handler(Name, Type, Args) when is_atom(Name) ->
+   gen_event:add_handler(faxe_metrics, Type, [Name, Args]).
 
 add_conn_status_handler() ->
    add_conn_status_handler(node_metrics_handler).
 add_conn_status_handler(Name) when is_atom(Name) ->
-   add_conn_status_handler(Name, []).
-add_conn_status_handler(Name, Args) when is_atom(Name) ->
-   gen_event:add_handler(conn_status, Name, Args).
+   add_conn_status_handler(Name, event_handler_mqtt, []).
+add_conn_status_handler(Name, Type, Args) when is_atom(Name) ->
+   gen_event:add_handler(conn_status, Type, [Name, Args]).
 
 add_trace_handler() ->
    add_trace_handler(debug_handler).
 add_trace_handler(Name) when is_atom(Name) ->
-   add_trace_handler(Name, []).
-add_trace_handler(Name, Args) ->
-   gen_event:add_handler(faxe_debug, Name, Args).
+   add_trace_handler(Name, event_handler_mqtt, []).
+add_trace_handler(Name, Type, Args) ->
+   gen_event:add_handler(faxe_debug, Type, [Name, Args]).
 
 
 %% @doc get a new graph definition map

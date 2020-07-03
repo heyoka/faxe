@@ -33,7 +33,7 @@ start(_StartType, _StartArgs) ->
    Res = faxe_sup:start_link(),
    install_metrics_handler(),
    install_conn_status_handler(),
-   dataflow:add_trace_handler(debug_handler),
+   install_debug_handler(),
    Res.
 
 %%--------------------------------------------------------------------
@@ -47,11 +47,11 @@ install_metrics_handler() ->
    %% standard handler
 %%   dataflow:add_metrics_handler(),
    Handlers = proplists:get_value(handler, faxe_config:get(metrics, [{handler, []}] )),
-%%   lager:notice("HAndlers: ~p",[Handlers]),
+   lager:notice("Metric HAndlers: ~p",[Handlers]),
    F = fun({HandlerType, Opts}) ->
       case HandlerType of
-         mqtt -> dataflow:add_metrics_handler(metrics_handler_mqtt, Opts);
-         amqp -> dataflow:add_metrics_handler(metrics_handler_amqp, Opts);
+         mqtt -> dataflow:add_metrics_handler(metrics_handler_mqtt, event_handler_mqtt, Opts);
+         amqp -> dataflow:add_metrics_handler(metrics_handler_amqp, event_handler_amqp, Opts);
          _ -> ok
       end
       end,
@@ -61,13 +61,28 @@ install_conn_status_handler() ->
    %% standard handler
 %%   dataflow:add_conn_status_handler(),
    Handlers = proplists:get_value(handler, faxe_config:get(conn_status, [{handler, []}])),
-%%   lager:notice("HAndlers: ~p",[Handlers]),
+   lager:notice("conn_status HAndlers: ~p",[Handlers]),
    F = fun({HandlerType, Opts}) ->
       case HandlerType of
-         mqtt -> dataflow:add_conn_status_handler(conn_status_handler_mqtt, Opts);
-         amqp -> dataflow:add_conn_status_handler(conn_status_handler_amqp, Opts);
+         mqtt -> dataflow:add_conn_status_handler(conn_status_handler_mqtt, event_handler_mqtt, Opts);
+         amqp -> dataflow:add_conn_status_handler(conn_status_handler_amqp, event_handler_amqp, Opts);
          _ -> ok
       end
        end,
    lists:foreach(F, Handlers).
+
+install_debug_handler() ->
+   %% standard handler
+   dataflow:add_trace_handler(debug_handler),
+   Handlers = proplists:get_value(handler, faxe_config:get(debug_trace, [{handler, []}])),
+   lager:notice("debug HAndlers: ~p",[Handlers]),
+   F = fun({HandlerType, Opts}) ->
+      case HandlerType of
+         mqtt -> dataflow:add_trace_handler(debug_handler_mqtt, event_handler_mqtt, Opts);
+         amqp -> dataflow:add_trace_handler(debug_handler_amqp, event_handler_amqp, Opts);
+         _ -> ok
+      end
+       end,
+   lists:foreach(F, Handlers).
+
 

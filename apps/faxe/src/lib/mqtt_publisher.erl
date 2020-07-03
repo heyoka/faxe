@@ -99,11 +99,13 @@ init_all(#{host := Host, port := Port, user := User, pass := Pass,
    {ok,
       State#state{
          host = Host, port = Port, user = User, pass = Pass, reconnector = Reconnector1,
-         retained = Retained, ssl = UseSSL, qos = Qos, node_id = NId, ssl_opts = ssl_opts(UseSSL)}}.
+         retained = Retained, ssl = UseSSL, qos = Qos, node_id = NId, ssl_opts = ssl_opts(UseSSL, Opts)}}.
 
-ssl_opts(false) ->
+ssl_opts(false, _) ->
    [];
-ssl_opts(true) ->
+ssl_opts(true, #{ssl_opts := SslOpts}) ->
+   SslOpts;
+ssl_opts(true, _) ->
    SslOpts = faxe_config:get(mqtt, []),
    proplists:get_value(ssl, SslOpts, []).
 
@@ -195,7 +197,7 @@ next(State=#state{queue = Q, deq_interval = Interval}) ->
    case esq:deq(Q) of
       [] -> ok; %lager:info("Queue is empty!"), ok;
       [#{payload := {_Topic, _Message}=M}] ->
-         lager:notice("~p: msg from Q: ~p", [faxe_time:now(), M]),
+%%         lager:notice("~p: msg from Q: ~p", [faxe_time:now(), M]),
          publish(M, State)
    end,
    erlang:send_after(Interval, self(), deq).

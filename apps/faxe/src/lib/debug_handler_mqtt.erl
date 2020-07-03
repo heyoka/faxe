@@ -1,6 +1,6 @@
 %% Date: 06.04.20 - 08:27
 %% Ⓒ 2020 heyoka
--module(conn_status_handler_mqtt).
+-module(debug_handler_mqtt).
 -author("Alexander Minichmair").
 
 -behaviour(event_handler_mqtt).
@@ -23,10 +23,14 @@
    {ok, State :: #state{}, hibernate} |
    {error, Reason :: term()}).
 init(Topic0) ->
-   Topic = <<Topic0/binary, "conn_status">>,
+   Topic = <<Topic0/binary, "debug">>,
    {ok, #state{topic = Topic}}.
 
-handle_event({{FlowId, NodeId}, Item}, State = #state{topic = Topic}) ->
-   T = <<Topic/binary, "/", FlowId/binary, "/", NodeId/binary>>,
-%%   lager:notice("publish: ~p to topic :~p",[Item, T]),
+
+handle_event({Key, {FlowId, NodeId} = _FNId, Port, Item0}, State = #state{topic = Topic}) ->
+   K = atom_to_binary(Key, utf8),
+   T = <<Topic/binary, "/", FlowId/binary, "/", NodeId/binary, "/", K/binary>>,
+   Item = flowdata:set_fields(Item0, [<<"meta.type">>, <<"meta.flow_id">>, <<"meta.node_id">>, <<"meta.port">>],
+      [K, FlowId, NodeId, Port]),
+%%   lager:info("DEBUG [~p] :: ~p on Port ~p~n~s",[FNId, Key, Port, flowdata:to_json(Item)]),
    {publish, T, Item, State}.

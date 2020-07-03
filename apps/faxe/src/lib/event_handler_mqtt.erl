@@ -1,6 +1,7 @@
 %% Date: 06.04.20 - 08:27
 %% Ⓒ 2020 heyoka
--module(debug_handler).
+%% behaviour for mqtt event handlers
+-module(event_handler_mqtt).
 -author("Alexander Minichmair").
 
 -behaviour(gen_event).
@@ -18,13 +19,23 @@
    code_change/3]).
 
 -define(SERVER, ?MODULE).
+-define(TOPIC_BASE, <<"ttgw/sys/faxe/">>).
 
 -record(state, {
    publisher,
    host,
    port,
-   topic
+   topic,
+   cb,
+   cb_state
 }).
+
+%%%===================================================================
+%%% behaviour
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+-callback init(Topic :: binary()) -> {ok, State :: term()}.
+-callback handle_event(Event :: term(), State :: term()) ->
+   {ok, State :: term()} | {publish, Topic :: binary(), Data :: term(), NewState :: term()}.
 
 %%%===================================================================
 %%% gen_event callbacks
@@ -67,8 +78,27 @@ add_handler(EventMgrName) ->
    {ok, State :: #state{}} |
    {ok, State :: #state{}, hibernate} |
    {error, Reason :: term()}).
-init(_Args) ->
-   {ok, #state{}}.
+init([Callback, Args]) ->
+   Host0 = proplists:get_value(host, Args),
+   Port = proplists:get_value(port, Args),
+   User = proplists:get_value(user, Args, <<>>),
+   Pass = proplists:get_value(pass, Args, <<>>),
+   SslOpts = proplists:get_value(ssl, Args, []),
+   Ssl = SslOpts /= [],
+   Host = binary_to_list(Host0),
+   Opts = #{
+      host => Host, port => Port, user => User, pass => Pass,
+      retained => true, ssl => Ssl, qos => 1, ssl_opts => SslOpts},
+   {ok, Publisher} = mqtt_publisher:start_link(Opts),
+   %% local ip address
+   Ip0 = faxe_util:ip_to_bin(faxe_util:local_ip_v4()),
+   Ip = binary:replace(Ip0, <<".">>, <<"_">>, [global]),
+   BaseTopic = proplists:get_value(base_topic, Args, ?TOPIC_BASE),
+   Topic = <<BaseTopic/binary, Ip/binary, "/">>,
+   {ok, CbState} = Callback:init(Topic),
+   {ok,
+      #state{host = Host, port = Port, publisher = Publisher,
+         topic = Topic, cb = Callback, cb_state = CbState}}.
 
 %%--------------------------------------------------------------------
 %% @private
@@ -85,9 +115,17 @@ init(_Args) ->
    {swap_handler, Args1 :: term(), NewState :: #state{},
       Handler2 :: (atom() | {atom(), Id :: term()}), Args2 :: term()} |
    remove_handler).
-handle_event({Key, {_FlowId, _NodeID} = FNId, Port, Item}, State = #state{}) ->
-   lager:info("DEBUG [~p] :: ~p on Port ~p~n~p",[FNId, Key, Port, flowdata:to_json(Item)]),
-   {ok, State}.
+handle_event(Event, State = #state{cb = Callback, cb_state = CbState, publisher = Publisher}) ->
+   NewCbState =
+   case Callback:handle_event(Event, CbState) of
+      {ok, CbState0} ->
+         CbState0;
+      {publish, Topic, Data, NewCbState1} ->
+         publish(Topic, Data, Publisher),
+         NewCbState1;
+      _ -> CbState
+   end,
+   {ok, State#state{cb_state = NewCbState}}.
 
 %%--------------------------------------------------------------------
 %% @private
