@@ -125,8 +125,10 @@ code_change(_OldVsn, State = #state{}, _Extra) ->
 
 get_connection(Pid) ->
   case ets:lookup(node_connections, Pid) of
-    [{Pid, #conreg{}=C}] -> C;
-    _ -> #conreg{connected = false}
+    [{Pid, #conreg{}=C}] ->
+      C;
+    _ -> %% Client not found !!!
+      #conreg{connected = false}
   end.
 
 remove_node_entries(Pid) ->
@@ -151,6 +153,5 @@ publish(#conreg{connected = Connected, status = Status, flowid = FId,
     <<"conn_type">> => Type,
     <<"df">> => ?DATA_FORMAT
   },
-  P = #data_point{ts = faxe_time:now(), fields = Fields},
-%%  lager:notice("CONN: ~s",[flowdata:to_json(P)]),
+  P = #data_point{ts = faxe_time:now(), fields = Fields}, 
   gen_event:notify(conn_status, {{FId, NId}, P}).

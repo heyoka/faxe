@@ -1,0 +1,9 @@
+|value_emitter()
+.every(2s)
+.type(point)
+
+|set()
+.fields('set_val', 'data.val').field_values('hallo string!', 'hallo data string!')
+.tags('set_tag', 'data.tag').tag_values('blue', 'data_red')
+
+|debug()

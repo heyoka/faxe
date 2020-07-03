@@ -3,8 +3,8 @@
 %%% @copyright (C) 2019, <COMPANY>
 %%% @doc
 %%% Publish every single message to a mqtt-broker.
-%%% Incoming data_points or data_batchs are converted to a JSON string before sending.
-%%% If the safe() parameter is given, every message first gets stored in an ondisk queue before it will
+%%% Incoming data_points or data_batches are converted to a JSON string before sending.
+%%% If the safe() parameter is given, every message first gets stored in an on-disk queue before it will
 %%% be sent, this way we can make sure no message gets lost when disconnected from the broker.
 %%% Note that in safe mode, messages are not sent right away, so a delay of up to a second may be introduced.
 %%% other params:
