@@ -251,8 +251,7 @@ do_connect(#state{host = Host, port = Port} = State) ->
 
 opts_auth(#state{user = <<>>}, Opts) -> Opts;
 opts_auth(#state{user = undefined}, Opts) -> Opts;
-opts_auth(#state{user = User, pass = Pass}, Opts) ->
-   [{username, User},{password, Pass}] ++ Opts.
+opts_auth(#state{user = User, pass = Pass}, Opts) -> [{username, User},{password, Pass}] ++ Opts.
+
 opts_ssl(#state{ssl = false}, Opts) -> Opts;
-opts_ssl(#state{ssl = true, ssl_opts = SslOpts}, Opts) ->
-   [{ssl, SslOpts}]++ Opts.
+opts_ssl(#state{ssl = true, ssl_opts = SslOpts}, Opts) -> [{ssl, SslOpts}]++ Opts.
