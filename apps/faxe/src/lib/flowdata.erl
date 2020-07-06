@@ -94,7 +94,7 @@ to_mapstruct(#data_point{ts = _Ts, fields = Fields, tags = _Tags}) when map_size
    #{};
 to_mapstruct(P=#data_point{ts = Ts, fields = Fields, tags = _Tags}) ->
 
-   AllDataFields = maps:without([<<"id">>,<<"vs">>,<<"df">>], Fields),
+   AllDataFields = maps:without([<<"id">>,<<"df">>], Fields),
    DataFields =
       case maps:get(<<"data">>, AllDataFields, nil) of
          nil -> AllDataFields;
@@ -102,7 +102,6 @@ to_mapstruct(P=#data_point{ts = Ts, fields = Fields, tags = _Tags}) ->
       end,
    #{?DEFAULT_TS_FIELD => Ts,
       <<"id">> => field(P ,<<"id">>, ?DEFAULT_ID),
-%%      <<"vs">> => field(P, <<"vs">>, ?DEFAULT_VS),
       <<"df">> => field(P, <<"df">>, ?DEFAULT_DF),
       <<"data">> => DataFields};
 

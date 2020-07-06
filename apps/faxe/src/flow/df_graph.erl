@@ -49,6 +49,7 @@
 
 %% node metrics collection interval in ms
 -define(METRICS_INTERVAL, 5000).
+-define(TRACE_TIMEOUT, 120 * 1000).
 %%%===================================================================
 %%% API
 %%%===================================================================
@@ -215,21 +216,13 @@ handle_call({export}, _From, State = #state{graph = Graph, id = GraphId}) ->
    io:format(F, "~s~n", [GraphDot]),
    {reply, GraphDot, State#state{}}.
 
-handle_cast({swarm, end_handoff, NewState}, State) ->
-   lager:notice("~p ~p end_handoff with new State: ~p (old: ~p)",
-      [?MODULE, State#state.id, NewState, State]),
-%%   handle_call({start, push}, self(), State),
-   {noreply, State};
-handle_cast({swarm, resolve_conflict, NewState}, _OldState) ->
-   lager:notice("~p ~p resolve_conflict with conflicting State: ~p (old: ~p)",
-      [?MODULE, _OldState#state.id, NewState, _OldState]),
-   {noreply, NewState};
 handle_cast(_Request, State) ->
    {noreply, State}.
 
 
 handle_info(start_trace, State = #state{nodes = Nodes}) ->
    [Pid ! start_debug || {_, _, Pid} <- Nodes],
+   erlang:send_after(?TRACE_TIMEOUT, self(), stop_trace),
    {noreply, State};
 handle_info(stop_trace, State = #state{nodes = Nodes}) ->
    [Pid ! stop_debug || {_, _, Pid} <- Nodes],
@@ -351,8 +344,9 @@ start(ModeOpts=#task_modes{run_mode = RunMode, temporary = Temp, temp_ttl = TTL}
       fun({NodeId, Comp, NPid}) ->
          {Inputs, Subs} = proplists:get_value(NodeId, Subscriptions),
          node_metrics:setup(Id, NodeId, Comp),
-         df_component:start_async(NPid, Inputs, Subs, RunMode),
-         NPid ! start_debug
+         df_component:start_async(NPid, Inputs, Subs, RunMode)
+%%         ,
+%%         NPid ! start_debug
 %%         NodeStart = df_component:start_node(NPid, Inputs, Subs, FlowMode),
 %%         lager:debug("NodeStart for ~p gives: ~p",[NodeId, NodeStart] )
       end,

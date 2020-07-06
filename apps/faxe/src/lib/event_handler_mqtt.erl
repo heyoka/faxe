@@ -23,6 +23,7 @@
 
 -record(state, {
    publisher,
+   publisher_opts,
    host,
    port,
    topic,
@@ -97,7 +98,7 @@ init([Callback, Args]) ->
    Topic = <<BaseTopic/binary, Ip/binary, "/">>,
    {ok, CbState} = Callback:init(Topic),
    {ok,
-      #state{host = Host, port = Port, publisher = Publisher,
+      #state{host = Host, port = Port, publisher = Publisher, publisher_opts = Opts,
          topic = Topic, cb = Callback, cb_state = CbState}}.
 
 %%--------------------------------------------------------------------
@@ -161,8 +162,10 @@ handle_call(_Request, State) ->
    {swap_handler, Args1 :: term(), NewState :: #state{},
       Handler2 :: (atom() | {atom(), Id :: term()}), Args2 :: term()} |
    remove_handler).
-handle_info(_Info, State) ->
-   {ok, State}.
+handle_info({'EXIT', Publisher, _Reason}, State = #state{publisher = Publisher, publisher_opts = Opts}) ->
+   %% publisher died
+   {ok, Publisher} = mqtt_publisher:start_link(Opts),
+   {ok, State#state{publisher = Publisher}}.
 
 %%--------------------------------------------------------------------
 %% @private

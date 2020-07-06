@@ -34,7 +34,9 @@
    from_start_temp_task/2,
    remove_tags_from_json/2,
    add_tags_from_json/2
-   , logs_to_json/2]).
+   , logs_to_json/2,
+   start_debug_to_json/2,
+   stop_debug_to_json/2]).
 
 -include("faxe.hrl").
 
@@ -57,6 +59,10 @@ allowed_methods(Req, State=#state{mode = register}) ->
    {[<<"POST">>], Req, State};
 allowed_methods(Req, State=#state{mode = start_temp}) ->
    {[<<"POST">>], Req, State};
+allowed_methods(Req, State=#state{mode = start_debug}) ->
+   {[<<"GET">>], Req, State};
+allowed_methods(Req, State=#state{mode = stop_debug}) ->
+   {[<<"GET">>], Req, State};
 allowed_methods(Req, State=#state{mode = update}) ->
    {[<<"POST">>], Req, State};
 allowed_methods(Req, State=#state{mode = ping}) ->
@@ -119,6 +125,16 @@ content_types_provided(Req, State=#state{mode = start}) ->
    {[
       {{<<"application">>, <<"json">>, []}, start_to_json},
       {{<<"text">>, <<"html">>, []}, start_to_json}
+   ], Req, State};
+content_types_provided(Req, State=#state{mode = start_debug}) ->
+   {[
+      {{<<"application">>, <<"json">>, []}, start_debug_to_json},
+      {{<<"text">>, <<"html">>, []}, start_debug_to_json}
+   ], Req, State};
+content_types_provided(Req, State=#state{mode = stop_debug}) ->
+   {[
+      {{<<"application">>, <<"json">>, []}, stop_debug_to_json},
+      {{<<"text">>, <<"html">>, []}, stop_debug_to_json}
    ], Req, State};
 content_types_provided(Req, State=#state{mode = stop}) ->
    {[
@@ -263,10 +279,27 @@ start_to_json(Req, State = #state{task_id = Id}) ->
          {jiffy:encode(#{<<"error">> => rest_helper:to_bin(Error)}), Req, State}
    end.
 
+start_debug_to_json(Req, State = #state{task_id = Id}) ->
+   lager:info("start trace: ~p",[Id]),
+   case faxe:start_trace(Id) of
+      {ok, _Graph} ->
+         {jiffy:encode(#{<<"ok">> => <<"debug_started">>}), Req, State};
+      {error, Error} ->
+         {jiffy:encode(#{<<"error">> => rest_helper:to_bin(Error)}), Req, State}
+   end.
+
 stop_to_json(Req, State = #state{task_id = Id}) ->
    case faxe:stop_task(Id, is_permanent(Req)) of
       ok ->
          {jiffy:encode(#{<<"ok">> => <<"stopped">>}), Req, State};
+      {error, Error} ->
+         {jiffy:encode(#{<<"error">> => rest_helper:to_bin(Error)}), Req, State}
+   end.
+
+stop_debug_to_json(Req, State = #state{task_id = Id}) ->
+   case faxe:stop_trace(Id) of
+      {ok, _Graph} ->
+         {jiffy:encode(#{<<"ok">> => <<"debug_stopped">>}), Req, State};
       {error, Error} ->
          {jiffy:encode(#{<<"error">> => rest_helper:to_bin(Error)}), Req, State}
    end.

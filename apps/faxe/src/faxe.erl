@@ -46,7 +46,11 @@
    add_tags/2,
    remove_tags/2,
    get_logs/4,
-   set_tags/2, get_graph/1, task_to_graph/1]).
+   set_tags/2,
+   get_graph/1,
+   task_to_graph/1,
+   start_trace/1,
+   stop_trace/1]).
 
 start_permanent_tasks() ->
    Tasks = faxe_db:get_permanent_tasks(),
@@ -480,6 +484,32 @@ export(TaskId) ->
             false -> {error, task_not_running}
          end;
       #task{} -> {ok, []}
+   end.
+
+-spec start_trace(non_neg_integer()|binary()) -> {ok, pid()} | {error, not_found} | {error_task_not_running}.
+start_trace(TaskId) ->
+   T = faxe_db:get_task(TaskId),
+   case T of
+      {error, not_found} -> {error, not_found};
+      #task{pid = Graph} when is_pid(Graph) ->
+         case is_process_alive(Graph) of
+            true -> df_graph:start_trace(Graph), {ok, Graph};
+            false -> {error, task_not_running}
+         end;
+      #task{} -> {error, task_not_running}
+   end.
+
+-spec stop_trace(non_neg_integer()|binary()) -> {ok, pid()} | {error, not_found} | {error_task_not_running}.
+stop_trace(TaskId) ->
+   T = faxe_db:get_task(TaskId),
+   case T of
+      {error, not_found} -> {error, not_found};
+      #task{pid = Graph} when is_pid(Graph) ->
+         case is_process_alive(Graph) of
+            true -> df_graph:stop_trace(Graph), {ok, Graph};
+            false -> {error, task_not_running}
+         end;
+      #task{} -> {error, task_not_running}
    end.
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
