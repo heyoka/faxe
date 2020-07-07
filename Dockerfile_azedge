@@ -1,35 +1,38 @@
 ### Build stage 0
-FROM erlang:22.3 as erlang
+FROM erlang:22.3.4.2-alpine as base
+
+RUN apk add git
+RUN apk add build-base binutils
 
 # Set working directory
-RUN mkdir -p /buildroot/rebar3/bin
+RUN mkdir /buildroot
 WORKDIR /buildroot
 
 # Copy faxe application
-COPY ./ faxe
+RUN mkdir faxe
+COPY ./rebar.config faxe/rebar.config
 
 WORKDIR faxe
 
-# need git
-RUN apt-get install git
-
 # And build the release
+RUN rebar3 get-deps
+
+COPY ./ .
 RUN rebar3 as azedge release
 
 ### Build stage 1
-FROM erlang
+FROM base
 
 # Install some libs
-RUN apt-get install openssl
+RUN apk add openssl
 
 ENV RELX_REPLACE_OS_VARS true
 
 # Install the released application
-COPY --from=erlang /buildroot/faxe/_build/azedge/rel/faxe /faxe
-# cleanup
-RUN rm -rf /buildroot
+COPY --from=base /buildroot/faxe/_build/azedge/rel/faxe /faxe
 
-# USER ubuntu
+RUN mkdir /data
+ENV MNESIA_DIR /data
 
 # Expose relevant ports
 ## http api
