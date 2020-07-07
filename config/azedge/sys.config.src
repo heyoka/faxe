@@ -27,10 +27,8 @@
          {pass, <<"${MQTT_PASS}">>},
          {client_id, <<"${MQTT_CLIENT_ID}">>},
          {ssl, [
-            {certfile, "${MQTT_CERTFILE}"}
-            %,
-            %{cacertfile, "${MQTT_CACERTFILE}"}
-            ,
+            {cacertfile, "${MQTT_CACERTFILE}"},
+            {certfile, "${MQTT_CERTFILE}"},
             {keyfile, "${MQTT_KEYFILE}"}
             ]}
       ]},
