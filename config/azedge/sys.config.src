@@ -27,11 +27,11 @@
          {pass, <<"${MQTT_PASS}">>},
          {client_id, <<"${MQTT_CLIENT_ID}">>},
          {ssl, [
-            {certfile, <<"${MQTT_CERTFILE}">>}
+            {certfile, "${MQTT_CERTFILE}"}
             %,
-            %{cacertfile, <<"${MQTT_CACERTFILE}">>}
+            %{cacertfile, "${MQTT_CACERTFILE}"}
             ,
-            {keyfile, <<"${MQTT_KEYFILE}">>}
+            {keyfile, "${MQTT_KEYFILE}"}
             ]}
       ]},
       {amqp, [
