@@ -77,6 +77,17 @@ check_options() ->
     {func, vars,
       fun(List, #{vars_prefix := VarsPrefix}) ->
         List1 = translate_vars(List, VarsPrefix),
+        Invalid = lists:filter(fun(A) -> s7addr:parse(A) == {error, invalid} end, List1),
+        case Invalid of
+          [] -> true;
+          _ -> {false, lists:join(<<", ">>, Invalid)}
+        end
+      end,
+      <<", invalid address: ">>
+    },
+    {func, vars,
+      fun(List, #{vars_prefix := VarsPrefix}) ->
+        List1 = translate_vars(List, VarsPrefix),
         {P, _} = build_addresses(List1, lists:seq(1, length(List1)), 0),
         length(P) =< ?MAX_READ_ITEMS
       end,
@@ -90,6 +101,7 @@ check_options() ->
       end,
       <<", byte-limit of ", ?DEFAULT_BYTE_LIMIT, " bytes exceeded!">>
     },
+
     {same_length, [vars, as]}
   ].
 

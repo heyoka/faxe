@@ -24,7 +24,7 @@
 
 -define(SERVER, ?MODULE).
 -define(MAX_TIME, 5000).
--define(MAX_COUNT, 10).
+-define(MAX_COUNT, 20).
 %%% db
 -define(KEY, <<"stmt">>).
 -define(PATH, <<"/_sql">>).
