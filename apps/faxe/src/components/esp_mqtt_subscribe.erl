@@ -148,7 +148,7 @@ handle_info(What, State) ->
 shutdown(#state{client = C}) ->
    catch (emqttc:disconnect(C)).
 
-connect(State = #state{host = Host, port = Port, client_id = ClientId, user = U, pass = P}) ->
+connect(State = #state{host = Host, port = Port, client_id = ClientId}) ->
    connection_registry:connecting(),
    reconnect_watcher:bump(),
    Opts0 = [

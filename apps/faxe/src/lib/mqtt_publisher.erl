@@ -38,7 +38,8 @@
    mem_queue,
    deq_interval = 15,
    reconnector,
-   node_id
+   node_id,
+   client_id
 }).
 
 %%%===================================================================
@@ -84,6 +85,7 @@ init([#{} = Opts, Queue]) ->
 
 init_all(#{host := Host, port := Port, user := User, pass := Pass,
       retained := Retained, ssl := UseSSL, qos := Qos} = Opts, State) ->
+   lager:notice("Opts are: ~p",[Opts]),
    NId =
    case maps:is_key(node_id, Opts) of
       true -> maps:get(node_id, Opts);
@@ -241,10 +243,10 @@ code_change(_OldVsn, State, _Extra) ->
 %%%===================================================================
 %%% Internal functions
 %%%===================================================================
-do_connect(#state{host = Host, port = Port} = State) ->
+do_connect(#state{host = Host, port = Port, client_id = ClientId} = State) ->
    reconnect_watcher:bump(),
    connection_registry:connecting(),
-   Opts0 = [{host, Host}, {port, Port}, {keepalive, 30}],
+   Opts0 = [{host, Host}, {port, Port}, {keepalive, 30}, {client_id, ClientId}],
    Opts1 = opts_auth(State, Opts0),
    Opts = opts_ssl(State, Opts1),
    lager:info("connect to mqtt broker with: ~p",[Opts]),

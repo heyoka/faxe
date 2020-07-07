@@ -46,12 +46,13 @@ options() -> [
    {port, integer, {mqtt, port}},
    {user, string, {mqtt, user}},
    {pass, string, {mqtt, pass}},
+   {client_id, string, {mqtt, client_id}},
    {qos, integer, 1},
    {topic, binary, undefined},
    {topic_lambda, lambda, undefined},
    {retained, is_set},
    {ssl, is_set},
-   {safe, is_set}].
+   {safe, is_set, false}].
 
 metrics() ->
    [

@@ -158,5 +158,3 @@ code_change(_OldVsn, State, _Extra) ->
 %%%===================================================================
 %%% Internal functions
 %%%===================================================================
-publish(T, Item, Publisher) ->
-   Publisher ! {publish, {T, flowdata:to_json(Item)}}.

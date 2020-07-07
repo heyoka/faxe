@@ -7,4 +7,9 @@ def host = '10.14.204.3'
 .every(2s)
 .json(message)
 
+|mqtt_publish()
+.host(host)
+.topic(topic)
+%.safe()
+
 |debug()
