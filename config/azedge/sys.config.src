@@ -9,26 +9,6 @@
          {script_path, "/home/heyoka/workspace/faxe/python/"}
       ]},
       {esq_base_dir, <<"/tmp/">>},
-      %{metrics, [
-        %% install metrics handlers
-      %   {handler, [
-      %      {mqtt, [
-      %          {host, <<"10.14.204.3">>},
-      %          {port, 1883}
-      %          ]
-      %      }]}
-      %]},
-      %{conn_status, [
-        %% install conn_status handlers
-      %  {handler, [
-      %      {mqtt, [
-      %          {host, <<"10.14.204.3">>},
-      %          {port, 2883},
-      %          {user, <<"admin">>},
-      %          {pass, <<"admin">>}
-      %          ]
-      %       }]}
-      %]},
       %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
       %% default configs
       {s7pool_initial_size, 2},
@@ -41,14 +21,19 @@
          {template, <<"/home/heyoka/workspace/faxe/apps/faxe/priv/email_template.html">>}
       ]},
       {mqtt, [
-               %{user, <<"user">>},
-               %{pass, <<"pass">>},
-               {host, <<"10.14.204.3">>},
-               {port, 8883},
-               {ssl, [
-                  {certfile, "/path/to/cert/ssl_wildcard.pem"}
-                  ]}
-            ]},
+         {host, <<"${MQTT_HOST}">>},
+         {port, ${MQTT_PORT}},
+         {user, <<"${MQTT_USER}">>},
+         {pass, <<"${MQTT_PASS}">>},
+         {client_id, <<"${MQTT_CLIENT_ID}">>},
+         {ssl, [
+            {certfile, <<"${MQTT_CERTFILE}">>}
+            %,
+            %{cacertfile, <<"${MQTT_CACERTFILE}">>}
+            ,
+            {keyfile, <<"${MQTT_KEYFILE}">>}
+            ]}
+      ]},
       {amqp, [
          {host, <<"10.14.204.3">>},
          {port, 5672}

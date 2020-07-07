@@ -1,5 +1,6 @@
 # build
 docker build -t faxe-docker .
+docker build -t faxe -f Dockerfile_azedge .
 
 # run
 docker run -d -p 8081:8081 --ulimit nofile=1024 --log-driver=syslog faxe-docker
