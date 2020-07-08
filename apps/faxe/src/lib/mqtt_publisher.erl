@@ -84,7 +84,7 @@ init([#{} = Opts, Queue]) ->
    init_all(Opts, #state{queue = Queue}).
 
 init_all(#{host := Host, port := Port, user := User, pass := Pass,
-      retained := Retained, ssl := UseSSL, qos := Qos} = Opts, State) ->
+      retained := Retained, ssl := UseSSL, qos := Qos, client_id := ClientId} = Opts, State) ->
    lager:notice("Opts are: ~p",[Opts]),
    NId =
    case maps:is_key(node_id, Opts) of
@@ -100,7 +100,7 @@ init_all(#{host := Host, port := Port, user := User, pass := Pass,
    connection_registry:connecting(),
    {ok,
       State#state{
-         host = Host, port = Port, user = User, pass = Pass, reconnector = Reconnector1,
+         host = Host, port = Port, user = User, pass = Pass, reconnector = Reconnector1, client_id = ClientId,
          retained = Retained, ssl = UseSSL, qos = Qos, node_id = NId, ssl_opts = ssl_opts(UseSSL, Opts)}}.
 
 ssl_opts(false, _) ->
