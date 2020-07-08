@@ -101,7 +101,8 @@ init_all(#{host := Host, port := Port, user := User, pass := Pass,
    {ok,
       State#state{
          host = Host, port = Port, user = User, pass = Pass, reconnector = Reconnector1,
-         retained = Retained, ssl = UseSSL, qos = Qos, node_id = NId, ssl_opts = ssl_opts(UseSSL, Opts)}}.
+         client_id = maps:get(client_id, Opts, undefined), retained = Retained,
+         ssl = UseSSL, qos = Qos, node_id = NId, ssl_opts = ssl_opts(UseSSL, Opts)}}.
 
 ssl_opts(false, _) ->
    [];
