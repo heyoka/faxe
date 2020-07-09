@@ -11,16 +11,16 @@ COPY ./ faxe
 WORKDIR faxe
 
 # need git
-RUN apt-get install git
+RUN apt-get update && apt-get install git
 
 # And build the release
 RUN rebar3 as k8s release
 
 ### Build stage 1
-FROM erlang:22.3.4.2-alpine
+FROM erlang:22.3.4.2-slim
 
 # Install some libs
-RUN apk add --update openssl
+RUN apt-get update && apt-get install openssl
 
 ENV RELX_REPLACE_OS_VARS true
 
