@@ -85,7 +85,7 @@ init([#{} = Opts, Queue]) ->
 
 init_all(#{host := Host, port := Port, user := User, pass := Pass,
       retained := Retained, ssl := UseSSL, qos := Qos} = Opts, State) ->
-   lager:notice("Opts are: ~p",[Opts]),
+   lager:info("MQTT_OPTS are: ~p",[Opts]),
    NId =
    case maps:is_key(node_id, Opts) of
       true -> maps:get(node_id, Opts);

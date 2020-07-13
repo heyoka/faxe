@@ -430,7 +430,7 @@ handle_process_result({error, _What}, State=#c_state{}) ->
 emit(Port, Value, State = #c_state{subscriptions = Subscriptions}) ->
    NewSubs = df_subscription:output(Subscriptions, Value, Port),
    metric(?METRIC_ITEMS_OUT, 1, State),
-   maybe_debug(emit, Port, Value, State),
+   maybe_debug(item_out, Port, Value, State),
    NewSubs.
 
 %% @doc emit debug events

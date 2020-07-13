@@ -33,6 +33,10 @@ init([]) ->
 %%            {faxe_peer_manager, start_link, []},
 %%            permanent, 5000, worker, []},
 
+        {faxe_metrics_sup,
+            {faxe_metrics_sup, start_link, []},
+            permanent, infinity, supervisor, [faxe_metrics_sup]}
+        ,
         {dataflow_sup,
             {dataflow_sup, start_link, []},
             permanent, infinity, supervisor, [dataflow_sup]},
@@ -51,11 +55,8 @@ init([]) ->
 
         {s7pool_sup,
             {s7pool_sup, start_link, []},
-            permanent, infinity, supervisor, [s7pool_sup]},
-        {faxe_metrics_sup,
-            {faxe_metrics_sup, start_link, []},
-            permanent, infinity, supervisor, [faxe_metrics_sup]}
-
+            permanent, infinity, supervisor, [s7pool_sup]}
+%%        ,
 %%        ,
 %%        {faxe_log_sup,
 %%            {faxe_log_sup, start_link, []},

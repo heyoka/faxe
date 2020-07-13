@@ -470,7 +470,11 @@ delete_tags(B = #data_batch{points = Points}, KeyList) when is_list(KeyList) ->
 %% @end
 -spec rename_fields(#data_point{}, list(jsonpath:path()), list(jsonpath:path())) -> #data_point{}.
 rename_fields(#data_point{fields = Fields} = P, FieldNames, Aliases) ->
-   P#data_point{fields = rename(Fields, lists:reverse(FieldNames), lists:reverse(Aliases))}.
+   P#data_point{fields = rename(Fields, lists:reverse(FieldNames), lists:reverse(Aliases))}
+;
+rename_fields(#data_batch{points = Points} = B, FieldNames, Aliases) ->
+   NewPoints = [rename_fields(P, FieldNames, Aliases) || P <- Points],
+   B#data_batch{points = NewPoints}.
 
 rename_tags(#data_point{tags = Tags} = P, TagNames, Aliases) ->
    P#data_point{tags = rename(Tags, lists:reverse(TagNames), lists:reverse(Aliases))}.

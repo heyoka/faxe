@@ -220,11 +220,13 @@ handle_cast(_Request, State) ->
    {noreply, State}.
 
 
-handle_info(start_trace, State = #state{nodes = Nodes}) ->
+handle_info(start_trace, State = #state{nodes = Nodes, id = Id}) ->
+   lager_emit_backend:start_trace(Id),
    [Pid ! start_debug || {_, _, Pid} <- Nodes],
    erlang:send_after(?TRACE_TIMEOUT, self(), stop_trace),
    {noreply, State};
-handle_info(stop_trace, State = #state{nodes = Nodes}) ->
+handle_info(stop_trace, State = #state{nodes = Nodes, id = Id}) ->
+   lager_emit_backend:stop_trace(Id),
    [Pid ! stop_debug || {_, _, Pid} <- Nodes],
    {noreply, State};
 handle_info({start, RunMode}, State) ->
@@ -258,7 +260,8 @@ code_change(_OldVsn, State, _Extra) ->
 %%%===================================================================
 %%% Internal functions
 %%%===================================================================
-do_stop(#state{running = Running, nodes = Nodes}) ->
+do_stop(#state{running = Running, nodes = Nodes, id = Id}) ->
+   lager_emit_backend:stop_trace(Id),
    lager:warning("stop graph when running:~p",[Running]),
    case Running of
       %% stop all components

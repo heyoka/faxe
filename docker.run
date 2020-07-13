@@ -9,3 +9,7 @@ docker run -a stdout -a stderr -p 8081:8081 -it --log-driver=syslog faxe-docker
 
 # final
 docker run -d -p 8081:8081 --log-driver=syslog faxe-docker
+
+docker run --rm -it -p 8081:8081 -e MNESIA_DIR=/data -v /tmp/mnesia/:/data faxe:latest
+## fix hostname, because docker uses a new one on every start and this will lead to mnesia not finding its data
+docker run --hostname=faxe --rm -it -p 8081:8081 -e MNESIA_DIR=/data -v /home/heyoka/data:/data faxe:latest

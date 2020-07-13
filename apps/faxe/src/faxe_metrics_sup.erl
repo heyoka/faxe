@@ -15,6 +15,14 @@ start_link() ->
 
 init([]) ->
   P = [
+%%    {log_emitter_mqtt,
+%%      {log_emitter_mqtt, start_link, []},
+%%      permanent, 5000, worker, []}
+%%    ,
+    {connection_registry,
+      {connection_registry, start_link, []},
+      permanent, 5000, worker, []}
+    ,
     {faxe_metrics,
       {gen_event, start_link, [{local, faxe_metrics}]},
       permanent, 5000, worker, []}
@@ -25,10 +33,6 @@ init([]) ->
     ,
     {faxe_debug,
       {gen_event, start_link, [{local, faxe_debug}]},
-      permanent, 5000, worker, []}
-    ,
-    {connection_registry,
-      {connection_registry, start_link, []},
       permanent, 5000, worker, []}
     ,
     {metrics_collector,

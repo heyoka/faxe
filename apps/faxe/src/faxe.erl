@@ -493,7 +493,9 @@ start_trace(TaskId) ->
       {error, not_found} -> {error, not_found};
       #task{pid = Graph} when is_pid(Graph) ->
          case is_process_alive(Graph) of
-            true -> df_graph:start_trace(Graph), {ok, Graph};
+            true ->
+               df_graph:start_trace(Graph),
+               {ok, Graph};
             false -> {error, task_not_running}
          end;
       #task{} -> {error, task_not_running}

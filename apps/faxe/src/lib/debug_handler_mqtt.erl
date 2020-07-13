@@ -5,6 +5,7 @@
 
 -behaviour(event_handler_mqtt).
 
+-include("faxe.hrl").
 %% event_handler_mqtt callbacks
 -export([
    init/1,
@@ -26,11 +27,12 @@ init(Topic0) ->
    Topic = <<Topic0/binary, "debug">>,
    {ok, #state{topic = Topic}}.
 
-
-handle_event({Key, {FlowId, NodeId} = _FNId, Port, Item0}, State = #state{topic = Topic}) ->
+handle_event({Key, {FlowId, NodeId} = _FNId, Port, Item}, State = #state{topic = Topic}) ->
    K = atom_to_binary(Key, utf8),
    T = <<Topic/binary, "/", FlowId/binary, "/", NodeId/binary, "/", K/binary>>,
-   Item = flowdata:set_fields(Item0, [<<"meta.type">>, <<"meta.flow_id">>, <<"meta.node_id">>, <<"meta.port">>],
+   Out0 = #data_point{ts = faxe_time:now(), fields = #{<<"data_item">> => flowdata:to_json(Item)}},
+   Out = flowdata:set_fields(Out0,
+      [<<"meta.type">>, <<"meta.flow_id">>, <<"meta.node_id">>, <<"meta.port">>],
       [K, FlowId, NodeId, Port]),
-%%   lager:info("DEBUG [~p] :: ~p on Port ~p~n~s~n~s",[_FNId, Key, Port, flowdata:to_json(Item), T]),
-   {publish, T, Item, State}.
+   lager:info("DEBUG [~p] :: ~p on Port ~p~n~s~n~s",[_FNId, Key, Port, flowdata:to_json(Out), T]),
+   {publish, T, Out, State}.

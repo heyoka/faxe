@@ -73,7 +73,7 @@ install_conn_status_handler() ->
 
 install_debug_handler() ->
    %% standard handler
-   dataflow:add_trace_handler(debug_handler),
+%%   dataflow:add_trace_handler(debug_handler),
    Handlers = proplists:get_value(handler, faxe_config:get(debug_trace, [{handler, []}])),
    lager:notice("debug HAndlers: ~p",[Handlers]),
    F = fun({HandlerType, Opts}) ->

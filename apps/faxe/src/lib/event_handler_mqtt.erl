@@ -6,6 +6,8 @@
 
 -behaviour(gen_event).
 
+-include("faxe.hrl").
+
 %% API
 -export([start_link/1,
    add_handler/1]).
@@ -199,5 +201,7 @@ code_change(_OldVsn, State, _Extra) ->
 %%%===================================================================
 %%% Internal functions
 %%%===================================================================
-publish(T, Item, Publisher) ->
-   Publisher ! {publish, {T, flowdata:to_json(Item)}}.
+publish(T, Item, Publisher) when is_record(Item, data_point) orelse is_record(Item, data_batch) ->
+   publish(T, flowdata:to_json(Item), Publisher);
+publish(T, Item, Publisher) when is_binary(Item) ->
+   Publisher ! {publish, {T, Item}}.
