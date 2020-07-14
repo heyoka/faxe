@@ -1,0 +1,19 @@
+%%%%%%%%%%%%%%%%%%%% MARCOS %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%% macro : flow_id : ctc_module_condition
+def val = 1
+|case(
+    lambda: "data.State.Err" == val OR "data.State.Warn" == val,
+    lambda: "data.State.Auto" == val
+    )
+    .values('Err', 'Ok')
+    .as('data.condition')
+    .default('Warn')
+
+
+%% use
+|s7read()
+.vars('DB12.DBX0.0', 'DB12.DBX0.1', 'DB12.DBX0.2', 'DB12.DBX0.3')
+.as('data.State.Err', 'data.State.Warn', 'data.State.Auto', 'data.State.AutoRdy')
+
+||ctc_module_condition()
+.val(2)
