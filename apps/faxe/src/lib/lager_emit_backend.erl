@@ -250,21 +250,3 @@ validate_option(fields, Fields) when is_list(Fields) ->
    ok;
 validate_option(fields, Fields) ->
    {error, {bad_fields, Fields}}.
-
-%% Local variables:
-%% mode: erlang
-%% erlang-indent-level: 2
-%% indent-tabs-mode: nil
-%% fill-column: 80
-%% End:
-
-%%
-%%{"ts":1594373665377,"id":"00000","df":"00.000",
-%%"data":
-%%   {"node_id":"debug8",
-%%      "meta":{
-%%         "pid":"<0.1743.0>","node":"faxe@ubuntu","module":"esp_debug","line":45,"function":"do_log",
-%%         "application":"faxe"
-%%      },"message":
-%%         "process [at 1594373665377] , {1,#data_point{ts=1594373664374,fields=#{<<\"esp_avg\">> => 5.4927143294696945},tags=#{},id=<<>>}}",
-%%      "level":"notice","flow_id":"trace_test"}}
