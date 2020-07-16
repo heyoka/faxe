@@ -42,15 +42,23 @@ file(ScriptFile, Vars) when is_list(ScriptFile), is_list(Vars) ->
    {ok, DfsParams} = application:get_env(faxe, dfs),
    Path = proplists:get_value(script_path, DfsParams),
 %%   lager:info("dfs file path is: ~p",[Path++ScriptFile]),
-   D = dfs:parse_file(Path ++ ScriptFile, ?LAMBDA_LIBS, Vars),
+   D = dfs:parse_file(Path ++ ScriptFile, ?LAMBDA_LIBS, Vars, macro_fun()),
    maybe_compile(D).
 
 -spec data(list()|binary(), list()|map()) -> {list(), map()}.
 data(DfsData, Vars) when is_map(Vars) ->
    data(DfsData, maps:to_list(Vars));
 data(DfsData, Vars) when is_list(Vars) ->
-   D = dfs:parse(DfsData, ?LAMBDA_LIBS, Vars),
+   D = dfs:parse(DfsData, ?LAMBDA_LIBS, Vars, macro_fun()),
    maybe_compile(D).
+
+macro_fun() ->
+   fun(MacroName) ->
+      case faxe:get_task(MacroName) of
+         #task{dfs = MacroDfs} -> MacroDfs;
+         _ -> throw("macro '" ++ binary_to_list(MacroName) ++ "' could not be found")
+      end
+   end.
 
 -spec maybe_compile({tuple(), {list(), list()}}) -> {list(), map()}.
 maybe_compile({DFSString, ParserResult}) ->
