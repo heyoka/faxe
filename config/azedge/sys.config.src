@@ -24,7 +24,6 @@
          {host, <<"${MQTT_HOST}">>},
          {port, ${MQTT_PORT}},
          {user, <<"${MQTT_USER}">>},
-         {client_id, <<"${MQTT_CLIENT_ID}">>},
          {ssl, [
             {cacertfile, "${MQTT_CACERTFILE}"},
             {certfile, "${MQTT_CERTFILE}"},
