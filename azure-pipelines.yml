@@ -15,7 +15,7 @@ steps:
     containerRegistry: 'openshift-registry'
     repository: 'connected-warehouse-d/faxe'
     command: 'buildAndPush'
-    Dockerfile: '**/Dockerfile_k8s'
+    Dockerfile: '**/Dockerfile.k8s'
     tags: |
       $(Build.BuildId)
       $(Build.SourceBranchName)
