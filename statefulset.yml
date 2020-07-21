@@ -1,282 +1,85 @@
-apiVersion: v1
-kind: Template
+kind: StatefulSet
+apiVersion: apps/v1
 metadata:
   name: faxe-cluster
-  annotations:
-    description: "Deploys a FAXE cluster"
-    iconClass: icon-faxe
-    tags: faxe,stream-processing
-
-parameters:
-  - name: NAMESPACE
-    description: "OpenShift project (current namespace)"
-    required: true
-  - name: CLUSTER_NAME
-    description: "Name of the FAXE cluster"
-    value: faxe-cluster
-  - name: ISTAG
-    ## using image from internal os-registry
-    description: "Image to deploy"
-    value: faxe:master
-  - name: FAXE_USER
-    description: "Username for the FAXE instance"
-    value: faxe
-  - name: FAXE_PASS
-    description: "Password securing the FAXE instance"
-    generate: expression
-    from: "[a-zA-Z0-9]{16}"
-  - name: ERLANG_COOKIE
-    description: "Cookie used for authentication of cluster nodes"
-    generate: expression
-    from: "[a-zA-Z0-9]{16}"
-  - name: SERVICE_ACCOUNT
-    description: "Name of the service account used by faxe k8s peer discovery"
-    value: faxe-discovery
-  - name: VOLUME_SIZE
-    description: "Size of the FAXE data volume"
-    value: 2Gi
-
-objects:
-
-  # This service account is needed for faxe_peer_discovery_k8s to be able to discover
-  # cluster nodes
-  - apiVersion: v1
-    kind: ServiceAccount
+  labels:
+    app: faxe-cluster
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: faxe-cluster
+  template:
     metadata:
-      name: ${SERVICE_ACCOUNT}
-
-  - apiVersion: v1
-    kind: RoleBinding
-    metadata:
-      name: ${SERVICE_ACCOUNT}-view
-    roleRef:
-      kind: Role
-      name: view
-    subjects:
-      - kind: ServiceAccount
-        name: ${SERVICE_ACCOUNT}
-
-  - apiVersion: v1
-    kind: Secret
-    stringData:
-      username: ${FAXE_USER}
-      password: ${FAXE_PASS}
-      ## do we need this url secret?
-      url: "amqp://${RABBITMQ_USER}:${RABBITMQ_PASS}@${CLUSTER_NAME}-balancer"
-      cookie: ${ERLANG_COOKIE}
-    metadata:
-      name: ${CLUSTER_NAME}-secret
-    type: Opaque
-
-  # Load balancer
-  - kind: Service
-    apiVersion: v1
-    metadata:
-      name: ${CLUSTER_NAME}-balancer
       labels:
-        app: ${CLUSTER_NAME}
-        type: LoadBalancer
+        app: faxe-cluster
     spec:
-      type: ClusterIP
-      ports:
-        - name: http
-          protocol: TCP
-          port: 8081
-          targetPort: 8081
-      selector:
-        app: ${CLUSTER_NAME}
-
-  # Headless service that makes it possible to lookup individual faxe nodes
-  - apiVersion: v1
-    kind: Service
-    metadata:
-      name: ${CLUSTER_NAME}
-      labels:
-        app: ${CLUSTER_NAME}
-    spec:
-      selector:
-        app: ${CLUSTER_NAME}
-      clusterIP: None
-      ports:
-        - name: clustering
-          port: 25672
-          targetPort: 25672
-
-  - apiVersion: networking.k8s.io/v1
-    kind: NetworkPolicy
-    metadata:
-      name: ${CLUSTER_NAME}-internal-access
-    spec:
-      podSelector:
-        matchLabels:
-          app: ${CLUSTER_NAME}
-      ingress:
-        - from:
-            - podSelector:
-                matchLabels:
-                  app: ${CLUSTER_NAME}
-
-  - apiVersion: apps/v1beta1
-    kind: StatefulSet
-    metadata:
-      name: ${CLUSTER_NAME}
-      labels:
-        app: ${CLUSTER_NAME}
-    spec:
-      serviceName: ${CLUSTER_NAME}
-      replicas: 1
-      selector:
-        matchLabels:
-          app: ${CLUSTER_NAME}
-      template:
-        metadata:
-          annotations:
-            ## to resolve images internally
-            alpha.image.policy.openshift.io/resolve-names: '*'
-          labels:
-            app: ${CLUSTER_NAME}
-        spec:
-          serviceAccountName: ${SERVICE_ACCOUNT}
-          terminationGracePeriodSeconds: 30
-          containers:
-            - name: faxe
-              image: ${NAMESPACE}/${ISTAG}
-              imagePullPolicy: Always
-              volumeMounts:
-                - name: faxe-storage
-                  mountPath: /data
-              ports:
-                - name: http
-                  protocol: TCP
-                  containerPort: 8081
-                - name: clustering
-                  protocol: TCP
-                  containerPort: 25672
-              livenessProbe:
-                exec:
-                  command: ["/faxe/bin/faxe", "ping"]
-                initialDelaySeconds: 30
-                timeoutSeconds: 10
-              readinessProbe:
-                failureThreshold: 3
-                httpGet:
-                  path: /v1/stats/vm
-                  port: 8081
-                  scheme: HTTP
-                initialDelaySeconds: 3
-                periodSeconds: 10
-                successThreshold: 1
-                timeoutSeconds: 1
-              env:
-                - name: DFS_SCRIPT_PATH
-                  value: /faxe/dfs
-                - name: HTTP_API_PORT
-                  value: '8081'
-                - name: PYTHON_VERSION
-                  value: '3'
-                - name: PYTHON_SCRIPT_PATH
-                  value: /faxe/python
-                - name: EMAIL_FROM_ADDRESS
-                  value: noreply@tgw-group.com
-                - name: LOGGER_LEVEL
-                  value: warning
-                - name: CRATE_HOST
-                  valueFrom:
-                    secretKeyRef:
-                      key: HOST_NAME
-                      name: cratedb
-                - name: CRATE_PORT
-                  valueFrom:
-                    secretKeyRef:
-                      key: PORT
-                      name: cratedb
-                - name: CRATE_USER
-                  valueFrom:
-                    secretKeyRef:
-                      key: USER
-                      name: cratedb
-                - name: CRATE_PASS
-                  valueFrom:
-                    secretKeyRef:
-                      key: PASS
-                      name: cratedb
-                - name: CRATE_DB
-                  value: doc
-                - name: CRATE_HTTP_HOST
-                  valueFrom:
-                    secretKeyRef:
-                      key: HOST_NAME
-                      name: cratedb-http
-                - name: CRATE_HTTP_PORT
-                  valueFrom:
-                    secretKeyRef:
-                      key: PORT
-                      name: cratedb-http
-                - name: CRATE_HTTP_USER
-                  valueFrom:
-                    secretKeyRef:
-                      key: USER
-                      name: cratedb-http
-                - name: CRATE_HTTP_PASS
-                  valueFrom:
-                    secretKeyRef:
-                      key: PASS
-                      name: cratedb-http
-                - name: CRATE_HTTP_DB
-                  value: doc
-                - name: AMQP_USER
-                  valueFrom:
-                    secretKeyRef:
-                      key: username
-                      name: rabbitmq-cluster-secret
-                - name: AMQP_PASS
-                  valueFrom:
-                    secretKeyRef:
-                      key: password
-                      name: rabbitmq-cluster-secret
-                - name: AMQP_HOST
-                  value: rabbitmq-cluster-balancer.connected-warehouse.svc.cluster.local
-                - name: AMQP_PORT
-                  value: '5672'
-                - name: RABBITMQ_ROOT_EXCHANGE
-                  value: x_lm_fanout
-                - name: MQTT_HOST
-                  value: rabbitmq-mqtt-lb.connected-warehouse.svc.cluster.local
-                - name: MQTT_PORT
-                  value: '1883'
-                - name: SCHEDULERS
-                  value: '4'
-                - name: ERLANG_COOKIE
-                  valueFrom:
-                    secretKeyRef:
-                      key: cookie
-                      name: ${CLUSTER_NAME}-secret
-                - name: EMAIL_SMTP_RELAY
-                  valueFrom:
-                    secretKeyRef:
-                      key: relay
-                      name: smtp
-                - name: EMAIL_SMTP_USER
-                  valueFrom:
-                    secretKeyRef:
-                      key: user
-                      name: smtp
-                - name: MNESIA_DIR
-                  value: /data
-#          volumes:
-#            - name: config-volume
-#              configMap:
-#                name: ${CLUSTER_NAME}-config
-#                items:
-#                  - key: rabbitmq.conf
-#                    path: rabbitmq.conf
-#                  - key: enabled_plugins
-#                    path: enabled_plugins
-      volumeClaimTemplates:
-        - metadata:
-            name: faxe-storage
-          spec:
-            accessModes: [ "ReadWriteOnce" ]
-            resources:
-              requests:
-                storage: ${VOLUME_SIZE}
+      containers:
+        - resources: {}
+          readinessProbe:
+            httpGet:
+              path: /v1/stats/vm
+              port: 8081
+              scheme: HTTP
+            initialDelaySeconds: 3
+            timeoutSeconds: 1
+            periodSeconds: 10
+            successThreshold: 1
+            failureThreshold: 3
+          terminationMessagePath: /dev/termination-log
+          name: faxe
+          livenessProbe:
+            exec:
+              command:
+                - /faxe/bin/faxe
+                - ping
+            initialDelaySeconds: 30
+            timeoutSeconds: 10
+            periodSeconds: 10
+            successThreshold: 1
+            failureThreshold: 3
+          env:
+            - name: ERLANG_HOME
+              value: /faxe
+            - name: SCHEDULERS
+              value: '4'
+            - name: ERLANG_COOKIE
+              value: '123456'
+          ports:
+            - name: http
+              containerPort: 8081
+              protocol: TCP
+            - name: clustering
+              containerPort: 25672
+              protocol: TCP
+          imagePullPolicy: Always
+          volumeMounts:
+            - name: faxe-storage
+              mountPath: /data
+          terminationMessagePolicy: File
+          envFrom:
+            - configMapRef:
+                name: faxe-cm
+          image: >-
+            image-registry.openshift-image-registry.svc:5000/namespace/faxe:pre-prod
+      restartPolicy: Always
+      terminationGracePeriodSeconds: 30
+      dnsPolicy: ClusterFirst
+      securityContext: {}
+      schedulerName: default-scheduler
+  volumeClaimTemplates:
+    - metadata:
+        name: faxe-storage
+        creationTimestamp: null
+      spec:
+        accessModes:
+          - ReadWriteOnce
+        resources:
+          requests:
+            storage: 2Gi
+        volumeMode: Filesystem
+  serviceName: faxe-cluster
+  podManagementPolicy: OrderedReady
+  updateStrategy:
+    type: RollingUpdate
+  revisionHistoryLimit: 10
