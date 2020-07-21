@@ -61,7 +61,7 @@ spec:
             - configMapRef:
                 name: faxe-cm
           image: >-
-            image-registry.openshift-image-registry.svc:5000/namespace/faxe:pre-prod
+            image-registry.openshift-image-registry.svc:5000/namespace/faxe:master
       restartPolicy: Always
       terminationGracePeriodSeconds: 30
       dnsPolicy: ClusterFirst
