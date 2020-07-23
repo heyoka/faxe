@@ -34,5 +34,5 @@ handle_event({Key, {FlowId, NodeId} = _FNId, Port, Item}, State = #state{topic =
    Out = flowdata:set_fields(Out0,
       [<<"meta.type">>, <<"meta.flow_id">>, <<"meta.node_id">>, <<"meta.port">>],
       [K, FlowId, NodeId, Port]),
-   lager:info("DEBUG [~p] :: ~p on Port ~p~n~s~n~s",[_FNId, Key, Port, flowdata:to_json(Out), T]),
+%%   lager:info("DEBUG [~p] :: ~p on Port ~p~n~s~n~s",[_FNId, Key, Port, flowdata:to_json(Out), T]),
    {publish, T, Out, State}.

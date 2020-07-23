@@ -43,6 +43,7 @@
    graph    = nil,
    start_mode = undefined :: #task_modes{},
    timeout_ref          :: reference(),
+   debug_timeout_ref    :: reference(),
    nodes    = []        :: list(tuple()),
    is_leader = false    :: true|false
 }).
@@ -220,11 +221,13 @@ handle_cast(_Request, State) ->
    {noreply, State}.
 
 
-handle_info(start_trace, State = #state{nodes = Nodes, id = Id}) ->
+handle_info(start_trace, State = #state{nodes = Nodes, id = Id, debug_timeout_ref = TRef}) ->
+   catch erlang:cancel_timer(TRef),
    lager_emit_backend:start_trace(Id),
    [Pid ! start_debug || {_, _, Pid} <- Nodes],
-   erlang:send_after(?TRACE_TIMEOUT, self(), stop_trace),
-   {noreply, State};
+   Timeout = faxe_config:get(debug_time, ?TRACE_TIMEOUT),
+   TRefNew = erlang:send_after(Timeout, self(), stop_trace),
+   {noreply, State#state{debug_timeout_ref = TRefNew}};
 handle_info(stop_trace, State = #state{nodes = Nodes, id = Id}) ->
    lager_emit_backend:stop_trace(Id),
    [Pid ! stop_debug || {_, _, Pid} <- Nodes],

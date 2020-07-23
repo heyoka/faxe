@@ -54,7 +54,7 @@ init(Args) ->
       _O -> Args
    end,
 
-   lager:info("options: ~p",[maps:from_list(Options)]),
+%%   lager:info("options: ~p",[maps:from_list(Options)]),
    SslOpts = proplists:get_value(ssl, Options, []),
    Ssl = SslOpts /= [],
    OptMap = maps:from_list(Options),
@@ -138,9 +138,10 @@ code_change(_, State, _) ->
 %%==============================================================================
 %% Internal functions
 %%==============================================================================
+publish(_F, undefined, _, _S) -> ok;
 publish(FlowId, NodeId, Message, #state{publisher = Publisher, topic = T}) ->
    Topic = <<T/binary, FlowId/binary, "/", NodeId/binary>>,
-   lager:notice("publish: ~p~n on topic : ~p",[flowdata:to_json(format_data(Message)), Topic]),
+%%   lager:notice("publish: ~p~n on topic : ~p",[flowdata:to_json(format_data(Message)), Topic]),
    Publisher ! {publish, {Topic, flowdata:to_json(format_data(Message))}}.
 
 

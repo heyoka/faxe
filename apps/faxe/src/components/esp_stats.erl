@@ -30,7 +30,7 @@ get_options() -> [{field, binary}, {as, binary, undefined}, {func, atomlist, und
 
 
 init(NodeId, Ins, #{field := Field, as := As, module := Mod, func := Func} = Args) ->
-   lager:notice("ARgs for ~p: ~p", [Mod, Args]),
+%%   lager:notice("ARgs for ~p: ~p", [Mod, Args]),
    RowLength = length(Ins),
    Modules = case Func of undefined -> Mod; _ -> Func end,
    As1 = case As of undefined -> atom_to_binary(Mod, latin1); _ -> As end,
@@ -49,7 +49,7 @@ process(_Inport, #data_point{ts = Ts_Buffer} = Point,
    State#state{buffer = [{Ts_Buffer, flowdata:field(Point, F)}|State#state.buffer]};
 process(_Inport, #data_point{ts = Ts} = Point,
     State = #state{as = As, modules = Mod, module_state = MState, field = F}) ->
-   lager:info("~p buffertime: ~p", [?MODULE, State#state.buffer_time]),
+%%   lager:info("~p buffertime: ~p", [?MODULE, State#state.buffer_time]),
    NewState =
       case Ts > State#state.buffer_time of
          true ->
@@ -58,7 +58,7 @@ process(_Inport, #data_point{ts = Ts} = Point,
                false ->
                   TsVal = lists:unzip(State#state.buffer),
                   Result = call(TsVal, Mod, MState, As),
-                  lager:info("~p emitting: ~p", [Mod, Result]),
+%%                  lager:info("~p emitting: ~p", [Mod, Result]),
                   dataflow:emit(Result);
                true -> ok
             end,
@@ -66,7 +66,7 @@ process(_Inport, #data_point{ts = Ts} = Point,
             State#state{buffer = [{Ts, flowdata:field(Point, F)}], buffer_time = Ts};
          false -> lager:info("~p TS < BufferTime", [?MODULE]), State
       end,
-   lager:info("~p buffer: ~p", [?MODULE, NewState#state.buffer]),
+%%   lager:info("~p buffer: ~p", [?MODULE, NewState#state.buffer]),
    {ok, NewState}.
 
 handle_info(Request, State) ->
