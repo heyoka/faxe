@@ -32,6 +32,7 @@
    vhost,
    exchange,
    routing_key = false,
+   rk_lambda = undefined,
    ssl = false,
    opts,
    queue,
@@ -40,13 +41,13 @@
 }).
 
 options() -> [
-   {host, binary, {amqp, host}},
+   {host, string, {amqp, host}},
    {port, integer, {amqp, port}},
    {user, string, {amqp, user}},
    {pass, string, {amqp, pass}},
-   {vhost, binary, <<"/">>},
-   {routing_key, binary},
-   {exchange, binary},
+   {vhost, string, <<"/">>},
+   {routing_key, any},
+   {exchange, string},
    {ssl, bool, false}].
 
 metrics() ->
@@ -67,7 +68,12 @@ init({GraphId, NodeId} = Idx, _Ins,
    connection_registry:reg(Idx, Host, Port, <<"amqp">>),
    connection_registry:connecting(),
    State = start_connection(#state{opts = Opts, exchange = Ex, routing_key = RoutingKey, queue = Q}),
-   {ok, State#state{flowid_nodeid = Idx}}.
+   NewState =
+      case RoutingKey of
+         _ when is_binary(RoutingKey) -> State#state{routing_key = RoutingKey};
+         _ -> State#state{rk_lambda = RoutingKey}
+      end,
+   {ok, NewState#state{flowid_nodeid = Idx}}.
 
 process(_In, Item, State = #state{exchange = Exchange, routing_key = Key, queue = Q,
    flowid_nodeid = FNId, debug_mode = Debug}) ->
@@ -75,7 +81,7 @@ process(_In, Item, State = #state{exchange = Exchange, routing_key = Key, queue 
    Payload = flowdata:to_json(Item),
    node_metrics:metric(?METRIC_BYTES_SENT, byte_size(Payload), FNId),
    node_metrics:metric(?METRIC_ITEMS_OUT, 1, FNId),
-   ok = esq:enq({Exchange, Key, Payload, []}, Q),
+   ok = esq:enq({Exchange, key(Item, State), Payload, []}, Q),
    dataflow:maybe_debug(emit, 1, Item, FNId, Debug),
    {ok, State}.
 
@@ -119,4 +125,7 @@ build_config(_Opts = #{vhost := VHost, host := Host, port := Port, user := User,
    lager:info("giving bunny_esq_worker these Configs: ~p", [HostParams]),
    HostParams.
 
-
+key(#data_point{} = _P, # state{rk_lambda = undefined, routing_key = Topic}) ->
+   Topic;
+key(#data_point{} = P, #state{rk_lambda = Fun}) ->
+   faxe_lambda:execute(P, Fun).

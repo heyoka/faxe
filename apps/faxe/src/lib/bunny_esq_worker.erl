@@ -266,6 +266,7 @@ new_channel({ok, Connection}) ->
    configure_channel(amqp_connection:open_channel(Connection));
 
 new_channel(Error) ->
+   lager:warning("Error connecting to broker: ~p",[Error]),
    Error.
 
 configure_channel({ok, Channel}) ->
