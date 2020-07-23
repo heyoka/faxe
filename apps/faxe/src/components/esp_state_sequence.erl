@@ -64,7 +64,9 @@ process(_Inport, #data_point{} = Point, State = #state{current_index = Index, la
 
 handle_info(state_timeout, State = #state{}) ->
    lager:warning("state_timeout when index: ~p",[State#state.current_index]),
-   {ok, reset(State)}.
+   {ok, reset(State)};
+handle_info(_R, State) ->
+   {ok, State}.
 
 exec(Point, LFun) -> faxe_lambda:execute_bool(Point, LFun).
 

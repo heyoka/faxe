@@ -77,7 +77,9 @@ handle_info(timeout, State = #state{}) ->
 %%   lager:info("time is up"),
    dataflow:emit(build_message(State)),
    NewState = maybe_start_qtimer(State),
-   {ok, maybe_restart_timer(NewState)}.
+   {ok, maybe_restart_timer(NewState)};
+handle_info(_R, State) ->
+   {ok, State}.
 
 
 build_message(#state{repeat_last = true, last_point = P=#data_point{}}) ->

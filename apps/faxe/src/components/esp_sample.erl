@@ -57,7 +57,9 @@ process(_In, _Item, State) ->
    {ok, State}.
 
 handle_info(open_gate, State) ->
-   {ok, State#state{gate_open = true}}.
+   {ok, State#state{gate_open = true}};
+handle_info(_R, State) ->
+   {ok, State}.
 
 start_timer(#state{rate_interval = undefined}) ->
    ok;

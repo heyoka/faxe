@@ -132,7 +132,9 @@ handle_info({tick, Ts}, State = #state{buffer = Buffer, timers = TList}) ->
             NewDict;
       false -> Buffer
    end,
-   {ok, State#state{buffer = NewBuffer, timers = proplists:delete(Ts, TList)}}.
+   {ok, State#state{buffer = NewBuffer, timers = proplists:delete(Ts, TList)}};
+handle_info(_R, State) ->
+   {ok, State}.
 
 
 maybe_emit(NewRow, NewTs, State = #state{fill = none}) ->

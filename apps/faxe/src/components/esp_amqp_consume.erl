@@ -109,7 +109,9 @@ handle_info({'DOWN', _MonitorRef, process, Consumer, _Info}, #state{consumer = C
    {ok, start_consumer(State)};
 handle_info({'DOWN', _MonitorRef, process, Emitter, _Info}, #state{emitter = Emitter} = State) ->
    lager:notice("Q-Emitter ~p is 'DOWN'",[Emitter]),
-   {ok, start_emitter(State)}.
+   {ok, start_emitter(State)};
+handle_info(_R, State) ->
+   {ok, State}.
 
 shutdown(#state{consumer = C}) ->
    catch (rmq_consumer:stop(C)).

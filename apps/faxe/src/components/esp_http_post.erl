@@ -59,7 +59,9 @@ handle_info({'DOWN', _MonitorRef, _Type, Pid, _Info}, State = #state{client = Pi
    handle_info(start_client, State);
 handle_info(start_client, State) ->
    NewState = start_client(State),
-   {ok, NewState}.
+   {ok, NewState};
+handle_info(_R, State) ->
+   {ok, State}.
 
 shutdown(#state{client = C}) ->
    gun:close(C).
