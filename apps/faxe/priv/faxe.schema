@@ -13,3 +13,91 @@
 {mapping, "http_api_port", "faxe.http_api_port",
     [{default, 8081}, {datatype, integer}]
 }.
+
+%%-----------------------------------------------------------------
+%% PYTHON
+%%-----------------------------------------------------------------
+%% @doc python version
+{mapping, "python.version", "faxe.python.version",
+    [{default, "3"}, {datatype, string}]
+}.
+%% @doc path to custom python files
+{mapping, "python.script_path", "faxe.python.script_path",
+    [{default, "/home/heyoka/workspace/faxe/python/"}, {datatype, string}]
+}.
+
+%%-------------------------------------------------------------------
+%% ESQ
+%%-------------------------------------------------------------------
+%% @doc base directory for the persistent queue
+{mapping, "queue_base_dir", "faxe.esq.base_dir",
+    [{default, "/tmp/"}, {datatype, string}] %% out must be a binary
+}.
+
+%% @doc
+%%--------------------------------------------------------------------
+%% DEBUG, METRICS, CONNECTION STATUS
+%%--------------------------------------------------------------------
+%% @end
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%% METRICS ###############################
+%% Metrics handler MQTT
+%% @doc metrics handler mqtt host
+{mapping, "metrics.handler.mqtt.host", "faxe.metrics.handler.mqtt.host",
+    [{default, "example.com"}, {datatype, string}]
+}.
+%% @doc metrics handler mqtt port
+{mapping, "metrics.handler.mqtt.port", "faxe.metrics.handler.mqtt.port",
+    [{default, 1883}, {datatype, integer}]
+}.
+%% @doc metrics handler mqtt base topic
+{mapping, "metrics.handler.mqtt.base_topic", "faxe.metrics.handler.mqtt.base_topic",
+    [{default, "ttgw/sys/faxe"}, {datatype, string}]
+}.
+
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%% CONN_STATUS ###############################
+%% Conn_status handler MQTT
+%% @doc connection status handler mqtt host
+{mapping, "conn_status.handler.mqtt.host", "faxe.conn_status.handler.mqtt.host",
+    [{default, "example.com"}, {datatype, string}]
+}.
+%% @doc connection status handler mqtt port
+{mapping, "conn_status.handler.mqtt.port", "faxe.conn_status.handler.mqtt.port",
+    [{default, 1883}, {datatype, integer}]
+}.
+%% @doc connection status handler mqtt base topic
+{mapping, "conn_status.handler.mqtt.base_topic", "faxe.conn_status.handler.mqtt.base_topic",
+    [{default, "ttgw/sys/faxe"}, {datatype, string}]
+}.
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%% DEBUG_TRACE ###############################
+%% Debug trace handler MQTT
+%% @doc debug_trace handler mqtt host
+{mapping, "debug_trace.handler.mqtt.host", "faxe.debug_trace.handler.mqtt.host",
+    [{default, "example.com"}, {datatype, string}]
+}.
+%% @doc debug_trace handler mqtt port
+{mapping, "debug_trace.handler.mqtt.port", "faxe.debug_trace.handler.mqtt.port",
+    [{default, 1883}, {datatype, integer}]
+}.
+%% @doc debug_trace handler mqtt base topic
+{mapping, "debug_trace.handler.mqtt.base_topic", "faxe.debug_trace.handler.mqtt.base_topic",
+    [{default, "ttgw/sys/faxe"}, {datatype, string}]
+}.
+
+%% @doc time debug messages will be published to the configured endpoints
+{mapping, "debug.time", "faxe.debug_time",
+    [{default, 10000}, {datatype, integer}]
+}.
+
+%%-------------------------------------------------------------------------
+%% NODE DEFAULTS
+%%-------------------------------------------------------------------------
+%% @doc s7 connection pool min size
+{mapping, "s7pool.min_size", "faxe.s7pool_initial_size",
+    [{default, 2}, {datatype, integer}]
+}.
+%% @doc s7 connection pool max size
+{mapping, "s7pool.max_size", "faxe.s7pool_max_size",
+    [{default, 16}, {datatype, integer}]
+}.
