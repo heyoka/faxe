@@ -56,7 +56,7 @@ stop(Server) ->
 -spec init(list()) -> {ok, state()}.
 init([Queue, Config]) ->
    process_flag(trap_exit, true),
-   lager:debug("bunny_worker is starting"),
+   lager:info("bunny_worker is starting"),
    erlang:send_after(0, self(), connect),
    {ok, #state{queue = Queue, config = Config}}.
 
@@ -69,17 +69,23 @@ handle_cast(Msg, State) ->
 
 -spec handle_info(term(), state()) -> {noreply, state()}.
 handle_info(connect, State) ->
-   {Available, Channel, Conn} = check_for_channel(State),
-   NewState =
-   case Available of
-      true -> start_deq_timer(State);
-      false -> State
-   end,
-   {noreply, NewState#state{
-      channel = Channel,
-      available = Available,
-      connection = Conn
-   }};
+   NewState = start_connection(State),
+   case NewState#state.available of
+      true -> {noreply, start_deq_timer(NewState)};
+      false -> {noreply, NewState}
+   end;
+%%   {noreply, start_connection(State)};
+%%   {Available, Channel, Conn} = check_for_channel(State),
+%%   NewState =
+%%   case Available of
+%%      true -> start_deq_timer(State);
+%%      false -> State
+%%   end,
+%%   {noreply, NewState#state{
+%%      channel = Channel,
+%%      available = Available,
+%%      connection = Conn
+%%   }};
 
 handle_info({'EXIT', MQPid, Reason}, State=#state{channel = MQPid} ) ->
    lager:warning("MQ channel DIED: ~p", [Reason]),
@@ -187,7 +193,11 @@ next(#state{queue = Q} = State) ->
       end,
    start_deq_timer(NewState).
 
+deliver({_Exchange, _Key, _Payload, _Args}, _QReceipt, State = #state{available = false}) ->
+   lager:warning("channel is not availbale"),
+   State;
 deliver({Exchange, Key, Payload, Args}, QReceipt, State = #state{channel = Channel}) ->
+   lager:notice("Channel is: ~p",[Channel]),
    NextSeqNo = amqp_channel:next_publish_seqno(Channel),
 
    Publish = #'basic.publish'{mandatory = false, exchange = Exchange, routing_key = Key},
@@ -211,6 +221,34 @@ start_deq_timer(State = #state{}) ->
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %%% MQ Connection functions.
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+start_connection(State = #state{config = Config}) ->
+   Connection = amqp_connection:start(#amqp_params_network{
+      username = proplists:get_value(user, Config),
+      password = proplists:get_value(pass, Config),
+      virtual_host = proplists:get_value(vhost, Config),
+      port = proplists:get_value(port, Config),
+      host = proplists:get_value(host, Config),
+      heartbeat = proplists:get_value(heartbeat, Config, 80),
+      ssl_options = proplists:get_value(ssl_options, Config, none)
+   }),
+   NewState =
+   case Connection of
+      {ok, Conn} ->
+         Channel = new_channel(Connection),
+         case Channel of
+            {ok, Chan} ->
+               State#state{connection = Conn, channel = Chan, available = true};
+            Er ->
+               lager:warning("Error starting channel: ~p",[Er]),
+               erlang:send_after(100, self(), connect),
+               State#state{available = false}
+         end;
+      E ->
+         lager:warning("Error starting connection: ~p",[E]),
+         erlang:send_after(100, self(), connect),
+         State#state{available = false}
+   end,
+   NewState.
 
 check_for_channel(#state{} = State) ->
    Connect = fun() ->
@@ -259,6 +297,7 @@ connect(Config) ->
       heartbeat = GetWithDefault(heartbeat, 80),
       ssl_options = GetWithDefault(ssl_options, none)
    }),
+   lager:notice("amqp connection: ~p",[Connection]),
    {new_channel(Connection), Connection}.
 
 new_channel({ok, Connection}) ->
@@ -275,7 +314,7 @@ configure_channel({ok, Channel}) ->
    ok = amqp_channel:register_return_handler(Channel, self()),
 
    case amqp_channel:call(Channel, #'confirm.select'{}) of
-      {'confirm.select_ok'} -> {ok, Channel};
+      {'confirm.select_ok'} -> lager:notice("amqp channel is ok: ~p",[Channel]),{ok, Channel};
       Error -> lager:error("Could not configure channel: ~p", [Error]), Error
    end;
 

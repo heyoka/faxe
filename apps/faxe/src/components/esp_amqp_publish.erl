@@ -46,7 +46,8 @@ options() -> [
    {user, string, {amqp, user}},
    {pass, string, {amqp, pass}},
    {vhost, string, <<"/">>},
-   {routing_key, any},
+   {routing_key, string, undefined},
+   {routing_key_lambda, lambda, undefined},
    {exchange, string},
    {ssl, bool, false}].
 
@@ -57,7 +58,7 @@ metrics() ->
 
 init({GraphId, NodeId} = Idx, _Ins,
    #{ host := Host0, port := Port, user := _User, pass := _Pass, vhost := _VHost, exchange := Ex,
-      routing_key := RoutingKey, ssl := _UseSSL} = Opts0) ->
+      routing_key := RoutingKey, routing_key_lambda := RkLambda, ssl := _UseSSL} = Opts0) ->
 
    Host = binary_to_list(Host0),
    Opts = Opts0#{host => Host},
@@ -67,15 +68,16 @@ init({GraphId, NodeId} = Idx, _Ins,
    {ok, Q} = esq:new(QFile, [{tts, 300}, {capacity, 10}, {ttf, 20000}]),
    connection_registry:reg(Idx, Host, Port, <<"amqp">>),
    connection_registry:connecting(),
-   State = start_connection(#state{opts = Opts, exchange = Ex, routing_key = RoutingKey, queue = Q}),
-   NewState =
-      case RoutingKey of
-         _ when is_binary(RoutingKey) -> State#state{routing_key = RoutingKey};
-         _ -> State#state{rk_lambda = RoutingKey}
-      end,
-   {ok, NewState#state{flowid_nodeid = Idx}}.
+   State = start_connection(#state{opts = Opts, exchange = Ex, routing_key = RoutingKey, queue = Q,
+      rk_lambda = RkLambda}),
+%%   NewState =
+%%      case RoutingKey of
+%%         _ when is_binary(RoutingKey) -> State#state{routing_key = RoutingKey};
+%%         _ -> when is_function(), State#state{rk_lambda = RoutingKey}
+%%      end,
+   {ok, State#state{flowid_nodeid = Idx}}.
 
-process(_In, Item, State = #state{exchange = Exchange, routing_key = Key, queue = Q,
+process(_In, Item, State = #state{exchange = Exchange, queue = Q,
    flowid_nodeid = FNId, debug_mode = Debug}) ->
 
    Payload = flowdata:to_json(Item),
@@ -92,7 +94,7 @@ handle_info({publisher_ack, Ref}, State) ->
    {ok, State};
 handle_info({'DOWN', _MonitorRef, process, Client, _Info}, #state{client = Client} = State) ->
    connection_registry:disconnected(),
-   lager:notice("MQ-PubWorker ~p is 'DOWN'", [Client]),
+   lager:notice("MQ-PubWorker ~p is 'DOWN' Info:~p", [Client, _Info]),
    {ok, start_connection(State)}.
 
 shutdown(#state{client = C, queue = Q}) ->
@@ -115,6 +117,8 @@ build_config(_Opts = #{vhost := VHost, host := Host, port := Port, user := User,
    HostParams = %% connection parameters
    [
       {hosts, [ {Host, Port} ]},
+      {host, Host},
+      {port, Port},
       {user, User},
       {pass, Pass},
       {reconnect_timeout, 2000},
