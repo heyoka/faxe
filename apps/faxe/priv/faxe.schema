@@ -1,0 +1,15 @@
+%%--------------------------------------------------------------
+%% DFS
+%%--------------------------------------------------------------
+%% @doc path to folder where dfs scripts are
+{mapping, "dfs.script_path", "faxe.dfs.script_path",
+    [{default, "./dfs"}, {datatype, string}, {commented, "./dfs"}]
+}.
+
+%%----------------------------------------------------------------
+%% REST API
+%%----------------------------------------------------------------
+%% @doc http port for rest api endpoint
+{mapping, "http_api_port", "faxe.http_api_port",
+    [{default, 8081}, {datatype, integer}]
+}.

@@ -6,6 +6,7 @@
   {applications,
    [kernel,
     stdlib,
+    cuttlefish,
     inets,
     xmerl,
     mnesia,
