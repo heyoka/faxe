@@ -107,6 +107,19 @@
   {default, "faxe_erlang_cookie"}
 ]}.
 
+%% @doc Base directory for mnesia files
+{mapping, "mnesia_dir", "vm_args.-mnesia dir", [
+  {default, "/data"}
+]}.
+
+{translation, "vm_args.-mnesia dir",
+    fun(Conf) ->
+        Val = cuttlefish:conf_get("mnesia_dir", Conf),
+        %% will wrap the value
+        "'\"" ++ Val ++ "\"'"
+    end
+}.
+
 %% @doc Sets the number of threads in async thread pool, valid range
 %% is 0-1024. If thread support is available, the default is 64.
 %%

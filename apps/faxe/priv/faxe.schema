@@ -1,45 +1,52 @@
-%%--------------------------------------------------------------
+%% @doc --------------------------------------------------------------
 %% DFS
 %%--------------------------------------------------------------
-%% @doc path to folder where dfs scripts are
+
+%% path to folder where dfs scripts are
 {mapping, "dfs.script_path", "faxe.dfs.script_path",
     [{default, "./dfs"}, {datatype, string}, {commented, "./dfs"}]
 }.
 
-%%----------------------------------------------------------------
+%% @doc ----------------------------------------------------------------
 %% REST API
 %%----------------------------------------------------------------
-%% @doc http port for rest api endpoint
+
+%% http port for rest api endpoint
 {mapping, "http_api_port", "faxe.http_api_port",
     [{default, 8081}, {datatype, integer}]
 }.
 
-%%-----------------------------------------------------------------
+%% @doc -----------------------------------------------------------------
 %% PYTHON
 %%-----------------------------------------------------------------
-%% @doc python version
+
+%% python version
 {mapping, "python.version", "faxe.python.version",
-    [{default, "3"}, {datatype, string}]
+    [{default, "3"}, {datatype, string}, {commented, "3"}]
 }.
 %% @doc path to custom python files
 {mapping, "python.script_path", "faxe.python.script_path",
-    [{default, "/home/heyoka/workspace/faxe/python/"}, {datatype, string}]
+    [{default, "/path/to/python/"}, {datatype, string}]
 }.
 
-%%-------------------------------------------------------------------
+%% @doc -------------------------------------------------------------------
 %% ESQ
 %%-------------------------------------------------------------------
-%% @doc base directory for the persistent queue
+
+%% base directory for persistent queues
 {mapping, "queue_base_dir", "faxe.esq.base_dir",
     [{default, "/tmp/"}, {datatype, string}] %% out must be a binary
 }.
 
 %% @doc
 %%--------------------------------------------------------------------
-%% DEBUG, METRICS, CONNECTION STATUS
+%% DEBUG, LOGS, METRICS, CONNECTION STATUS
 %%--------------------------------------------------------------------
-%% @end
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%% METRICS ###############################
+%%
+%%
+%% ----------------------- METRICS ------------------------------
+%%
+%%
 %% Metrics handler MQTT
 %% @doc metrics handler mqtt host
 {mapping, "metrics.handler.mqtt.host", "faxe.metrics.handler.mqtt.host",
@@ -55,9 +62,12 @@
 }.
 
 
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%% CONN_STATUS ###############################
+%% @doc ----------------------- CONNECTION STATUS ------------------------
+%%
+%%
+
 %% Conn_status handler MQTT
-%% @doc connection status handler mqtt host
+%% connection status handler mqtt host
 {mapping, "conn_status.handler.mqtt.host", "faxe.conn_status.handler.mqtt.host",
     [{default, "example.com"}, {datatype, string}]
 }.
@@ -70,7 +80,9 @@
     [{default, "ttgw/sys/faxe"}, {datatype, string}]
 }.
 
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%% DEBUG_TRACE ###############################
+%% @doc ----------------------- DEBUG AND TRACE --------------------------
+%%
+%%
 %% Debug trace handler MQTT
 %% @doc debug_trace handler mqtt host
 {mapping, "debug_trace.handler.mqtt.host", "faxe.debug_trace.handler.mqtt.host",
@@ -87,17 +99,212 @@
 
 %% @doc time debug messages will be published to the configured endpoints
 {mapping, "debug.time", "faxe.debug_time",
-    [{default, 10000}, {datatype, integer}]
+    [{default, "10s"}, {datatype, {duration, ms}}]
 }.
 
+%% @doc -------------------------------------------------------------------------
+%% S7 DEFAULTS
 %%-------------------------------------------------------------------------
-%% NODE DEFAULTS
-%%-------------------------------------------------------------------------
-%% @doc s7 connection pool min size
+%%
+%%
+%% s7 connection pool min size
 {mapping, "s7pool.min_size", "faxe.s7pool_initial_size",
     [{default, 2}, {datatype, integer}]
 }.
 %% @doc s7 connection pool max size
 {mapping, "s7pool.max_size", "faxe.s7pool_max_size",
     [{default, 16}, {datatype, integer}]
+}.
+
+%% @doc ----------------------------------------------------------------------------
+%% EMAIL defaults
+%% ----------------------------------------------------------------------------
+%%
+%%
+%% email from address
+{mapping, "email.from", "faxe.email.from_address",
+    [{default, "noreply@example.com"}, {datatype, string}]
+}.
+%% @doc email smtp relay
+{mapping, "email.smtp", "faxe.email.smtp_relay",
+    [{default, "smtp.example.com"}, {datatype, string}]
+}.
+%% @doc email smtp user
+{mapping, "email.user", "faxe.email.smtp_user",
+    [{default, ""}, {datatype, string}, {commented, "username"}]
+}.
+%% @doc email smtp pass
+{mapping, "email.pass", "faxe.email.smtp_pass",
+    [{default, ""}, {datatype, string}, {commented, "password"}]
+}.
+%% @doc email html template
+{mapping, "email.template", "faxe.email.template",
+    [{default, "/home/user/template.html"}, {datatype, string}]
+}.
+
+%% @doc -------------------------------------------------------------------------------
+%% MQTT defaults
+%% -------------------------------------------------------------------------------
+
+%% mqtt host
+{mapping, "mqtt.host", "faxe.mqtt.host",
+    [{default, "mqtt.example.com"}, {datatype, string}]
+}.
+%% @doc mqtt port
+{mapping, "mqtt.port", "faxe.mqtt.port",
+    [{default, 1883}, {datatype, integer}]
+}.
+%% @doc mqtt user
+{mapping, "mqtt.user", "faxe.mqtt.user",
+    [{default, ""}, {datatype, string}, {commented, "username"}]
+}.
+%% @doc mqtt pass
+{mapping, "mqtt.pass", "faxe.mqtt.pass",
+    [{default, ""}, {datatype, string}, {commented, "password"}]
+}.
+%% @doc mqtt ssl
+%% enable the use of ssl for mqtt connections
+{mapping, "mqtt.ssl.enable", "faxe.mqtt.ssl.enable",
+    [{default, off}, {datatype, flag}, {commented, off}]
+}.
+%% @doc mqtt ssl certificate
+{mapping, "mqtt.ssl.certfile", "faxe.mqtt.ssl.certfile",
+    [{default, ""}, {datatype, string}, {commented, "/path/to/certfile.pem"}]
+}.
+%% @doc mqtt ssl ca certificate
+{mapping, "mqtt.ssl.cacertfile", "faxe.mqtt.ssl.cacertfile",
+    [{default, ""}, {datatype, string}, {commented, "/path/to/cacertfile.pem"}]
+}.
+%% @doc mqtt ssl key file
+{mapping, "mqtt.ssl.keyfile", "faxe.mqtt.ssl.keyfile",
+    [{default, ""}, {datatype, string}, {commented, "/path/to/cert.key"}]
+}.
+
+
+%% @doc -------------------------------------------------------------------------------
+%% AMQP defaults
+%% -------------------------------------------------------------------------------
+
+%% amqp host
+{mapping, "amqp.host", "faxe.amqp.host",
+    [{default, "amqp.example.com"}, {datatype, string}]
+}.
+%% @doc amqp port
+{mapping, "amqp.port", "faxe.amqp.port",
+    [{default, 5672}, {datatype, integer}]
+}.
+%% @doc amqp user
+{mapping, "amqp.user", "faxe.amqp.user",
+    [{default, ""}, {datatype, string}, {commented, "username"}]
+}.
+%% @doc amqp pass
+{mapping, "amqp.pass", "faxe.amqp.pass",
+    [{default, ""}, {datatype, string}, {commented, "password"}]
+}.
+%% @doc amqp ssl
+%% enable the use of ssl for mqtt connections
+{mapping, "amqp.ssl.enable", "faxe.amqp.ssl.enable",
+    [{default, off}, {datatype, flag}, {commented, off}]
+}.
+%% @doc amqp ssl certificate
+{mapping, "amqp.ssl.certfile", "faxe.amqp.ssl.certfile",
+    [{default, ""}, {datatype, string}, {commented, "/path/to/certfile.pem"}]
+}.
+%% @doc amqp ssl ca certificate
+{mapping, "amqp.ssl.cacertfile", "faxe.amqp.ssl.cacertfile",
+    [{default, ""}, {datatype, string}, {commented, "/path/to/cacertfile.pem"}]
+}.
+%% @doc amqp ssl key file
+{mapping, "amqp.ssl.keyfile", "faxe.amqp.ssl.keyfile",
+    [{default, ""}, {datatype, string}, {commented, "/path/to/cert.key"}]
+}.
+
+%% @doc -------------------------------------------------------------------------------
+%% RabbitMQ defaults
+%% -------------------------------------------------------------------------------
+
+%% rabbitmq default exchange
+%% the amqp_publish node will use this exchange as default
+{mapping, "rabbitmq.root_exchange", "faxe.rabbitmq.root_exchange",
+    [{default, "x_root"}, {datatype, string}]
+}.
+
+%% @doc -------------------------------------------------------------------------------
+%% CrateDB defaults (postgreSQL connect)
+%% -------------------------------------------------------------------------------
+
+%% CrateDB host
+{mapping, "crate.host", "faxe.crate.host",
+    [{default, "crate.example.com"}, {datatype, string}]
+}.
+
+%% @doc CrateDB port
+{mapping, "crate.port", "faxe.crate.port",
+    [{default, 5432}, {datatype, integer}]
+}.
+
+%% @doc CrateDB user
+{mapping, "crate.user", "faxe.crate.user",
+    [{default, "crate"}, {datatype, string}]
+}.
+
+%% @doc CrateDB database
+{mapping, "crate.database", "faxe.crate.database",
+    [{default, "doc"}, {datatype, string}]
+}.
+
+%% @doc -------------------------------------------------------------------------------
+%% CrateDB defaults (http api)
+%% -------------------------------------------------------------------------------
+
+%% CrateDB host
+{mapping, "crate_http.host", "faxe.crate_http.host",
+    [{default, "crate.example.com"}, {datatype, string}]
+}.
+
+%% @doc CrateDB port
+{mapping, "crate_http.port", "faxe.crate_http.port",
+    [{default, 4200}, {datatype, integer}]
+}.
+
+%% @doc CrateDB user
+{mapping, "crate_http.user", "faxe.crate_http.user",
+    [{default, "crate"}, {datatype, string}]
+}.
+
+%% @doc CrateDB database
+{mapping, "crate_http.database", "faxe.crate_http.database",
+    [{default, "doc"}, {datatype, string}]
+}.
+
+%% @doc -------------------------------------------------------------------------------
+%% VM stats, statistics about the erlang VM (hidden)
+%% -------------------------------------------------------------------------------
+
+%% Sink
+{mapping, "vmstats.sink", "vmstats.sink",
+    [{default, "faxe_vmstats"}, {datatype, atom}, hidden]
+}.
+
+%% Interval at which vm stats are exposed
+{mapping, "vmstats.interval", "vmstats.interval",
+    [{default, "3s"}, {datatype, {duration, ms}}, hidden]
+}.
+
+%% Scheduler time
+{mapping, "vmstats.sched_time", "vmstats.sched_time",
+    [{default, off}, {datatype, flag}, hidden]
+}.
+
+%% @doc -------------------------------------------------------------------------------
+%% Logging
+%% -------------------------------------------------------------------------------
+%% Lager colored
+{mapping, "lager.colored", "lager.colored",
+    [{default, true}, {datatype, {enum, [true, false]}}]
+}.
+
+%% error_logger_redirect
+{mapping, "lager.error_logger_redirect", "lager.error_logger_redirect",
+    [{default, true}, {datatype, {enum, [true, false]}}]
 }.
