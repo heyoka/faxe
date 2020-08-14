@@ -11,7 +11,7 @@ log
 erl_crash.dump
 .rebar
 logs
-_build/
+/_build/*
 .idea
 apps/faxe/test/
 dfs/
