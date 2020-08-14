@@ -109,7 +109,7 @@
 
 %% @doc Base directory for mnesia files
 {mapping, "mnesia_dir", "vm_args.-mnesia dir", [
-  {default, "/data"}
+  {default, "./mnesia_data"}
 ]}.
 
 {translation, "vm_args.-mnesia dir",
