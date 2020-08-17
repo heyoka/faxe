@@ -16,7 +16,10 @@
    uuid_string/0, round_float/2,
    prefix_binary/2,
    host_with_protocol/1, host_with_protocol/2
-   , decimal_part/2, check_select_statement/1, clean_query/1, stringize_lambda/1, bytes_from_words/1, local_ip_v4/0, ip_to_bin/1]).
+   , decimal_part/2, check_select_statement/1,
+   clean_query/1, stringize_lambda/1,
+   bytes_from_words/1, local_ip_v4/0,
+   ip_to_bin/1, device_name/0]).
 
 -define(HTTP_PROTOCOL, <<"http://">>).
 
@@ -101,9 +104,24 @@ local_ip_v4() ->
 ip_to_bin({_A, _B, _C, _D} = Ip) ->
    list_to_binary(inet:ntoa(Ip)).
 
+%% @doc try to get a unique name for the device we are running on
+-spec device_name() -> binary().
+device_name() ->
+   %% first attempt is to try to get BALENA_DEVICE_UUID, should be set if we are running on balena
+   case os:getenv(?KEY_BALENA_DEVICE_UUID) of
+      false ->
+         %% so we are not running on balena, then we use our local ip address
+         Ip0 = ip_to_bin(local_ip_v4()),
+         binary:replace(Ip0, <<".">>, <<"_">>, [global]);
+      DeviceId ->
+         list_to_binary(DeviceId)
+   end,
+
+
+
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%% TESTS %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
--ifdef(TEST).
+-ifdef(?TEST).
 decimal_part_test() ->
    ?assertEqual(
      232,

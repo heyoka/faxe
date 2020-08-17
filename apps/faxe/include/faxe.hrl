@@ -8,6 +8,7 @@
 -include("timeformats.hrl").
 -include("faxe_metrics.hrl").
 
+-define(KEY_BALENA_DEVICE_UUID, "BALENA_DEVICE_UUID").
 
 -record(faxe_timer, {
    last_time = 0 :: non_neg_integer(),
