@@ -65,13 +65,13 @@ maybe_compile({DFSString, ParserResult}) ->
    case ParserResult of
       {{_Where, line, _LN}, {Keyword, MsgList}} = _M ->
          {error, iolist_to_binary(
-            [atom_to_binary(_Where), <<" on line ">>,
+            [faxe_dfs:atom_to_binary(_Where), <<" on line ">>,
                integer_to_binary(_LN), <<": ">>,
-               atom_to_binary(Keyword), <<" ">>, list_to_binary(MsgList)])
+               faxe_dfs:atom_to_binary(Keyword), <<" ">>, list_to_binary(MsgList)])
          };
       {{_Where, line, _LN}, _Message} = _M ->
          {error, iolist_to_binary(
-            [atom_to_binary(_Where), <<" on line ">>,
+            [faxe_dfs:atom_to_binary(_Where), <<" on line ">>,
                integer_to_binary(_LN), <<": ">>, list_to_binary(_Message)])
          };
       {_Nodes, _Connections} -> {list_to_binary(DFSString), compile(ParserResult)};
@@ -268,8 +268,8 @@ convert_options(NodeName, NodeOptions, Params) ->
 %%   lager:warning("convert options: ~p~n~p", [NodeOptions, Params]),
    Opts = lists:foldl(
       fun
-         ({Name, Type, _Def}, O) -> [{atom_to_binary(Name), {Name, Type}}|O];
-         ({Name, Type}, O)       -> [{atom_to_binary(Name), {Name, Type}}|O];
+         ({Name, Type, _Def}, O) -> [{faxe_dfs:atom_to_binary(Name), {Name, Type}}|O];
+         ({Name, Type}, O)       -> [{faxe_dfs:atom_to_binary(Name), {Name, Type}}|O];
          %% ignore port connectors
          (_, O)                  -> O
       end,
@@ -305,7 +305,7 @@ convert_options(NodeName, NodeOptions, Params) ->
 
 convert(Name, Type, PVals) ->
 %%   lager:notice("convert(~p,~p,~p)",[Name, Type, PVals]),
-   TName = atom_to_binary(Type),
+   TName = faxe_dfs:atom_to_binary(Type),
    case estr:str_ends_with(TName, <<"list">>) of
       true -> {Name, list_params(Type, PVals)};
       false -> case length(PVals) of
@@ -356,8 +356,8 @@ list_param(_Type, Val) ->
    cparam(any, Val).
 
 cparam(is_set, _) -> true;
-cparam(atom, {identifier, Val}) -> binary_to_atom(Val);
-cparam(bool, {identifier, Val}) -> binary_to_atom(Val);
+cparam(atom, {identifier, Val}) -> faxe_dfs:binary_to_atom(Val);
+cparam(bool, {identifier, Val}) -> faxe_dfs:binary_to_atom(Val);
 cparam(binary, {string, Val}) -> Val;
 cparam(lambda, {lambda, Fun, BinRefs, FunRefs}) -> make_lambda_fun(Fun, FunRefs, BinRefs);
 cparam(lambda, Fun) -> Fun;
