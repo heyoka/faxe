@@ -12,12 +12,14 @@
 
 -define(PRIV_DIR, code:priv_dir(faxe)).
 -define(COMPILE_OPTS, [{out_dir, ?PRIV_DIR ++ "/templates/"}]).
+-define(APP, faxe).
 
 %%====================================================================
 %% API
 %%====================================================================
 
 start(_StartType, _StartArgs) ->
+   print_banner(),
    %% Mnesia
    faxe_db:create(),
    %% COWBOY
@@ -34,11 +36,26 @@ start(_StartType, _StartArgs) ->
    install_metrics_handler(),
    install_conn_status_handler(),
    install_debug_handler(),
+   print_vsn(),
    Res.
 
 %%--------------------------------------------------------------------
 stop(_State) ->
    ok.
+
+
+%%--------------------------------------------------------------------
+%% Print Banner
+%%--------------------------------------------------------------------
+
+print_banner() ->
+   io:format("Starting ~s on node ~s~n", [?APP, node()]).
+
+print_vsn() ->
+%%   {ok, Descr} = application:get_key(description),
+   {ok, Vsn} = application:get_key(vsn),
+   io:format("~s ~s is running now!~n", [?APP, Vsn]).
+
 
 %%====================================================================
 %% Internal functions
