@@ -111,17 +111,19 @@ device_name() ->
    case os:getenv(?KEY_BALENA_DEVICE_UUID) of
       false ->
          %% so we are not running on balena, then we use our local ip address
+         %% @todo set env var for kubernetes
          Ip0 = ip_to_bin(local_ip_v4()),
          binary:replace(Ip0, <<".">>, <<"_">>, [global]);
       DeviceId ->
          list_to_binary(DeviceId)
-   end,
+   end.
 
 
 
 
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%% TESTS %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
--ifdef(?TEST).
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%% TESTS %%%%%%%%%
+-ifdef(TEST).
+
 decimal_part_test() ->
    ?assertEqual(
      232,
