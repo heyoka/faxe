@@ -80,13 +80,14 @@ maybe_compile({DFSString, ParserResult}) ->
 
 -spec compile({list(), list()}) -> {error, term()} | map().
 compile(D) ->
+   lager:notice("dfs compile: ~p", [D]),
    try eval(D) of
       GraphDef when is_map(GraphDef) ->
          GraphDef;
       Err -> {error, Err}
    catch
       _:Err ->
-%%         lager:error("error evaluating dfs result: ~p",[_Stack]),
+         lager:error("error evaluating dfs result: ~p",[Err]),
          {error, Err}
    end.
 
@@ -99,45 +100,24 @@ eval({Nodes, Connections}) ->
    {NewDef, NewConnections} =
       lists:foldl(
          fun({{NodeName, _Id} = N, Params, Options}, {Def0, Conns}) ->
-            {Component, NOpts} =
-            case NodeName of
-               << ?USER_NODE_PREFIX, Callback/binary>> ->
-                  Class = string:titlecase(Callback),
-                  {?USER_COMPONENT,
-                     [
-                        {?USER_COMPONENT_MODULE, atom, list_to_atom(binary_to_list(Callback))},
-                        {?USER_COMPONENT_CLASS, atom, list_to_atom(binary_to_list(Class))}
-                     ]
-                  };
-               _ ->
-                  {node_name(NodeName), []}
-            end,
-
+            {Component, NOpts} = component(NodeName),
             %% build additional connections from node-options
             {NewConns, ParamOptions} = node_conn_params(N, Params),
-
-            CompOptions0 =
-            case Component of
-               ?USER_COMPONENT -> case erlang:function_exported(?USER_COMPONENT, call_options, 2) of
-                              true ->
-                                 {_, atom, Callb} = lists:keyfind(?USER_COMPONENT_MODULE, 1, NOpts),
-                                 {_, atom, ClassName} = lists:keyfind(?USER_COMPONENT_CLASS, 1, NOpts),
-                                 ?USER_COMPONENT:call_options(Callb, ClassName);
-                              false -> []
-                           end;
-               _        ->  case erlang:function_exported(Component, options, 0) of
-                               true -> Component:options();
-                               false -> throw("Component '" ++ binary_to_list(NodeName) ++ ":options' not found")
-                            end
-            end,
+            lager:info("~nafter node_conn_params: ~p",[ParamOptions]),
+            %% get component options
+            CompOptions0 = component_options(Component, NOpts, NodeName),
+            lager:info("~nafter component_options: ~p",[CompOptions0]),
+            %% set default from config
             CompOptions = eval_options(CompOptions0, []),
-            %% handle all other params and options
+            lager:info("~nafter eval_options: ~p",[CompOptions]),
+            %% convert and assimilate options
             {NName, _Id} = N,
             NOptions = convert_options(NName, CompOptions, lists:flatten(Options ++ ParamOptions)),
+            lager:warning("here after convert_options"),
             NodeOptions = NOptions ++ NOpts,
 %%            lager:notice("~n~p wants options : ~p~n has options: ~p~n~n NodeParameters: ~p",
 %%               [Component, CompOptions, Options ++ ParamOptions, NodeOptions]),
-
+            %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
             %% check options with the components option definition
             %% any errors raised here, would be caught in the surrounding call
             FinalOpts = dataflow:build_options(Component, NodeOptions, CompOptions++NOpts),
@@ -165,6 +145,32 @@ eval({Nodes, Connections}) ->
       NewDef,
       Connections ++ NewConnections
    ).
+
+component(<< ?USER_NODE_PREFIX, Callback/binary>>) ->
+   Class = string:titlecase(Callback),
+   {?USER_COMPONENT,
+      [
+         {?USER_COMPONENT_MODULE, atom, list_to_atom(binary_to_list(Callback))},
+         {?USER_COMPONENT_CLASS, atom, list_to_atom(binary_to_list(Class))}
+      ]
+   };
+component(NodeName) ->
+   {node_name(NodeName), []}.
+
+component_options(?USER_COMPONENT, NOpts, _N) ->
+   case erlang:function_exported(?USER_COMPONENT, call_options, 2) of
+      true ->
+         {_, atom, Callb} = lists:keyfind(?USER_COMPONENT_MODULE, 1, NOpts),
+         {_, atom, ClassName} = lists:keyfind(?USER_COMPONENT_CLASS, 1, NOpts),
+         ?USER_COMPONENT:call_options(Callb, ClassName);
+      false -> []
+   end;
+component_options(Component, _NOpts, NodeName) ->
+   case erlang:function_exported(Component, options, 0) of
+      true -> Component:options();
+      false -> throw("Component '" ++ binary_to_list(NodeName) ++ ":options' not found")
+   end.
+
 
 %% evaluate default config options
 eval_options([], Acc) ->
@@ -265,23 +271,25 @@ node_conn_params({NodeName, _Id}=N, NodeParams) ->
 
 -spec convert_options(binary(), list(), list()) -> list({binary(),list()}).
 convert_options(NodeName, NodeOptions, Params) ->
-%%   lager:warning("convert options: ~p~n~p", [NodeOptions, Params]),
+   lager:warning("convert options: ~p~n~p", [NodeOptions, Params]),
    Opts = lists:foldl(
       fun
-         ({Name, Type, _Def}, O) -> [{faxe_dfs:atom_to_binary(Name), {Name, Type}}|O];
-         ({Name, Type}, O)       -> [{faxe_dfs:atom_to_binary(Name), {Name, Type}}|O];
+         ({Name, Type, _Def}, O) -> [{erlang:atom_to_binary(Name, utf8), {Name, Type}}|O];
+         ({Name, Type}, O)       -> [{erlang:atom_to_binary(Name, utf8), {Name, Type}}|O];
          %% ignore port connectors
          (_, O)                  -> O
       end,
       [],
       NodeOptions
    ),
+   lager:warning("~nafter Opts are: ~p",[Opts]),
    lists:foldl(
       fun
          ({PName, PVals}, Acc) ->
 %%            lager:warning("~p :: ~p~n",[PName, proplists:get_value(PName, Opts)]),
          case proplists:get_value(PName, Opts) of
             undefined -> %% unspecified option
+               lager:error("Unknown param ", [binary_to_list(PName)]),
                throw("Unknown param '" ++ binary_to_list(PName)
                   ++"' for node '" ++ binary_to_list(NodeName) ++ "'" );
             {Name, param_list = Type} ->
@@ -290,7 +298,8 @@ convert_options(NodeName, NodeOptions, Params) ->
                Zipped = lists:zip(POpts, PVals),
                C = [convert(N, T, [PV]) || {{N, T}, PV} <- Zipped],
                [{Name, C} | Acc];
-            {_Name, _Type} when PVals == {list, []} ->
+            {Name, Type} when PVals == {list, []} ->
+%%               lager:info("~nconvert_list(~p, ~p, ~p)",[Name, Type, PVals]),
                Acc;
             {Name, Type} ->
 %%               lager:info("~nconvert(~p, ~p, ~p)",[Name, Type, PVals]),
@@ -304,8 +313,8 @@ convert_options(NodeName, NodeOptions, Params) ->
    ).
 
 convert(Name, Type, PVals) ->
-%%   lager:notice("convert(~p,~p,~p)",[Name, Type, PVals]),
-   TName = faxe_dfs:atom_to_binary(Type),
+   lager:notice("convert(~p,~p,~p)",[Name, Type, PVals]),
+   TName = erlang:atom_to_binary(Type, utf8),
    case estr:str_ends_with(TName, <<"list">>) of
       true -> {Name, list_params(Type, PVals)};
       false -> case length(PVals) of
@@ -419,7 +428,7 @@ node_name(Name) when is_binary(Name) ->
    .
 
 atom_to_binary(V) ->
-   list_to_binary(atom_to_list(V)).
+   erlang:atom_to_binary(V, utf8).
 
 stat_node(<<"avg">>) -> esp_avg;
 stat_node(<<"bottom">>) -> esp_bottom;

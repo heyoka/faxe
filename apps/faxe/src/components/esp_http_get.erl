@@ -1,17 +1,16 @@
-%% Date: 30.12.16 - 23:01
-%% HTTP Post Request
-%% Ⓒ 2019 heyoka
 %%
-%% @todo retry on error
+%% HTTP GET Request
+%% Ⓒ 2020 heyoka
 %%
--module(esp_http_post).
+%%
+-module(esp_http_get).
 -author("Alexander Minichmair").
 
 -include("faxe.hrl").
 
 -behavior(df_component).
 %% API
--export([init/3, process/3, options/0, handle_info/2, shutdown/1, metrics/0]).
+-export([init/3, process/3, options/0, handle_info/2, shutdown/1, metrics/0, check_options/0]).
 
 -define(FAILED_RETRIES, 3).
 
@@ -19,6 +18,7 @@
    host :: string(),
    port :: non_neg_integer(),
    path :: string(),
+   uri_params :: map(),
    client,
    failed_retries,
    tries,
@@ -31,7 +31,15 @@ options() ->
       {host, string},
       {port, integer},
       {path, string, <<"/">>},
+      {param_keys, string_list, []},
+      {param_values, string_list, []},
+      {every, duration, undefined},
       {tls, is_set, false}
+   ].
+
+check_options() ->
+   [
+      {same_length, [param_keys, param_values]}
    ].
 
 metrics() ->
@@ -39,18 +47,24 @@ metrics() ->
       {?METRIC_BYTES_SENT, meter, []}
    ].
 
-init(NodeId, _Inputs, #{host := Host0, port := Port, path := Path, tls := Tls}) ->
+init(NodeId, _Inputs, Opts =
+    #{host := Host0, port := Port, path := Path, tls := Tls, param_keys := _Keys, param_values := _Vals}) ->
+   lager:notice("OPTS: ~p",[Opts]),
    Host = binary_to_list(Host0),
    connection_registry:reg(NodeId, Host, Port, <<"http">>),
    erlang:send_after(0, self(), start_client),
    {ok, all,
-      #state{host = Host, port = Port, path = Path, tls = Tls, failed_retries = ?FAILED_RETRIES, fn_id = NodeId}}.
+      #state{
+         host = Host, port = Port,
+         path = Path, tls = Tls,
+         failed_retries = ?FAILED_RETRIES,
+         fn_id = NodeId}}.
 
 process(_In, P = #data_point{}, State = #state{}) ->
-   send(P, State),
+   _Res = request(State),
    {ok, State};
 process(_In, B = #data_batch{}, State = #state{}) ->
-   send(B, State),
+   _Res = request(State),
    {ok, State}.
 
 handle_info({'DOWN', _MonitorRef, _Type, Pid, _Info}, State = #state{client = Pid}) ->
@@ -65,6 +79,21 @@ handle_info(_R, State) ->
 
 shutdown(#state{client = C}) ->
    gun:close(C).
+
+request(_State = #state{client = Client, path = Path}) ->
+%%   Headers = [{<<"Accept">>, <<"application/json">>}, {<<"Cache-Control">>, {<<"max-age=0">>}}],
+   %Headers = [{<<"Authorization">>, <<"Basic ">>}],
+   StreamRef = gun:get(Client, Path, []),
+   case gun:await(Client, StreamRef) of
+      {response, fin, Status, Headers} ->
+         lager:notice("Response Status: ~p",[Status]),
+         no_data;
+      {response, nofin, Status, Headers} ->
+         {ok, Body} = gun:await_body(Client, StreamRef),
+         io:format("~s~n", [Body]),
+         Body
+   end.
+
 
 send(Item, State = #state{}) ->
    M = flowdata:to_mapstruct(Item),
@@ -91,8 +120,9 @@ do_send(Body, Headers, Retries, S = #state{client = Client, path = Path, fn_id =
    end.
 
 start_client(State = #state{host = Host, port = Port, tls = Tls}) ->
+   lager:info("start client: ~n~p",[State]),
    connection_registry:connecting(),
-   Opts = #{connect_timeout => 5000},
+   Opts = #{connect_timeout => 3000},
    Options =
    case Tls of
       true -> Opts#{transport => tls};

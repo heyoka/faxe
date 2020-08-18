@@ -1,0 +1,10 @@
+|value_emitter()
+.every(5s)
+
+|http_get()
+.host('localhost')
+.port(8081)
+.every(5s)
+.path('/v1/stats')
+
+|debug()
