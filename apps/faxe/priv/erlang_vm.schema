@@ -203,7 +203,7 @@
 
 %% @doc Set the location of crash dumps
 {mapping, "erlang.crash_dump", "vm_args.-env ERL_CRASH_DUMP", [
-  {default, "crash.dump"},
+  {default, "log/crash.dump"},
   {datatype, file},
   hidden
 ]}.

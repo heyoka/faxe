@@ -2,7 +2,7 @@
 %% DFS
 %%--------------------------------------------------------------
 
-%% path to folder where dfs scripts are
+%% path to folder where dfs scripts live
 {mapping, "dfs.script_path", "faxe.dfs.script_path",
     [{default, "./dfs"}, {datatype, string}, {commented, "./dfs"}]
 }.
