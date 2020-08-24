@@ -97,7 +97,7 @@
 %%%% Tunables
 %% @doc Name of the Erlang node
 {mapping, "nodename", "vm_args.-sname", [
-  {default, "faxe"}
+  {default, "{{nodename}}" }
 ]}.
 
 %% @doc Cookie for distributed node communication.  All nodes in the
