@@ -1,0 +1,46 @@
+### Build stage 0
+FROM erlang:22.3.4.2 as erlang
+
+# Set working directory
+RUN mkdir -p /buildroot/rebar3/bin
+WORKDIR /buildroot
+
+# Copy faxe application
+COPY ./ faxe
+
+WORKDIR faxe
+
+# need git
+RUN apt-get update && apt-get install git
+
+# And build the release
+RUN rebar3 as prod release
+
+### Build stage 1
+FROM erlang:22.3.4.2-slim
+
+# Install some libs
+RUN apt-get update && apt-get install openssl
+
+ENV RELX_REPLACE_OS_VARS true
+
+# Install the released application
+COPY --from=erlang /buildroot/faxe/_build/prod/rel/faxe /faxe
+# cleanup
+RUN rm -rf /buildroot
+
+#RUN chown -R 1001:0 /faxe && \
+#	chmod -R g=u /faxe
+
+#USER 1001
+
+# Expose relevant ports
+## http api
+EXPOSE 8081
+EXPOSE 102
+EXPOSE 502
+EXPOSE 1883
+EXPOSE 8883
+
+ENTRYPOINT ["/faxe/bin/faxe"]
+CMD ["foreground"]
