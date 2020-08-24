@@ -1,11 +1,3 @@
 |mqtt_subscribe()
-.topics('ttgw/poettinger/+/energy')
-
-|batch(50)
-
-|http_post_crate()
-.table('poettinger_raw')
-.db_fields('topic')
-.faxe_fields('topic')
-.remaining_fields_as('data_obj')
-
+.topics('ttgw/sys/faxe/192_168_201_92/conn_status/#')
+|debug()

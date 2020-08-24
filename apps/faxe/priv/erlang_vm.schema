@@ -97,14 +97,14 @@
 %%%% Tunables
 %% @doc Name of the Erlang node
 {mapping, "nodename", "vm_args.-sname", [
-  {default, "faxe1"}
+  {default, "faxe"}
 ]}.
 
 %% @doc Cookie for distributed node communication.  All nodes in the
 %% same cluster should use the same cookie or they will not be able to
 %% communicate.
 {mapping, "distributed_cookie", "vm_args.-setcookie", [
-  {default, "faxe_erlang_cookie"}
+  {default, "distrepl_proc_cookie"}
 ]}.
 
 %% @doc Base directory for mnesia files
