@@ -1,7 +1,10 @@
 .PHONY: dev1 start dev2 dev3 remsh
 
 dev1:
-	rebar3 as dev1 release && export DFS_SCRIPT_PATH=/home/heyoka/workspace/faxe/dfs/ && _build/dev1/rel/faxe/bin/faxe console
+	export DFS_SCRIPT_PATH=/home/heyoka/workspace/faxe/dfs/ && \
+#	export HTTP_API_PORT=some_string_here && \
+	rebar3 as dev1 release && _build/dev1/rel/faxe/bin/faxe console
+
 
 start:
 	_build/dev1/rel/faxe/bin/faxe console
