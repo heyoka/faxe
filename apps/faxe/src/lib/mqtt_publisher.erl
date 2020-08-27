@@ -131,14 +131,6 @@ init_opts([{ssl, SslOpts} | R], State) ->
 init_opts([_ | R], State) ->
    init_opts(R, State).
 
-ssl_opts(false, _) ->
-   [];
-ssl_opts(true, #{ssl_opts := SslOpts}) ->
-   SslOpts;
-ssl_opts(true, _) ->
-   SslOpts = faxe_config:get(mqtt, []),
-   proplists:get_value(ssl, SslOpts, []).
-
 %%--------------------------------------------------------------------
 %% @private
 %% @doc
