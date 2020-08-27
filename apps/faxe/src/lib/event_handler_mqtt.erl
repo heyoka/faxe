@@ -90,11 +90,10 @@ init([Callback, Args]) ->
 %%   Host = binary_to_list(Host0),
    MqttOpts = MqttOpts1#{retained => true,  qos => 1 },
    {ok, Publisher} = mqtt_publisher:start_link(MqttOpts),
-   %% local ip address
-   Ip0 = faxe_util:ip_to_bin(faxe_util:local_ip_v4()),
-   Ip = binary:replace(Ip0, <<".">>, <<"_">>, [global]),
+   %% get the device name
+   Name = faxe_util:device_name(),
    BaseTopic = proplists:get_value(base_topic, Args, ?TOPIC_BASE),
-   Topic = <<BaseTopic/binary, Ip/binary, "/">>,
+   Topic = <<BaseTopic/binary, Name/binary, "/">>,
    {ok, CbState} = Callback:init(Topic),
    {ok,
       #state{publisher = Publisher, publisher_opts = MqttOpts,

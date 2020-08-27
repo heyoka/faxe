@@ -1,0 +1,12 @@
+%% triggers the 'http_get' node
+|value_emitter()
+.every(5s)
+
+%% get stats from this faxe's http endpoint
+|http_get()
+.host('localhost')
+.port(8081)
+.every(5s)
+.path('/v1/stats')
+
+|debug()
