@@ -26,8 +26,6 @@
 -record(state, {
    publisher,
    publisher_opts,
-   host,
-   port,
    topic,
    cb,
    cb_state
@@ -82,17 +80,16 @@ add_handler(EventMgrName) ->
    {ok, State :: #state{}, hibernate} |
    {error, Reason :: term()}).
 init([Callback, Args]) ->
-   Host0 = proplists:get_value(host, Args),
-   Port = proplists:get_value(port, Args),
-   User = proplists:get_value(user, Args, <<>>),
-   Pass = proplists:get_value(pass, Args, <<>>),
-   SslOpts = proplists:get_value(ssl, Args, []),
-   Ssl = SslOpts /= [],
-   Host = binary_to_list(Host0),
-   Opts = #{
-      host => Host, port => Port, user => User, pass => Pass,
-      retained => true, ssl => Ssl, qos => 1, ssl_opts => SslOpts},
-   {ok, Publisher} = mqtt_publisher:start_link(Opts),
+   MqttOpts1 = maps:from_list(Args),
+%%   Host0 = proplists:get_value(host, Args),
+%%   Port = proplists:get_value(port, Args),
+%%   User = proplists:get_value(user, Args, <<>>),
+%%   Pass = proplists:get_value(pass, Args, <<>>),
+%%   SslOpts = proplists:get_value(ssl, Args, []),
+%%   Ssl = SslOpts /= [],
+%%   Host = binary_to_list(Host0),
+   MqttOpts = MqttOpts1#{retained => true,  qos => 1 },
+   {ok, Publisher} = mqtt_publisher:start_link(MqttOpts),
    %% local ip address
    Ip0 = faxe_util:ip_to_bin(faxe_util:local_ip_v4()),
    Ip = binary:replace(Ip0, <<".">>, <<"_">>, [global]),
@@ -100,7 +97,7 @@ init([Callback, Args]) ->
    Topic = <<BaseTopic/binary, Ip/binary, "/">>,
    {ok, CbState} = Callback:init(Topic),
    {ok,
-      #state{host = Host, port = Port, publisher = Publisher, publisher_opts = Opts,
+      #state{publisher = Publisher, publisher_opts = MqttOpts,
          topic = Topic, cb = Callback, cb_state = CbState}}.
 
 %%--------------------------------------------------------------------

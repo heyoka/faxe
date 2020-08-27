@@ -83,8 +83,7 @@ init([#{} = Opts]) ->
 init([#{} = Opts, Queue]) ->
    init_all(Opts, #state{queue = Queue}).
 
-init_all(#{host := Host, port := Port, user := User, pass := Pass,
-      retained := Retained, ssl := UseSSL, qos := Qos} = Opts, State) ->
+init_all(#{host := Host, port := Port} = Opts, State) ->
    lager:info("MQTT_OPTS are: ~p",[Opts]),
    NId =
    case maps:is_key(node_id, Opts) of
@@ -98,11 +97,39 @@ init_all(#{host := Host, port := Port, user := User, pass := Pass,
    connection_registry:reg(NId, Host, Port, <<"mqtt">>),
    {ok, Reconnector1} = faxe_backoff:execute(Reconnector, reconnect),
    connection_registry:connecting(),
+   OptsState = init_opts(Opts, State),
    {ok,
-      State#state{
-         host = Host, port = Port, user = User, pass = Pass, reconnector = Reconnector1,
-         client_id = maps:get(client_id, Opts, undefined), retained = Retained,
-         ssl = UseSSL, qos = Qos, node_id = NId, ssl_opts = ssl_opts(UseSSL, Opts)}}.
+      OptsState#state{
+         reconnector = Reconnector1, node_id = NId
+%%         , ssl_opts = ssl_opts(OptsState#state.ssl, Opts)
+      }}.
+
+
+init_opts([], State) -> State;
+init_opts(Opts, State) when is_map(Opts) ->
+   init_opts(maps:to_list(Opts), State);
+init_opts([{host, Host} | R], State) when is_binary(Host) ->
+   init_opts(R, State#state{host = binary_to_list(Host)});
+init_opts([{host, Host} | R], State) when is_list(Host) ->
+   init_opts(R, State#state{host = Host});
+init_opts([{port, Port} | R], State) when is_integer(Port) ->
+   init_opts(R, State#state{port = Port});
+init_opts([{user, User} | R], State) when is_binary(User) ->
+   init_opts(R, State#state{user = User});
+init_opts([{pass, Pass} | R], State) when is_binary(Pass) ->
+   init_opts(R, State#state{pass = Pass});
+init_opts([{retained, Ret} | R], State) when is_atom(Ret) ->
+   init_opts(R, State#state{retained = Ret});
+init_opts([{qos, Qos} | R], State) when is_integer(Qos) ->
+   init_opts(R, State#state{qos = Qos});
+init_opts([{client_id, ClientId} | R], State) when is_binary(ClientId) ->
+   init_opts(R, State#state{client_id = ClientId});
+init_opts([{ssl, SslOpts} | R], State) ->
+   Enabled = proplists:get_value(enable, SslOpts),
+   SslOptions = proplists:delete(enable, SslOpts),
+   init_opts(R, State#state{ssl = Enabled, ssl_opts = SslOptions});
+init_opts([_ | R], State) ->
+   init_opts(R, State).
 
 ssl_opts(false, _) ->
    [];
