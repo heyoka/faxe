@@ -21,5 +21,5 @@ get(Key, Default) ->
 %% @doc get the base dir for esq q-files
 q_file({GraphId, NodeId}) ->
    EsqBaseDir = faxe_config:get(esq_base_dir),
-   binary_to_list(<<EsqBaseDir/binary, GraphId/binary, "/", NodeId/binary>>).
+   EsqBaseDir ++ binary_to_list(<<GraphId/binary, "/", NodeId/binary>>).
 

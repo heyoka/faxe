@@ -63,8 +63,7 @@ metrics() ->
 %% safe mode with ondisc queuing
 init({GraphId, NodeId} = GId, _Ins, #{safe := true, host := Host0}=Opts) ->
    Host = binary_to_list(Host0),
-   EsqBaseDir = faxe_config:get(esq_base_dir),
-   QFile = binary_to_list(<<EsqBaseDir/binary, GraphId/binary, "/", NodeId/binary>>),
+   QFile = faxe_config:q_file(GId),
    {ok, Q} = esq:new(QFile, [{tts, 300}, {capacity, 10}]),
    {ok, Publisher} = mqtt_publisher:start_link(Opts#{host := Host, node_id => GId}, Q),
    init_all(Opts#{host := Host}, #state{publisher = Publisher, queue = Q, fn_id = GId});
