@@ -1,4 +1,4 @@
-%%% @doc MQ publishing-worker.
+%%% @doc AMQP publishing-worker.
 %%% @author Alexander Minichmair
 %%%
 -module(bunny_esq_worker).

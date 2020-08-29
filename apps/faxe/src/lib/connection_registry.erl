@@ -123,6 +123,7 @@ code_change(_OldVsn, State = #state{}, _Extra) ->
 %%% Internal functions
 %%%===================================================================
 
+-spec get_connection(pid()) -> #conreg{}.
 get_connection(Pid) ->
   case ets:lookup(node_connections, Pid) of
     [{Pid, #conreg{}=C}] ->
