@@ -65,13 +65,13 @@ maybe_compile({DFSString, ParserResult}) ->
    case ParserResult of
       {{_Where, line, _LN}, {Keyword, MsgList}} = _M ->
          {error, iolist_to_binary(
-            [faxe_dfs:atom_to_binary(_Where), <<" on line ">>,
+            [erlang:atom_to_binary(_Where, utf8), <<" on line ">>,
                integer_to_binary(_LN), <<": ">>,
-               faxe_dfs:atom_to_binary(Keyword), <<" ">>, list_to_binary(MsgList)])
+               erlang:atom_to_binary(Keyword, utf8), <<" ">>, list_to_binary(MsgList)])
          };
       {{_Where, line, _LN}, _Message} = _M ->
          {error, iolist_to_binary(
-            [faxe_dfs:atom_to_binary(_Where), <<" on line ">>,
+            [erlang:atom_to_binary(_Where, utf8), <<" on line ">>,
                integer_to_binary(_LN), <<": ">>, list_to_binary(_Message)])
          };
       {_Nodes, _Connections} -> {list_to_binary(DFSString), compile(ParserResult)};
@@ -86,8 +86,8 @@ compile(D) ->
          GraphDef;
       Err -> {error, Err}
    catch
-      _:Err ->
-         lager:error("error evaluating dfs result: ~p",[Err]),
+      _:Err:Stack ->
+         lager:error("error evaluating dfs result: ~p~n~p",[Err, Stack]),
          {error, Err}
    end.
 
@@ -177,10 +177,18 @@ eval_options([], Acc) ->
    Acc;
 eval_options([{OptName, OptType, {ConfigKey, ConfigSubKey}}|Opts], Acc) ->
    ConfigData = application:get_env(faxe, ConfigKey, []),
-   OptVal = proplists:get_value(ConfigSubKey, ConfigData),
+   OptVal = conv_config_val(proplists:get_value(ConfigSubKey, ConfigData)),
    eval_options(Opts, Acc ++ [{OptName, OptType, OptVal}]);
 eval_options([Opt|Opts], Acc) ->
    eval_options(Opts, Acc ++ [Opt]).
+
+%% @doc we know config does not give us any binary values, but in faxe we only use
+%% binaries for strings, so we convert any string(list) val to binary
+%% at the moment this is dangerous, as we do not know exactly whether the list was meant
+%% to be a string
+conv_config_val(Val) when is_list(Val) ->
+   list_to_binary(Val);
+conv_config_val(Val) -> Val.
 
 node_id({Name, Id}) when is_binary(Name) andalso is_integer(Id) ->
    <<Name/binary, (integer_to_binary(Id))/binary>>.
@@ -312,14 +320,18 @@ convert_options(NodeName, NodeOptions, Params) ->
 
    ).
 
+-spec convert(binary(), atom(), list()) -> tuple().
 convert(Name, Type, PVals) ->
    lager:notice("convert(~p,~p,~p)",[Name, Type, PVals]),
    TName = erlang:atom_to_binary(Type, utf8),
+   lager:warning("converted: ~p",[TName]),
    case estr:str_ends_with(TName, <<"list">>) of
       true -> {Name, list_params(Type, PVals)};
       false -> case length(PVals) of
                   0 -> {Name, cparam(Type, [])};
-                  1 -> {Name, cparam(Type, hd(PVals))};
+                  1 ->
+                     lager:warning("pvals is: ~p",[PVals]),
+                     {Name, cparam(Type, hd(PVals))};
                   _ ->
                      PValList =
                      case PVals of
@@ -365,8 +377,8 @@ list_param(_Type, Val) ->
    cparam(any, Val).
 
 cparam(is_set, _) -> true;
-cparam(atom, {identifier, Val}) -> faxe_dfs:binary_to_atom(Val);
-cparam(bool, {identifier, Val}) -> faxe_dfs:binary_to_atom(Val);
+cparam(atom, {identifier, Val}) -> binary_to_atom(Val);
+cparam(bool, {identifier, Val}) -> binary_to_atom(Val);
 cparam(binary, {string, Val}) -> Val;
 cparam(lambda, {lambda, Fun, BinRefs, FunRefs}) -> make_lambda_fun(Fun, FunRefs, BinRefs);
 cparam(lambda, Fun) -> Fun;
@@ -409,9 +421,10 @@ parse_fun(S) ->
    end.
 
 binary_to_atom(Val) ->
-   case (catch binary_to_existing_atom(Val, utf8)) of
+   case catch binary_to_existing_atom(Val, utf8) of
       C when is_atom(C) -> C;
-      _ -> throw("Illegal Option '" ++ binary_to_list(Val) ++ "'")
+      _ -> lager:error("ATOM :~s not found",[Val]),
+         throw("Illegal Option '" ++ binary_to_list(Val) ++ "'")
    end.
 
 -spec node_name(binary()) -> atom().

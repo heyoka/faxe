@@ -49,7 +49,7 @@ options() -> [
    {routing_key, string, undefined},
    {routing_key_lambda, lambda, undefined},
    {exchange, string},
-   {ssl, bool, false}].
+   {ssl, is_set, false}].
 
 metrics() ->
    [

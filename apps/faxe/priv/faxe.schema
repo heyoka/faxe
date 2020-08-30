@@ -4,7 +4,9 @@
 
 %% path to folder where dfs scripts live
 {mapping, "dfs.script_path", "faxe.dfs.script_path",
-    [{default, "./dfs"}, {datatype, directory}, {commented, "./dfs"}]
+    [{default, "/home/heyoka/workspace/faxe/dfs/"},
+    {datatype, directory},
+    {commented, "/home/heyoka/workspace/faxe/dfs/"}]
 }.
 
 %% @doc ----------------------------------------------------------------
@@ -61,12 +63,6 @@
     [{default, "ttgw/sys/faxe"}, {datatype, string}]
 }.
 
-{translation,
-    "faxe.metrics.handler.mqtt.base_topic",
-    fun(Conf) ->
-        list_to_binary(cuttlefish:conf_get("metrics.handler.mqtt.base_topic", Conf))
-    end
-}.
 
 
 %% @doc ----------------------- CONNECTION STATUS ------------------------

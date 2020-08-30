@@ -1,10 +1,9 @@
-
-%|mqtt_subscribe()
-%.port(2883)
-%.user('admin')
-%.pass('admin')
-%.topic('ttgw/grip_images/rovolutionwels')
-%.ssl()
+|mqtt_subscribe()
+.port(2883)
+.user('admin')
+.pass('admin')
+.topic('ttgw/grip_images/rovolutionwels')
+.ssl()
 
 |debug()
 |value_emitter()

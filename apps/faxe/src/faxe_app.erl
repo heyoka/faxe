@@ -33,9 +33,9 @@ start(_StartType, _StartArgs) ->
    ),
    %% start top supervisor
    Res = faxe_sup:start_link(),
-   install_metrics_handler(),
-   install_conn_status_handler(),
-   install_debug_handler(),
+%%   install_metrics_handler(),
+%%   install_conn_status_handler(),
+%%   install_debug_handler(),
    print_vsn(),
    Res.
 
