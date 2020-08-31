@@ -98,11 +98,7 @@ init_all(#{host := Host, port := Port} = Opts, State) ->
    {ok, Reconnector1} = faxe_backoff:execute(Reconnector, reconnect),
    connection_registry:connecting(),
    OptsState = init_opts(Opts, State),
-   {ok,
-      OptsState#state{
-         reconnector = Reconnector1, node_id = NId
-%%         , ssl_opts = ssl_opts(OptsState#state.ssl, Opts)
-      }}.
+   {ok, OptsState#state{reconnector = Reconnector1, node_id = NId }}.
 
 
 init_opts([], State) -> State;

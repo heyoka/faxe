@@ -205,7 +205,7 @@
     [{default, ""}, {datatype, string}, {commented, "password"}]
 }.
 %% @doc amqp ssl
-%% enable the use of ssl for mqtt connections
+%% enable the use of ssl for amqp connections
 {mapping, "amqp.ssl.enable", "faxe.amqp.ssl.enable",
     [{default, off}, {datatype, flag}, {commented, off}]
 }.

@@ -81,13 +81,6 @@ add_handler(EventMgrName) ->
    {error, Reason :: term()}).
 init([Callback, Args]) ->
    MqttOpts1 = maps:from_list(Args),
-%%   Host0 = proplists:get_value(host, Args),
-%%   Port = proplists:get_value(port, Args),
-%%   User = proplists:get_value(user, Args, <<>>),
-%%   Pass = proplists:get_value(pass, Args, <<>>),
-%%   SslOpts = proplists:get_value(ssl, Args, []),
-%%   Ssl = SslOpts /= [],
-%%   Host = binary_to_list(Host0),
    MqttOpts = MqttOpts1#{retained => true,  qos => 1 },
    {ok, Publisher} = mqtt_publisher:start_link(MqttOpts),
    %% get the device name
