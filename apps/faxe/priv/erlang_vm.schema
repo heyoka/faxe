@@ -56,14 +56,16 @@
 {mapping, "erlang.schedulers.total", "vm_args.+S", [
   {default, undefined},
   {datatype, integer},
-  {validators, ["=<1024"]}
+  {validators, ["=<1024"],
+  hidden}
 ]}.
 
 %% @see erlang.schedulers.total
 {mapping, "erlang.schedulers.online", "vm_args.+S", [
   {default, undefined},
   {datatype, integer},
-  {validators, ["=<1024"]}
+  {validators, ["=<1024"]},
+  hidden
 ]}.
 
 {translation, "vm_args.+S",
@@ -109,7 +111,7 @@
 
 %% @doc Base directory for mnesia files
 {mapping, "mnesia_dir", "vm_args.-mnesia dir", [
-  {default, "./mnesia_data"}
+  {default, "./mnesia_data"},{datatype, directory}
 ]}.
 
 {translation, "vm_args.-mnesia dir",
@@ -268,8 +270,9 @@
 %% More information: http://www.erlang.org/doc/man/erl.html#+sfwi
 {mapping, "erlang.schedulers.force_wakeup_interval", "vm_args.+sfwi", [
   {commented, 500},
-  {datatype, integer}
-]}.
+  {datatype, integer},
+  hidden
+  ]}.
 
 %% @doc Enable or disable scheduler compaction of load. By default
 %% scheduler compaction of load is enabled. When enabled, load
@@ -284,7 +287,8 @@
 %% More information: http://www.erlang.org/doc/man/erl.html#+scl
 {mapping, "erlang.schedulers.compaction_of_load", "vm_args.+scl", [
   {commented, "false"},
-  {datatype, {enum, [true, false]}}
+  {datatype, {enum, [true, false]}},
+  hidden
 ]}.
 
 %% @doc Enable or disable scheduler utilization balancing of load. By
@@ -299,7 +303,8 @@
 %% More information: http://www.erlang.org/doc/man/erl.html#+sub
 {mapping, "erlang.schedulers.utilization_balancing", "vm_args.+sub", [
   {commented, "true"},
-  {datatype, {enum, [true, false]}}
+  {datatype, {enum, [true, false]}},
+  hidden
 ]}.
 
 %% @doc For ease of firewall configuration, the Erlang distribution

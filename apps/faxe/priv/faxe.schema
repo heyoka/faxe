@@ -6,7 +6,8 @@
 {mapping, "dfs.script_path", "faxe.dfs.script_path",
     [{default, "/home/heyoka/workspace/faxe/dfs/"},
     {datatype, directory},
-    {commented, "/home/heyoka/workspace/faxe/dfs/"}]
+    {commented, "/home/heyoka/workspace/faxe/dfs/"},
+    hidden]
 }.
 
 %% @doc ----------------------------------------------------------------
@@ -37,7 +38,20 @@
 
 %% base directory for persistent queues
 {mapping, "queue_base_dir", "faxe.esq.base_dir",
-    [{default, "/tmp/"}, {datatype, directory}] %% out must be a binary
+    [{default, "/tmp"}, {datatype, directory}]
+}.
+
+%% @doc queue message time to live
+%% expired messages are evicted from queue
+{mapping, "queue_ttl", "faxe.esq.ttl",
+    [{default, "4h"}, {datatype, {duration, ms}}]
+}.
+
+%% @doc queue sync to disc interval
+%% queue time-to-sync (rotate) file segments.
+%% Any enqueued message might remain invisible until sync is performed.
+{mapping, "queue_tts", "faxe.esq.tts",
+    [{default, "300ms"}, {datatype, {duration, ms}}]
 }.
 
 %% @doc
@@ -109,12 +123,17 @@
 %% S7 DEFAULTS
 %%-------------------------------------------------------------------------
 %%
+%% for every unique ip address used by s7_read nodes,
+%% faxe will maintain a separate connection pool,
+%% each pool will have at least 's7pool.min_size' connections
+%% and a maximum of 's7pool.max_size' connections
 %%
 %% s7 connection pool min size
 {mapping, "s7pool.min_size", "faxe.s7pool_initial_size",
     [{default, 2}, {datatype, integer}]
 }.
 %% @doc s7 connection pool max size
+%% @see s7pool.min_size
 {mapping, "s7pool.max_size", "faxe.s7pool_max_size",
     [{default, 16}, {datatype, integer}]
 }.

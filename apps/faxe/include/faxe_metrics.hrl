@@ -29,7 +29,7 @@
 %%%%%%%%%%%%%%%%%%%%%%% METRIC %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 -record(metric, {
    flow_id           :: binary(),
-   node_id           :: undfined|binary(),
+   node_id           :: undefined|binary(),
    metric_name       :: binary(),
    name              :: binary(),
    metric_type       :: meter|histogram|counter|gauge|spiral,
