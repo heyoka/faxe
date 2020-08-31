@@ -64,10 +64,9 @@ init(Args) ->
 %%   Pass = proplists:get_value(pass, Options, <<>>),
    MqttOpts = OptMap#{retained => false, qos => 1},
 
-   Ip0 = faxe_util:ip_to_bin(faxe_util:local_ip_v4()),
-   Ip = binary:replace(Ip0, <<".">>, <<"_">>, [global]),
+   Name = faxe_util:device_name(),
    BaseTopic = proplists:get_value(base_topic, Options, ?TOPIC_BASE),
-   Topic = <<BaseTopic/binary, Ip/binary, "/log/">>,
+   Topic = <<BaseTopic/binary, Name/binary, "/log/">>,
 
    erlang:send_after(?START_DELAY, self(), reconnect),
    erlang:send_after(?FLOW_LIST_UPDATE_INTERVAL, self(), update_flow_list),

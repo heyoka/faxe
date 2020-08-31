@@ -172,15 +172,15 @@
 }.
 %% @doc mqtt ssl certificate
 {mapping, "mqtt.ssl.certfile", "faxe.mqtt.ssl.certfile",
-    [{default, ""}, {datatype, string}, {commented, "/path/to/certfile.pem"}]
+    [{default, "/path/to/certfile.pem"}, {datatype, string}, {commented, "/path/to/certfile.pem"}]
 }.
 %% @doc mqtt ssl ca certificate
 {mapping, "mqtt.ssl.cacertfile", "faxe.mqtt.ssl.cacertfile",
-    [{default, ""}, {datatype, string}, {commented, "/path/to/cacertfile.pem"}]
+    [{default, "/path/to/cacertfile.pem"}, {datatype, string}, {commented, "/path/to/cacertfile.pem"}]
 }.
 %% @doc mqtt ssl key file
 {mapping, "mqtt.ssl.keyfile", "faxe.mqtt.ssl.keyfile",
-    [{default, ""}, {datatype, string}, {commented, "/path/to/cert.key"}]
+    [{default, "/path/to/cert.key"}, {datatype, string}, {commented, "/path/to/cert.key"}]
 }.
 
 

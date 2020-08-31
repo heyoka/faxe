@@ -51,7 +51,7 @@ options() -> [
    {topic, binary, undefined},
    {topic_lambda, lambda, undefined},
    {retained, is_set},
-   {ssl, is_set},
+   {ssl, is_set, {mqtt, ssl, enable}},
    {safe, is_set, false}].
 
 metrics() ->

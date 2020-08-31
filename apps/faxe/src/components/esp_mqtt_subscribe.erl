@@ -98,8 +98,7 @@ init(NodeId, _Ins,
 ssl_opts(false) ->
    [];
 ssl_opts(true) ->
-   SslOpts = faxe_config:get(mqtt, []),
-   proplists:get_value(ssl, SslOpts, []).
+   faxe_config:get_mqtt_ssl_opts().
 
 process(_In, _, State = #state{}) ->
    {ok, State}.

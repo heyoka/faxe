@@ -6,16 +6,7 @@
 .ssl()
 
 |debug()
-|value_emitter()
-.every(1s)
-.type(point)
 
-|mqtt_publish()
-%.port(2883)
-%.user('admin')
-%.pass('admin')
-.topic(<<<ttgw/test/fest>>>)
-.ssl()
 
 
 

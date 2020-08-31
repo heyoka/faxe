@@ -124,10 +124,11 @@ init_opts([{qos, Qos} | R], State) when is_integer(Qos) ->
    init_opts(R, State#state{qos = Qos});
 init_opts([{client_id, ClientId} | R], State) when is_binary(ClientId) ->
    init_opts(R, State#state{client_id = ClientId});
-init_opts([{ssl, SslOpts} | R], State) ->
-   Enabled = proplists:get_value(enable, SslOpts),
-   SslOptions = proplists:delete(enable, SslOpts),
-   init_opts(R, State#state{ssl = Enabled, ssl_opts = SslOptions});
+init_opts([{ssl, false} | R], State) ->
+   init_opts(R, State#state{ssl = false});
+init_opts([{ssl, true} | R], State) ->
+   Opts = faxe_config:get_mqtt_ssl_opts(),
+   init_opts(R, State#state{ssl = true, ssl_opts = Opts});
 init_opts([_ | R], State) ->
    init_opts(R, State).
 

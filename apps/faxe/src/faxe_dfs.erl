@@ -175,17 +175,32 @@ component_options(Component, _NOpts, NodeName) ->
 %% evaluate default config options
 eval_options([], Acc) ->
    Acc;
-eval_options([{OptName, OptType, {ConfigKey, ConfigSubKey}}|Opts], Acc) ->
-   ConfigData = application:get_env(faxe, ConfigKey, []),
-   OptVal = conv_config_val(proplists:get_value(ConfigSubKey, ConfigData)),
+eval_options([{OptName, OptType, CKey}|Opts], Acc) when is_tuple(CKey) ->
+   OptVal = conf_val(CKey),
    eval_options(Opts, Acc ++ [{OptName, OptType, OptVal}]);
 eval_options([Opt|Opts], Acc) ->
    eval_options(Opts, Acc ++ [Opt]).
+
+conf_val({ConfigKey, ConfigSubKey}) ->
+   ConfigData = application:get_env(faxe, ConfigKey, []),
+   conv_config_val(proplists:get_value(ConfigSubKey, ConfigData));
+conf_val({ConfigKey, ConfigSubKey, ConfigSubSubKey}) ->
+   Value =
+   case application:get_env(faxe, ConfigKey, []) of
+      [] -> [];
+      ConfData when is_list(ConfData) ->
+         case proplists:get_value(ConfigSubKey, ConfData) of
+            undefined -> undefined;
+            ConfSubData when is_list(ConfSubData) -> proplists:get_value(ConfigSubSubKey, ConfSubData)
+         end
+   end,
+   conv_config_val(Value).
 
 %% @doc we know config does not give us any binary values, but in faxe we only use
 %% binaries for strings, so we convert any string(list) val to binary
 %% at the moment this is dangerous, as we do not know exactly whether the list was meant
 %% to be a string
+conv_config_val([]) -> [];
 conv_config_val(Val) when is_list(Val) ->
    list_to_binary(Val);
 conv_config_val(Val) -> Val.
