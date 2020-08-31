@@ -158,7 +158,7 @@ consumer_config(_Opts = #{vhost := VHost, queue := Q, prefetch := Prefetch, user
       {ssl_options, none} % Optional. Can be 'none' or [ssl_option()]
    ],
    RMQConfig = faxe_config:get(rabbitmq),
-   RootExchange = proplists:get_value(RMQConfig, root_exchange, <<"amq.topic">>),
+   RootExchange = proplists:get_value(root_exchange, RMQConfig, <<"amq.topic">>),
    Config =
       [
          {workers, 1},  % Number of connections, but not relevant here,

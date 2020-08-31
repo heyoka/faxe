@@ -39,11 +39,11 @@
 
 options() ->
    [
-      {host, string, {influx, host}},
-      {port, integer, {influx, port}},
+      {host, string, {influx_http, host}},
+      {port, integer, {influx_http, port}},
       {tls, is_set, false},
-      {user, string, {influx, user}},
-      {pass, string, {influx, pass}},
+      {user, string, {influx_http, user}},
+      {pass, string, {influx_http, pass}},
       {database, string},
       {measurement, string},
       {retpol, string, undefined}

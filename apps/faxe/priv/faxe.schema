@@ -281,6 +281,31 @@
 }.
 
 %% @doc -------------------------------------------------------------------------------
+%% InfluxDB defaults (http api)
+%% -------------------------------------------------------------------------------
+
+%% InfluxDB host
+{mapping, "influx_http.host", "faxe.influx_http.host",
+    [{default, "influx.example.com"}, {datatype, string}]
+}.
+
+%% @doc InfluxDB port
+{mapping, "influx_http.port", "faxe.influx_http.port",
+    [{default, 8888}, {datatype, integer}]
+}.
+
+%% @doc InfluxDB user
+{mapping, "influx_http.user", "faxe.influx_http.user",
+    [{default, "crate"}, {datatype, string}]
+}.
+
+%% @doc InfluxDB pass
+{mapping, "influx_http.pass", "faxe.influx_http.pass",
+    [{default, ""}, {datatype, string}, {commented, ""}]
+}.
+
+
+%% @doc -------------------------------------------------------------------------------
 %% VM stats, statistics about the erlang VM (hidden)
 %% -------------------------------------------------------------------------------
 

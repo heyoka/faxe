@@ -1,0 +1,4 @@
+|amqp_consume()
+.routing_key('rkba')
+.queue('qba')
+.exchange('xba')
