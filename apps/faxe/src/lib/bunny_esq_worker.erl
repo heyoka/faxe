@@ -56,7 +56,6 @@ stop(Server) ->
 -spec init(list()) -> {ok, state()}.
 init([Queue, Config]) ->
    process_flag(trap_exit, true),
-   lager:info("bunny_worker is starting"),
    erlang:send_after(0, self(), connect),
    {ok, #state{queue = Queue, config = amqp_options:parse(Config)}}.
 
@@ -102,13 +101,14 @@ handle_info(#'basic.ack'{delivery_tag = DTag, multiple = Multiple},
     State = #state{queue = Q, pending_acks = Pending}) ->
    Tags =
    case Multiple of
-      true -> lager:warning("RabbitMQ confirmed MULTIPLE Tags till ~p",[DTag]),
+      true -> %lager:warning("RabbitMQ confirmed MULTIPLE Tags till ~p",[DTag]),
                lists:seq(State#state.last_confirmed_dtag + 1, DTag);
-      false -> lager:notice("RabbitMQ confirmed Tag ~p",[DTag]),[DTag]
+      false -> %lager:notice("RabbitMQ confirmed Tag ~p",[DTag]),
+               [DTag]
    end,
 %%   lager:notice("bunny_worker ~p has pending_acks: ~p~n acks: ~p",[self(), State#state.pending_acks, Tags]),
    [esq:ack(Ack, Q) || {_T, Ack} <- maps:to_list(maps:with(Tags, Pending))],
-   lager:notice("new pending: ~p",[maps:without(Tags, Pending)]),
+   %lager:notice("new pending: ~p",[maps:without(Tags, Pending)]),
    {noreply, State#state{last_confirmed_dtag = DTag, pending_acks = maps:without(Tags, Pending)}};
 
 handle_info(#'basic.return'{reply_text = RText, routing_key = RKey}, State) ->
@@ -185,7 +185,7 @@ deliver({_Exchange, _Key, _Payload, _Args}, _QReceipt, State = #state{available 
    lager:warning("channel is not availbale"),
    State;
 deliver({Exchange, Key, Payload, Args}, QReceipt, State = #state{channel = Channel}) ->
-   lager:notice("Channel is: ~p",[Channel]),
+%%   lager:notice("Channel is: ~p",[Channel]),
    NextSeqNo = amqp_channel:next_publish_seqno(Channel),
 
    Publish = #'basic.publish'{mandatory = false, exchange = Exchange, routing_key = Key},
@@ -211,7 +211,7 @@ start_deq_timer(State = #state{}) ->
 %%% MQ Connection functions.
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 start_connection(State = #state{config = Config}) ->
-   lager:notice("amqp_params: ~p",[lager:pr(Config, ?MODULE)] ),
+%%   lager:notice("amqp_params: ~p",[lager:pr(Config, ?MODULE)] ),
    Connection = amqp_connection:start(Config),
    NewState =
    case Connection of
@@ -246,8 +246,12 @@ configure_channel({ok, Channel}) ->
    ok = amqp_channel:register_return_handler(Channel, self()),
 
    case amqp_channel:call(Channel, #'confirm.select'{}) of
-      {'confirm.select_ok'} -> lager:notice("amqp channel is ok: ~p",[Channel]),{ok, Channel};
-      Error -> lager:error("Could not configure channel: ~p", [Error]), Error
+      {'confirm.select_ok'} ->
+%%         lager:notice("amqp channel is ok: ~p",[Channel]),
+         {ok, Channel};
+      Error ->
+         lager:error("Could not configure channel: ~p", [Error]),
+         Error
    end;
 
 configure_channel(Error) ->
