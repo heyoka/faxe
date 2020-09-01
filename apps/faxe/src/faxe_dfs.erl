@@ -80,7 +80,7 @@ maybe_compile({DFSString, ParserResult}) ->
 
 -spec compile({list(), list()}) -> {error, term()} | map().
 compile(D) ->
-   lager:notice("dfs compile: ~p", [D]),
+%%   lager:notice("dfs compile: ~p", [D]),
    try eval(D) of
       GraphDef when is_map(GraphDef) ->
          GraphDef;
@@ -103,17 +103,17 @@ eval({Nodes, Connections}) ->
             {Component, NOpts} = component(NodeName),
             %% build additional connections from node-options
             {NewConns, ParamOptions} = node_conn_params(N, Params),
-            lager:info("~nafter node_conn_params: ~p",[ParamOptions]),
+%%            lager:info("~nafter node_conn_params: ~p",[ParamOptions]),
             %% get component options
             CompOptions0 = component_options(Component, NOpts, NodeName),
-            lager:info("~nafter component_options: ~p",[CompOptions0]),
+%%            lager:info("~nafter component_options: ~p",[CompOptions0]),
             %% set default from config
             CompOptions = eval_options(CompOptions0, []),
-            lager:info("~nafter eval_options: ~p",[CompOptions]),
+%%            lager:info("~nafter eval_options: ~p",[CompOptions]),
             %% convert and assimilate options
             {NName, _Id} = N,
             NOptions = convert_options(NName, CompOptions, lists:flatten(Options ++ ParamOptions)),
-            lager:warning("here after convert_options"),
+%%            lager:warning("here after convert_options"),
             NodeOptions = NOptions ++ NOpts,
 %%            lager:notice("~n~p wants options : ~p~n has options: ~p~n~n NodeParameters: ~p",
 %%               [Component, CompOptions, Options ++ ParamOptions, NodeOptions]),
@@ -294,7 +294,6 @@ node_conn_params({NodeName, _Id}=N, NodeParams) ->
 
 -spec convert_options(binary(), list(), list()) -> list({binary(),list()}).
 convert_options(NodeName, NodeOptions, Params) ->
-   lager:warning("convert options: ~p~n~p", [NodeOptions, Params]),
    Opts = lists:foldl(
       fun
          ({Name, Type, _Def}, O) -> [{erlang:atom_to_binary(Name, utf8), {Name, Type}}|O];
@@ -305,7 +304,6 @@ convert_options(NodeName, NodeOptions, Params) ->
       [],
       NodeOptions
    ),
-   lager:warning("~nafter Opts are: ~p",[Opts]),
    lists:foldl(
       fun
          ({PName, PVals}, Acc) ->
@@ -337,15 +335,15 @@ convert_options(NodeName, NodeOptions, Params) ->
 
 -spec convert(binary(), atom(), list()) -> tuple().
 convert(Name, Type, PVals) ->
-   lager:notice("convert(~p,~p,~p)",[Name, Type, PVals]),
+%%   lager:notice("convert(~p,~p,~p)",[Name, Type, PVals]),
    TName = erlang:atom_to_binary(Type, utf8),
-   lager:warning("converted: ~p",[TName]),
+%%   lager:warning("converted: ~p",[TName]),
    case estr:str_ends_with(TName, <<"list">>) of
       true -> {Name, list_params(Type, PVals)};
       false -> case length(PVals) of
                   0 -> {Name, cparam(Type, [])};
                   1 ->
-                     lager:warning("pvals is: ~p",[PVals]),
+%%                     lager:warning("pvals is: ~p",[PVals]),
                      {Name, cparam(Type, hd(PVals))};
                   _ ->
                      PValList =
@@ -454,9 +452,6 @@ node_name(Name) when is_binary(Name) ->
       StatNode -> StatNode
    end
    .
-
-atom_to_binary(V) ->
-   erlang:atom_to_binary(V, utf8).
 
 stat_node(<<"avg">>) -> esp_avg;
 stat_node(<<"bottom">>) -> esp_bottom;

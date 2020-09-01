@@ -6,17 +6,19 @@
 %%% @end
 %%% Created : 31. Aug 2020 18:42
 %%%-------------------------------------------------------------------
--module(mqtt_options).
+-module(amqp_options).
 -author("heyoka").
 
+-include_lib("amqp_client/include/amqp_client.hrl").
 %% API
 -export([parse/1, parse/2]).
 
--spec parse(list()|map()) -> list().
+-spec parse(list()|map()) -> #amqp_params_network{}.
 parse(Opts) ->
    parse(Opts, #{}).
--spec parse(list()|map(), map()) -> list().
-parse([], Acc) -> maps:to_list(Acc);
+-spec parse(list()|map(), map()) -> #amqp_params_network{}.
+parse([], Acc) -> amqp_params(maps:to_list(Acc));
+
 parse(Opts, Acc) when is_map(Opts) ->
    parse(maps:to_list(Opts), Acc);
 parse([{host, Host} | R], Acc) when is_binary(Host) ->
@@ -25,18 +27,14 @@ parse([{host, Host} | R], Acc) when is_list(Host) ->
    parse(R, Acc#{host => Host});
 parse([{port, Port} | R], Acc) when is_integer(Port) ->
    parse(R, Acc#{port => Port});
-parse([{keepalive, KeepAlive} | R], Acc) when is_integer(KeepAlive) ->
-   parse(R, Acc#{keepalive => KeepAlive});
+parse([{heartbeat, KeepAlive} | R], Acc) when is_integer(KeepAlive) ->
+   parse(R, Acc#{heartbeat => KeepAlive});
 parse([{user, User} | R], Acc) when is_binary(User) ->
    parse(R, Acc#{user => User});
 parse([{pass, Pass} | R], Acc) when is_binary(Pass) ->
    parse(R, Acc#{pass => Pass});
-parse([{retained, Ret} | R], Acc) when is_atom(Ret) ->
-   parse(R, Acc#{retained => Ret});
-parse([{qos, Qos} | R], Acc) when is_integer(Qos) ->
-   parse(R, Acc#{qos => Qos});
-parse([{client_id, ClientId} | R], Acc) when is_binary(ClientId) ->
-   parse(R, Acc#{client_id => ClientId});
+parse([{connection_timeout, ConnTimeout} | R], Acc) when is_integer(ConnTimeout) ->
+   parse(R, Acc#{connection_timeout => ConnTimeout});
 parse([{ssl, false} | R], Acc) ->
    parse(R, Acc#{ssl => false});
 parse([{ssl, true} | R], Acc) ->
@@ -46,4 +44,14 @@ parse([_ | R], Acc) ->
    parse(R, Acc).
 
 
-
+amqp_params(Config) ->
+   #amqp_params_network{
+      username = proplists:get_value(user, Config, <<"guest">>),
+      password = proplists:get_value(pass, Config, <<"guest">>),
+      virtual_host = proplists:get_value(vhost, Config, <<"/">>),
+      port = proplists:get_value(port, Config),
+      host = proplists:get_value(host, Config),
+      heartbeat = proplists:get_value(heartbeat, Config, 80),
+      connection_timeout = proplists:get_value(connection_timeout, Config, 60000),
+      ssl_options = proplists:get_value(ssl_options, Config, none)
+   }.

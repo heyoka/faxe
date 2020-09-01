@@ -170,7 +170,7 @@
 
 %% mqtt host
 {mapping, "mqtt.host", "faxe.mqtt.host",
-    [{default, "mqtt.example.com"}, {datatype, string}]
+    [{default, "10.14.204.3"}, {datatype, string}]
 }.
 %% @doc mqtt port
 {mapping, "mqtt.port", "faxe.mqtt.port",
@@ -209,7 +209,7 @@
 
 %% amqp host
 {mapping, "amqp.host", "faxe.amqp.host",
-    [{default, "amqp.example.com"}, {datatype, string}]
+    [{default, "10.14.204.3"}, {datatype, string}]
 }.
 %% @doc amqp port
 {mapping, "amqp.port", "faxe.amqp.port",
@@ -217,11 +217,15 @@
 }.
 %% @doc amqp user
 {mapping, "amqp.user", "faxe.amqp.user",
-    [{default, ""}, {datatype, string}, {commented, "username"}]
+    [{default, "guest"}, {datatype, string}, {commented, "username"}]
 }.
 %% @doc amqp pass
 {mapping, "amqp.pass", "faxe.amqp.pass",
-    [{default, ""}, {datatype, string}, {commented, "password"}]
+    [{default, "guest"}, {datatype, string}, {commented, "password"}]
+}.
+%% @doc amqp heartbeat interval
+{mapping, "amqp.heartbeat", "faxe.amqp.heartbeat",
+    [{default, "60s"}, {datatype, {duration, ms}}, {commented, "60s"}]
 }.
 %% @doc amqp ssl
 %% enable the use of ssl for amqp connections
