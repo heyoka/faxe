@@ -310,7 +310,7 @@
 
 %% @doc InfluxDB port
 {mapping, "influx_http.port", "faxe.influx_http.port",
-    [{default, 8888}, {datatype, integer}]
+    [{default, 8086}, {datatype, integer}]
 }.
 
 %% @doc InfluxDB user
