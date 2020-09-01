@@ -33,10 +33,10 @@ start(_StartType, _StartArgs) ->
    ),
    %% start top supervisor
    Res = faxe_sup:start_link(),
-%%   install_metrics_handler(),
-%%   install_conn_status_handler(),
-%%   install_debug_handler(),
-   print_vsn(),
+   install_handlers(debug),
+   install_handlers(conn_status),
+   install_handlers(metrics),
+   print_started(HttpPort),
    Res.
 
 %%--------------------------------------------------------------------
@@ -49,12 +49,17 @@ stop(_State) ->
 %%--------------------------------------------------------------------
 
 print_banner() ->
-   io:format("Starting ~s on node ~s~n", [?APP, node()]).
+   io:format("** Starting ~s on node ~s~n~n", [?APP, node()]).
 
-print_vsn() ->
-%%   {ok, Descr} = application:get_key(description),
+print_started(HttpPort) ->
+   {ok, _Description} = application:get_key(description),
    {ok, Vsn} = application:get_key(vsn),
-   io:format("~s ~s is running now!~n", [?APP, Vsn]).
+   {ok, CurrentDir} = file:get_cwd(),
+
+   io:format("* Configuration file: ~p - ~p~n",
+      ["./etc/faxe.conf", CurrentDir ++ "/etc/faxe.conf"]),
+   io:format("* REST Api listening on port: ~p ~n~n", [HttpPort]),
+   io:format("** ~s ~s is running now!~n~n", [?APP, Vsn]).
 
 
 %%====================================================================
@@ -96,22 +101,46 @@ install_conn_status_handler() ->
        end,
    lists:foreach(F, Handlers).
 
-install_debug_handler() ->
-   %% standard handler
-%%   dataflow:add_trace_handler(debug_handler),
-   Handlers = proplists:get_value(handler, faxe_config:get(debug_trace, [{handler, []}])),
-%%   lager:notice("debug Handlers: ~p",[Handlers]),
-   F = fun({HandlerType, Opts}) ->
-      case HandlerType of
-         mqtt ->
-            lager:notice("Debug Handler MQTT: ~p",[jiffy:encode(maps:from_list(Opts))]),
-            dataflow:add_trace_handler(debug_handler_mqtt, event_handler_mqtt, Opts);
-         amqp ->
-            lager:notice("Debug Handler AMQP: ~p",[jiffy:encode(maps:from_list(Opts))]),
-            dataflow:add_trace_handler(debug_handler_amqp, event_handler_amqp, Opts);
-         _ -> ok
-      end
-       end,
-   lists:foreach(F, Handlers).
+%%install_debug_handler() ->
+%%   Handlers = get_enabled(debug, handler),
+%%      proplists:get_value(handler, faxe_config:get(debug_trace, [{handler, []}])),
+%%   lager:notice("debug Handlers: ~p",[Handlers]), || {
+%%   [add_handler(HandlerType, debug, Opts) || {HandlerType, Opts} <- Handlers].
+%%   F = fun({HandlerType, Opts}) -> add_handler(HandlerType, <<"debug">>, Opts) end,
+%%   lists:foreach(F, Handlers).
 
+
+
+install_handlers(Key) ->
+   HandlersMqtt = get_enabled(Key, handler, mqtt),
+   [add_handler(HandlerType, atom_to_binary(Key, utf8), Opts) || {HandlerType, Opts} <- HandlersMqtt],
+   HandlersAmqp = get_enabled(Key, handler, amqp),
+   [add_handler(HandlerType, atom_to_binary(Key, utf8), Opts) || {HandlerType, Opts} <- HandlersAmqp].
+
+%% from a config proplist get only those with an 'enable' flag set to 'true'
+get_enabled(Key, SubKey, SubSubKey) ->
+   All = faxe_config:get(Key, []),
+   lager:notice("All: ~p", [All]),
+   case proplists:get_value(SubKey, All) of
+      undefined -> [];
+      [] -> [];
+      AllType when is_list(AllType) ->
+         case proplists:get_value(SubSubKey, AllType) of
+            undefined -> [];
+            List when is_list(List) ->
+               lager:notice("The list: ~p",[List]),
+               lists:filter(fun(E) -> proplists:get_value(enable, E) end, List)
+         end
+   end
+   .
+
+add_handler(mqtt, HandlerName, Opts) ->
+   lager:notice("~p Handler MQTT: ~p",[handler_name(HandlerName, <<"mqtt">>), jiffy:encode(maps:from_list(Opts))]),
+   dataflow:add_trace_handler(handler_name(HandlerName,<<"mqtt">>), event_handler_mqtt, Opts);
+add_handler(amqp, HandlerName, Opts) ->
+   lager:notice("~p Handler AMQP: ~p",[handler_name(HandlerName, <<"amqp">>), jiffy:encode(maps:from_list(Opts))]),
+   dataflow:add_trace_handler(handler_name(HandlerName, <<"amqp">>), event_handler_amqp, Opts).
+
+handler_name(Name, Type) ->
+   binary_to_atom(<<Name/binary, "_handler_", Type/binary>>, utf8).
 

@@ -54,71 +54,6 @@
     [{default, "300ms"}, {datatype, {duration, ms}}]
 }.
 
-%% @doc
-%%--------------------------------------------------------------------
-%% DEBUG, LOGS, METRICS, CONNECTION STATUS
-%%--------------------------------------------------------------------
-%%
-%%
-%% ----------------------- METRICS ------------------------------
-%%
-%%
-%% Metrics handler MQTT
-%% @doc metrics handler mqtt host
-{mapping, "metrics.handler.mqtt.host", "faxe.metrics.handler.mqtt.host",
-    [{default, "example.com"}, {datatype, string}]
-}.
-%% @doc metrics handler mqtt port
-{mapping, "metrics.handler.mqtt.port", "faxe.metrics.handler.mqtt.port",
-    [{default, 1883}, {datatype, integer}]
-}.
-%% @doc metrics handler mqtt base topic
-{mapping, "metrics.handler.mqtt.base_topic", "faxe.metrics.handler.mqtt.base_topic",
-    [{default, "ttgw/sys/faxe"}, {datatype, string}]
-}.
-
-
-
-%% @doc ----------------------- CONNECTION STATUS ------------------------
-%%
-%%
-
-%% Conn_status handler MQTT
-%% connection status handler mqtt host
-{mapping, "conn_status.handler.mqtt.host", "faxe.conn_status.handler.mqtt.host",
-    [{default, "example.com"}, {datatype, string}]
-}.
-%% @doc connection status handler mqtt port
-{mapping, "conn_status.handler.mqtt.port", "faxe.conn_status.handler.mqtt.port",
-    [{default, 1883}, {datatype, integer}]
-}.
-%% @doc connection status handler mqtt base topic
-{mapping, "conn_status.handler.mqtt.base_topic", "faxe.conn_status.handler.mqtt.base_topic",
-    [{default, "ttgw/sys/faxe"}, {datatype, string}]
-}.
-
-%% @doc ----------------------- DEBUG AND TRACE --------------------------
-%%
-%%
-%% Debug trace handler MQTT
-%% @doc debug_trace handler mqtt host
-{mapping, "debug_trace.handler.mqtt.host", "faxe.debug_trace.handler.mqtt.host",
-    [{default, "example.com"}, {datatype, string}]
-}.
-%% @doc debug_trace handler mqtt port
-{mapping, "debug_trace.handler.mqtt.port", "faxe.debug_trace.handler.mqtt.port",
-    [{default, 1883}, {datatype, integer}]
-}.
-%% @doc debug_trace handler mqtt base topic
-{mapping, "debug_trace.handler.mqtt.base_topic", "faxe.debug_trace.handler.mqtt.base_topic",
-    [{default, "ttgw/sys/faxe"}, {datatype, string}]
-}.
-
-%% @doc time debug messages will be published to the configured endpoints
-{mapping, "debug.time", "faxe.debug_time",
-    [{default, "10s"}, {datatype, {duration, ms}}]
-}.
-
 %% @doc -------------------------------------------------------------------------
 %% S7 DEFAULTS
 %%-------------------------------------------------------------------------
@@ -136,32 +71,6 @@
 %% @see s7pool.min_size
 {mapping, "s7pool.max_size", "faxe.s7pool_max_size",
     [{default, 16}, {datatype, integer}]
-}.
-
-%% @doc ----------------------------------------------------------------------------
-%% EMAIL defaults
-%% ----------------------------------------------------------------------------
-%%
-%%
-%% email from address
-{mapping, "email.from", "faxe.email.from_address",
-    [{default, "noreply@example.com"}, {datatype, string}]
-}.
-%% @doc email smtp relay
-{mapping, "email.smtp", "faxe.email.smtp_relay",
-    [{default, "smtp.example.com"}, {datatype, string}]
-}.
-%% @doc email smtp user
-{mapping, "email.user", "faxe.email.smtp_user",
-    [{default, ""}, {datatype, string}, {commented, "username"}]
-}.
-%% @doc email smtp pass
-{mapping, "email.pass", "faxe.email.smtp_pass",
-    [{default, ""}, {datatype, string}, {commented, "password"}]
-}.
-%% @doc email html template
-{mapping, "email.template", "faxe.email.template",
-    [{default, "/home/user/template.html"}, {datatype, string}]
 }.
 
 %% @doc -------------------------------------------------------------------------------
@@ -319,7 +228,7 @@
 
 %% @doc InfluxDB user
 {mapping, "influx_http.user", "faxe.influx_http.user",
-    [{default, "crate"}, {datatype, string}]
+    [{default, "influx"}, {datatype, string}]
 }.
 
 %% @doc InfluxDB pass
@@ -347,15 +256,116 @@
     [{default, off}, {datatype, flag}, hidden]
 }.
 
-%% @doc -------------------------------------------------------------------------------
-%% Logging
-%% -------------------------------------------------------------------------------
-%% Lager colored
-{mapping, "lager.colored", "lager.colored",
-    [{default, true}, {datatype, {enum, [true, false]}}]
+
+%% @doc ----------------------------------------------------------------------------
+%% EMAIL defaults
+%% ----------------------------------------------------------------------------
+%%
+%%
+%% email from address
+{mapping, "email.from", "faxe.email.from_address",
+    [{default, "noreply@example.com"}, {datatype, string}]
+}.
+%% @doc email smtp relay
+{mapping, "email.smtp", "faxe.email.smtp_relay",
+    [{default, "smtp.example.com"}, {datatype, string}]
+}.
+%% @doc email smtp user
+{mapping, "email.user", "faxe.email.smtp_user",
+    [{default, ""}, {datatype, string}, {commented, "username"}]
+}.
+%% @doc email smtp pass
+{mapping, "email.pass", "faxe.email.smtp_pass",
+    [{default, ""}, {datatype, string}, {commented, "password"}]
+}.
+%% @doc email html template
+{mapping, "email.template", "faxe.email.template",
+    [{default, "/home/user/template.html"}, {datatype, string}]
 }.
 
-%% error_logger_redirect
-{mapping, "lager.error_logger_redirect", "lager.error_logger_redirect",
-    [{default, true}, {datatype, {enum, [true, false]}}]
+
+
+%% @doc
+%%--------------------------------------------------------------------
+%% DEBUG, LOGS, METRICS, CONNECTION STATUS
+%%--------------------------------------------------------------------
+%%
+%%
+%% ----------------------- METRICS ------------------------------
+%%
+%%
+%% Metrics handler MQTT sends metric events to an mqtt broker
+%% @doc enable/disable metrics handler mqtt
+{mapping, "metrics.handler.mqtt.enable", "faxe.metrics.handler.mqtt.enable",
+    [{default, off}, {datatype, flag}]
 }.
+
+%% @doc metrics handler mqtt host
+{mapping, "metrics.handler.mqtt.host", "faxe.metrics.handler.mqtt.host",
+    [{default, "example.com"}, {datatype, string}, {commented, "example.com"}]
+}.
+%% @doc metrics handler mqtt port
+{mapping, "metrics.handler.mqtt.port", "faxe.metrics.handler.mqtt.port",
+    [{default, 1883}, {datatype, integer}, {commented, 1883}]
+}.
+%% @doc metrics handler mqtt base topic
+%% The mqtt handler will prefix its topic with this value,
+%% note that it must be a valid mqtt topic string.
+{mapping, "metrics.handler.mqtt.base_topic", "faxe.metrics.handler.mqtt.base_topic",
+    [{default, "ttgw/sys/faxe"}, {datatype, string}, {commented, "/base/topic"}]
+}.
+
+
+
+%% @doc ----------------------- CONNECTION STATUS ------------------------
+%%
+%%
+
+%% Conn_status handler MQTT sends connection status events to an mqtt broker.
+%%
+%% @doc enable/disable conn_status handler mqtt
+{mapping, "conn_status.handler.mqtt.enable", "faxe.conn_status.handler.mqtt.enable",
+    [{default, on}, {datatype, flag}]
+}.
+%% connection status handler mqtt host
+{mapping, "conn_status.handler.mqtt.host", "faxe.conn_status.handler.mqtt.host",
+    [{default, "example.com"}, {datatype, string}]
+}.
+%% @doc connection status handler mqtt port
+{mapping, "conn_status.handler.mqtt.port", "faxe.conn_status.handler.mqtt.port",
+    [{default, 1883}, {datatype, integer}]
+}.
+%% @doc connection status handler mqtt base topic
+{mapping, "conn_status.handler.mqtt.base_topic", "faxe.conn_status.handler.mqtt.base_topic",
+    [{default, "ttgw/sys/faxe"}, {datatype, string}]
+}.
+
+%% @doc ----------------------- DEBUG AND TRACE --------------------------
+%%
+%%
+%% Debug trace handler MQTT
+%%
+%%
+%% enable/disable debug_trace handler mqtt
+{mapping, "debug.handler.mqtt.enable", "faxe.debug.handler.mqtt.enable",
+    [{default, off}, {datatype, flag}]
+}.
+%% @doc debug_trace handler mqtt host
+{mapping, "debug.handler.mqtt.host", "faxe.debug.handler.mqtt.host",
+    [{default, "example.com"}, {datatype, string}, {commented, "example.com"}]
+}.
+%% @doc debug_trace handler mqtt port
+{mapping, "debug.handler.mqtt.port", "faxe.debug.handler.mqtt.port",
+    [{default, 1883}, {datatype, integer}]
+}.
+%% @doc debug_trace handler mqtt base topic
+{mapping, "debug.handler.mqtt.base_topic", "faxe.debug.handler.mqtt.base_topic",
+    [{default, "ttgw/sys/faxe"}, {datatype, string}, {commented, "base/topic"}]
+}.
+
+%% @doc time debug messages will be published to the configured endpoints
+{mapping, "debug.time", "faxe.debug_time",
+    [{default, "15s"}, {datatype, {duration, ms}}]
+}.
+
+

@@ -13,7 +13,8 @@
 -export([
    get/1, get/2,
    q_file/1,
-   get_mqtt_ssl_opts/0, get_amqp_ssl_opts/0]).
+   get_mqtt_ssl_opts/0,
+   get_amqp_ssl_opts/0]).
 
 get(Key) ->
    application:get_env(faxe, Key, undefined).

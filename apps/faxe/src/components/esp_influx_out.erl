@@ -72,7 +72,7 @@ init(NodeId, _Inputs,
 
 %%% DATA IN
 %% not connected -> drop message
-%% @todo buffer these messages when not connected
+%% @todo buffer these messages when not connected -> esq
 process(_In, _DataItem, State = #state{client = undefined}) ->
    {ok, State};
 process(_In, DataItem, State = #state{}) ->
