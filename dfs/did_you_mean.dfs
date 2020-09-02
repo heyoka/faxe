@@ -4,6 +4,6 @@
 .type(point)
 
 |batch(5)
-.timeout(5750ms)
+.timeou(5750ms)
 
 |debug('warning')

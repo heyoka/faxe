@@ -307,19 +307,20 @@ convert_options(NodeName, NodeOptions, Params) ->
    lists:foldl(
       fun
          ({PName, PVals}, Acc) ->
-            lager:warning("~p :: ~p~n",[PName, proplists:get_value(PName, Opts)]),
+%%            lager:warning("~p :: ~p~n",[PName, proplists:get_value(PName, Opts)]),
          case proplists:get_value(PName, Opts) of
             undefined -> %% unspecified option
                %% check for similar options
                OptNames = [binary_to_list(OName) || {OName, _} <- Opts],
-               SimilarOptions = dataflow:lev_test(binary_to_list(PName), OptNames),
-               lager:notice("sim: ~p",[SimilarOptions]),
-               lager:error("Unknown option ~p", [binary_to_list(PName)]),
-               lager:error("did you mean one of these:"),
-               [lager:error("~p", [O]) || {_, O} <- SimilarOptions],
-
+               SimilarOptions = lists:filter(fun({Dist, _}) -> Dist < 4 end,
+                  lev_dist(binary_to_list(PName), OptNames)),
+               Add = case SimilarOptions of
+                        [] -> "";
+                        _ -> ", did you mean: " ++ lists:flatten(
+                           lists:join(" or ", ["'" ++ O ++ "'" || {_Dist, O} <- SimilarOptions])) ++ " ?"
+                     end,
                throw("Unknown option '" ++ binary_to_list(PName)
-                  ++"' for node '" ++ binary_to_list(NodeName) ++ "'" );
+                  ++"' for node '" ++ binary_to_list(NodeName) ++ "'" ++ Add);
             {Name, param_list = Type} ->
                {value, {Name, Type, POpts}, _L} = lists:keytake(Name, 1, NodeOptions),
 %%               lager:warning("~nconvert param_list(~p, ~p, ~p, ~p)",[Name, Type, PVals, POpts]),
@@ -459,6 +460,14 @@ node_name(Name) when is_binary(Name) ->
       StatNode -> StatNode
    end
    .
+
+lev_dist(VarName, Opts) ->
+   Possibilities = [ begin
+                        {faxe_util:levenshtein(VarName, OptName), OptName}
+                     end || OptName <- Opts],
+   Sorted = lists:sort(Possibilities),
+   lists:sublist(Sorted, 3).
+
 
 stat_node(<<"avg">>) -> esp_avg;
 stat_node(<<"bottom">>) -> esp_bottom;

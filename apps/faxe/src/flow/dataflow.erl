@@ -23,7 +23,7 @@
    add_trace_handler/1,
    add_trace_handler/3]).
 
--export([request_items/2, emit/1, build_options/3, maybe_check_opts/2, maybe_debug/5, lev_test/2]).
+-export([request_items/2, emit/1, build_options/3, maybe_check_opts/2, maybe_debug/5]).
 
 %%====================================================================
 %% CALLBACK API functions
@@ -352,43 +352,3 @@ format_error(Type, Component, Error) ->
    iolist_to_binary(
    [atom_to_binary(Type, utf8), <<" for node ">>, NodeName, <<": ">>] ++ Error
    ).
-
-
-%% Levenshtein code by Adam Lindberg, Fredrik Svensson via
-%% http://www.trapexit.org/String_similar_to_(Levenshtein)
-%%
-%%------------------------------------------------------------------------------
-%% @spec levenshtein(StringA :: string(), StringB :: string()) -> integer()
-%% @doc Calculates the Levenshtein distance between two strings
-%% @end
-%%------------------------------------------------------------------------------
-lev_test(VarName, Opts) ->
-   Possibilities = [ begin
-                        {levenshtein(VarName, OptName), OptName}
-                     end || OptName <- Opts],
-   Sorted = lists:sort(Possibilities),
-   lists:sublist(Sorted, 3).
-
-
-levenshtein(Samestring, Samestring) -> 0;
-levenshtein(String, []) -> length(String);
-levenshtein([], String) -> length(String);
-levenshtein(Source, Target) ->
-   levenshtein_rec(Source, Target, lists:seq(0, length(Target)), 1).
-
-%% Recurses over every character in the source string and calculates a list of distances
-levenshtein_rec([SrcHead|SrcTail], Target, DistList, Step) ->
-   levenshtein_rec(SrcTail, Target, levenshtein_distlist(Target, DistList, SrcHead, [Step], Step), Step + 1);
-levenshtein_rec([], _, DistList, _) ->
-   lists:last(DistList).
-
-%% Generates a distance list with distance values for every character in the target string
-levenshtein_distlist([TargetHead|TargetTail], [DLH|DLT], SourceChar, NewDistList, LastDist) when length(DLT) > 0 ->
-   Min = lists:min([LastDist + 1, hd(DLT) + 1, DLH + dif(TargetHead, SourceChar)]),
-   levenshtein_distlist(TargetTail, DLT, SourceChar, NewDistList ++ [Min], Min);
-levenshtein_distlist([], _, _, NewDistList, _) ->
-   NewDistList.
-
-% Calculates the difference between two characters or other values
-dif(C, C) -> 0;
-dif(_, _) -> 1.

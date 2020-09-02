@@ -19,7 +19,7 @@
    , decimal_part/2, check_select_statement/1,
    clean_query/1, stringize_lambda/1,
    bytes_from_words/1, local_ip_v4/0,
-   ip_to_bin/1, device_name/0, proplists_merge/2]).
+   ip_to_bin/1, device_name/0, proplists_merge/2, levenshtein/2]).
 
 -define(HTTP_PROTOCOL, <<"http://">>).
 
@@ -120,6 +120,38 @@ device_name() ->
 
 proplists_merge(L, T) ->
    lists:ukeymerge(1, lists:keysort(1,L), lists:keysort(1,T)).
+
+
+%% Levenshtein code by Adam Lindberg, Fredrik Svensson via
+%% http://www.trapexit.org/String_similar_to_(Levenshtein)
+%%
+%%------------------------------------------------------------------------------
+%% @spec levenshtein(StringA :: string(), StringB :: string()) -> integer()
+%% @doc Calculates the Levenshtein distance between two strings
+%% @end
+%%------------------------------------------------------------------------------
+levenshtein(Samestring, Samestring) -> 0;
+levenshtein(String, []) -> length(String);
+levenshtein([], String) -> length(String);
+levenshtein(Source, Target) ->
+   levenshtein_rec(Source, Target, lists:seq(0, length(Target)), 1).
+
+%% Recurses over every character in the source string and calculates a list of distances
+levenshtein_rec([SrcHead|SrcTail], Target, DistList, Step) ->
+   levenshtein_rec(SrcTail, Target, levenshtein_distlist(Target, DistList, SrcHead, [Step], Step), Step + 1);
+levenshtein_rec([], _, DistList, _) ->
+   lists:last(DistList).
+
+%% Generates a distance list with distance values for every character in the target string
+levenshtein_distlist([TargetHead|TargetTail], [DLH|DLT], SourceChar, NewDistList, LastDist) when length(DLT) > 0 ->
+   Min = lists:min([LastDist + 1, hd(DLT) + 1, DLH + dif(TargetHead, SourceChar)]),
+   levenshtein_distlist(TargetTail, DLT, SourceChar, NewDistList ++ [Min], Min);
+levenshtein_distlist([], _, _, NewDistList, _) ->
+   NewDistList.
+
+% Calculates the difference between two characters or other values
+dif(C, C) -> 0;
+dif(_, _) -> 1.
 
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%% TESTS %%%%%%%%%
