@@ -2,7 +2,7 @@
 %%% @author heyoka
 %%% @copyright (C) 2019, <COMPANY>
 %%% @doc
-%%% Publish every single message to a mqtt-broker.
+%%% Receive data from an mqtt-broker.
 %%% Incoming data_points or data_batchs are converted to a JSON string before sending.
 %%% If the save() parameter is given, every message first gets stored in an ondisk queue before it will
 %%% be sent, this way we can make sure no message gets lost when disconnected from the broker.
@@ -78,6 +78,8 @@ init(NodeId, _Ins,
       dt_format := DTFormat, user := User, pass := Pass,
       retained := Retained, ssl := UseSSL, qos := Qos} = _Opts) ->
 
+   lager:warning("Options are: ~p",[_Opts]),
+
    Host = binary_to_list(Host0),
 
    process_flag(trap_exit, true),
@@ -96,8 +98,7 @@ init(NodeId, _Ins,
 ssl_opts(false) ->
    [];
 ssl_opts(true) ->
-   SslOpts = faxe_config:get(mqtt, []),
-   proplists:get_value(ssl, SslOpts, []).
+   faxe_config:get_mqtt_ssl_opts().
 
 process(_In, _, State = #state{}) ->
    {ok, State}.

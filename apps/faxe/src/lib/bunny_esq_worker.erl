@@ -56,9 +56,8 @@ stop(Server) ->
 -spec init(list()) -> {ok, state()}.
 init([Queue, Config]) ->
    process_flag(trap_exit, true),
-   lager:info("bunny_worker is starting"),
    erlang:send_after(0, self(), connect),
-   {ok, #state{queue = Queue, config = Config}}.
+   {ok, #state{queue = Queue, config = amqp_options:parse(Config)}}.
 
 -spec handle_cast(term(), state()) -> {noreply, state()}.
 handle_cast(Msg, State) ->
@@ -74,18 +73,6 @@ handle_info(connect, State) ->
       true -> {noreply, start_deq_timer(NewState)};
       false -> {noreply, NewState}
    end;
-%%   {noreply, start_connection(State)};
-%%   {Available, Channel, Conn} = check_for_channel(State),
-%%   NewState =
-%%   case Available of
-%%      true -> start_deq_timer(State);
-%%      false -> State
-%%   end,
-%%   {noreply, NewState#state{
-%%      channel = Channel,
-%%      available = Available,
-%%      connection = Conn
-%%   }};
 
 handle_info({'EXIT', MQPid, Reason}, State=#state{channel = MQPid} ) ->
    lager:warning("MQ channel DIED: ~p", [Reason]),
@@ -114,13 +101,14 @@ handle_info(#'basic.ack'{delivery_tag = DTag, multiple = Multiple},
     State = #state{queue = Q, pending_acks = Pending}) ->
    Tags =
    case Multiple of
-      true -> lager:warning("RabbitMQ confirmed MULTIPLE Tags till ~p",[DTag]),
+      true -> %lager:warning("RabbitMQ confirmed MULTIPLE Tags till ~p",[DTag]),
                lists:seq(State#state.last_confirmed_dtag + 1, DTag);
-      false -> lager:notice("RabbitMQ confirmed Tag ~p",[DTag]),[DTag]
+      false -> %lager:notice("RabbitMQ confirmed Tag ~p",[DTag]),
+               [DTag]
    end,
 %%   lager:notice("bunny_worker ~p has pending_acks: ~p~n acks: ~p",[self(), State#state.pending_acks, Tags]),
    [esq:ack(Ack, Q) || {_T, Ack} <- maps:to_list(maps:with(Tags, Pending))],
-   lager:notice("new pending: ~p",[maps:without(Tags, Pending)]),
+   %lager:notice("new pending: ~p",[maps:without(Tags, Pending)]),
    {noreply, State#state{last_confirmed_dtag = DTag, pending_acks = maps:without(Tags, Pending)}};
 
 handle_info(#'basic.return'{reply_text = RText, routing_key = RKey}, State) ->
@@ -197,7 +185,7 @@ deliver({_Exchange, _Key, _Payload, _Args}, _QReceipt, State = #state{available 
    lager:warning("channel is not availbale"),
    State;
 deliver({Exchange, Key, Payload, Args}, QReceipt, State = #state{channel = Channel}) ->
-   lager:notice("Channel is: ~p",[Channel]),
+%%   lager:notice("Channel is: ~p",[Channel]),
    NextSeqNo = amqp_channel:next_publish_seqno(Channel),
 
    Publish = #'basic.publish'{mandatory = false, exchange = Exchange, routing_key = Key},
@@ -218,19 +206,13 @@ deliver({Exchange, Key, Payload, Args}, QReceipt, State = #state{channel = Chann
 start_deq_timer(State = #state{}) ->
    TRef = erlang:send_after(?DEQ_INTERVAL, self(), deq),
    State#state{deq_timer_ref = TRef}.
+
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %%% MQ Connection functions.
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 start_connection(State = #state{config = Config}) ->
-   Connection = amqp_connection:start(#amqp_params_network{
-      username = proplists:get_value(user, Config),
-      password = proplists:get_value(pass, Config),
-      virtual_host = proplists:get_value(vhost, Config),
-      port = proplists:get_value(port, Config),
-      host = proplists:get_value(host, Config),
-      heartbeat = proplists:get_value(heartbeat, Config, 80),
-      ssl_options = proplists:get_value(ssl_options, Config, none)
-   }),
+%%   lager:notice("amqp_params: ~p",[lager:pr(Config, ?MODULE)] ),
+   Connection = amqp_connection:start(Config),
    NewState =
    case Connection of
       {ok, Conn} ->
@@ -250,56 +232,6 @@ start_connection(State = #state{config = Config}) ->
    end,
    NewState.
 
-check_for_channel(#state{} = State) ->
-   Connect = fun() ->
-      case connect(State#state.config) of
-         {{ok, Pid}, {ok, Conn}} -> {Pid, Conn};
-         Error -> lager:warning("MQ NOT available: ~p", [Error]), not_available
-      end
-             end,
-   {Channel, Conn} =
-      case State#state.channel of
-         {Pid, Conn0} when is_pid(Pid) ->
-            case is_process_alive(Pid) of
-               true -> {Pid, Conn0};
-               false -> Connect()
-            end;
-         _ -> Connect()
-      end,
-   Available = is_pid(Channel),
-   {Available, Channel, Conn}.
-
-connect(Config) ->
-   Get = fun
-      ({s, X}) ->
-         case proplists:get_value(X, Config) of
-            Val when is_list(Val) -> list_to_binary(Val);
-            Bin -> Bin
-         end;
-      (X) ->
-         proplists:get_value(X, Config) end,
-   GetWithDefault = fun(X, Default) ->
-      case Get(X) of
-         undefined -> Default;
-         Value -> Value
-      end
-   end,
-   RabbbitHosts = Get(hosts),
-   rand:seed(exs1024s),
-   Index = rand:uniform(length(RabbbitHosts)),
-   {Host, Port} = lists:nth(Index,RabbbitHosts),
-   Connection = amqp_connection:start(#amqp_params_network{
-      username = Get({s, user}),
-      password = Get({s, pass}),
-      virtual_host = Get({s, vhost}),
-      port = Port,
-      host = Host,
-      heartbeat = GetWithDefault(heartbeat, 80),
-      ssl_options = GetWithDefault(ssl_options, none)
-   }),
-   lager:notice("amqp connection: ~p",[Connection]),
-   {new_channel(Connection), Connection}.
-
 new_channel({ok, Connection}) ->
    amqp_connection:register_blocked_handler(Connection, self()),
    configure_channel(amqp_connection:open_channel(Connection));
@@ -314,8 +246,12 @@ configure_channel({ok, Channel}) ->
    ok = amqp_channel:register_return_handler(Channel, self()),
 
    case amqp_channel:call(Channel, #'confirm.select'{}) of
-      {'confirm.select_ok'} -> lager:notice("amqp channel is ok: ~p",[Channel]),{ok, Channel};
-      Error -> lager:error("Could not configure channel: ~p", [Error]), Error
+      {'confirm.select_ok'} ->
+%%         lager:notice("amqp channel is ok: ~p",[Channel]),
+         {ok, Channel};
+      Error ->
+         lager:error("Could not configure channel: ~p", [Error]),
+         Error
    end;
 
 configure_channel(Error) ->

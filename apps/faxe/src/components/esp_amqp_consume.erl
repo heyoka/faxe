@@ -146,19 +146,19 @@ start_emitter(State = #state{queue = Q}) ->
 
 
 -spec consumer_config(Opts :: map()) -> list().
-consumer_config(_Opts = #{vhost := VHost, queue := Q, prefetch := Prefetch, user := User, pass := Pass,
-   exchange := XChange, routing_key := RoutingKey, host := Host, port := Port}) ->
+consumer_config(Opts = #{vhost := VHost, queue := Q,
+   prefetch := Prefetch, exchange := XChange, routing_key := RoutingKey}) ->
 
-   HostParams = %% connection parameters
-   [
-      {hosts, [ {Host, Port} ]},
-      {user, User},
-      {pass, Pass},
-      {reconnect_timeout, ?RECONNECT_TIMEOUT},
-      {ssl_options, none} % Optional. Can be 'none' or [ssl_option()]
-   ],
+%%   HostParams = %% connection parameters
+%%   [
+%%      {hosts, [ {Host, Port} ]},
+%%      {user, User},
+%%      {pass, Pass},
+%%      {reconnect_timeout, ?RECONNECT_TIMEOUT},
+%%      {ssl_options, none} % Optional. Can be 'none' or [ssl_option()]
+%%   ],
    RMQConfig = faxe_config:get(rabbitmq),
-   RootExchange = proplists:get_value(RMQConfig, root_exchange, <<"amq.topic">>),
+   RootExchange = proplists:get_value(root_exchange, RMQConfig, <<"amq.topic">>),
    Config =
       [
          {workers, 1},  % Number of connections, but not relevant here,
@@ -188,7 +188,7 @@ consumer_config(_Opts = #{vhost := VHost, queue := Q, prefetch := Prefetch, user
 
 
       ],
-   Props = carrot_util:proplists_merge(HostParams, Config),
+   Props = carrot_util:proplists_merge(maps:to_list(Opts), Config),
    lager:warning("giving carrot these Configs: ~p", [Props]),
    Props.
 

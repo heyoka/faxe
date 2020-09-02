@@ -55,20 +55,12 @@ init(Args) ->
    end,
 
 %%   lager:info("options: ~p",[maps:from_list(Options)]),
-   SslOpts = proplists:get_value(ssl, Options, []),
-   Ssl = SslOpts /= [],
    OptMap = maps:from_list(Options),
-   Host = binary_to_list(proplists:get_value(host, Options, <<"">>)),
-   Port = proplists:get_value(port, Options),
-   User = proplists:get_value(user, Options, <<>>),
-   Pass = proplists:get_value(pass, Options, <<>>),
-   MqttOpts = OptMap#{ssl => Ssl, ssl_opts => SslOpts, host => Host, retained => false, qos => 1,
-      port => Port, user => User, pass => Pass},
+   MqttOpts = OptMap#{retained => false, qos => 1},
 
-   Ip0 = faxe_util:ip_to_bin(faxe_util:local_ip_v4()),
-   Ip = binary:replace(Ip0, <<".">>, <<"_">>, [global]),
+   Name = faxe_util:device_name(),
    BaseTopic = proplists:get_value(base_topic, Options, ?TOPIC_BASE),
-   Topic = <<BaseTopic/binary, Ip/binary, "/log/">>,
+   Topic = <<BaseTopic/binary, Name/binary, "/log/">>,
 
    erlang:send_after(?START_DELAY, self(), reconnect),
    erlang:send_after(?FLOW_LIST_UPDATE_INTERVAL, self(), update_flow_list),
@@ -199,55 +191,3 @@ format_timestamp(Ts = {_, _, _Ms}) ->
    MsDateTime = {Date, {Hours, Minutes, Seconds, Micro div 1000 rem 1000}},
    faxe_time:to_ms(MsDateTime).
 
--spec parse_opts([{atom(), term()}]) -> {ok, config()} | {error, init_error()}.
-parse_opts(Opts) ->
-   Level = proplists:get_value(level, Opts, info),
-   Host = proplists:get_value(host, Opts),
-   Port = proplists:get_value(port, Opts),
-   Fields = proplists:get_value(fields, Opts, []),
-   Storage = proplists:get_value(storage_backend, Opts),
-   validate_opts([ {level, Level}
-      , {port, Port}
-      , {host, Host}
-      , {fields, Fields}
-      , {storage_backend, Storage}
-   ], #{}).
-
-
-
--spec validate_opts([{atom(), term()}], map()) ->
-   {ok, config()} | {error, init_error()}.
-validate_opts([{Key, Value} | Rest], Acc) ->
-   case validate_option(Key, Value) of
-      ok ->
-         validate_opts(Rest, Acc#{Key => Value});
-      {ok, NewValue} ->
-         validate_opts(Rest, Acc#{Key => NewValue});
-      {error, Error} ->
-         {error, Error}
-   end;
-validate_opts([], Acc) ->
-   {ok, Acc}.
-
--spec validate_option(atom(), term()) -> ok | Result when
-   Result :: {ok, term()} | {error, init_error()}.
-validate_option(level, Level) when is_atom(Level) ->
-   {ok, lager_util:config_to_mask(Level)};
-validate_option(port, Port) when is_integer(Port),
-   Port >= 1,
-   Port =< 65536 ->
-   ok;
-validate_option(port, undefined) ->
-   {error, undefined_port};
-validate_option(port, Port) ->
-   {error, {invalid_port, Port}};
-validate_option(host, undefined) ->
-   {error, undefined_host};
-validate_option(host, _) ->
-   ok;
-validate_option(storage_backend, _) ->
-   ok;
-validate_option(fields, Fields) when is_list(Fields) ->
-   ok;
-validate_option(fields, Fields) ->
-   {error, {bad_fields, Fields}}.

@@ -2,14 +2,9 @@
 %%% @author heyoka
 %%% @copyright (C) 2019, <COMPANY>
 %%% @doc
-%%% This node connects to a tcp endpoint and awaits data in a special format, which is defined
-%%% by the parser parameter, the parser will then try to convert the data to faxe format and emit the
-%%% result
-%%% At the moment tcp messages must start with a 2 byte header denoting the length of the following data.
-%%% << Length_Header:16/integer, Data:{Length_Header}/binary >>
+%%% The parser tries to convert any data to faxe's internal format and emit the resulting data-item.
 %%% If the 'changes' option is given, the node will only emit on changed values
 %%%
-%%% The tcp listener is protected against flooding with the {active, once} inet option
 %%% @end
 %%% Created : 27. May 2019 09:00
 %%%-------------------------------------------------------------------

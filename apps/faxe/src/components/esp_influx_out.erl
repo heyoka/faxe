@@ -39,11 +39,11 @@
 
 options() ->
    [
-      {host, string, {influx, host}},
-      {port, integer, {influx, port}},
+      {host, string, {influx_http, host}},
+      {port, integer, {influx_http, port}},
       {tls, is_set, false},
-      {user, string, {influx, user}},
-      {pass, string, {influx, pass}},
+      {user, string, {influx_http, user}},
+      {pass, string, {influx_http, pass}},
       {database, string},
       {measurement, string},
       {retpol, string, undefined}
@@ -72,7 +72,7 @@ init(NodeId, _Inputs,
 
 %%% DATA IN
 %% not connected -> drop message
-%% @todo buffer these messages when not connected
+%% @todo buffer these messages when not connected -> esq
 process(_In, _DataItem, State = #state{client = undefined}) ->
    {ok, State};
 process(_In, DataItem, State = #state{}) ->

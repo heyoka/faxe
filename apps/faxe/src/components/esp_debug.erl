@@ -18,7 +18,9 @@
 }).
 
 options() ->
-   [{level, string, <<"notice">>}].
+   [
+      {level, string, <<"notice">>}
+   ].
 
 check_options() ->
    [

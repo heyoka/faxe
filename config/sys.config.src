@@ -1,7 +1,7 @@
 [
    {faxe, [
       {dfs, [
-         {script_path, "/home/heyoka/workspace/faxe/dfs/"}
+         {script_path, "${DFS_SCRIPT_PATH}"}
       ]},
       {http_api_port, 8081},
       {python, [
@@ -9,11 +9,46 @@
          {script_path, "/home/heyoka/workspace/faxe/python/"}
       ]},
       {esq_base_dir, <<"/tmp/">>},
+      {debug_time, 10000},
       {metrics, [
-         {msg_queue_len_high_watermark, 15}
-      ]},
+               %% {msg_queue_len_high_watermark, 15}
+               %% install metrics handlers
+               {handler, [
+                  {mqtt, [
+                     {host, <<"10.14.204.3">>},
+                     {port, 2883},
+                     {base_topic, <<"ttgw/sys/faxe/">>}
+                  ]
+                  }]}
+            ]},
+            {conn_status, [
+               %% install conn_status handlers
+               {handler, [
+                  {mqtt, [
+                     {host, <<"10.14.204.3">>},
+                     {port, 2883},
+                     {user, <<"admin">>},
+                     {pass, <<"admin">>},
+                     {base_topic, <<"ttgw/sys/faxe/">>}
+                  ]
+                  }]}
+            ]},
+            {debug_trace, [
+                           %% install debug handlers
+                           {handler, [
+                              {mqtt, [
+                                 {host, <<"10.14.204.3">>},
+                                 {port, 2883},
+                                 {user, <<"admin">>},
+                                 {pass, <<"admin">>},
+                                 {base_topic, <<"ttgw/sys/faxe/">>}
+                              ]
+                              }]}
+                        ]},
       %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
       %% default configs
+      {s7pool_initial_size, 2},
+      {s7pool_max_size, 16},
       {email, [
          {from_address, <<"noreply@tgw-group.com">>},
          {smtp_relay, <<"smtp.tgw.local">>},
@@ -22,12 +57,26 @@
          {template, <<"/home/heyoka/workspace/faxe/apps/faxe/priv/email_template.html">>}
       ]},
       {mqtt, [
+         %{user, <<"user">>},
+         %{pass, <<"pass">>},
          {host, <<"10.14.204.3">>},
+         %{client_id, <<"iamyourclient">>},
          {port, 1883}
+         %,
+         %{ssl, [
+         %   {certfile, "/home/heyoka/workspace/faxe/certs_tgw/tgw_wildcard.pem"}
+            %,
+            %{cacertfile, "/home/heyoka/workspace/faxe/certs/ca_certificate.pem"}
+         %   ,
+         %   {keyfile, "/home/heyoka/workspace/faxe/certs_tgw/tgw_wildcard.key"}
+         %   ]}
       ]},
       {amqp, [
          {host, <<"10.14.204.3">>},
          {port, 5672}
+      ]},
+      {rabbitmq, [
+        {root_exchange, <<"x_lm_fanout">>}
       ]},
       {crate, [
          {host, <<"10.14.204.8">>},
@@ -78,6 +127,7 @@
             ]
          }
          ,
+         {lager_emit_backend, [{level, notice}]} ,
          {lager_file_backend, [{file, "log/error.log"}, {level, error}]}
 %%         ,
 %%         {lager_file_backend, [{file, "console.log"}, {level, info}]}

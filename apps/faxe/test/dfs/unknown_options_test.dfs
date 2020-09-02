@@ -1,4 +1,4 @@
-%% send alarm, if the the mean exceeds a certain threshold
+%% send alarm, if the mean exceeds a certain threshold
 
 def mqtt_broker = '10.14.204.3'
 def alarm_topic = 'ttopic/alarm/energy_max'

@@ -65,13 +65,13 @@ maybe_compile({DFSString, ParserResult}) ->
    case ParserResult of
       {{_Where, line, _LN}, {Keyword, MsgList}} = _M ->
          {error, iolist_to_binary(
-            [faxe_dfs:atom_to_binary(_Where), <<" on line ">>,
+            [erlang:atom_to_binary(_Where, utf8), <<" on line ">>,
                integer_to_binary(_LN), <<": ">>,
-               faxe_dfs:atom_to_binary(Keyword), <<" ">>, list_to_binary(MsgList)])
+               erlang:atom_to_binary(Keyword, utf8), <<" ">>, list_to_binary(MsgList)])
          };
       {{_Where, line, _LN}, _Message} = _M ->
          {error, iolist_to_binary(
-            [faxe_dfs:atom_to_binary(_Where), <<" on line ">>,
+            [erlang:atom_to_binary(_Where, utf8), <<" on line ">>,
                integer_to_binary(_LN), <<": ">>, list_to_binary(_Message)])
          };
       {_Nodes, _Connections} -> {list_to_binary(DFSString), compile(ParserResult)};
@@ -80,14 +80,14 @@ maybe_compile({DFSString, ParserResult}) ->
 
 -spec compile({list(), list()}) -> {error, term()} | map().
 compile(D) ->
-   lager:notice("dfs compile: ~p", [D]),
+%%   lager:notice("dfs compile: ~p", [D]),
    try eval(D) of
       GraphDef when is_map(GraphDef) ->
          GraphDef;
       Err -> {error, Err}
    catch
-      _:Err ->
-         lager:error("error evaluating dfs result: ~p",[Err]),
+      _:Err:Stack ->
+         lager:error("error evaluating dfs result: ~p~n~p",[Err, Stack]),
          {error, Err}
    end.
 
@@ -103,17 +103,17 @@ eval({Nodes, Connections}) ->
             {Component, NOpts} = component(NodeName),
             %% build additional connections from node-options
             {NewConns, ParamOptions} = node_conn_params(N, Params),
-            lager:info("~nafter node_conn_params: ~p",[ParamOptions]),
+%%            lager:info("~nafter node_conn_params: ~p",[ParamOptions]),
             %% get component options
             CompOptions0 = component_options(Component, NOpts, NodeName),
-            lager:info("~nafter component_options: ~p",[CompOptions0]),
+%%            lager:info("~nafter component_options: ~p",[CompOptions0]),
             %% set default from config
             CompOptions = eval_options(CompOptions0, []),
-            lager:info("~nafter eval_options: ~p",[CompOptions]),
+%%            lager:info("~nafter eval_options: ~p",[CompOptions]),
             %% convert and assimilate options
             {NName, _Id} = N,
             NOptions = convert_options(NName, CompOptions, lists:flatten(Options ++ ParamOptions)),
-            lager:warning("here after convert_options"),
+%%            lager:warning("here after convert_options"),
             NodeOptions = NOptions ++ NOpts,
 %%            lager:notice("~n~p wants options : ~p~n has options: ~p~n~n NodeParameters: ~p",
 %%               [Component, CompOptions, Options ++ ParamOptions, NodeOptions]),
@@ -175,12 +175,35 @@ component_options(Component, _NOpts, NodeName) ->
 %% evaluate default config options
 eval_options([], Acc) ->
    Acc;
-eval_options([{OptName, OptType, {ConfigKey, ConfigSubKey}}|Opts], Acc) ->
-   ConfigData = application:get_env(faxe, ConfigKey, []),
-   OptVal = proplists:get_value(ConfigSubKey, ConfigData),
+eval_options([{OptName, OptType, CKey}|Opts], Acc) when is_tuple(CKey) ->
+   OptVal = conf_val(CKey),
    eval_options(Opts, Acc ++ [{OptName, OptType, OptVal}]);
 eval_options([Opt|Opts], Acc) ->
    eval_options(Opts, Acc ++ [Opt]).
+
+conf_val({ConfigKey, ConfigSubKey}) ->
+   ConfigData = application:get_env(faxe, ConfigKey, []),
+   conv_config_val(proplists:get_value(ConfigSubKey, ConfigData));
+conf_val({ConfigKey, ConfigSubKey, ConfigSubSubKey}) ->
+   Value =
+   case application:get_env(faxe, ConfigKey, []) of
+      [] -> [];
+      ConfData when is_list(ConfData) ->
+         case proplists:get_value(ConfigSubKey, ConfData) of
+            undefined -> undefined;
+            ConfSubData when is_list(ConfSubData) -> proplists:get_value(ConfigSubSubKey, ConfSubData)
+         end
+   end,
+   conv_config_val(Value).
+
+%% @doc we know config does not give us any binary values, but in faxe we only use
+%% binaries for strings, so we convert any string(list) val to binary
+%% at the moment this is dangerous, as we do not know exactly whether the list was meant
+%% to be a string
+conv_config_val([]) -> [];
+conv_config_val(Val) when is_list(Val) ->
+   list_to_binary(Val);
+conv_config_val(Val) -> Val.
 
 node_id({Name, Id}) when is_binary(Name) andalso is_integer(Id) ->
    <<Name/binary, (integer_to_binary(Id))/binary>>.
@@ -271,7 +294,6 @@ node_conn_params({NodeName, _Id}=N, NodeParams) ->
 
 -spec convert_options(binary(), list(), list()) -> list({binary(),list()}).
 convert_options(NodeName, NodeOptions, Params) ->
-   lager:warning("convert options: ~p~n~p", [NodeOptions, Params]),
    Opts = lists:foldl(
       fun
          ({Name, Type, _Def}, O) -> [{erlang:atom_to_binary(Name, utf8), {Name, Type}}|O];
@@ -282,7 +304,6 @@ convert_options(NodeName, NodeOptions, Params) ->
       [],
       NodeOptions
    ),
-   lager:warning("~nafter Opts are: ~p",[Opts]),
    lists:foldl(
       fun
          ({PName, PVals}, Acc) ->
@@ -312,14 +333,18 @@ convert_options(NodeName, NodeOptions, Params) ->
 
    ).
 
+-spec convert(binary(), atom(), list()) -> tuple().
 convert(Name, Type, PVals) ->
-   lager:notice("convert(~p,~p,~p)",[Name, Type, PVals]),
+%%   lager:notice("convert(~p,~p,~p)",[Name, Type, PVals]),
    TName = erlang:atom_to_binary(Type, utf8),
+%%   lager:warning("converted: ~p",[TName]),
    case estr:str_ends_with(TName, <<"list">>) of
       true -> {Name, list_params(Type, PVals)};
       false -> case length(PVals) of
                   0 -> {Name, cparam(Type, [])};
-                  1 -> {Name, cparam(Type, hd(PVals))};
+                  1 ->
+%%                     lager:warning("pvals is: ~p",[PVals]),
+                     {Name, cparam(Type, hd(PVals))};
                   _ ->
                      PValList =
                      case PVals of
@@ -365,8 +390,8 @@ list_param(_Type, Val) ->
    cparam(any, Val).
 
 cparam(is_set, _) -> true;
-cparam(atom, {identifier, Val}) -> faxe_dfs:binary_to_atom(Val);
-cparam(bool, {identifier, Val}) -> faxe_dfs:binary_to_atom(Val);
+cparam(atom, {identifier, Val}) -> binary_to_atom(Val);
+cparam(bool, {identifier, Val}) -> binary_to_atom(Val);
 cparam(binary, {string, Val}) -> Val;
 cparam(lambda, {lambda, Fun, BinRefs, FunRefs}) -> make_lambda_fun(Fun, FunRefs, BinRefs);
 cparam(lambda, Fun) -> Fun;
@@ -409,9 +434,10 @@ parse_fun(S) ->
    end.
 
 binary_to_atom(Val) ->
-   case (catch binary_to_existing_atom(Val, utf8)) of
+   case catch binary_to_existing_atom(Val, utf8) of
       C when is_atom(C) -> C;
-      _ -> throw("Illegal Option '" ++ binary_to_list(Val) ++ "'")
+      _ -> lager:error("ATOM :~s not found",[Val]),
+         throw("Illegal Option '" ++ binary_to_list(Val) ++ "'")
    end.
 
 -spec node_name(binary()) -> atom().
@@ -426,9 +452,6 @@ node_name(Name) when is_binary(Name) ->
       StatNode -> StatNode
    end
    .
-
-atom_to_binary(V) ->
-   erlang:atom_to_binary(V, utf8).
 
 stat_node(<<"avg">>) -> esp_avg;
 stat_node(<<"bottom">>) -> esp_bottom;

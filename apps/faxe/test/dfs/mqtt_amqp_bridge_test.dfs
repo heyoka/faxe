@@ -1,0 +1,34 @@
+def topic = 'some/crazy/topic/this/is'
+def user = 'rabbitmq-cluster-user'
+def exchange = 'x_root_fanout'
+def rk = 'some.crazy.topic.this.is'
+
+def in =
+|mqtt_subscribe()
+.host('10.102.1.102')
+.port(1883)
+.topic(topic)
+|debug()
+in
+|amqp_publish()
+.host('some.amqp_host') % dev
+.user(user)
+.pass('asdf323232') % dev
+.routing_key(rk)
+.exchange(exchange)
+
+in
+|amqp_publish()
+.host('some.other_amqp_host') %% preprod
+.user(user)
+.pass('adfafdwewef3') % preprod
+.routing_key(rk)
+.exchange(exchange)
+
+in
+|amqp_publish()
+.host('15.45.48.1') % prod
+.user(user)
+.pass('dfwefwef8ePI78we') % prod
+.routing_key(rk)
+.exchange(exchange)

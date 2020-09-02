@@ -18,7 +18,7 @@
 
 -include("faxe.hrl").
 %% API
--export([init/3, process/3, options/0, handle_info/2, shutdown/1, metrics/0]).
+-export([init/3, process/3, options/0, handle_info/2, shutdown/1, metrics/0, check_options/0]).
 
 -define(DEFAULT_PORT, 5672).
 -define(DEFAULT_SSL_PORT, 8883).
@@ -49,22 +49,23 @@ options() -> [
    {routing_key, string, undefined},
    {routing_key_lambda, lambda, undefined},
    {exchange, string},
-   {ssl, bool, false}].
+   {ssl, is_set, false}].
+
+check_options() ->
+   [{one_of_params, [routing_key, routing_key_lambda]}].
 
 metrics() ->
    [
       {?METRIC_BYTES_SENT, meter, []}
    ].
 
-init({GraphId, NodeId} = Idx, _Ins,
+init({_GraphId, _NodeId} = Idx, _Ins,
    #{ host := Host0, port := Port, user := _User, pass := _Pass, vhost := _VHost, exchange := Ex,
       routing_key := RoutingKey, routing_key_lambda := RkLambda, ssl := _UseSSL} = Opts0) ->
 
    Host = binary_to_list(Host0),
    Opts = Opts0#{host => Host},
-   EsqBaseDir = faxe_config:get(esq_base_dir),
-   lager:info("esq_base_dir: ~p", [EsqBaseDir]),
-   QFile = binary_to_list(<<EsqBaseDir/binary, GraphId/binary, "/", NodeId/binary>>),
+   QFile = faxe_config:q_file(Idx),
    {ok, Q} = esq:new(QFile, [{tts, 300}, {capacity, 10}, {ttf, 20000}]),
    connection_registry:reg(Idx, Host, Port, <<"amqp">>),
    connection_registry:connecting(),
@@ -106,28 +107,10 @@ shutdown(#state{client = C, queue = Q}) ->
 %%% internal
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 start_connection(State = #state{opts = Opts, queue = Q}) ->
-   {ok, Pid} = bunny_esq_worker:start(Q, build_config(Opts)),
+   {ok, Pid} = bunny_esq_worker:start(Q, Opts),
    erlang:monitor(process, Pid),
    connection_registry:connected(),
    State#state{client = Pid}.
-
-
--spec build_config(Opts :: map()) -> list().
-build_config(_Opts = #{vhost := VHost, host := Host, port := Port, user := User, pass := Pass}) ->
-   HostParams = %% connection parameters
-   [
-      {hosts, [ {Host, Port} ]},
-      {host, Host},
-      {port, Port},
-      {user, User},
-      {pass, Pass},
-      {reconnect_timeout, 2000},
-      {ssl_options, none}, % Optional. Can be 'none' or [ssl_option()]
-      {heartbeat, 60},
-      {vhost, VHost}
-   ],
-   lager:info("giving bunny_esq_worker these Configs: ~p", [HostParams]),
-   HostParams.
 
 key(#data_point{} = _P, # state{rk_lambda = undefined, routing_key = Topic}) ->
    Topic;

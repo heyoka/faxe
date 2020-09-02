@@ -26,8 +26,6 @@
 -record(state, {
    publisher,
    publisher_opts,
-   host,
-   port,
    topic,
    cb,
    cb_state
@@ -82,24 +80,16 @@ add_handler(EventMgrName) ->
    {ok, State :: #state{}, hibernate} |
    {error, Reason :: term()}).
 init([Callback, Args]) ->
-   Host0 = proplists:get_value(host, Args),
-   Port = proplists:get_value(port, Args),
-   User = proplists:get_value(user, Args, <<>>),
-   Pass = proplists:get_value(pass, Args, <<>>),
-   SslOpts = proplists:get_value(ssl, Args, []),
-   Ssl = SslOpts /= [],
-   Host = binary_to_list(Host0),
-   Opts = #{
-      host => Host, port => Port, user => User, pass => Pass,
-      retained => true, ssl => Ssl, qos => 1, ssl_opts => SslOpts},
-   {ok, Publisher} = mqtt_publisher:start_link(Opts),
+   MqttOpts1 = maps:from_list(Args),
+   MqttOpts = MqttOpts1#{retained => true,  qos => 1 },
+   {ok, Publisher} = mqtt_publisher:start_link(MqttOpts),
    %% get the device name
    Name = faxe_util:device_name(),
    BaseTopic = proplists:get_value(base_topic, Args, ?TOPIC_BASE),
    Topic = <<BaseTopic/binary, Name/binary, "/">>,
    {ok, CbState} = Callback:init(Topic),
    {ok,
-      #state{host = Host, port = Port, publisher = Publisher, publisher_opts = Opts,
+      #state{publisher = Publisher, publisher_opts = MqttOpts,
          topic = Topic, cb = Callback, cb_state = CbState}}.
 
 %%--------------------------------------------------------------------
