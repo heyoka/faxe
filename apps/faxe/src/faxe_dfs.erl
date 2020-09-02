@@ -307,11 +307,18 @@ convert_options(NodeName, NodeOptions, Params) ->
    lists:foldl(
       fun
          ({PName, PVals}, Acc) ->
-%%            lager:warning("~p :: ~p~n",[PName, proplists:get_value(PName, Opts)]),
+            lager:warning("~p :: ~p~n",[PName, proplists:get_value(PName, Opts)]),
          case proplists:get_value(PName, Opts) of
             undefined -> %% unspecified option
-               lager:error("Unknown param ", [binary_to_list(PName)]),
-               throw("Unknown param '" ++ binary_to_list(PName)
+               %% check for similar options
+               OptNames = [binary_to_list(OName) || {OName, _} <- Opts],
+               SimilarOptions = dataflow:lev_test(binary_to_list(PName), OptNames),
+               lager:notice("sim: ~p",[SimilarOptions]),
+               lager:error("Unknown option ~p", [binary_to_list(PName)]),
+               lager:error("did you mean one of these:"),
+               [lager:error("~p", [O]) || {_, O} <- SimilarOptions],
+
+               throw("Unknown option '" ++ binary_to_list(PName)
                   ++"' for node '" ++ binary_to_list(NodeName) ++ "'" );
             {Name, param_list = Type} ->
                {value, {Name, Type, POpts}, _L} = lists:keytake(Name, 1, NodeOptions),
