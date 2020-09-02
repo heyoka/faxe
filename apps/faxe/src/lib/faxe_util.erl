@@ -19,7 +19,7 @@
    , decimal_part/2, check_select_statement/1,
    clean_query/1, stringize_lambda/1,
    bytes_from_words/1, local_ip_v4/0,
-   ip_to_bin/1, device_name/0]).
+   ip_to_bin/1, device_name/0, proplists_merge/2]).
 
 -define(HTTP_PROTOCOL, <<"http://">>).
 
@@ -118,7 +118,8 @@ device_name() ->
          list_to_binary(DeviceId)
    end.
 
-
+proplists_merge(L, T) ->
+   lists:ukeymerge(1, lists:keysort(1,L), lists:keysort(1,T)).
 
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%% TESTS %%%%%%%%%

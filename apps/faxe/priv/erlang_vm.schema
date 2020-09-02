@@ -111,7 +111,7 @@
 
 %% @doc Base directory for mnesia files
 {mapping, "mnesia_dir", "vm_args.-mnesia dir", [
-  {default, "./mnesia_data"},{datatype, directory}
+  {datatype, directory}, {commented, "/path/to/mnesia/data/dir"}
 ]}.
 
 {translation, "vm_args.-mnesia dir",

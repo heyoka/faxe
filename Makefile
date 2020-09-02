@@ -2,7 +2,7 @@
 
 dev1:
 	export FAXE_DFS_SCRIPT_PATH=/home/heyoka/workspace/faxe/dfs/ && \
-#	export HTTP_API_PORT=some_string_here && \
+#	export FAXE_CONN_STATUS_HANDLER_MQTT_PORT=9876 && \
 	rebar3 as dev1 release && _build/dev1/rel/faxe/bin/faxe console
 
 
