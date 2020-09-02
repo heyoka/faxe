@@ -319,7 +319,7 @@ convert_options(NodeName, NodeOptions, Params) ->
                Zipped = lists:zip(POpts, PVals),
                C = [convert(N, T, [PV]) || {{N, T}, PV} <- Zipped],
                [{Name, C} | Acc];
-            {Name, Type} when PVals == {list, []} ->
+            {_Name, _Type} when PVals == {list, []} ->
 %%               lager:info("~nconvert_list(~p, ~p, ~p)",[Name, Type, PVals]),
                Acc;
             {Name, Type} ->

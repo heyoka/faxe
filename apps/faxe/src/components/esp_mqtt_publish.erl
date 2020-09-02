@@ -66,7 +66,7 @@ metrics() ->
    ].
 
 %% safe mode with ondisc queuing
-init({GraphId, NodeId} = GId, _Ins, #{safe := true, host := Host0}=Opts) ->
+init({_GraphId, _NodeId} = GId, _Ins, #{safe := true, host := Host0}=Opts) ->
    Host = binary_to_list(Host0),
    QFile = faxe_config:q_file(GId),
    {ok, Q} = esq:new(QFile, [{tts, 300}, {capacity, 10}]),

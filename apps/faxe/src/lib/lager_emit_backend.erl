@@ -18,19 +18,6 @@
    flow_ids = [], topic
 }).
 
--type init_error() :: undefined_host
-| undefined_port
-| {bad_fields, term()}
-| {invalid_port, atom()}
-| {failed_to_connect, inet:posix()}.
-
--type config() :: #{ port   := inet:port_number()
-, host   := inet:hostname()
-, level  := {mask, integer()}
-, fields := [{atom(), jsx:json_term()}]
-}.
-
--define(TOPIC_BASE, <<"ttgw/sys/faxe/">>).
 %% delay the start of our mqtt publisher
 -define(START_DELAY, 200).
 -define(FLOW_LIST_UPDATE_INTERVAL, 5000).
@@ -59,7 +46,7 @@ init(Args) ->
    MqttOpts = OptMap#{retained => false, qos => 1},
 
    Name = faxe_util:device_name(),
-   BaseTopic = proplists:get_value(base_topic, Options, ?TOPIC_BASE),
+   BaseTopic = proplists:get_value(base_topic, Options),
    Topic = <<BaseTopic/binary, Name/binary, "/log/">>,
 
    erlang:send_after(?START_DELAY, self(), reconnect),
