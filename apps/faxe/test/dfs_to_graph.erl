@@ -17,7 +17,7 @@ compile_helper(DfsScriptFile) ->
 
 unknown_opt_test() ->
   application:set_env(faxe, dfs, [{script_path, "apps/faxe/test/dfs/"}]),
-  Expected = {error,"Unknown param 'ls_mem' for node 'debug'"},
+  Expected = {error,"Unknown option 'ls_mem' for node 'debug'"},
   ?assertEqual(Expected, compile_helper("unknown_options_test.dfs")).
 
 batch_test() ->
