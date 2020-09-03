@@ -29,7 +29,6 @@
     carrot,
     uuid,
     mapz,
-    digraph_export,
     gen_smtp,
     vmstats
    ]},

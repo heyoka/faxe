@@ -96,7 +96,7 @@ FROM alpine
 RUN apk add --no-cache openssl && \
     apk add --no-cache ncurses-libs
 
-ENV RELX_REPLACE_OS_VARS true
+# ENV RELX_REPLACE_OS_VARS true
 
 # Install the released application
 COPY --from=alpine /buildroot/faxe/_build/balena/rel/faxe /faxe

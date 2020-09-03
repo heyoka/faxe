@@ -209,14 +209,14 @@ handle_call({ping}, _From, State = #state{timeout_ref = TRef, start_mode = #task
    erlang:cancel_timer(TRef),
    NewTimer = erlang:send_after(TTL, self(), timeout),
    {reply, {ok, TTL}, State#state{timeout_ref = NewTimer}};
-handle_call({export}, _From, State = #state{graph = Graph, id = GraphId}) ->
-   Nodes = digraph:vertices(Graph),
-%%   lager:notice("nodes: ~p~n",[Nodes]),
-   ExportGraph = digraph_utils:subgraph(Graph, Nodes, [{keep_labels, false}]),
-   GraphDot = digraph_export:convert(ExportGraph, dot, [pretty]),
-   {ok, F} = file:open(<<GraphId/binary, ".dot">>, [write]),
-   io:format(F, "~s~n", [GraphDot]),
-   {reply, GraphDot, State#state{}}.
+handle_call({export}, _From, State = #state{}) ->
+%%   Nodes = digraph:vertices(Graph),
+%%%%   lager:notice("nodes: ~p~n",[Nodes]),
+%%   ExportGraph = digraph_utils:subgraph(Graph, Nodes, [{keep_labels, false}]),
+%%   GraphDot = digraph_export:convert(ExportGraph, dot, [pretty]),
+%%   {ok, F} = file:open(<<GraphId/binary, ".dot">>, [write]),
+%%   io:format(F, "~s~n", [GraphDot]),
+   {reply, deprecated, State#state{}}.
 
 handle_cast(_Request, State) ->
    {noreply, State}.
