@@ -38,6 +38,11 @@ start(_StartType, _StartArgs) ->
    Res.
 
 %%--------------------------------------------------------------------
+prepare_stop(State) ->
+   lager:notice("Application faxe prepare to stop with state: ~p",[State]),
+   State.
+
+
 stop(_State) ->
    ok.
 
