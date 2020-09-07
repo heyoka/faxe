@@ -8,7 +8,7 @@
 -behaviour(application).
 
 %% Application callbacks
--export([start/2, stop/1]).
+-export([start/2, stop/1, prepare_stop/1]).
 
 -define(PRIV_DIR, code:priv_dir(faxe)).
 -define(COMPILE_OPTS, [{out_dir, ?PRIV_DIR ++ "/templates/"}]).
