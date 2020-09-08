@@ -39,10 +39,10 @@ start_script(Script, Name) ->
 file(ScriptFile, Vars) when is_list(ScriptFile), is_map(Vars) ->
    file(ScriptFile, maps:to_list(Vars));
 file(ScriptFile, Vars) when is_list(ScriptFile), is_list(Vars) ->
-   {ok, DfsParams} = application:get_env(faxe, dfs),
-   Path = proplists:get_value(script_path, DfsParams),
-%%   lager:info("dfs file path is: ~p",[Path++ScriptFile]),
-   D = dfs:parse_file(Path ++ ScriptFile, ?LAMBDA_LIBS, Vars, macro_fun()),
+   DfsParams = faxe_config:get(dfs, ""),
+   Path = filename:join(proplists:get_value(script_path, DfsParams, ""), ScriptFile),
+%%   lager:info("dfs file path is: ~p",[Path]),
+   D = dfs:parse_file(Path, ?LAMBDA_LIBS, Vars, macro_fun()),
    maybe_compile(D).
 
 -spec data(list()|binary(), list()|map()) -> {list(), map()}.

@@ -89,6 +89,8 @@ handle_event({{FlowId, _}, Item}, State = #state{flow_id = FlowId, node_id = und
    {ok, State};
 handle_event({{FlowId, NodeId}, Item}, State = #state{flow_id = FlowId, node_id = NodeId, parent = Parent}) ->
    Parent ! {conn_status, Item},
+   {ok, State};
+handle_event(_, State) ->
    {ok, State}.
 
 %%--------------------------------------------------------------------
