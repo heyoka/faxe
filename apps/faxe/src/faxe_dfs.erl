@@ -6,7 +6,7 @@
 -include("faxe.hrl").
 
 %% API
--export([start_script/2, do/0, do/1, do/2, compile/1, file/2, data/2, make_lambda_fun/3]).
+-export([start_script/2, do/0, do/1, do/2, compile/1, file/2, data/2, make_lambda_fun/3, get_all_nodes/0]).
 
 %% for now the only user definable component-type is python(3)
 -define(USER_COMPONENT, c_python).
@@ -455,11 +455,30 @@ node_name(Name) when is_binary(Name) ->
          case (catch binary_to_existing_atom(NodeName, utf8)) of
             C when is_atom(C) ->
                C;
-            _ -> throw("Component '" ++ binary_to_list(NodeName) ++ "' not found")
+            _ ->
+               %% check for similar nodes
+               SimilarOptions = lists:filter(fun({Dist, _}) -> Dist < 6 end,
+                  lev_dist(binary_to_list(Name), get_all_nodes())),
+               Add = case SimilarOptions of
+                        [] -> "";
+                        _ -> ", did you mean: " ++ lists:flatten(
+                           lists:join(" or ", ["'" ++ O ++ "'" || {_Dist, O} <- SimilarOptions])) ++ " ?"
+                     end,
+               throw("Component '" ++ binary_to_list(Name) ++ "' not found" ++ Add)
          end;
       StatNode -> StatNode
    end
    .
+
+-spec get_all_nodes() -> list(string()).
+get_all_nodes() ->
+   AllNodePaths = filelib:wildcard("lib/faxe-*/ebin/esp_*.beam"),
+   [begin
+       B0 = string:replace(FileName, "esp_", ""),
+       lists:flatten(string:replace(lists:last(B0), ".beam", ""))
+    end
+      || FileName <- AllNodePaths].
+
 
 lev_dist(VarName, Opts) ->
    Possibilities = [ begin
