@@ -55,7 +55,12 @@ start_link() ->
    {ok, State :: #state{}} | {ok, State :: #state{}, timeout() | hibernate} |
    {stop, Reason :: term()} | ignore).
 init([]) ->
-   erlang:send_after(?START_DELAY_MS, self(), start_tasks),
+   case faxe_config:get(auto_start_permanent) of
+      true ->
+         lager:info("starting tasks marked 'permanent' ... "),
+         erlang:send_after(?START_DELAY_MS, self(), start_tasks);
+      false -> ok
+   end,
    {ok, #state{}}.
 
 %%--------------------------------------------------------------------

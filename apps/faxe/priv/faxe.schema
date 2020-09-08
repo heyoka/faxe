@@ -1,4 +1,13 @@
 %% @doc --------------------------------------------------------------
+%% AUTO START faxe flows (tasks)
+%%--------------------------------------------------------------
+
+%% whether to start tasks marked "permanent" automatically on node startup
+{mapping, "flow_auto_start", "faxe.auto_start_permanent",
+    [{default, {{flow_auto_start}}}, {datatype, flag}, {commented, {{flow_auto_start}}}]
+}.
+
+%% @doc --------------------------------------------------------------
 %% DFS
 %%--------------------------------------------------------------
 
