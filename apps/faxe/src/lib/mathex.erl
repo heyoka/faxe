@@ -192,3 +192,58 @@ fixed_point(_, Guess, Tolerance, Next) when abs(Guess - Next) < Tolerance ->
    Next;
 fixed_point(F, _, Tolerance, Next) ->
    fixed_point(F, Next, Tolerance, F(Next)).
+
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+
+-define(log2denom, 0.69314718055994529).
+
+transform(#value_transform{} = T, #data_item{value = Val, min = Min, max = Max, avg = Avg} = Item) ->
+   TransFun = transform_fun(T),
+   New = Item#data_item{
+      value = trans(TransFun, Val),
+      min   = trans(TransFun, Min),
+      max   = trans(TransFun, Max),
+      avg   = trans(TransFun, Avg)
+   },
+   lager:debug("transform ITEM: ~p TO : ~p~n",[Item, New]),
+   New.
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%%%%%%%%%%%%%% internal %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%
+%%%% get the transform higher-order function
+%%transform_fun(#value_transform{mode = <<"lin">>, range = [LowMark, LowVal, HiMark, HiVal]}) ->
+%%   Factor =  (HiVal-LowVal) / (HiMark-LowMark),
+%%   fun(V) -> LowVal + Factor * V end
+%%;
+%%transform_fun(#value_transform{mode = <<"ln">>}) ->
+%%   fun(V) -> math:log(V) end
+%%;
+%%transform_fun(#value_transform{mode = <<"log2">>}) ->
+%%   fun(V) -> log2(V) end
+%%;
+%%transform_fun(#value_transform{mode = <<"log10">>}) ->
+%%   fun(V) -> math:log10(V) end
+%%.
+%%
+%%%% do it
+%%trans(Fun, Val) when is_integer(Val) orelse is_float(Val) ->
+%%   Fun(Val)
+%%;
+%%trans(_Fun, Val) ->
+%%   Val
+%%.
+%%
+%%
+%%%%natural log (base e)
+%%%% math:log(X) === ln
+%%
+%%%% log for base 2
+%%log2(X) ->
+%%   math:log(X) / ?log2denom.
+%%
+%%%% log for base N
+%%logN(N, X) ->
+%%   math:log(X) / math:log(N).
