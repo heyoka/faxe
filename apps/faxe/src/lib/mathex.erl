@@ -196,19 +196,19 @@ fixed_point(F, _, Tolerance, Next) ->
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
-
--define(log2denom, 0.69314718055994529).
-
-transform(#value_transform{} = T, #data_item{value = Val, min = Min, max = Max, avg = Avg} = Item) ->
-   TransFun = transform_fun(T),
-   New = Item#data_item{
-      value = trans(TransFun, Val),
-      min   = trans(TransFun, Min),
-      max   = trans(TransFun, Max),
-      avg   = trans(TransFun, Avg)
-   },
-   lager:debug("transform ITEM: ~p TO : ~p~n",[Item, New]),
-   New.
+%%
+%%-define(log2denom, 0.69314718055994529).
+%%
+%%transform(#value_transform{} = T, #data_item{value = Val, min = Min, max = Max, avg = Avg} = Item) ->
+%%   TransFun = transform_fun(T),
+%%   New = Item#data_item{
+%%      value = trans(TransFun, Val),
+%%      min   = trans(TransFun, Min),
+%%      max   = trans(TransFun, Max),
+%%      avg   = trans(TransFun, Avg)
+%%   },
+%%   lager:debug("transform ITEM: ~p TO : ~p~n",[Item, New]),
+%%   New.
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %%%%%%%%%%%%%%% internal %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
