@@ -110,6 +110,7 @@ handle_cast(_Request, State) ->
    {noreply, NewState :: #state{}, timeout() | hibernate} |
    {stop, Reason :: term(), NewState :: #state{}}).
 handle_info(start_tasks, State) ->
+   mnesia:wait_for_tables(task, 3000),
    lager:notice("starting permanent tasks ... "),
    faxe:start_permanent_tasks(),
    {noreply, State};
