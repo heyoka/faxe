@@ -50,7 +50,8 @@
    get_graph/1,
    task_to_graph/1,
    start_trace/1,
-   stop_trace/1]).
+   stop_trace/1,
+   update_all/0]).
 
 start_permanent_tasks() ->
    Tasks = faxe_db:get_permanent_tasks(),
@@ -163,7 +164,7 @@ add_running_flag(TaskList) ->
       fun(#task{pid = Pid} = T) ->
          case lists:keyfind(Pid, 2, Running) of
             Y when is_tuple(Y) -> T#task{is_running = true};
-            false -> T
+            false -> T#task{is_running = false}
          end
       end,
    lists:map(F, TaskList).
@@ -196,6 +197,20 @@ register_task(DfsScript, Name, Type) ->
          {error, task_exists}
    end.
 
+%% @doc update all tasks that exist, use with care
+-spec update_all() -> [ok|{error, term()}].
+update_all() ->
+   [update_task(DfsScript, Id, data) || #task{id = Id, dfs = DfsScript} <- list_tasks()].
+
+
+%%set_all_offline() ->
+%%   [
+%%      begin
+%%         [T] = mnesia:dirty_read(task, Id),
+%%         mnesia:dirty_write(T#task{is_running = false})
+%%      end
+%%      || Id <- mnesia:dirty_all_keys(task)
+%%   ].
 
 -spec update_file_task(list(), integer()|binary()) -> ok|{error, term()}.
 update_file_task(DfsFile, TaskId) ->

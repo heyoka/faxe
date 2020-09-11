@@ -203,12 +203,13 @@ read(Client, Reqs) ->
 
 read(_Client, Point, []) ->
    {ok, Point};
-read(Client, Point, [{{Fun, Start, Count, As}, Opts} | Reqs]) ->
+read(Client, Point, [{{Fun, Start, Count, As}=F, Opts} | Reqs]) ->
    Res = modbus:Fun(Client, Start, Count, Opts),
    case Res of
       {error, disconnected} ->
          {error, stop};
       {error, _Reason} ->
+         lager:error("error reading from modbus: ~p (~p)",[_Reason, F]),
          read(Client, Point, Reqs);
       Data ->
          FData =
