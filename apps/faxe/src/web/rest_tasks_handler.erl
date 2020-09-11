@@ -14,7 +14,7 @@
 %% Cowboy callbacks
 -export([
    init/2
-   , allowed_methods/2, list_json/2, content_types_provided/2]).
+   , allowed_methods/2, list_json/2, content_types_provided/2, update_json/2]).
 
 %%
 %% Additional callbacks
@@ -27,10 +27,17 @@ init(Req, [{op, Mode}]) ->
 %%   lager:notice("Cowboy Opts are : ~p",[Mode]),
    {cowboy_rest, Req, #state{mode = Mode}}.
 
+%%allowed_methods(Req, State=#state{mode = update}) ->
+%%   {[<<"POST">>], Req, State};
 allowed_methods(Req, State) ->
     Value = [<<"GET">>, <<"OPTIONS">>],
     {Value, Req, State}.
 
+
+content_types_provided(Req, State=#state{mode = update}) ->
+   {[
+      {{<<"application">>, <<"json">>, []}, update_json}
+   ], Req, State};
 content_types_provided(Req, State) ->
     {[
        {{<<"application">>, <<"json">>, []}, list_json}
@@ -66,7 +73,16 @@ list_json(Req, State=#state{mode = Mode}) ->
          {jiffy:encode(Maps), Req, State}
    end.
 
-
+update_json(Req, State) ->
+   Resp =
+   case faxe:update_all() of
+      R when is_list(R) ->
+         L = integer_to_binary(length(R)),
+         #{<<"success">> => true, <<"message">> => <<"updated ", L/binary, " flows">>};
+      _ ->
+         #{<<"success">> => false}
+   end,
+   {jiffy:encode(Resp), Req, State}.
 
 order_fun(<<"id">>, Dir) ->
    fun(#task{id = AId}, #task{id = BId}) -> (AId =< BId) == order_dir(Dir) end;
