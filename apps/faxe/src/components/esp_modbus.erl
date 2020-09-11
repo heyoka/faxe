@@ -140,6 +140,8 @@ handle_info(poll, State = #state{client = Modbus, requests = Requests, timer = T
    case Res of
       {error, stop} ->
          {ok, State#state{timer = faxe_time:timer_cancel(Timer)}};
+      {error, _Reason} ->
+         {ok, State#state{timer = faxe_time:timer_next(Timer)}};
       {ok, OutPoint} ->
          BSize = byte_size(flowdata:to_json(OutPoint)),
          node_metrics:metric(?METRIC_BYTES_READ, BSize, Id),
