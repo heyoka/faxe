@@ -53,9 +53,10 @@ init(#{ip := Ip, port := Port, slot := Slot, rack := Rack, owner := Owner}) ->
   }}.
 
 handle_call({read, Opts}, _From, State = #state{client = Client, ip = _Ip}) ->
-%%  lager:notice("~p Q-Length: ~p || ~p",[
+%%  lager:notice("READ::: ~p Q-Length: ~p || ~p",[
 %%    self(), erlang:process_info(self(), message_queue_len), erlang:process_info(Client, message_queue_len)]),
   Res = (catch snapclient:read_multi_vars(Client, Opts)),
+%%  lager:notice("read RESULT: ~p",[Res]),
   {reply, Res, State};
 handle_call(_Request, _From, State = #state{}) ->
   {reply, ok, State}.

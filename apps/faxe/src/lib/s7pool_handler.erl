@@ -52,6 +52,8 @@ handle_cast(_Request, State = #state{}) ->
 
 handle_info({up, Worker},
     State = #state{pool = Pool, waiting_cons = Waiting, opts = #{ip := Ip}, initial_size = Initial}) ->
+
+%%  lager:notice("s7worker is up!"),
   NewState =
   case lists:member(Worker, Waiting) of
     true ->
@@ -163,5 +165,9 @@ stop_worker(Pid) ->
 
 add_initial(State = #state{initial_size = Initial, opts = Opts}) ->
   %% start with initial-number of  connections
-  Conns = lists:map(fun(_) -> {ok, Con} = s7worker:start_link(Opts), Con end, lists:seq(1, Initial)),
+  Conns = lists:map(
+    fun(_) ->
+      timer:sleep(50),
+      {ok, Con} = s7worker:start_link(Opts), Con
+    end, lists:seq(1, Initial)),
   State#state{waiting_cons = Conns}.

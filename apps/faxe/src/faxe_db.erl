@@ -217,12 +217,6 @@ set_tags(TaskId, Tags) ->
       _ -> {error, task_not_found}
    end.
 
-
-task_to_json(Task) ->
-   ok.
-
-template_to_json(Template) ->
-   ok.
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 next_id(Table) ->

@@ -237,6 +237,7 @@ handle_call({start, Inputs, Subscriptions, FlowMode}, _From,
          inports = Inputs,
          auto_request = AR,
          cb_state = NewCBState,
+         cb_inited = true,
          flow_mode = FlowMode,
          cb_handle_info = CallbackHandlesInfo}
    };
@@ -285,6 +286,7 @@ handle_info({start, Inputs, Subscriptions, FlowMode},
          inports = Inputs,
          auto_request = AR,
          cb_state = NewCBState,
+         cb_inited = true,
          flow_mode = FlowMode,
          cb_handle_info = CallbackHandlesInfo}}
 ;
@@ -302,6 +304,10 @@ handle_info({request, ReqPid, ReqPort}, State=#c_state{subscriptions = Ss}) ->
    {noreply, State#c_state{subscriptions =  NewSubs}};
 
 %% RECEIVING ITEM
+handle_info({item, _}, State=#c_state{cb_inited = false}) ->
+   %% drop it, where are not yet initialized
+   lager:notice("Got Item but callback not yet initialized, item will be dropped!"),
+   {noreply, State};
 handle_info({item, {Inport, Value}},
     State=#c_state{
        cb_state = CBState, component = Module, flow_mode = FMode, auto_request = AR}) ->

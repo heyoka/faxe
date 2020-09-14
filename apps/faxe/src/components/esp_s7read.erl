@@ -22,8 +22,8 @@
   , metrics/0]).
 
 -export([
-  maybe_emit/5, build_addresses/3,
-  build_point/2, do_build/3]).
+  maybe_emit/6, build_addresses/3,
+  build_point/3, do_build/3]).
 
 -define(MAX_READ_ITEMS, 19).
 -define(DEFAULT_BYTE_LIMIT, 128).
@@ -194,9 +194,10 @@ handle_info(poll,
       node_metrics:metric(?METRIC_READING_TIME, TMs, FlowIdNodeId),
       node_metrics:metric(?METRIC_ITEMS_IN, 1, FlowIdNodeId),
       node_metrics:metric(?METRIC_BYTES_READ, ByteSize, FlowIdNodeId),
+      Ts = Timer#faxe_timer.last_time,
       NewTimer = faxe_time:timer_next(Timer),
       NewState = State#state{timer = NewTimer, last_values = Res},
-      maybe_emit(Diff, Res, Aliases, LastList, NewState);
+      maybe_emit(Diff, Ts, Res, Aliases, LastList, NewState);
     _Other ->
       node_metrics:metric(?METRIC_ERRORS, 1, FlowIdNodeId),
       lager:warning("Error reading S7 Vars: ~p", [_Other]),
@@ -210,10 +211,11 @@ shutdown(#state{timer = Timer}) ->
 
 
 %%% @doc no diff flag -> emit
--spec maybe_emit(Diff :: true|false, ResultList :: list(), Aliases :: list(), LastResults :: list(), State :: #state{})
+-spec maybe_emit(Diff :: true|false, Ts:: non_neg_integer(),
+      ResultList :: list(), Aliases :: list(), LastResults :: list(), State :: #state{})
     -> ok | term().
-maybe_emit(false, Res, Aliases, _, State = #state{merge_field = MField, port_data = PData}) ->
-  Out0 = build_point(Res, Aliases),
+maybe_emit(false, Ts, Res, Aliases, _, State = #state{merge_field = MField, port_data = PData}) ->
+  Out0 = build_point(Ts, Res, Aliases),
   Out =
   case PData == undefined orelse MField == undefined of
     true -> Out0;
@@ -223,11 +225,11 @@ maybe_emit(false, Res, Aliases, _, State = #state{merge_field = MField, port_dat
   {emit, {1, Out}, State#state{port_data = undefined}};
 %%% @doc diff flag and result-list is exactly last list -> no emit
 %% the power and the beauty of pattern matching ...
-maybe_emit(true, Result, _, Result, State) ->
+maybe_emit(true, _Ts, Result, _, Result, State) ->
   {ok, State};
 %%% @doc diff flag -> emit values
-maybe_emit(true, Result, Aliases, _Last, State) ->
-  maybe_emit(false, Result, Aliases, [], State).
+maybe_emit(true, Ts, Result, Aliases, _Last, State) ->
+  maybe_emit(false, Ts, Result, Aliases, [], State).
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -372,8 +374,8 @@ bit_count([#{word_len := real, amount := Amount}|Rest], Acc) ->
   bit_count(Rest, Acc + 32*Amount).
 
 
-build_point(ResultList, AliasesList) when is_list(ResultList), is_list(AliasesList) ->
-  do_build(#data_point{ts=faxe_time:now()}, ResultList, AliasesList).
+build_point(Ts, ResultList, AliasesList) when is_list(ResultList), is_list(AliasesList) ->
+  do_build(#data_point{ts=Ts}, ResultList, AliasesList).
 
 do_build(Point=#data_point{}, [], []) ->
   Point;

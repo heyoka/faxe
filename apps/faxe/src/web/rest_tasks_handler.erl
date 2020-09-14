@@ -18,8 +18,7 @@
 
 %%
 %% Additional callbacks
--export([
-]).
+-export([]).
 
 -record(state, {mode}).
 

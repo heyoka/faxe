@@ -40,7 +40,7 @@
 
 -include("faxe.hrl").
 %% API
--export([init/3, process/3, options/0, handle_info/2, shutdown/1, read/2, check_options/0, metrics/0]).
+-export([init/3, process/3, options/0, handle_info/2, shutdown/1, read/3, check_options/0, metrics/0]).
 
 -record(state, {
    ip,
@@ -136,7 +136,8 @@ process(_Inport, _Item, State = #state{connected = true}) ->
    handle_info(poll, State).
 
 handle_info(poll, State = #state{client = Modbus, requests = Requests, timer = Timer, fn_id = Id}) ->
-   {_Time, Res} = timer:tc(?MODULE, read, [Modbus, Requests]),
+   Ts = Timer#faxe_timer.last_time,
+   {_Time, Res} = timer:tc(?MODULE, read, [Modbus, Requests, Ts]),
    case Res of
       {error, stop} ->
          {ok, State#state{timer = faxe_time:timer_cancel(Timer)}};
@@ -200,12 +201,12 @@ build_opts(Out, Signed) when is_list(Out), is_list(Signed) ->
 
 
 %% read all prepared requests
-read(Client, Reqs) ->
-   read(Client, #data_point{ts = faxe_time:now()}, Reqs).
+read(Client, Reqs, Ts) ->
+   do_read(Client, #data_point{ts = Ts}, Reqs).
 
-read(_Client, Point, []) ->
+do_read(_Client, Point, []) ->
    {ok, Point};
-read(Client, Point, [{{Fun, Start, Count, As}=F, Opts} | Reqs]) ->
+do_read(Client, Point, [{{Fun, Start, Count, As}=F, Opts} | Reqs]) ->
    Res = modbus:Fun(Client, Start, Count, Opts),
    case Res of
       {error, disconnected} ->

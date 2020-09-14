@@ -32,6 +32,7 @@
    component            :: atom(), %% callbacks module name
    cb_state             :: cbstate(), %% state for callback
    cb_handle_info       :: true | false,
+   cb_inited = false    :: true | false,
    inports              :: list(), %% list of inputs {port, pid}
    subscriptions        :: list(#subscription{}),
    auto_request         :: none | all | emit,
