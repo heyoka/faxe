@@ -205,15 +205,15 @@ find_contiguous(L) ->
        {LastStart, Current = #{aliases := CAs, count := CCount, function := CFunc, opts := COpts}, Partitions}) ->
       case (Function == CFunc) andalso (LastStart + Amount == Start) andalso (Opts == COpts) of
          true ->
-            NewCurrent = Current#{count => CCount+1, aliases => CAs++[{As, Function}]},
+            NewCurrent = Current#{count => CCount+1, aliases => CAs++[As], amount => (CCount+1)*Amount},
             lager:notice("new current: ~p",[NewCurrent]),
             lager:notice("return: ~p",[{Start, NewCurrent, Partitions}]),
             {Start, NewCurrent, Partitions};
          false ->
             lager:notice("false -> start:~p, AsFunction: ~p :: partitions: ~p",
-               [Start, {As, Function}, Partitions++[Current]]),
+               [Start, As, Partitions++[Current]]),
             {Start,
-               E#{aliases => [{As, Function}], count => 1}, Partitions++[Current]
+               E#{aliases => [As], count => 1, amount => Amount}, Partitions++[Current]
             }
       end
        end,
@@ -226,29 +226,29 @@ find_contiguous(L) ->
 do() ->
    [
       #{alias => <<"MaximalCurrentValue">>,
-         aliases => [{<<"MaximalCurrentValue">>,read_hregs}],
+         aliases => [<<"MaximalCurrentValue">>],
          amount => 2,
          count => 1,
          function => read_hregs,
          opts => [{output,float32}],
          start => 3009},
       #{alias => <<"ActiveEnergyDelvd">>,
-         aliases => [{<<"ActiveEnergyDelvd">>,read_hregs},{<<"ActiveEnergyRcvd">>,read_hregs}],
-         amount => 2,
+         aliases => [<<"ActiveEnergyDelvd">>,<<"ActiveEnergyRcvd">>],
+         amount => 4,
          count => 2,
          function => read_hregs,
          opts => [{output,float32}],
          start => 2699},
       #{alias => <<"ReactiveEnergyDelvd">>,
-         aliases => [{<<"ReactiveEnergyDelvd">>,read_hregs},{<<"ReactiveEnergyRcvd">>,read_hregs}],
-         amount => 2,
+         aliases => [<<"ReactiveEnergyDelvd">>,<<"ReactiveEnergyRcvd">>],
+         amount => 4,
          count => 2,
          function => read_hregs,
          opts => [{output,float32}],
          start => 2707},
       #{alias => <<"ApparentEnergyDelvd">>,
-         aliases => [{<<"ApparentEnergyDelvd">>,read_hregs},{<<"ApparentEnergyRcvd">>,read_hregs}],
-         amount => 2,
+         aliases => [<<"ApparentEnergyDelvd">>,<<"ApparentEnergyRcvd">>],
+         amount => 4,
          count => 2,
          function => read_hregs,
          opts => [{output,float32}],
@@ -324,7 +324,7 @@ collect(Waiting, Point) ->
                collect(proplists:delete(Client, Waiting), flowdata:set_field(Point, As, Value))
          end
 
-   after 2000 -> {error, timeout}
+   after 3000 -> {error, timeout}
    end.
 
 func(BinString) ->
