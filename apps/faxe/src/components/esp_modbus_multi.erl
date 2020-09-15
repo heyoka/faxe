@@ -106,10 +106,11 @@ init(NodeId, _Ins, #{} = Opts) ->
          Acc ++ [ #{alias => As, amount => Amount, function => Function, start => Start, opts => Opts}]
       end
       , [], Requests),
-   lager:warning("~p", [find_contiguous(NewRequests)]).
-%%   NewState = State#state{requests = Requests, fn_id = NodeId},
-%%   erlang:send_after(0, self(), connect),
-%%   {ok, all, NewState}.
+   RequestsSorted = sort_by_start(NewRequests),
+   lager:warning("~p", [find_contiguous(RequestsSorted)]),
+   NewState = State#state{requests = Requests, fn_id = NodeId},
+   erlang:send_after(0, self(), connect),
+   {ok, all, NewState}.
 
 init_opts([{ip, Ip0}|Opts], State) ->
    init_opts(Opts, State#state{ip = binary_to_list(Ip0)});
@@ -189,16 +190,22 @@ shutdown(#state{readers = Modbuss, timer = Timer}) ->
    catch ([gen_server:stop(Modbus) || Modbus <- Modbuss]).
 
 
+sort_by_start(List) ->
+   lists:sort(
+      fun(#{start := StartA}, #{start := StartB}) ->
+         StartA < StartB end,
+      List).
+
 find_contiguous(L) ->
 %%   {{read_hregs,2701,2,<<"ActiveEnergyRcvd">>},[{output,float32}]},
 %%   {-1,#{aliases => [],amount => -1,function => nil},[]}
 
    F = fun(
-   #{function := Function, start := Start, amount := Amount, alias := As, opts := _Opts} = E,
-       {LastStart, Current = #{aliases := CAs, amount := CAmount, function := CFunc}, Partitions}) ->
-      case (Function == CFunc) andalso (LastStart + Amount == Start) of
+   #{function := Function, start := Start, amount := Amount, alias := As, opts := Opts} = E,
+       {LastStart, Current = #{aliases := CAs, count := CCount, function := CFunc, opts := COpts}, Partitions}) ->
+      case (Function == CFunc) andalso (LastStart + Amount == Start) andalso (Opts == COpts) of
          true ->
-            NewCurrent = Current#{amount => CAmount+1, aliases => CAs++[{As, Function}]},
+            NewCurrent = Current#{count => CCount+1, aliases => CAs++[{As, Function}]},
             lager:notice("new current: ~p",[NewCurrent]),
             lager:notice("return: ~p",[{Start, NewCurrent, Partitions}]),
             {Start, NewCurrent, Partitions};
@@ -206,44 +213,48 @@ find_contiguous(L) ->
             lager:notice("false -> start:~p, AsFunction: ~p :: partitions: ~p",
                [Start, {As, Function}, Partitions++[Current]]),
             {Start,
-               E#{aliases => [{As, Function}]}, Partitions++[Current]
+               E#{aliases => [{As, Function}], count => 1}, Partitions++[Current]
             }
       end
        end,
-   lists:foldl(F, {-1, #{aliases => [], amount => -1, function => nil}, []}, L).
+   {_Last, Current, [_|Parts]} =
+   lists:foldl(F, {-1, #{aliases => [], amount => -1, function => nil, count => 0, opts => nil}, []}, L),
+   All = [Current|Parts],
+   All.
 
 
 do() ->
-{3009,#{alias => <<"MaximalCurrentValue">>,
-   aliases => [{<<"MaximalCurrentValue">>,read_hregs}],
-   amount => 2,function => read_hregs,
-   opts => [{output,float32}],start => 3009},
-   [#{aliases => [],
-      amount => -1,function => nil},
-      #{alias => <<"ActiveEnergyRcvd">>,
-         aliases => [{<<"ActiveEnergyRcvd">>,read_hregs}],
-         amount => 2,function => read_hregs,
-         opts => [{output,float32}],start => 2701},
+   [
+      #{alias => <<"MaximalCurrentValue">>,
+         aliases => [{<<"MaximalCurrentValue">>,read_hregs}],
+         amount => 2,
+         count => 1,
+         function => read_hregs,
+         opts => [{output,float32}],
+         start => 3009},
       #{alias => <<"ActiveEnergyDelvd">>,
-         aliases => [{<<"ActiveEnergyDelvd">>,read_hregs}],
-         amount => 2,function => read_hregs,
-         opts => [{output,float32}],start => 2699},
-      #{alias => <<"ReactiveEnergyRcvd">>,
-         aliases => [{<<"ReactiveEnergyRcvd">>,read_hregs}],
-         amount => 2,function => read_hregs,
-         opts => [{output,float32}],start => 2709},
+         aliases => [{<<"ActiveEnergyDelvd">>,read_hregs},{<<"ActiveEnergyRcvd">>,read_hregs}],
+         amount => 2,
+         count => 2,
+         function => read_hregs,
+         opts => [{output,float32}],
+         start => 2699},
       #{alias => <<"ReactiveEnergyDelvd">>,
-         aliases => [{<<"ReactiveEnergyDelvd">>,read_hregs}],
-         amount => 2,function => read_hregs,
-         opts => [{output,float32}],start => 2707},
-      #{alias => <<"ApparentEnergyRcvd">>,
-         aliases => [{<<"ApparentEnergyRcvd">>,read_hregs}],
-         amount => 2,function => read_hregs,
-         opts => [{output,float32}],start => 2717},
+         aliases => [{<<"ReactiveEnergyDelvd">>,read_hregs},{<<"ReactiveEnergyRcvd">>,read_hregs}],
+         amount => 2,
+         count => 2,
+         function => read_hregs,
+         opts => [{output,float32}],
+         start => 2707},
       #{alias => <<"ApparentEnergyDelvd">>,
-         aliases => [{<<"ApparentEnergyDelvd">>,read_hregs}],
-         amount => 2,function => read_hregs,
-         opts => [{output,float32}],start => 2715}]}.
+         aliases => [{<<"ApparentEnergyDelvd">>,read_hregs},{<<"ApparentEnergyRcvd">>,read_hregs}],
+         amount => 2,
+         count => 2,
+         function => read_hregs,
+         opts => [{output,float32}],
+         start => 2715}
+   ]
+.
 
 
 
