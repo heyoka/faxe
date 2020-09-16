@@ -48,21 +48,17 @@ handle_info({'DOWN', _MonitorRef, process, _Object, Info}, State=#state{parent =
   NewState = connect(State),
   {noreply, NewState};
 handle_info({modbus, _From, connected}, S = #state{parent = Parent}) ->
-  Parent ! {modbus, connected},
+  Parent ! {modbus, self(), connected},
   lager:notice("~p modbus connected !",[?MODULE]),
-%%  connection_registry:connected(),
-%%   lager:notice("Modbus is connected, lets start polling ..."),
-%%  Timer = faxe_time:init_timer(S#state.align, S#state.interval, poll),
   NewState = S#state{connected = true},
   {noreply, NewState};
 %% if disconnected, we just wait for a connected message and stop polling in the mean time
 handle_info({modbus, _From, disconnected}, State=#state{parent = Parent}) ->
   lager:notice("~p modbus disconnected !", [?MODULE]),
-  Parent ! {modbus, disconnected},
+  Parent ! {modbus, self(), disconnected},
   {noreply, State#state{connected = false}};
-handle_info({read, Fun, Start, Count, Opts} = Req, State = #state{parent = P}) ->
-  Res = read({{Fun, Start, Count}, Opts}, State),
-  lager:notice("Result from modbus: ~p // ~p",[Res, Req]),
+handle_info({read, ReadReq}, State = #state{parent = P}) ->
+  Res = read(ReadReq, State),
   P ! {modbus_data, self(), Res},
   {noreply, State};
 handle_info(_E, S) ->
@@ -82,20 +78,18 @@ connect(State = #state{}) ->
   erlang:monitor(process, Modbus),
   State#state{client = Modbus, connected = false}.
 
-read({{Fun, Start, Count}=F, Opts}, State = #state{client = Client}) ->
-  Res = modbus:Fun(Client, Start, Count, Opts),
+read(#{function := Fun, start := Start, amount := Amount, opts := Opts, aliases := Aliases} = Req,
+    State = #state{client = Client}) ->
+%%  lager:info("~p read: ~p",[self(), Req]),
+  Res = modbus:Fun(Client, Start, Amount, Opts),
   case Res of
     {error, disconnected} ->
       connect(State),
       {error, stop};
     {error, _Reason} ->
-      lager:error("error reading from modbus: ~p (~p)",[_Reason, F]),
+      lager:error("error reading from modbus: ~p (~p)",[_Reason, Req]),
       {error, _Reason};
     Data ->
-      FData =
-        case Data of
-          [D] -> D;
-          _ -> Data
-        end,
-      {ok, FData}
+%%      lager:info("got data: ~p",[Data]),
+      {ok, lists:zip(Aliases, Data)}
   end.

@@ -45,7 +45,8 @@
 -record(state, {
    ip,
    port,
-   readers,
+   readers = [],
+   num_readers = 1,
    device_address,
    function,
    starts,
@@ -93,22 +94,8 @@ init(NodeId, _Ins, #{} = Opts) ->
    connection_registry:reg(NodeId, State#state.ip, State#state.port, <<"modbus_tcp">>),
    connection_registry:connecting(),
    process_flag(trap_exit, true),
-   Req0 = build(State),
-   ReqOpts =
-      case build_opts(State#state.outputs, State#state.signed) of
-         [] -> [ [] || _X <- lists:seq(1, erlang:length(Req0))];
-         L when is_list(L) -> L
-      end,
-   Requests = lists:zip(Req0, ReqOpts),
-   lager:notice("modbus read opts: ~p",[Requests]),
-   NewRequests = lists:foldl(
-      fun({{Function,Start,Amount,As}, Opts}, Acc) ->
-         Acc ++ [ #{alias => As, amount => Amount, function => Function, start => Start, opts => Opts}]
-      end
-      , [], Requests),
-   RequestsSorted = sort_by_start(NewRequests),
-   lager:warning("~p", [find_contiguous(RequestsSorted)]),
-   NewState = State#state{requests = Requests, fn_id = NodeId},
+   ReadRequests = build_requests(State),
+   NewState = State#state{requests = ReadRequests, fn_id = NodeId},
    erlang:send_after(0, self(), connect),
    {ok, all, NewState}.
 
@@ -166,29 +153,77 @@ handle_info({'EXIT', Pid, Why}, State = #state{readers = Readers, timer = Timer}
    lager:warning("Modbus Reader exited with reason: ~p",[Why]),
    connection_registry:disconnected(),
    Readers0 = lists:delete(Pid, Readers),
-   NewReader = modbus_reader:start_link(State#state.ip, State#state.port, State#state.device_address),
+   _NewReader = modbus_reader:start_link(State#state.ip, State#state.port, State#state.device_address),
    NewTimer = faxe_time:timer_cancel(Timer),
-   {ok, State#state{readers = [NewReader|Readers0]}, timer = NewTimer};
+   {ok, State#state{readers = Readers0, timer = NewTimer}};
 handle_info({modbus, connected}, S = #state{connected = true}) ->
    {ok, S};
-handle_info({modbus, connected}, S = #state{}) ->
+handle_info({modbus, Reader, connected}, S = #state{readers = Readers, num_readers = NumR, requests = Reqs}) ->
+   NewReaders = [Reader|Readers],
    connection_registry:connected(),
-   lager:warning("Modbus is connected, lets start polling ..."),
-   Timer = faxe_time:init_timer(S#state.align, S#state.interval, poll),
-   NewState = S#state{timer = Timer, connected = true},
-   {ok, NewState};
+   NewState =
+   case length(NewReaders) == NumR of
+      true ->
+         lager:info("ALL Modbus is connected, lets start polling ..."),
+         Timer = faxe_time:init_timer(S#state.align, S#state.interval, poll),
+         S#state{timer = Timer, connected = true};
+      false ->
+         S
+   end,
+   {ok, NewState#state{readers = NewReaders}};
 %% if disconnected, we just wait for a connected message and stop polling in the mean time
-handle_info({modbus, disconnected}, State=#state{timer = Timer}) ->
+handle_info({modbus, Reader, disconnected}, State=#state{timer = Timer, readers = Readers}) ->
    connection_registry:disconnected(),
-   lager:warning("Modbus is disconnected!!, stop polling ...."),
-   {ok, State#state{timer = faxe_time:timer_cancel(Timer), connected = false}};
+   lager:warning("Modbus reader : ~p is disconnected!!, stop polling ....", [Reader]),
+   Readers0 = lists:delete(Reader, Readers),
+   {ok, State#state{timer = faxe_time:timer_cancel(Timer), connected = false, readers = Readers0}};
 handle_info(_E, S) ->
+   lager:warning("[~p] unexpected info: ~p",[?MODULE, _E]),
    {ok, S#state{}}.
 
 shutdown(#state{readers = Modbuss, timer = Timer}) ->
    catch (faxe_time:timer_cancel(Timer)),
    catch ([gen_server:stop(Modbus) || Modbus <- Modbuss]).
 
+build_requests(State) ->
+   Req0 = build(State),
+   ReqOpts =
+      case build_opts(State#state.outputs, State#state.signed) of
+         [] -> [ [] || _X <- lists:seq(1, erlang:length(Req0))];
+         L when is_list(L) -> L
+      end,
+   Requests = lists:zip(Req0, ReqOpts),
+   NewRequests = lists:foldl(
+      fun({{Function,Start,Amount,As}, Opts}, Acc) ->
+         Acc ++ [ #{alias => As, amount => Amount, function => Function, start => Start, opts => Opts}]
+      end
+      , [], Requests),
+   RequestsSorted = sort_by_start(NewRequests),
+   find_contiguous(RequestsSorted).
+
+%% @doc build request lists
+build(#state{function = Fs, starts = Ss, counts = Cs, as = Ass}) ->
+   build(Fs, Ss, Cs, Ass, []).
+
+build([], [], [], [], Acc) ->
+   Acc;
+build([F|Functions], [S|Starts], [C|Counts], [As|Aliases], Acc) ->
+   NewAcc = Acc ++ [{F, S, C, As}],
+   build(Functions, Starts, Counts, Aliases, NewAcc).
+
+build_opts(undefined, undefined) ->
+   [];
+build_opts(undefined, SignedList) when is_list(SignedList) ->
+   [[{signed, Bool}] || Bool <- SignedList];
+build_opts(OutFormats, undefined) when is_list(OutFormats) ->
+   [[{output, binary_to_existing_atom(Out, latin1)}] || Out <- OutFormats];
+build_opts(Out, Signed) when is_list(Out), is_list(Signed) ->
+   F = fun
+          ({<<>>, S}) ->  [{signed, S}];
+          ({O, <<>>}) -> [{output, binary_to_existing_atom(O, latin1)}];
+          ({O, S}) -> [{output, binary_to_existing_atom(O, latin1)}, {signed, S}]
+       end,
+   lists:map(F, lists:zip(Out, Signed)).
 
 sort_by_start(List) ->
    lists:sort(
@@ -197,34 +232,130 @@ sort_by_start(List) ->
       List).
 
 find_contiguous(L) ->
-%%   {{read_hregs,2701,2,<<"ActiveEnergyRcvd">>},[{output,float32}]},
-%%   {-1,#{aliases => [],amount => -1,function => nil},[]}
-
    F = fun(
-   #{function := Function, start := Start, amount := Amount, alias := As, opts := Opts} = E,
+       #{function := Function, start := Start, amount := Amount, alias := As, opts := Opts} = E,
        {LastStart, Current = #{aliases := CAs, count := CCount, function := CFunc, opts := COpts}, Partitions}) ->
       case (Function == CFunc) andalso (LastStart + Amount == Start) andalso (Opts == COpts) of
          true ->
             NewCurrent = Current#{count => CCount+1, aliases => CAs++[As], amount => (CCount+1)*Amount},
-            lager:notice("new current: ~p",[NewCurrent]),
-            lager:notice("return: ~p",[{Start, NewCurrent, Partitions}]),
             {Start, NewCurrent, Partitions};
          false ->
-            lager:notice("false -> start:~p, AsFunction: ~p :: partitions: ~p",
-               [Start, As, Partitions++[Current]]),
             {Start,
                E#{aliases => [As], count => 1, amount => Amount}, Partitions++[Current]
             }
       end
        end,
    {_Last, Current, [_|Parts]} =
-   lists:foldl(F, {-1, #{aliases => [], amount => -1, function => nil, count => 0, opts => nil}, []}, L),
+      lists:foldl(F, {-1, #{aliases => [], amount => -1, function => nil, count => 0, opts => nil}, []}, L),
    All = [Current|Parts],
    All.
 
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
-do() ->
-   [
+%% read all prepared requests
+read(Readers, Reqs, Ts) ->
+   read_all_multi(Readers, #data_point{ts = Ts}, Reqs).
+
+read_all(Clients, Point, Reqs) ->
+   Waiting =
+   lists:map(
+     fun({C, Req = #{aliases := _Aliases}}) ->
+        C ! {read, Req},
+        C
+     end,
+      lists:zip(Clients, Reqs)
+   ),
+   collect(Waiting, Point).
+
+read_all_multi(Clients, Point, Reqs) ->
+   {Waiting, _} =
+   lists:foldl(
+      fun(Req, {Waits, [Client|ClientList]}) ->
+         Client ! {read, Req},
+         {[Client|Waits], ClientList ++ [Client]}
+      end,
+      {[], Clients},
+      Reqs
+   ),
+   collect(Waiting, Point).
+
+collect([], Point) -> Point;
+collect(Waiting, Point) ->
+   receive
+      {modbus_data, _Client, {error, stop}} ->
+         {error, stop};
+      {modbus_data, _Client, {error, _Reason}} ->
+         collect(Waiting, Point);
+      {modbus_data, Client, {ok, Values}} ->
+         lager:warning("got data: from: ~p ~p",[Client, Values]),
+         collect(lists:delete(Client, Waiting), flowdata:set_fields(Point, Values))
+   after 3000 -> {error, timeout}
+   end.
+
+func(BinString) ->
+   %% make sure atoms are known at this point
+   code:ensure_loaded(modbus),
+   F =
+      case lists:member(BinString, ?FUNCTIONS) of
+         true -> binary_to_existing_atom(<< ?FUNCTION_PREFIX/binary, BinString/binary >>, utf8);
+         false -> erlang:error("Modbus function " ++ binary_to_list(BinString) ++ " not available")
+      end,
+   F.
+
+start_connections(State = #state{ip = Ip, port = Port, device_address = Dev, requests = Req}) ->
+   Connections =
+   lists:map(
+      fun(_E) ->
+         {ok, Reader} = modbus_reader:start_link(Ip, Port, Dev),
+         Reader
+      end,
+%%      Req
+   lists:seq(1, 3)
+   ),
+   lager:info("started ~p reader connections",[length(Connections)]),
+   State#state{num_readers = length(Connections)}.
+
+
+-ifdef(TEST).
+
+build_find_contiguous_test() ->
+   Requests = [
+      #{alias => <<"ActiveEnergyRcvd">>,
+         amount => 2,
+         function => read_hregs,
+         opts => [{output,float32}],start => 2701},
+      #{alias => <<"ActiveEnergyDelvd">>,
+         amount => 2,
+         function => read_hregs,
+         opts => [{output,float32}],
+         start => 2699},
+      #{alias => <<"ReactiveEnergyRcvd">>,
+         amount => 2,
+         function => read_hregs,
+         opts => [{output,float32}],
+         start => 2709},
+      #{alias => <<"ReactiveEnergyDelvd">>,
+         amount => 2,
+         function => read_hregs,
+         opts => [{output,float32}],
+         start => 2707},
+      #{alias => <<"ApparentEnergyRcvd">>,
+         amount => 2,
+         function => read_hregs,
+         opts => [{output,float32}],
+         start => 2717},
+      #{alias => <<"ApparentEnergyDelvd">>,
+         amount => 2,
+         function => read_hregs,
+         opts => [{output,float32}],
+         start => 2715},
+      #{alias => <<"MaximalCurrentValue">>,
+         amount => 2,
+         function => read_hregs,
+         opts => [{output,float32}],
+         start => 3009}
+   ],
+   Expected = [
       #{alias => <<"MaximalCurrentValue">>,
          aliases => [<<"MaximalCurrentValue">>],
          amount => 2,
@@ -253,98 +384,8 @@ do() ->
          function => read_hregs,
          opts => [{output,float32}],
          start => 2715}
-   ]
-.
+   ],
+   ?assertEqual(Expected, find_contiguous(sort_by_start(Requests))).
 
 
-
-
-
-%% @doc build request lists
-build(#state{function = Fs, starts = Ss, counts = Cs, as = Ass}) ->
-   build(Fs, Ss, Cs, Ass, []).
-
-build([], [], [], [], Acc) ->
-   Acc;
-build([F|Functions], [S|Starts], [C|Counts], [As|Aliases], Acc) ->
-   NewAcc = Acc ++ [{F, S, C, As}],
-   build(Functions, Starts, Counts, Aliases, NewAcc).
-
-build_opts(undefined, undefined) ->
-   [];
-build_opts(undefined, SignedList) when is_list(SignedList) ->
-   [[{signed, Bool}] || Bool <- SignedList];
-build_opts(OutFormats, undefined) when is_list(OutFormats) ->
-   [[{output, binary_to_existing_atom(Out, latin1)}] || Out <- OutFormats];
-build_opts(Out, Signed) when is_list(Out), is_list(Signed) ->
-   F = fun
-          ({<<>>, S}) ->  [{signed, S}];
-          ({O, <<>>}) -> [{output, binary_to_existing_atom(O, latin1)}];
-          ({O, S}) -> [{output, binary_to_existing_atom(O, latin1)}, {signed, S}]
-       end,
-   lists:map(F, lists:zip(Out, Signed)).
-
-
-%% read all prepared requests
-read(Readers, Reqs, Ts) ->
-   read_all(Readers, #data_point{ts = Ts}, Reqs).
-
-read_all(Clients, Point, Reqs) ->
-   Waiting =
-   lists:map(
-     fun({C, {{Fun, Start, Count, As}=F, Opts} = Request}) ->
-%%        lager:notice("read: ~p with connection: ~p",[Request, C]),
-        C ! {read, Fun, Start, Count, Opts},
-        {C, As}
-     end,
-      lists:zip(Clients, Reqs)
-   ),
-%%   lager:notice("waiting: ~p",[Waiting]),
-   collect(Waiting, Point).
-
-collect([], Point) -> Point;
-collect(Waiting, Point) ->
-   receive
-      {modbus_data, _Client, {error, stop}} -> {error, stop};
-      {modbus_data, Client, {error, _Reason}} = R ->
-         case proplists:get_value(Client, Waiting) of
-            undefined ->
-               lager:warning("got error read result from unexpected reader: ~p",[R]),
-               collect(Waiting, Point);
-            As when is_binary(As) ->
-               collect(Waiting, Point)
-         end;
-      {modbus_data, Client, {ok, Value}} = R1->
-         case proplists:get_value(Client, Waiting) of
-            undefined ->
-               lager:warning("got read result from unexpected reader: ~p",[R1]),
-               collect(Waiting, Point);
-            As when is_binary(As) ->
-               lager:info("collected :~p for :~p",[Value, As]),
-               collect(proplists:delete(Client, Waiting), flowdata:set_field(Point, As, Value))
-         end
-
-   after 3000 -> {error, timeout}
-   end.
-
-func(BinString) ->
-   %% make sure atoms are known at this point
-   code:ensure_loaded(modbus),
-   F =
-      case lists:member(BinString, ?FUNCTIONS) of
-         true -> binary_to_existing_atom(<< ?FUNCTION_PREFIX/binary, BinString/binary >>, utf8);
-         false -> erlang:error("Modbus function " ++ binary_to_list(BinString) ++ " not available")
-      end,
-   F.
-
-start_connections(State = #state{ip = Ip, port = Port, device_address = Dev, requests = Req}) ->
-   Connections =
-   lists:map(
-      fun(_E) ->
-         {ok, Reader} = modbus_reader:start_link(Ip, Port, Dev),
-         Reader
-      end,
-      Req
-   ),
-   lager:notice("started ~p reader connections",[length(Connections)]),
-   State#state{readers = Connections}.
+-endif.

@@ -4,7 +4,7 @@
     .port(8899)
     .device(255)
     .every(5s)
-
+    .align()
     .function('hregs', 'hregs', 'hregs', 'hregs', 'hregs', 'hregs', 'hregs')
     .from(2701, 2699, 2709, 2707, 2717, 2715, 3009)
     .count(2,2,2,2,2,2,2)
@@ -19,4 +19,6 @@
     )
     .output('float32', 'float32', 'float32', 'float32', 'float32', 'float32', 'float32')
 
-|debug()
+
+
+
