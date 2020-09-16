@@ -77,7 +77,8 @@ options() -> [
    {count, integer_list},
    {as, binary_list},
    {output, string_list, undefined},
-   {signed, atom_list, undefined}].
+   {signed, atom_list, undefined},
+   {max_connections, integer, auto}].
 
 check_options() ->
    [
@@ -121,6 +122,8 @@ init_opts([{signed, Flags}|Opts], State) ->
    init_opts(Opts, State#state{signed = Flags});
 init_opts([{align, Align}|Opts], State) ->
    init_opts(Opts, State#state{align = Align});
+init_opts([{max_connections, MaxConn}|Opts], State) ->
+   init_opts(Opts, State#state{num_readers = MaxConn});
 init_opts(_O, State) ->
    State.
 
@@ -133,9 +136,9 @@ handle_info(connect, State = #state{}) ->
    NewState = start_connections(State),
    {ok, NewState};
 
-handle_info(poll, State = #state{readers = Modbuss, requests = Requests, timer = Timer, fn_id = Id}) ->
+handle_info(poll, State = #state{readers = Readers, requests = Requests, timer = Timer, fn_id = Id}) ->
    Ts = Timer#faxe_timer.last_time,
-   {_Time, Res} = timer:tc(?MODULE, read, [Modbuss, Requests, Ts]),
+   {_Time, Res} = timer:tc(?MODULE, read, [Readers, Requests, Ts]),
    case Res of
       {error, stop} ->
          lager:warning("there is a problem with reading : we stop reading"),
@@ -267,6 +270,8 @@ read_all(Clients, Point, Reqs) ->
    ),
    collect(Waiting, Point).
 
+%% @doc distribute the read requests to all available reader processes
+%% if there are more requests than readers, some reader processes will get more than one request
 read_all_multi(Clients, Point, Reqs) ->
    {Waiting, _} =
    lists:foldl(
@@ -302,18 +307,21 @@ func(BinString) ->
       end,
    F.
 
-start_connections(State = #state{ip = Ip, port = Port, device_address = Dev, requests = Req}) ->
-   Connections =
+start_connections(State = #state{ip = Ip, port = Port, device_address = Dev, requests = Req, num_readers = Num}) ->
+   ConnNum =
+      case Num of
+         _ when is_integer(Num) andalso length(Req) > Num -> Num;
+         _ -> length(Req)
+      end,
    lists:map(
       fun(_E) ->
          {ok, Reader} = modbus_reader:start_link(Ip, Port, Dev),
          Reader
       end,
-%%      Req
-   lists:seq(1, 3)
+   lists:seq(1, ConnNum)
    ),
-   lager:info("started ~p reader connections",[length(Connections)]),
-   State#state{num_readers = length(Connections)}.
+   lager:info("started ~p reader connections",[ConnNum]),
+   State.
 
 
 -ifdef(TEST).
