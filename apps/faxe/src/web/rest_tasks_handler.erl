@@ -14,7 +14,14 @@
 %% Cowboy callbacks
 -export([
    init/2
-   , allowed_methods/2, list_json/2, content_types_provided/2, update_json/2]).
+   , allowed_methods/2,
+   list_json/2,
+   content_types_provided/2,
+   update_json/2,
+   start_permanent_json/2,
+   stop_all_json/2,
+   start_json/2,
+   stop_json/2]).
 
 %%
 %% Additional callbacks
@@ -33,6 +40,22 @@ allowed_methods(Req, State) ->
 content_types_provided(Req, State=#state{mode = update}) ->
    {[
       {{<<"application">>, <<"json">>, []}, update_json}
+   ], Req, State};
+content_types_provided(Req, State=#state{mode = start_permanent}) ->
+   {[
+      {{<<"application">>, <<"json">>, []}, start_permanent_json}
+   ], Req, State};
+content_types_provided(Req, State=#state{mode = start}) ->
+   {[
+      {{<<"application">>, <<"json">>, []}, start_json}
+   ], Req, State};
+content_types_provided(Req, State=#state{mode = stop}) ->
+   {[
+      {{<<"application">>, <<"json">>, []}, stop_json}
+   ], Req, State};
+content_types_provided(Req, State=#state{mode = stop_all}) ->
+   {[
+      {{<<"application">>, <<"json">>, []}, stop_all_json}
    ], Req, State};
 content_types_provided(Req, State) ->
     {[
@@ -74,11 +97,52 @@ update_json(Req, State) ->
    case faxe:update_all() of
       R when is_list(R) ->
          L = integer_to_binary(length(R)),
-         #{<<"success">> => true, <<"message">> => <<"updated ", L/binary, " flows">>};
+         Add = sing_plur(length(R), <<"flow">>),
+         #{<<"success">> => true, <<"message">> => <<"updated ", Add/binary>>};
       _ ->
          #{<<"success">> => false}
    end,
    {jiffy:encode(Resp), Req, State}.
+
+start_permanent_json(Req, State) ->
+   Resp =
+      case faxe:start_permanent_tasks() of
+         R when is_list(R) ->
+            Add = sing_plur(length(R), <<"permanent flow">>),
+            #{<<"success">> => true, <<"message">> => <<"started ", Add/binary>>};
+         _ ->
+            #{<<"success">> => false}
+      end,
+   {jiffy:encode(Resp), Req, State}.
+
+
+stop_all_json(Req, State) ->
+   Running = faxe:list_running_tasks(),
+   [faxe:stop_task(T) || T <- Running],
+   Add = sing_plur(length(Running), <<"flow">>),
+   M = #{<<"success">> => true, <<"message">> => <<"stopped ", Add/binary>>},
+   {jiffy:encode(M), Req, State}.
+
+%% start a list of tasks (by string id)
+start_json(Req, State) ->
+   Ids = cowboy_req:binding(ids, Req),
+   IdList = binary:split(Ids,[<<",">>, <<" ">>],[global, trim_all]),
+   StartResult = [faxe:start_task(Id) || Id <- IdList],
+   Add = sing_plur(length(StartResult), <<"flow">>),
+   M = #{<<"success">> => true, <<"message">> => <<"started ", Add/binary>>},
+   {jiffy:encode(M), Req, State}.
+
+%% start a list of tasks (by string id)
+stop_json(Req, State) ->
+   Ids = cowboy_req:binding(ids, Req),
+   IdList = binary:split(Ids,[<<",">>, <<" ">>],[global, trim_all]),
+   StopRes = [faxe:stop_task(Id) || Id <- IdList],
+   Add = sing_plur(length(StopRes), <<"flow">>),
+   M = #{<<"success">> => true, <<"message">> => <<"stopped ", Add/binary>>},
+   {jiffy:encode(M), Req, State}.
+
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 order_fun(<<"id">>, Dir) ->
    fun(#task{id = AId}, #task{id = BId}) -> (AId =< BId) == order_dir(Dir) end;
@@ -94,3 +158,12 @@ order_fun(_, Dir) ->
 order_dir(<<"asc">>) -> true;
 order_dir(_) -> false.
 
+
+sing_plur(Num, Word) when is_integer(Num), is_binary(Word) ->
+   NumBin = integer_to_binary(Num),
+   NewWord =
+   case Num of
+      1 -> Word;
+      _ -> <<Word/binary, "s">>
+   end,
+   <<NumBin/binary, " ", NewWord/binary>>.
