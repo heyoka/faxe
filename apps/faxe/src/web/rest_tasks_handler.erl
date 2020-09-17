@@ -21,7 +21,7 @@
    start_permanent_json/2,
    stop_all_json/2,
    start_json/2,
-   stop_json/2]).
+   stop_json/2, start_tags_json/2, stop_tags_json/2]).
 
 %%
 %% Additional callbacks
@@ -49,9 +49,25 @@ content_types_provided(Req, State=#state{mode = start}) ->
    {[
       {{<<"application">>, <<"json">>, []}, start_json}
    ], Req, State};
+content_types_provided(Req, State=#state{mode = start_by_ids}) ->
+   {[
+      {{<<"application">>, <<"json">>, []}, start_json}
+   ], Req, State};
+content_types_provided(Req, State=#state{mode = start_by_tags}) ->
+   {[
+      {{<<"application">>, <<"json">>, []}, start_tags_json}
+   ], Req, State};
 content_types_provided(Req, State=#state{mode = stop}) ->
    {[
       {{<<"application">>, <<"json">>, []}, stop_json}
+   ], Req, State};
+content_types_provided(Req, State=#state{mode = stop_by_ids}) ->
+   {[
+      {{<<"application">>, <<"json">>, []}, stop_json}
+   ], Req, State};
+content_types_provided(Req, State=#state{mode = stop_by_tags}) ->
+   {[
+      {{<<"application">>, <<"json">>, []}, stop_tags_json}
    ], Req, State};
 content_types_provided(Req, State=#state{mode = stop_all}) ->
    {[
@@ -78,9 +94,7 @@ list_json(Req, State=#state{mode = Mode}) ->
                _ -> L
             end;
          list_by_tags ->
-            Tags = cowboy_req:binding(tags, Req),
-            TagList = binary:split(Tags,[<<",">>, <<" ">>],[global, trim_all]),
-            faxe:list_tasks_by_tags(TagList)
+            tasks_by_tags(Req)
           end,
    case Tasks of
       {error, What} ->
@@ -97,7 +111,7 @@ update_json(Req, State) ->
    case faxe:update_all() of
       R when is_list(R) ->
          L = integer_to_binary(length(R)),
-         Add = sing_plur(length(R), <<"flow">>),
+         Add = maybe_plural(length(R), <<"flow">>),
          #{<<"success">> => true, <<"message">> => <<"updated ", Add/binary>>};
       _ ->
          #{<<"success">> => false}
@@ -108,7 +122,7 @@ start_permanent_json(Req, State) ->
    Resp =
       case faxe:start_permanent_tasks() of
          R when is_list(R) ->
-            Add = sing_plur(length(R), <<"permanent flow">>),
+            Add = maybe_plural(length(R), <<"permanent flow">>),
             #{<<"success">> => true, <<"message">> => <<"started ", Add/binary>>};
          _ ->
             #{<<"success">> => false}
@@ -119,30 +133,50 @@ start_permanent_json(Req, State) ->
 stop_all_json(Req, State) ->
    Running = faxe:list_running_tasks(),
    [faxe:stop_task(T) || T <- Running],
-   Add = sing_plur(length(Running), <<"flow">>),
+   Add = maybe_plural(length(Running), <<"flow">>),
    M = #{<<"success">> => true, <<"message">> => <<"stopped ", Add/binary>>},
    {jiffy:encode(M), Req, State}.
 
 %% start a list of tasks (by string id)
 start_json(Req, State) ->
-   Ids = cowboy_req:binding(ids, Req),
-   IdList = binary:split(Ids,[<<",">>, <<" ">>],[global, trim_all]),
+   IdList = id_list(Req),
    StartResult = [faxe:start_task(Id) || Id <- IdList],
-   Add = sing_plur(length(StartResult), <<"flow">>),
+   Add = maybe_plural(length(StartResult), <<"flow">>),
    M = #{<<"success">> => true, <<"message">> => <<"started ", Add/binary>>},
    {jiffy:encode(M), Req, State}.
 
-%% start a list of tasks (by string id)
+start_tags_json(Req, State) ->
+   Tasks = tasks_by_tags(Req),
+   StartResult = [faxe:start_task(T#task.id) || T <- Tasks],
+   Add = maybe_plural(length(StartResult), <<"flow">>),
+   M = #{<<"success">> => true, <<"message">> => <<"started ", Add/binary>>},
+   {jiffy:encode(M), Req, State}.
+
+%% stop a list of tasks (by string id)
 stop_json(Req, State) ->
-   Ids = cowboy_req:binding(ids, Req),
-   IdList = binary:split(Ids,[<<",">>, <<" ">>],[global, trim_all]),
+   IdList = id_list(Req),
    StopRes = [faxe:stop_task(Id) || Id <- IdList],
-   Add = sing_plur(length(StopRes), <<"flow">>),
+   Add = maybe_plural(length(StopRes), <<"flow">>),
+   M = #{<<"success">> => true, <<"message">> => <<"stopped ", Add/binary>>},
+   {jiffy:encode(M), Req, State}.
+
+stop_tags_json(Req, State) ->
+   Tasks = tasks_by_tags(Req),
+   StartResult = [faxe:stop_task(T) || T <- Tasks],
+   Add = maybe_plural(length(StartResult), <<"flow">>),
    M = #{<<"success">> => true, <<"message">> => <<"stopped ", Add/binary>>},
    {jiffy:encode(M), Req, State}.
 
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+id_list(Req) ->
+   Ids = cowboy_req:binding(ids, Req),
+   binary:split(Ids,[<<",">>, <<" ">>],[global, trim_all]).
+
+tasks_by_tags(Req) ->
+   Tags = cowboy_req:binding(tags, Req),
+   TagList = binary:split(Tags,[<<",">>, <<" ">>],[global, trim_all]),
+   faxe:list_tasks_by_tags(TagList).
 
 order_fun(<<"id">>, Dir) ->
    fun(#task{id = AId}, #task{id = BId}) -> (AId =< BId) == order_dir(Dir) end;
@@ -159,7 +193,7 @@ order_dir(<<"asc">>) -> true;
 order_dir(_) -> false.
 
 
-sing_plur(Num, Word) when is_integer(Num), is_binary(Word) ->
+maybe_plural(Num, Word) when is_integer(Num), is_binary(Word) ->
    NumBin = integer_to_binary(Num),
    NewWord =
    case Num of
