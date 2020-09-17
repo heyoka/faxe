@@ -82,21 +82,29 @@ do_collect() ->
   All.
 
 get_flows() ->
-  faxe:list_running_tasks()++faxe:list_temporary_tasks().
+  faxe:list_running_tasks() ++ faxe:list_temporary_tasks().
 
 flow_nodes(FlowList) ->
-  F = fun(E) ->
-          {FlowId, GPid} =
-          case E of
-            #task{name = FlowIdx, pid = Pid} ->
-              {FlowIdx, Pid};
-            {_FlowId, _Pid} = I ->
-              I
-          end,
-          Nodes = df_graph:nodes(GPid),
-          {FlowId, Nodes}
+  F = fun(E, Acc) ->
+    {FlowId, GPid} =
+      case E of
+        #task{name = FlowIdx, pid = Pid} ->
+          {FlowIdx, Pid};
+        {_FlowId, _Pid} = I ->
+          I
       end,
-  lists:map(F, FlowList).
+    %% safety first here
+    case is_process_alive(GPid) of
+      true ->
+        case catch df_graph:nodes(GPid) of
+          Nodes when is_list(Nodes) ->
+            [{FlowId, Nodes} | Acc];
+          _ -> Acc
+        end;
+      false -> Acc
+    end
+      end,
+  lists:foldl(F, [], FlowList).
 
 metrics() ->
   FlowNodes = flow_nodes(get_flows()),

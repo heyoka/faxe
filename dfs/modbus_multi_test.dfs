@@ -1,14 +1,27 @@
  def energy =
-    |modbus()
+    |modbus_multi()
     .ip('127.0.0.1')
     .port(8899)
     .device(255)
-    .every(1s)
+    .every(5s)
+    .align()
+    .function('hregs', 'hregs', 'hregs', 'hregs', 'hregs', 'hregs', 'hregs')
+    .from(2701, 2699, 2709, 2707, 2717, 2715, 3009)
+    .count(2,2,2,2,2,2,2)
+    .as(
+        'ActiveEnergyRcvd',
+        'ActiveEnergyDelvd',
+        'ReactiveEnergyRcvd',
+        'ReactiveEnergyDelvd',
+        'ApparentEnergyRcvd',
+        'ApparentEnergyDelvd',
+        'MaximalCurrentValue'
+    )
+    .output('float32', 'float32', 'float32', 'float32', 'float32', 'float32', 'float32')
+    .max_connections(333)
 
-    .function('coils', 'hregs', 'iregs')
-    .from(2127, 3008, 104)
-    .count(1, 2, 2)
-    .as('Energy.ActiveEnergyConsumption', 'Energy.MaximalCurrentValue', 'Energy.BlindEnergyDelivered')
-    .output('', 'float32', 'float32')
-    .signed(true, true, false)
+    |debug()
+
+
+
 
