@@ -33,7 +33,6 @@ start_link(Ip, Port, DeviceAddress) ->
 init([Ip, Port, DeviceAddress, Parent1]) ->
   State = #state{ip = Ip, port = Port, device_address = DeviceAddress, parent = Parent1},
   NewState = connect(State),
-  lager:info("modbus reader starting ..."),
   {ok, NewState}.
 
 handle_call(_Request, _From, State = #state{}) ->
@@ -49,12 +48,12 @@ handle_info({'DOWN', _MonitorRef, process, _Object, Info}, State=#state{parent =
   {noreply, NewState};
 handle_info({modbus, _From, connected}, S = #state{parent = Parent}) ->
   Parent ! {modbus, self(), connected},
-  lager:notice("~p modbus connected !",[?MODULE]),
+  lager:debug("~p modbus connected !",[?MODULE]),
   NewState = S#state{connected = true},
   {noreply, NewState};
 %% if disconnected, we just wait for a connected message and stop polling in the mean time
 handle_info({modbus, _From, disconnected}, State=#state{parent = Parent}) ->
-  lager:notice("~p modbus disconnected !", [?MODULE]),
+  lager:debug("~p modbus disconnected !", [?MODULE]),
   Parent ! {modbus, self(), disconnected},
   {noreply, State#state{connected = false}};
 handle_info({read, ReadReq}, State = #state{parent = P}) ->
@@ -80,7 +79,6 @@ connect(State = #state{}) ->
 
 read(#{function := Fun, start := Start, amount := Amount, opts := Opts, aliases := Aliases} = Req,
     State = #state{client = Client}) ->
-%%  lager:info("~p read: ~p",[self(), Req]),
   Res = modbus:Fun(Client, Start, Amount, Opts),
   case Res of
     {error, disconnected} ->

@@ -167,6 +167,8 @@ val(Val, {OptName, duration}) when is_binary(Val) ->
    end;
 val(Val, {_, number}) when is_integer(Val) orelse is_float(Val) -> Val;
 val(Val, {_, integer}) when is_integer(Val) -> Val;
+val(Val, {_, pos_integer}) when is_integer(Val) andalso Val > 0 -> Val;
+val(Val, {_, nonneg_integer}) when is_integer(Val) andalso Val > -1 -> Val;
 %%val(Val, {_, int}) when is_integer(Val) -> Val;
 val(Val, {_, float}) when is_float(Val) -> Val;
 val(Val, {_, double}) when is_float(Val) -> Val;

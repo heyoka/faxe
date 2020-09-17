@@ -78,7 +78,7 @@ options() -> [
    {as, binary_list},
    {output, string_list, undefined},
    {signed, atom_list, undefined},
-   {max_connections, integer, auto}].
+   {max_connections, pos_integer, auto}].
 
 check_options() ->
    [
@@ -161,13 +161,13 @@ handle_info({'EXIT', Pid, Why}, State = #state{readers = Readers, timer = Timer}
    {ok, State#state{readers = Readers0, timer = NewTimer}};
 handle_info({modbus, connected}, S = #state{connected = true}) ->
    {ok, S};
-handle_info({modbus, Reader, connected}, S = #state{readers = Readers, num_readers = NumR, requests = Reqs}) ->
+handle_info({modbus, Reader, connected}, S = #state{readers = Readers, num_readers = NumR}) ->
    NewReaders = [Reader|Readers],
-   connection_registry:connected(),
    NewState =
    case length(NewReaders) == NumR of
       true ->
-         lager:info("ALL Modbus is connected, lets start polling ..."),
+         connection_registry:connected(),
+         lager:debug("ALL Modbus is connected, lets start polling ..."),
          Timer = faxe_time:init_timer(S#state.align, S#state.interval, poll),
          S#state{timer = Timer, connected = true};
       false ->
@@ -177,7 +177,7 @@ handle_info({modbus, Reader, connected}, S = #state{readers = Readers, num_reade
 %% if disconnected, we just wait for a connected message and stop polling in the mean time
 handle_info({modbus, Reader, disconnected}, State=#state{timer = Timer, readers = Readers}) ->
    connection_registry:disconnected(),
-   lager:warning("Modbus reader : ~p is disconnected!!, stop polling ....", [Reader]),
+   lager:info("Modbus reader : ~p is disconnected!!, stop polling ....", [Reader]),
    Readers0 = lists:delete(Reader, Readers),
    {ok, State#state{timer = faxe_time:timer_cancel(Timer), connected = false, readers = Readers0}};
 handle_info(_E, S) ->
@@ -292,7 +292,7 @@ collect(Waiting, Point) ->
       {modbus_data, _Client, {error, _Reason}} ->
          collect(Waiting, Point);
       {modbus_data, Client, {ok, Values}} ->
-         lager:warning("got data: from: ~p ~p",[Client, Values]),
+%%         lager:warning("got data: from: ~p ~p",[Client, Values]),
          collect(lists:delete(Client, Waiting), flowdata:set_fields(Point, Values))
    after 3000 -> {error, timeout}
    end.
@@ -321,7 +321,7 @@ start_connections(State = #state{ip = Ip, port = Port, device_address = Dev, req
    lists:seq(1, ConnNum)
    ),
    lager:info("started ~p reader connections",[ConnNum]),
-   State.
+   State#state{num_readers = ConnNum}.
 
 
 -ifdef(TEST).

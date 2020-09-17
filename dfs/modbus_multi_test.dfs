@@ -18,7 +18,9 @@
         'MaximalCurrentValue'
     )
     .output('float32', 'float32', 'float32', 'float32', 'float32', 'float32', 'float32')
-    .max_connections(333)
+    .max_connections(0)
+
+    |debug()
 
 
 
