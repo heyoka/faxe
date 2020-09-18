@@ -12,8 +12,13 @@
 %%
 %% Cowboy callbacks
 -export([
-   init/2
-   , allowed_methods/2, list_json/2, content_types_provided/2]).
+  init/2
+  , allowed_methods/2,
+  list_json/2,
+  content_types_provided/2,
+  allow_missing_post/2,
+  content_types_accepted/2, from_import/2]).
+
 
 %%
 %% Additional callbacks
@@ -26,9 +31,18 @@ init(Req, [{op, Mode}]) ->
    lager:notice("Cowboy Opts are : ~p",[Mode]),
    {cowboy_rest, Req, #state{mode = Mode}}.
 
+allowed_methods(Req, State=#state{mode = import}) ->
+  {[<<"POST">>], Req, State};
 allowed_methods(Req, State) ->
     Value = [<<"GET">>, <<"OPTIONS">>],
     {Value, Req, State}.
+
+allow_missing_post(Req, State = #state{mode = import}) ->
+  {false, Req, State}.
+
+content_types_accepted(Req = #{method := <<"POST">>}, State = #state{mode = import}) ->
+  Value = [{{ <<"application">>, <<"x-www-form-urlencoded">>, []}, from_import}],
+  {Value, Req, State}.
 
 content_types_provided(Req, State) ->
     {[
@@ -44,6 +58,48 @@ list_json(Req, State=#state{mode = _Mode}) ->
    Sorted = lists:sort(order_fun(OrderBy, Direction), L),
    Maps = [rest_helper:template_to_map(T) || T <- Sorted],
    {jiffy:encode(Maps), Req, State}.
+
+from_import(Req, State=#state{}) ->
+  {ok, Body, Req1} = cowboy_req:read_urlencoded_body(Req),
+  TemplatesJson = proplists:get_value(<<"templates">>, Body),
+  case (catch jiffy:decode(TemplatesJson, [return_maps])) of
+    TemplatesList when is_list(TemplatesList) -> do_import(TemplatesList, Req1, State);
+    _ -> Req2 = cowboy_req:set_resp_body(
+      jiffy:encode(
+        #{<<"success">> => false, <<"message">> => <<"Error decoding json, invalid.">>}),
+      Req),
+      {false, Req2, State}
+  end.
+
+
+do_import(TemplateList, Req, State) ->
+  {Ok, Err} =
+    lists:foldl(
+      fun(TemplateMap = #{<<"name">> := TName}, {OkList, ErrList}) ->
+        case import_template(TemplateMap) of
+          {ok, _Id} -> {[TName|OkList], ErrList};
+          {error, What} -> {OkList, [#{TName => rest_helper:to_bin(What)}|ErrList]}
+        end
+      end,
+      {[],[]},
+      TemplateList
+    ),
+  Req2 = cowboy_req:set_resp_body(
+    jiffy:encode(
+      #{total => length(TemplateList), successful => length(Ok),
+        errors => length(Err), messages => Err}),
+    Req),
+  {true, Req2, State}.
+
+
+import_template(#{<<"dfs">> := Dfs, <<"name">> := Name}) ->
+  case faxe:register_template_string(Dfs, Name) of
+    ok ->
+      Id = rest_helper:get_task_or_template_id(Name, task),
+      {ok, Id};
+    Err -> Err
+  end.
+
 
 
 order_fun(<<"id">>, Dir) ->

@@ -21,7 +21,12 @@
    start_permanent_json/2,
    stop_all_json/2,
    start_json/2,
-   stop_json/2, start_tags_json/2, stop_tags_json/2]).
+   stop_json/2,
+   start_tags_json/2,
+   stop_tags_json/2,
+   allow_missing_post/2,
+   content_types_accepted/2,
+   from_import/2]).
 
 %%
 %% Additional callbacks
@@ -32,9 +37,18 @@
 init(Req, [{op, Mode}]) ->
    {cowboy_rest, Req, #state{mode = Mode}}.
 
+allowed_methods(Req, State=#state{mode = import}) ->
+   {[<<"POST">>], Req, State};
 allowed_methods(Req, State) ->
     Value = [<<"GET">>, <<"OPTIONS">>],
     {Value, Req, State}.
+
+allow_missing_post(Req, State = #state{mode = import}) ->
+   {false, Req, State}.
+
+content_types_accepted(Req = #{method := <<"POST">>}, State = #state{mode = import}) ->
+   Value = [{{ <<"application">>, <<"x-www-form-urlencoded">>, []}, from_import}],
+   {Value, Req, State}.
 
 
 content_types_provided(Req, State=#state{mode = update}) ->
@@ -77,6 +91,65 @@ content_types_provided(Req, State) ->
     {[
        {{<<"application">>, <<"json">>, []}, list_json}
     ], Req, State}.
+
+
+from_import(Req, State=#state{}) ->
+   {ok, Body, Req1} = cowboy_req:read_urlencoded_body(Req),
+%%   TaskName = proplists:get_value(<<"name">>, Result),
+   TasksJson = proplists:get_value(<<"tasks">>, Body),
+%%   lager:notice("import JSON: ~s",[TasksJson]),
+   case (catch jiffy:decode(TasksJson, [return_maps])) of
+      TasksList when is_list(TasksList) -> do_import(TasksList, Req1, State);
+      _ -> Req2 = cowboy_req:set_resp_body(
+         jiffy:encode(
+            #{<<"success">> => false, <<"message">> => <<"Error decoding json, invalid.">>}),
+         Req),
+         {false, Req2, State}
+   end.
+
+
+do_import(TasksList, Req, State) ->
+   {Ok, Err} =
+      lists:foldl(
+         fun(TaskMap=#{<<"name">> := TName}, {OkList, ErrList}) ->
+            case import_task(TaskMap) of
+               {ok, _Id} -> {[TName|OkList], ErrList};
+               {error, What} -> {OkList, [#{TName => rest_helper:to_bin(What)}|ErrList]}
+            end
+         end,
+         {[],[]},
+         TasksList
+      ),
+%%   [lager:notice("import: ~p",[import_task(T)]) || T <- TasksList],
+   Req2 = cowboy_req:set_resp_body(
+      jiffy:encode(
+         #{total => length(TasksList), successful => length(Ok),
+            errors => length(Err), messages => Err}),
+      Req),
+   {true, Req2, State}.
+
+
+import_task(#{<<"dfs">> := Dfs, <<"name">> := Name, <<"permanent">> := Perm, <<"tags">> := Tags}) ->
+   case faxe:register_string_task(Dfs, Name) of
+      ok ->
+         Id = rest_helper:get_task_or_template_id(Name, task),
+         case Perm of
+            true ->
+               NewTask = faxe:get_task(Id),
+               faxe_db:save_task(NewTask#task{permanent = true});
+            false -> ok
+         end,
+         add_tags(Tags, Id),
+         {ok, Id};
+      Err -> Err
+   end.
+
+add_tags(Tags, TaskId) ->
+   case Tags of
+      [] -> ok;
+      _ ->
+         faxe:add_tags(TaskId, Tags)
+   end.
 
 
 list_json(Req, State=#state{mode = Mode}) ->
@@ -132,43 +205,66 @@ start_permanent_json(Req, State) ->
 
 stop_all_json(Req, State) ->
    Running = faxe:list_running_tasks(),
-   [faxe:stop_task(T) || T <- Running],
-   Add = maybe_plural(length(Running), <<"flow">>),
-   M = #{<<"success">> => true, <<"message">> => <<"stopped ", Add/binary>>},
-   {jiffy:encode(M), Req, State}.
+   stop_list(Running, Req, State).
 
 %% start a list of tasks (by string id)
 start_json(Req, State) ->
    IdList = id_list(Req),
-   StartResult = [faxe:start_task(Id) || Id <- IdList],
-   Add = maybe_plural(length(StartResult), <<"flow">>),
-   M = #{<<"success">> => true, <<"message">> => <<"started ", Add/binary>>},
-   {jiffy:encode(M), Req, State}.
+   start_list(IdList, Req, State).
 
 start_tags_json(Req, State) ->
    Tasks = tasks_by_tags(Req),
-   StartResult = [faxe:start_task(T#task.id) || T <- Tasks],
-   Add = maybe_plural(length(StartResult), <<"flow">>),
-   M = #{<<"success">> => true, <<"message">> => <<"started ", Add/binary>>},
-   {jiffy:encode(M), Req, State}.
+   start_list(Tasks, Req, State).
 
 %% stop a list of tasks (by string id)
 stop_json(Req, State) ->
    IdList = id_list(Req),
-   StopRes = [faxe:stop_task(Id) || Id <- IdList],
-   Add = maybe_plural(length(StopRes), <<"flow">>),
-   M = #{<<"success">> => true, <<"message">> => <<"stopped ", Add/binary>>},
-   {jiffy:encode(M), Req, State}.
+   stop_list(IdList, Req, State).
 
 stop_tags_json(Req, State) ->
    Tasks = tasks_by_tags(Req),
-   StartResult = [faxe:stop_task(T) || T <- Tasks],
-   Add = maybe_plural(length(StartResult), <<"flow">>),
-   M = #{<<"success">> => true, <<"message">> => <<"stopped ", Add/binary>>},
-   {jiffy:encode(M), Req, State}.
+   stop_list(Tasks, Req, State).
 
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+stop_list(TaskList, Req, State) ->
+   StopResult =
+   lists:foldl(
+      fun(Task, Stopped) ->
+         TId =
+         case Task of
+            T=#task{id = Id} -> Id;
+            _ -> Task
+         end,
+         case faxe:stop_task(TId) of
+            ok -> [TId | Stopped];
+            _ -> Stopped
+         end
+      end, [], TaskList
+   ),
+   Add = maybe_plural(length(StopResult), <<"flow">>),
+   M = #{<<"success">> => true, <<"message">> => <<"stopped ", Add/binary>>},
+   {jiffy:encode(M), Req, State}.
+
+start_list(TaskList, Req, State) ->
+   StopResult =
+      lists:foldl(
+         fun(Task, Stopped) ->
+            TId =
+               case Task of
+                  T=#task{id = Id} -> Id;
+                  _ -> Task
+               end,
+            case faxe:start_task(TId) of
+               {ok, _} -> [TId | Stopped];
+               _ -> Stopped
+            end
+         end, [], TaskList
+      ),
+   Add = maybe_plural(length(StopResult), <<"flow">>),
+   M = #{<<"success">> => true, <<"message">> => <<"started ", Add/binary>>},
+   {jiffy:encode(M), Req, State}.
+
 id_list(Req) ->
    Ids = cowboy_req:binding(ids, Req),
    binary:split(Ids,[<<",">>, <<" ">>],[global, trim_all]).

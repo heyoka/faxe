@@ -13,7 +13,7 @@
 
 %% API
 -export([task_to_map/1, template_to_map/1, do_register/6,
-   to_bin/1, reg_fun/3, report_malformed/3, add_tags/2, set_tags/2]).
+   to_bin/1, reg_fun/3, report_malformed/3, add_tags/2, set_tags/2, get_task_or_template_id/2]).
 
 task_to_map(_T = #task{
    id = Id, name = Name, date = Dt, is_running = Running,

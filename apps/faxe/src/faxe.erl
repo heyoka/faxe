@@ -401,7 +401,7 @@ stop_task(_T=#task{pid = Graph}) when is_pid(Graph) ->
    case is_process_alive(Graph) of
       true ->
          df_graph:stop(Graph);
-      false -> ok
+      false -> {error, not_running}
    end;
 
 stop_task(TaskId) ->
@@ -410,20 +410,20 @@ stop_task(TaskId) ->
 stop_task(TaskId, Permanent) ->
    T = faxe_db:get_task(TaskId),
    case T of
-      {error, not_found} -> ok;
+      {error, not_found} -> {error, not_found};
       #task{pid = Graph} when is_pid(Graph) ->
          case is_process_alive(Graph) of
             true ->
-               df_graph:stop(Graph);
-            false -> ok
-         end,
-         NewT =
-         case Permanent of
-            true -> T#task{permanent = false};
-            false -> T
-         end,
-         faxe_db:save_task(NewT#task{pid = undefined, last_stop = faxe_time:now_date()});
-      #task{} -> ok
+               df_graph:stop(Graph),
+               NewT =
+                  case Permanent of
+                     true -> T#task{permanent = false};
+                     false -> T
+                  end,
+               faxe_db:save_task(NewT#task{pid = undefined, last_stop = faxe_time:now_date()});
+            false -> {error, not_running}
+         end;
+      #task{} -> {error, not_running}
    end.
 
 -spec delete_task(term()) -> ok | {error, not_found} | {error, task_is_running}.
