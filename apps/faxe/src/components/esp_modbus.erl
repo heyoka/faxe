@@ -136,7 +136,11 @@ process(_Inport, _Item, State = #state{connected = true}) ->
    handle_info(poll, State).
 
 handle_info(poll, State = #state{client = Modbus, requests = Requests, timer = Timer, fn_id = Id}) ->
-   Ts = Timer#faxe_timer.last_time,
+   Ts =
+      case is_record(Timer, faxe_timer) of
+         true -> Timer#faxe_timer.last_time;
+         false -> faxe_time:now()
+      end,
    {_Time, Res} = timer:tc(?MODULE, read, [Modbus, Requests, Ts]),
    case Res of
       {error, stop} ->

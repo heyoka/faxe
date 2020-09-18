@@ -56,9 +56,9 @@ handle_info({modbus, _From, disconnected}, State=#state{parent = Parent}) ->
   lager:debug("~p modbus disconnected !", [?MODULE]),
   Parent ! {modbus, self(), disconnected},
   {noreply, State#state{connected = false}};
-handle_info({read, ReadReq}, State = #state{parent = P}) ->
+handle_info({read, Ref, ReadReq}, State = #state{parent = P}) ->
   Res = read(ReadReq, State),
-  P ! {modbus_data, self(), Res},
+  P ! {modbus_data, self(), Ref, Res},
   {noreply, State};
 handle_info(_E, S) ->
   {noreply, S#state{}}.

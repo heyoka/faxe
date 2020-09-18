@@ -64,6 +64,7 @@
 
 -define(FUNCTIONS, [<<"coils">>, <<"hregs">>, <<"iregs">>, <<"inputs">>, <<"memory">>]).
 -define(FUNCTION_PREFIX, <<"read_">>).
+-define(READ_TIMEOUT, 3000).
 
 -spec options() -> list().
 options() -> [
@@ -130,6 +131,7 @@ init_opts(_O, State) ->
 process(_Inport, _Item, State = #state{connected = false}) ->
    {ok, State};
 process(_Inport, _Item, State = #state{connected = true}) ->
+   lager:notice("read trigger"),
    handle_info(poll, State).
 
 handle_info(connect, State = #state{}) ->
@@ -137,7 +139,11 @@ handle_info(connect, State = #state{}) ->
    {ok, NewState};
 
 handle_info(poll, State = #state{readers = Readers, requests = Requests, timer = Timer, fn_id = Id}) ->
-   Ts = Timer#faxe_timer.last_time,
+   Ts =
+      case is_record(Timer, faxe_timer) of
+         true -> Timer#faxe_timer.last_time;
+         false -> faxe_time:now()
+      end,
    {_Time, Res} = timer:tc(?MODULE, read, [Readers, Requests, Ts]),
    case Res of
       {error, stop} ->
@@ -259,42 +265,35 @@ find_contiguous(L) ->
 read(Readers, Reqs, Ts) ->
    read_all_multi(Readers, #data_point{ts = Ts}, Reqs).
 
-read_all(Clients, Point, Reqs) ->
-   Waiting =
-   lists:map(
-     fun({C, Req = #{aliases := _Aliases}}) ->
-        C ! {read, Req},
-        C
-     end,
-      lists:zip(Clients, Reqs)
-   ),
-   collect(Waiting, Point).
-
 %% @doc distribute the read requests to all available reader processes
 %% if there are more requests than readers, some reader processes will get more than one request
 read_all_multi(Clients, Point, Reqs) ->
+   ReadRef = make_ref(),
    {Waiting, _} =
    lists:foldl(
       fun(Req, {Waits, [Client|ClientList]}) ->
-         Client ! {read, Req},
+         Client ! {read, ReadRef, Req},
          {[Client|Waits], ClientList ++ [Client]}
       end,
       {[], Clients},
       Reqs
    ),
-   collect(Waiting, Point).
+   collect(Waiting, ReadRef, Point).
 
-collect([], Point) -> Point;
-collect(Waiting, Point) ->
+collect([], _Ref, Point) -> Point;
+collect(Waiting, ReadRef, Point) ->
    receive
-      {modbus_data, _Client, {error, stop}} ->
+      {modbus_data, _Client, ReadRef, {error, stop}} ->
          {error, stop};
-      {modbus_data, _Client, {error, _Reason}} ->
-         collect(Waiting, Point);
-      {modbus_data, Client, {ok, Values}} ->
-%%         lager:warning("got data: from: ~p ~p",[Client, Values]),
-         collect(lists:delete(Client, Waiting), flowdata:set_fields(Point, Values))
-   after 3000 -> {error, timeout}
+      {modbus_data, _Client, ReadRef, {error, _Reason}} ->
+         collect(Waiting, ReadRef, Point);
+      {modbus_data, Client, ReadRef, {ok, Values}} ->
+         collect(lists:delete(Client, Waiting), ReadRef, flowdata:set_fields(Point, Values));
+      %% flush possibly old values from previous read requests, we do not want these anymore
+      {modbus_data, _Client, OldRef, _WhatEver} when OldRef /= ReadRef ->
+         collect(Waiting, ReadRef, Point)
+
+   after ?READ_TIMEOUT -> {error, timeout}
    end.
 
 func(BinString) ->
