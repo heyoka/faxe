@@ -78,10 +78,10 @@ process(_Inport, #data_point{} = Point,
 
 
 handle_info(reset_timeout, State) ->
-   lager:info("reset_timeout triggered"),
+%%   lager:info("reset_timeout triggered"),
    {ok, State#state{values = []}};
 handle_info(timeout, State = #state{timeout = T}) ->
-   lager:info("timeout triggered"),
+%%   lager:info("timeout triggered"),
    NewTimer = start_timeout(T),
    {ok, State#state{values = [], timer = NewTimer}};
 handle_info(_Req, State) ->
@@ -132,11 +132,11 @@ get_values(P = #data_point{}, FieldNames) ->
 -spec reset_timeout(undefined|non_neg_integer()) -> undefined|reference().
 reset_timeout(undefined) -> undefined;
 reset_timeout(Time) ->
-   lager:notice("start reset timeout"),
+%%   lager:notice("start reset timeout"),
    erlang:send_after(Time, self(), reset_timeout).
 start_timeout(undefined) -> undefined;
 start_timeout(Time) ->
-   lager:notice("start timeout"),
+%%   lager:notice("start timeout"),
    erlang:send_after(Time, self(), timeout).
 
 

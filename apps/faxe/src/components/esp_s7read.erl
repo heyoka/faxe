@@ -167,7 +167,6 @@ process(_Inport, _Item, State = #state{connected = false}) ->
   {ok, State};
 process(_Inport, Item, State = #state{connected = true}) ->
   % read now trigger
-  lager:info("read trigger!", []),
   handle_info(poll, State#state{port_data = Item}).
 
 handle_info(s7_connected, State = #state{align = Align, interval = Dur}) ->
@@ -194,8 +193,11 @@ handle_info(poll,
       node_metrics:metric(?METRIC_READING_TIME, TMs, FlowIdNodeId),
       node_metrics:metric(?METRIC_ITEMS_IN, 1, FlowIdNodeId),
       node_metrics:metric(?METRIC_BYTES_READ, ByteSize, FlowIdNodeId),
-      Ts = Timer#faxe_timer.last_time,
-      NewTimer = faxe_time:timer_next(Timer),
+      {Ts, NewTimer} =
+        case is_record(Timer, faxe_timer) of
+          true -> {Timer#faxe_timer.last_time, faxe_time:timer_next(Timer)};
+          false -> {faxe_time:now(), Timer}
+        end,
       NewState = State#state{timer = NewTimer, last_values = Res},
       maybe_emit(Diff, Ts, Res, Aliases, LastList, NewState);
     _Other ->
