@@ -78,11 +78,12 @@ connect(State = #state{}) ->
   State#state{client = Modbus, connected = false}.
 
 read(#{function := Fun, start := Start, amount := Amount, opts := Opts, aliases := Aliases} = Req,
-    State = #state{client = Client}) ->
+    _State = #state{client = Client}) ->
   Res = modbus:Fun(Client, Start, Amount, Opts),
   case Res of
     {error, disconnected} ->
-      connect(State),
+      lager:error("error reading from modbus: disconnected (~p)",[Req]),
+      %% connect(State),
       {error, stop};
     {error, _Reason} ->
       lager:error("error reading from modbus: ~p (~p)",[_Reason, Req]),

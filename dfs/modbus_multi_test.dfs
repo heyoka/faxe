@@ -1,14 +1,14 @@
 
 
- |value_emitter()
- .every(5s)
- .type(point)
+ %|value_emitter()
+ %.every(5s)
+ %.type(point)
 
     |modbus_multi()
     .ip('127.0.0.1')
     .port(8899)
     .device(255)
-    .every(7s)
+    .every(37s)
     .align()
     .function('hregs', 'hregs', 'hregs', 'hregs', 'hregs', 'hregs', 'hregs')
     .from(2701, 2699, 2709, 2707, 2717, 2715, 3009)

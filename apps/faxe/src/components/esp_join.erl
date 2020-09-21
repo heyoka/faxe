@@ -91,11 +91,11 @@ process(Inport, #data_point{ts = Ts} = Point, State = #state{buffer = Buffer, ti
    case abs(LookupTs - Ts) > Tolerance of
       true ->
          %% new ts in buffer
-         lager:warning("new buffer entry for Ts: ~p : ~p",[Ts, {Inport, flowdata:ts(Point)}]),
+%%         lager:warning("new buffer entry for Ts: ~p : ~p",[Ts, {Inport, flowdata:ts(Point)}]),
          {Ts , [{Inport, Point}]};
       false ->
          %% add point to buffer
-         lager:warning("add buffer entry for Ts: ~p: ~p",[LookupTs, {Inport, flowdata:ts(Point)}]),
+%%         lager:warning("add buffer entry for Ts: ~p: ~p",[LookupTs, {Inport, flowdata:ts(Point)}]),
          {LookupTs, [{Inport, Point}| orddict:fetch(LookupTs, Buffer)]}
    end,
 
@@ -123,7 +123,7 @@ process(Inport, #data_point{ts = Ts} = Point, State = #state{buffer = Buffer, ti
 handle_info({tick, Ts}, State = #state{buffer = [], timers = TList}) ->
    {ok, State#state{timers = proplists:delete(Ts, TList), buffer = undefined}};
 handle_info({tick, Ts}, State = #state{buffer = Buffer, timers = TList}) ->
-   lager:warning("~p ticks missing timeout :: ~p",[?MODULE, Buffer]),
+%%   lager:warning("~p ticks missing timeout :: ~p",[?MODULE, Buffer]),
    NewBuffer =
    case lists:member(Ts, orddict:fetch_keys(Buffer)) of
       true ->
@@ -160,7 +160,7 @@ merge([{_Port, FirstRow}|RowData], Ts, MergeField) ->
       lists:foldl(
          fun({_Port0, OP=#data_point{}}, P=#data_point{}) ->
             M1 = flowdata:field(OP, MergeField), M2 = flowdata:field(P, MergeField),
-            lager:notice("merge: ~p ~nand ~p",[M1, M2]),
+%%            lager:notice("merge: ~p ~nand ~p",[M1, M2]),
             NewData = merge(M1, M2),
             flowdata:set_field(P, MergeField, NewData)
 %%            P#data_point{fields = #{MergeField => NewData}}
@@ -169,7 +169,7 @@ merge([{_Port, FirstRow}|RowData], Ts, MergeField) ->
 %%         flowdata:set_field(#data_point{ts = Ts}, MergeField, #{}),
          RowData
       ),
-   lager:info("join OUT at ~p: ~p",[faxe_time:to_date(Ts),NewPoint]),
+%%   lager:info("join OUT at ~p: ~p",[faxe_time:to_date(Ts),NewPoint]),
    NewPoint.
 
 %% actually join the buffer rows
