@@ -28,7 +28,8 @@ start(_StartType, _StartArgs) ->
    HttpPort = faxe_config:get(http_api_port, 8081),
    {ok, _} = cowboy:start_clear(http_rest, [{port, HttpPort}],
       #{
-         env =>  #{dispatch => Dispatch}, middlewares => [cowboy_router, cmw_headers, cowboy_handler]
+         env =>  #{dispatch => Dispatch},
+         middlewares => [cowboy_router, cmw_headers, cowboy_handler]
       }
    ),
    %% start top supervisor

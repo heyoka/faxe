@@ -10,6 +10,8 @@
 
 -include("faxe.hrl").
 
+-define(REQ_BODY_CONSTRAINTS, #{length => 300000, period => 5000}).
+
 %%
 %% Cowboy callbacks
 -export([
@@ -93,8 +95,9 @@ content_types_provided(Req, State) ->
     ], Req, State}.
 
 
+
 from_import(Req, State=#state{}) ->
-   {ok, Body, Req1} = cowboy_req:read_urlencoded_body(Req),
+   {ok, Body, Req1} = cowboy_req:read_urlencoded_body(Req, ?REQ_BODY_CONSTRAINTS),
 %%   TaskName = proplists:get_value(<<"name">>, Result),
    TasksJson = proplists:get_value(<<"tasks">>, Body),
 %%   lager:notice("import JSON: ~s",[TasksJson]),
@@ -183,7 +186,6 @@ update_json(Req, State) ->
    Resp =
    case faxe:update_all() of
       R when is_list(R) ->
-         L = integer_to_binary(length(R)),
          Add = maybe_plural(length(R), <<"flow">>),
          #{<<"success">> => true, <<"message">> => <<"updated ", Add/binary>>};
       _ ->
@@ -233,7 +235,7 @@ stop_list(TaskList, Req, State) ->
       fun(Task, Stopped) ->
          TId =
          case Task of
-            T=#task{id = Id} -> Id;
+            #task{id = Id} -> Id;
             _ -> Task
          end,
          case faxe:stop_task(TId) of
@@ -252,7 +254,7 @@ start_list(TaskList, Req, State) ->
          fun(Task, Stopped) ->
             TId =
                case Task of
-                  T=#task{id = Id} -> Id;
+                  #task{id = Id} -> Id;
                   _ -> Task
                end,
             case faxe:start_task(TId) of
