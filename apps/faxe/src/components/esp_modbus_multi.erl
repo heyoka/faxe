@@ -146,11 +146,21 @@ handle_info(poll, State = #state{readers = Readers, requests = Requests, timer =
       end,
    {_Time, Res} = timer:tc(?MODULE, read, [Readers, Requests, Ts]),
    case Res of
-      {error, stop} ->
-         lager:warning("there is a problem with reading : we stop reading"),
-         {ok, State#state{timer = faxe_time:timer_cancel(Timer), connected = false}};
+      {error, stop, Client} ->
+         NewReaders = lists:delete(Client, Readers),
+         {NewTimer, Connected} =
+         case NewReaders of
+            [] ->
+               lager:warning("there is a problem with reading : we stop reading"),
+               {faxe_time:timer_cancel(Timer), false};
+            [_R|_] ->
+               lager:warning("there is a problem with reading, the current request is cancelled,
+                  but we have still connections to go"),
+               {faxe_time:timer_next(Timer), true}
+         end,
+         {ok, State#state{timer = NewTimer, connected = Connected, readers = NewReaders}};
       {error, _Reason} ->
-         lager:warning("error when reading from modbus: ~p",[_Reason]),
+         lager:warning("error when reading from modbus, request cancelled: ~p",[_Reason]),
          {ok, State#state{timer = faxe_time:timer_next(Timer)}};
       OutPoint when is_record(OutPoint, data_point)->
          BSize = byte_size(flowdata:to_json(OutPoint)),
@@ -158,37 +168,38 @@ handle_info(poll, State = #state{readers = Readers, requests = Requests, timer =
          node_metrics:metric(?METRIC_ITEMS_IN, 1, Id),
          {emit, {1, OutPoint}, State#state{timer = faxe_time:timer_next(Timer)}}
    end;
-handle_info({'EXIT', Pid, Why}, State = #state{readers = Readers, timer = Timer}) ->
+handle_info({'EXIT', Pid, Why}, State = #state{}) ->
    lager:warning("Modbus Reader exited with reason: ~p",[Why]),
-   connection_registry:disconnected(),
-   Readers0 = lists:delete(Pid, Readers),
    _NewReader = modbus_reader:start_link(State#state.ip, State#state.port, State#state.device_address),
-   NewTimer = faxe_time:timer_cancel(Timer),
-   {ok, State#state{readers = Readers0, timer = NewTimer}};
-handle_info({modbus, connected}, S = #state{connected = true}) ->
-   {ok, S};
-handle_info({modbus, Reader, connected}, S = #state{readers = Readers, num_readers = NumR}) ->
+   handle_disconnect(Pid, State);
+handle_info({modbus, Reader, connected}, S = #state{readers = []}) ->
+   connection_registry:connected(),
+   lager:info("Modbus is connected, lets start polling ..."),
+   Timer = faxe_time:init_timer(S#state.align, S#state.interval, poll),
+   {ok, S#state{timer = Timer, connected = true, readers = [Reader]}};
+handle_info({modbus, Reader, connected}, S = #state{readers = Readers}) ->
+   lager:info("Modbus is connected, already connected ~p other readers ...",[length(Readers)]),
    NewReaders = [Reader|Readers],
-   NewState =
-   case length(NewReaders) == NumR of
-      true ->
-         connection_registry:connected(),
-         lager:debug("ALL Modbus is connected, lets start polling ..."),
-         Timer = faxe_time:init_timer(S#state.align, S#state.interval, poll),
-         S#state{timer = Timer, connected = true};
-      false ->
-         S
-   end,
-   {ok, NewState#state{readers = NewReaders}};
+   {ok, S#state{readers = NewReaders}};
 %% if disconnected, we just wait for a connected message and stop polling in the mean time
-handle_info({modbus, Reader, disconnected}, State=#state{timer = Timer, readers = Readers}) ->
-   connection_registry:disconnected(),
-   lager:info("Modbus reader : ~p is disconnected!!, stop polling ....", [Reader]),
-   Readers0 = lists:delete(Reader, Readers),
-   {ok, State#state{timer = faxe_time:timer_cancel(Timer), connected = false, readers = Readers0}};
+handle_info({modbus, Reader, disconnected}, State=#state{}) ->
+   handle_disconnect(Reader, State);
+
 handle_info(_E, S) ->
    lager:warning("[~p] unexpected info: ~p",[?MODULE, _E]),
    {ok, S#state{}}.
+
+handle_disconnect(Reader, State = #state{readers = Readers, timer = Timer}) ->
+   Readers0 = lists:delete(Reader, Readers),
+   case Readers0 of
+      [] ->
+         connection_registry:disconnected(),
+         lager:info("All Modbus readers are disconnected!!, stop polling ....", [Reader]),
+         {ok, State#state{timer = faxe_time:timer_cancel(Timer), connected = false, readers = Readers0}};
+      [_R|_] ->
+         lager:info("Modbus reader ~p disconnected!!, ~p readers left ....", [Reader, length(Readers0)]),
+         {ok, State#state{timer = faxe_time:timer_next(Timer), readers = Readers0}}
+   end.
 
 shutdown(#state{readers = Modbuss, timer = Timer}) ->
    catch (faxe_time:timer_cancel(Timer)),
@@ -283,8 +294,8 @@ read_all_multi(Clients, Point, Reqs) ->
 collect([], _Ref, Point) -> Point;
 collect(Waiting, ReadRef, Point) ->
    receive
-      {modbus_data, _Client, ReadRef, {error, stop}} ->
-         {error, stop};
+      {modbus_data, Client, ReadRef, {error, stop}} ->
+         {error, stop, Client};
       {modbus_data, _Client, ReadRef, {error, _Reason}} ->
          collect(Waiting, ReadRef, Point);
       {modbus_data, Client, ReadRef, {ok, Values}} ->

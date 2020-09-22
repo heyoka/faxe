@@ -84,7 +84,7 @@ read(#{function := Fun, start := Start, amount := Amount, opts := Opts, aliases 
     {error, disconnected} ->
       lager:error("error reading from modbus: disconnected (~p)",[Req]),
       %% connect(State),
-      {error, stop};
+      {error, disconnected};
     {error, _Reason} ->
       lager:error("error reading from modbus: ~p (~p)",[_Reason, Req]),
       {error, _Reason};
