@@ -57,7 +57,9 @@ stop(Server) ->
 init([Queue, Config]) ->
    process_flag(trap_exit, true),
    erlang:send_after(0, self(), connect),
-   {ok, #state{queue = Queue, config = amqp_options:parse(Config)}}.
+   AmqpParams = amqp_options:parse(Config),
+%%   lager:notice("AmqpParams: ~p", [lager:pr(AmqpParams, ?MODULE)]),
+   {ok, #state{queue = Queue, config = AmqpParams}}.
 
 -spec handle_cast(term(), state()) -> {noreply, state()}.
 handle_cast(Msg, State) ->

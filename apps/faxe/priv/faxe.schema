@@ -267,12 +267,12 @@
 
 %% CrateDB host
 {mapping, "crate_http.host", "faxe.crate_http.host",
-    [{default, "crate.example.com"}, {datatype, string}]
+    [{default, "{{crate_http_host}}" }, {datatype, string}]
 }.
 
 %% @doc CrateDB port
 {mapping, "crate_http.port", "faxe.crate_http.port",
-    [{default, 4200}, {datatype, integer}]
+    [{default, {{crate_http_port}} }, {datatype, integer}]
 }.
 
 %% @doc CrateDB user
