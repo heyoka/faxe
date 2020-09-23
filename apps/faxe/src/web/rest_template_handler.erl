@@ -122,7 +122,6 @@ from_totask(Req, State=#state{template_id = TId}) ->
    {ok, Result, Req1} = cowboy_req:read_urlencoded_body(Req),
    Json = proplists:get_value(<<"vars">>, Result, <<"{}">>),
    Vars = jiffy:decode(Json, [return_maps]),
-   lager:notice("Body: ~p, Vars: ~p",[Result, Vars]),
    case faxe:task_from_template(TId, TaskName, Vars) of
       ok ->
          NewTask = faxe:get_task(TaskName),

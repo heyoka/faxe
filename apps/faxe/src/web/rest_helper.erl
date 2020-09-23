@@ -110,4 +110,4 @@ get_task_or_template_id(TName, _) ->
 to_bin(L) when is_list(L) -> list_to_binary(L);
 to_bin(E) when is_atom(E) -> atom_to_binary(E, utf8);
 to_bin(Bin) when is_binary(Bin) -> Bin;
-to_bin(Bin) -> lager:warning("to bin: ~p",[Bin]), Bin.
+to_bin(Bin) -> Bin.

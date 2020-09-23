@@ -188,7 +188,6 @@ resource_exists(Req = #{method := <<"GET">>}, State=#state{mode = Mode, task_id 
 resource_exists(Req = #{method := <<"POST">>}, State=#state{mode = Mode, task_id = TId})
    when Mode == remove_tags orelse Mode == add_tags ->
    Res = check_resource(TId, Req, State),
-   lager:info("resource_exists: ~p gives:: ~p", [Mode, Res]),
    Res;
 resource_exists(Req, State) ->
    {true, Req, State}.
@@ -247,7 +246,7 @@ from_start_temp_task(Req, State) ->
    end.
 
 from_update_to_json(Req, State=#state{task_id = TaskId, dfs = Dfs, tags = Tags}) ->
-   lager:info("update ~p with dfs: ~p~nand tags: ~p",[TaskId, Dfs,Tags]),
+%%   lager:info("update ~p with dfs: ~p~nand tags: ~p",[TaskId, Dfs,Tags]),
    case faxe:update_string_task(Dfs, TaskId) of
       ok ->
          Req4 = cowboy_req:set_resp_body(jiffy:encode(#{success => true, id => TaskId}), Req),
@@ -280,7 +279,7 @@ start_to_json(Req, State = #state{task_id = Id}) ->
    end.
 
 start_debug_to_json(Req, State = #state{task_id = Id}) ->
-   lager:info("start trace: ~p",[Id]),
+%%   lager:info("start trace: ~p",[Id]),
    case faxe:start_trace(Id) of
       {ok, _Graph} ->
          {jiffy:encode(#{<<"ok">> => <<"debug_started">>}), Req, State};

@@ -64,7 +64,7 @@
 
 -define(FUNCTIONS, [<<"coils">>, <<"hregs">>, <<"iregs">>, <<"inputs">>, <<"memory">>]).
 -define(FUNCTION_PREFIX, <<"read_">>).
--define(READ_TIMEOUT, 3000).
+-define(READ_TIMEOUT, 5000).
 
 -spec options() -> list().
 options() -> [
@@ -131,7 +131,7 @@ init_opts(_O, State) ->
 process(_Inport, _Item, State = #state{connected = false}) ->
    {ok, State};
 process(_Inport, _Item, State = #state{connected = true}) ->
-   lager:notice("read trigger"),
+%%   lager:notice("read trigger"),
    handle_info(poll, State).
 
 handle_info(connect, State = #state{}) ->
@@ -139,6 +139,7 @@ handle_info(connect, State = #state{}) ->
    {ok, NewState};
 
 handle_info(poll, State = #state{readers = Readers, requests = Requests, timer = Timer, fn_id = Id}) ->
+
    Ts =
       case is_record(Timer, faxe_timer) of
          true -> Timer#faxe_timer.last_time;
@@ -151,18 +152,18 @@ handle_info(poll, State = #state{readers = Readers, requests = Requests, timer =
          {NewTimer, Connected} =
          case NewReaders of
             [] ->
-               lager:warning("there is a problem with reading : we stop reading"),
+%%               lager:warning("there is a problem with reading : we stop reading"),
                {faxe_time:timer_cancel(Timer), false};
             [_R|_] ->
-               lager:warning("there is a problem with reading, the current request is cancelled,
-                  but we have still connections to go"),
+%%               lager:warning("there is a problem with reading, the current request is cancelled,
+%%                  but we have still connections to go"),
                {faxe_time:timer_next(Timer), true}
          end,
          {ok, State#state{timer = NewTimer, connected = Connected, readers = NewReaders}};
       {error, _Reason} ->
          lager:warning("error when reading from modbus, request cancelled: ~p",[_Reason]),
          {ok, State#state{timer = faxe_time:timer_next(Timer)}};
-      OutPoint when is_record(OutPoint, data_point)->
+      OutPoint when is_record(OutPoint, data_point) ->
          BSize = byte_size(flowdata:to_json(OutPoint)),
          node_metrics:metric(?METRIC_BYTES_READ, BSize, Id),
          node_metrics:metric(?METRIC_ITEMS_IN, 1, Id),
@@ -178,15 +179,15 @@ handle_info({modbus, Reader, connected}, S = #state{readers = []}) ->
    Timer = faxe_time:init_timer(S#state.align, S#state.interval, poll),
    {ok, S#state{timer = Timer, connected = true, readers = [Reader]}};
 handle_info({modbus, Reader, connected}, S = #state{readers = Readers}) ->
-   lager:info("Modbus is connected, already connected ~p other readers ...",[length(Readers)]),
-   NewReaders = [Reader|Readers],
+%%   lager:info("Modbus is connected, already connected ~p other readers ~p",[length(Readers), Readers]),
+   NewReaders = unique([Reader|Readers]),
    {ok, S#state{readers = NewReaders}};
 %% if disconnected, we just wait for a connected message and stop polling in the mean time
 handle_info({modbus, Reader, disconnected}, State=#state{}) ->
    handle_disconnect(Reader, State);
 
 handle_info(_E, S) ->
-   lager:warning("[~p] unexpected info: ~p",[?MODULE, _E]),
+%%   lager:warning("[~p] unexpected info: ~p",[?MODULE, _E]),
    {ok, S#state{}}.
 
 handle_disconnect(Reader, State = #state{readers = Readers, timer = Timer}) ->
@@ -194,10 +195,10 @@ handle_disconnect(Reader, State = #state{readers = Readers, timer = Timer}) ->
    case Readers0 of
       [] ->
          connection_registry:disconnected(),
-         lager:info("All Modbus readers are disconnected!!, stop polling ....", [Reader]),
+         lager:warning("All Modbus readers are disconnected!!, stop polling ....", [Reader]),
          {ok, State#state{timer = faxe_time:timer_cancel(Timer), connected = false, readers = Readers0}};
       [_R|_] ->
-         lager:info("Modbus reader ~p disconnected!!, ~p readers left ....", [Reader, length(Readers0)]),
+         lager:notice("Modbus reader ~p disconnected!!, ~p readers left ....", [Reader, length(Readers0)]),
          {ok, State#state{timer = faxe_time:timer_next(Timer), readers = Readers0}}
    end.
 
@@ -302,6 +303,7 @@ collect(Waiting, ReadRef, Point) ->
          collect(lists:delete(Client, Waiting), ReadRef, flowdata:set_fields(Point, Values));
       %% flush possibly old values from previous read requests, we do not want these anymore
       {modbus_data, _Client, OldRef, _WhatEver} when OldRef /= ReadRef ->
+         lager:notice("value got for old reference"),
          collect(Waiting, ReadRef, Point)
 
    after ?READ_TIMEOUT -> {error, timeout}
@@ -330,9 +332,11 @@ start_connections(State = #state{ip = Ip, port = Port, device_address = Dev, req
       end,
    lists:seq(1, ConnNum)
    ),
-   lager:info("started ~p reader connections",[ConnNum]),
+%%   lager:info("started ~p reader connections",[ConnNum]),
    State#state{num_readers = ConnNum}.
 
+unique(List) when is_list(List) ->
+   sets:to_list(sets:from_list(List)).
 
 -ifdef(TEST).
 
