@@ -97,7 +97,7 @@ read(#{function := Fun, start := Start, amount := Amount, opts := Opts, aliases 
   Res = modbus:Fun(Client, Start, Amount, Opts),
   case Res of
     {error, disconnected} ->
-      lager:error("retry reading from modbus: disconnected (~p)",[Req]),
+      lager:notice("retry reading from modbus: disconnected (~p)",[Req]),
       %% connect(State),
       {error, disconnected};
     {error, _Reason} ->

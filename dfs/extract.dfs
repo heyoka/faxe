@@ -1,20 +1,7 @@
-def every = 3s
+|mqtt_subscribe()
+.host('10.10.1.102')
+.topic('ttgw/data/mib/#')
+|keep()
+.fields('topic')
 
-def in =
-    |value_emitter()
-    .every(every)
-    .type(point)
-    .format(ejson)
-
-def extracted =
-in
-    |extract_path()
-    .path('val_root.val', 'pi.pa.pup')
-    .as('gurk', 'value')
-
-
-in
-    |debug()
-
-extracted
-    |debug()
+|debug()

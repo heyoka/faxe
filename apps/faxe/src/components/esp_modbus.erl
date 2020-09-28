@@ -45,7 +45,8 @@
 -record(state, {
    ip,
    port,
-   client,
+   readers = [],
+   num_readers = 1,
    device_address,
    function,
    starts,
@@ -63,6 +64,7 @@
 
 -define(FUNCTIONS, [<<"coils">>, <<"hregs">>, <<"iregs">>, <<"inputs">>, <<"memory">>]).
 -define(FUNCTION_PREFIX, <<"read_">>).
+-define(READ_TIMEOUT, 5000).
 
 -spec options() -> list().
 options() -> [
@@ -76,7 +78,8 @@ options() -> [
    {count, integer_list},
    {as, binary_list},
    {output, string_list, undefined},
-   {signed, atom_list, undefined}].
+   {signed, atom_list, undefined},
+   {max_connections, pos_integer, auto}].
 
 check_options() ->
    [
@@ -92,17 +95,10 @@ init(NodeId, _Ins, #{} = Opts) ->
    State = init_opts(maps:to_list(Opts), #state{}),
    connection_registry:reg(NodeId, State#state.ip, State#state.port, <<"modbus_tcp">>),
    connection_registry:connecting(),
-   {ok, Modbus} = modbus:connect(
-      State#state.ip, State#state.port, State#state.device_address),
-   erlang:monitor(process, Modbus),
-   Req0 = build(State),
-   ReqOpts =
-      case build_opts(State#state.outputs, State#state.signed) of
-         [] -> [ [] || _X <- lists:seq(1, erlang:length(Req0))];
-         L when is_list(L) -> L
-      end,
-   Requests = lists:zip(Req0, ReqOpts),
-   NewState = State#state{client = Modbus, requests = Requests, fn_id = NodeId},
+   process_flag(trap_exit, true),
+   ReadRequests = build_requests(State),
+   NewState = State#state{requests = ReadRequests, fn_id = NodeId},
+   erlang:send_after(0, self(), connect),
    {ok, all, NewState}.
 
 init_opts([{ip, Ip0}|Opts], State) ->
@@ -127,57 +123,104 @@ init_opts([{signed, Flags}|Opts], State) ->
    init_opts(Opts, State#state{signed = Flags});
 init_opts([{align, Align}|Opts], State) ->
    init_opts(Opts, State#state{align = Align});
+init_opts([{max_connections, MaxConn}|Opts], State) ->
+   init_opts(Opts, State#state{num_readers = MaxConn});
 init_opts(_O, State) ->
    State.
 
 process(_Inport, _Item, State = #state{connected = false}) ->
    {ok, State};
 process(_Inport, _Item, State = #state{connected = true}) ->
+%%   lager:notice("read trigger"),
    handle_info(poll, State).
 
-handle_info(poll, State = #state{client = Modbus, requests = Requests, timer = Timer, fn_id = Id}) ->
+handle_info(connect, State = #state{}) ->
+   NewState = start_connections(State),
+   {ok, NewState};
+
+handle_info(poll, State = #state{readers = Readers, requests = Requests, timer = Timer, fn_id = Id}) ->
+
    Ts =
       case is_record(Timer, faxe_timer) of
          true -> Timer#faxe_timer.last_time;
          false -> faxe_time:now()
       end,
-   {_Time, Res} = timer:tc(?MODULE, read, [Modbus, Requests, Ts]),
+   {_Time, Res} = timer:tc(?MODULE, read, [Readers, Requests, Ts]),
    case Res of
-      {error, stop} ->
-         {ok, State#state{timer = faxe_time:timer_cancel(Timer)}};
+      {error, stop, Client} ->
+         NewReaders = lists:delete(Client, Readers),
+         {NewTimer, Connected} =
+            case NewReaders of
+               [] ->
+%%               lager:warning("there is a problem with reading : we stop reading"),
+                  {faxe_time:timer_cancel(Timer), false};
+               [_R|_] ->
+%%               lager:warning("there is a problem with reading, the current request is cancelled,
+%%                  but we have still connections to go"),
+                  {faxe_time:timer_next(Timer), true}
+            end,
+         {ok, State#state{timer = NewTimer, connected = Connected, readers = NewReaders}};
       {error, _Reason} ->
+         lager:warning("error when reading from modbus, request cancelled: ~p",[_Reason]),
          {ok, State#state{timer = faxe_time:timer_next(Timer)}};
-      {ok, OutPoint} ->
+      OutPoint when is_record(OutPoint, data_point) ->
          BSize = byte_size(flowdata:to_json(OutPoint)),
          node_metrics:metric(?METRIC_BYTES_READ, BSize, Id),
          node_metrics:metric(?METRIC_ITEMS_IN, 1, Id),
          {emit, {1, OutPoint}, State#state{timer = faxe_time:timer_next(Timer)}}
    end;
-handle_info({'DOWN', _MonitorRef, process, _Object, Info},
-    State=#state{ip = Ip, port = Port, device_address = Device, timer = Timer}) ->
-   connection_registry:disconnected(),
-   NewTimer = faxe_time:timer_cancel(Timer),
-   lager:warning("Modbus process is DOWN with : ~p !", [Info]),
-   {ok, Modbus} = modbus:connect([{host, Ip}, {port,Port}, {unit_id, Device}, {max_retries, 7}]),
-   erlang:monitor(process, Modbus),
-   {ok, State#state{client = Modbus, timer = NewTimer}};
-handle_info({modbus, _From, connected}, S = #state{}) ->
+handle_info({'EXIT', Pid, Why}, State = #state{}) ->
+   lager:warning("Modbus Reader exited with reason: ~p",[Why]),
+   _NewReader = modbus_reader:start_link(State#state.ip, State#state.port, State#state.device_address),
+   handle_disconnect(Pid, State);
+handle_info({modbus, Reader, connected}, S = #state{readers = []}) ->
    connection_registry:connected(),
-%%   lager:notice("Modbus is connected, lets start polling ..."),
+   lager:info("Modbus is connected, lets start polling ..."),
    Timer = faxe_time:init_timer(S#state.align, S#state.interval, poll),
-   NewState = S#state{timer = Timer, connected = true},
-   {ok, NewState};
+   {ok, S#state{timer = Timer, connected = true, readers = [Reader]}};
+handle_info({modbus, Reader, connected}, S = #state{readers = Readers}) ->
+%%   lager:info("Modbus is connected, already connected ~p other readers ~p",[length(Readers), Readers]),
+   NewReaders = unique([Reader|Readers]),
+   {ok, S#state{readers = NewReaders}};
 %% if disconnected, we just wait for a connected message and stop polling in the mean time
-handle_info({modbus, _From, disconnected}, State=#state{timer = Timer}) ->
-   connection_registry:disconnected(),
-   lager:notice("Modbus is disconnected!!, stop polling ...."),
-   {ok, State#state{timer = faxe_time:timer_cancel(Timer), connected = false}};
+handle_info({modbus, Reader, disconnected}, State=#state{}) ->
+   handle_disconnect(Reader, State);
+
 handle_info(_E, S) ->
+%%   lager:warning("[~p] unexpected info: ~p",[?MODULE, _E]),
    {ok, S#state{}}.
 
-shutdown(#state{client = Modbus, timer = Timer}) ->
+handle_disconnect(Reader, State = #state{readers = Readers, timer = Timer}) ->
+   Readers0 = lists:delete(Reader, Readers),
+   case Readers0 of
+      [] ->
+         connection_registry:disconnected(),
+         lager:warning("All Modbus readers are disconnected!!, stop polling ....", [Reader]),
+         {ok, State#state{timer = faxe_time:timer_cancel(Timer), connected = false, readers = Readers0}};
+      [_R|_] ->
+         lager:notice("Modbus reader ~p disconnected!!, ~p readers left ....", [Reader, length(Readers0)]),
+         {ok, State#state{timer = faxe_time:timer_next(Timer), readers = Readers0}}
+   end.
+
+shutdown(#state{readers = Modbuss, timer = Timer}) ->
    catch (faxe_time:timer_cancel(Timer)),
-   catch (modbus:disconnect(Modbus)).
+   catch ([gen_server:stop(Modbus) || Modbus <- Modbuss]).
+
+build_requests(State) ->
+   Req0 = build(State),
+   ReqOpts =
+      case build_opts(State#state.outputs, State#state.signed) of
+         [] -> [ [] || _X <- lists:seq(1, erlang:length(Req0))];
+         L when is_list(L) -> L
+      end,
+   Requests = lists:zip(Req0, ReqOpts),
+   NewRequests = lists:foldl(
+      fun({{Function,Start,Amount,As}, Opts}, Acc) ->
+         Acc ++ [ #{alias => As, amount => Amount, function => Function, start => Start, opts => Opts}]
+      end
+      , [], Requests),
+   RequestsSorted = sort_by_start(NewRequests),
+   find_contiguous(RequestsSorted).
 
 %% @doc build request lists
 build(#state{function = Fs, starts = Ss, counts = Cs, as = Ass}) ->
@@ -203,29 +246,67 @@ build_opts(Out, Signed) when is_list(Out), is_list(Signed) ->
        end,
    lists:map(F, lists:zip(Out, Signed)).
 
+sort_by_start(List) ->
+   lists:sort(
+      fun(#{start := StartA}, #{start := StartB}) ->
+         StartA < StartB end,
+      List).
+
+find_contiguous(L) ->
+   F = fun(
+       #{function := Function, start := Start, amount := Amount, alias := As, opts := Opts} = E,
+       {LastStart, Current = #{aliases := CAs, count := CCount, function := CFunc, opts := COpts}, Partitions}) ->
+      case (Function == CFunc) andalso (LastStart + Amount == Start) andalso (Opts == COpts) of
+         true ->
+            NewCurrent = Current#{count => CCount+1, aliases => CAs++[As], amount => (CCount+1)*Amount},
+            {Start, NewCurrent, Partitions};
+         false ->
+            {Start,
+               E#{aliases => [As], count => 1, amount => Amount}, Partitions++[Current]
+            }
+      end
+       end,
+   {_Last, Current, [_|Parts]} =
+      lists:foldl(F, {-1, #{aliases => [], amount => -1, function => nil, count => 0, opts => nil}, []}, L),
+   All = [Current|Parts],
+   All.
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 %% read all prepared requests
-read(Client, Reqs, Ts) ->
-   do_read(Client, #data_point{ts = Ts}, Reqs).
+read(Readers, Reqs, Ts) ->
+   read_all_multi(Readers, #data_point{ts = Ts}, Reqs).
 
-do_read(_Client, Point, []) ->
-   {ok, Point};
-do_read(Client, Point, [{{Fun, Start, Count, As}=F, Opts} | Reqs]) ->
-   Res = modbus:Fun(Client, Start, Count, Opts),
-   case Res of
-      {error, disconnected} ->
-         {error, stop};
-      {error, _Reason} ->
-         lager:error("error reading from modbus: ~p (~p)",[_Reason, F]),
-         read(Client, Point, Reqs);
-      Data ->
-         FData =
-         case Data of
-            [D] -> D;
-            _ -> Data
+%% @doc distribute the read requests to all available reader processes
+%% if there are more requests than readers, some reader processes will get more than one request
+read_all_multi(Clients, Point, Reqs) ->
+   ReadRef = make_ref(),
+   {Waiting, _} =
+      lists:foldl(
+         fun(Req, {Waits, [Client|ClientList]}) ->
+            Client ! {read, ReadRef, Req},
+            {[Client|Waits], ClientList ++ [Client]}
          end,
-         NewPoint = flowdata:set_field(Point, As, FData),
-         read(Client, NewPoint, Reqs)
+         {[], Clients},
+         Reqs
+      ),
+   collect(Waiting, ReadRef, Point).
+
+collect([], _Ref, Point) -> Point;
+collect(Waiting, ReadRef, Point) ->
+   receive
+      {modbus_data, Client, ReadRef, {error, stop}} ->
+         {error, stop, Client};
+      {modbus_data, _Client, ReadRef, {error, _Reason}} ->
+         collect(Waiting, ReadRef, Point);
+      {modbus_data, Client, ReadRef, {ok, Values}} ->
+         collect(lists:delete(Client, Waiting), ReadRef, flowdata:set_fields(Point, Values));
+   %% flush possibly old values from previous read requests, we do not want these anymore
+      {modbus_data, _Client, OldRef, _WhatEver} when OldRef /= ReadRef ->
+         lager:notice("value got for old reference"),
+         collect(Waiting, ReadRef, Point)
+
+   after ?READ_TIMEOUT -> {error, timeout}
    end.
 
 func(BinString) ->
@@ -238,3 +319,95 @@ func(BinString) ->
       end,
    F.
 
+start_connections(State = #state{ip = Ip, port = Port, device_address = Dev, requests = Req, num_readers = Num}) ->
+   ConnNum =
+      case Num of
+         _ when is_integer(Num) andalso length(Req) > Num -> Num;
+         _ -> length(Req)
+      end,
+   lists:map(
+      fun(_E) ->
+         {ok, Reader} = modbus_reader:start_link(Ip, Port, Dev),
+         Reader
+      end,
+      lists:seq(1, ConnNum)
+   ),
+%%   lager:info("started ~p reader connections",[ConnNum]),
+   State#state{num_readers = ConnNum}.
+
+unique(List) when is_list(List) ->
+   sets:to_list(sets:from_list(List)).
+
+-ifdef(TEST).
+
+build_find_contiguous_test() ->
+   Requests = [
+      #{alias => <<"ActiveEnergyRcvd">>,
+         amount => 2,
+         function => read_hregs,
+         opts => [{output,float32}],start => 2701},
+      #{alias => <<"ActiveEnergyDelvd">>,
+         amount => 2,
+         function => read_hregs,
+         opts => [{output,float32}],
+         start => 2699},
+      #{alias => <<"ReactiveEnergyRcvd">>,
+         amount => 2,
+         function => read_hregs,
+         opts => [{output,float32}],
+         start => 2709},
+      #{alias => <<"ReactiveEnergyDelvd">>,
+         amount => 2,
+         function => read_hregs,
+         opts => [{output,float32}],
+         start => 2707},
+      #{alias => <<"ApparentEnergyRcvd">>,
+         amount => 2,
+         function => read_hregs,
+         opts => [{output,float32}],
+         start => 2717},
+      #{alias => <<"ApparentEnergyDelvd">>,
+         amount => 2,
+         function => read_hregs,
+         opts => [{output,float32}],
+         start => 2715},
+      #{alias => <<"MaximalCurrentValue">>,
+         amount => 2,
+         function => read_hregs,
+         opts => [{output,float32}],
+         start => 3009}
+   ],
+   Expected = [
+      #{alias => <<"MaximalCurrentValue">>,
+         aliases => [<<"MaximalCurrentValue">>],
+         amount => 2,
+         count => 1,
+         function => read_hregs,
+         opts => [{output,float32}],
+         start => 3009},
+      #{alias => <<"ActiveEnergyDelvd">>,
+         aliases => [<<"ActiveEnergyDelvd">>,<<"ActiveEnergyRcvd">>],
+         amount => 4,
+         count => 2,
+         function => read_hregs,
+         opts => [{output,float32}],
+         start => 2699},
+      #{alias => <<"ReactiveEnergyDelvd">>,
+         aliases => [<<"ReactiveEnergyDelvd">>,<<"ReactiveEnergyRcvd">>],
+         amount => 4,
+         count => 2,
+         function => read_hregs,
+         opts => [{output,float32}],
+         start => 2707},
+      #{alias => <<"ApparentEnergyDelvd">>,
+         aliases => [<<"ApparentEnergyDelvd">>,<<"ApparentEnergyRcvd">>],
+         amount => 4,
+         count => 2,
+         function => read_hregs,
+         opts => [{output,float32}],
+         start => 2715}
+   ],
+   ?assertEqual(Expected, find_contiguous(sort_by_start(Requests))).
+
+
+-endif.
