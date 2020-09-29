@@ -33,14 +33,31 @@ content_types_provided(Req, State) ->
     ], Req, State}.
 
 
-%% faxe's config
+%% faxe's config hand picked
 config_json(Req, State=#state{mode = config}) ->
-  AllConf = application:get_all_env(faxe),
-  lager:notice("AccConfig: ~p", [AllConf]),
-   Stats = faxe_vmstats:called(),
-   F = fun(K, V, Acc) ->
-      NewKey = binary:replace(list_to_binary(K), <<".">>, <<"-">>, []),
-      Acc#{NewKey => V}
+   Debug = opts_mqtt(debug),
+   Metrics = opts_mqtt(metrics),
+   ConnStatus = opts_mqtt(conn_status),
+   DebugTime = faxe_config:get(debug_time),
+   Out = #{<<"debug">> => Debug, <<"metrics">> => Metrics,
+      <<"conn_status">> => ConnStatus, <<"debug_time_ms">> => DebugTime},
+   {jiffy:encode(Out, [uescape]), Req, State}.
+
+opts_mqtt(Key) ->
+   [{handler, [{mqtt, Debug0}]}] = faxe_config:get(Key),
+   All0 = faxe_util:proplists_merge(Debug0, faxe_config:get(mqtt, [])),
+   All = lists:map(
+      fun({K, V}) ->
+         NewV =
+         case K of
+            base_topic ->
+               Name = faxe_util:device_name(),
+               V0 = rest_helper:to_bin(V), T = rest_helper:to_bin(Key),
+               filename:join(<<V0/binary>>, <<Name/binary, "/", T/binary>>);
+            _ -> V
+         end,
+         {K, rest_helper:to_bin(NewV)}
       end,
-   Map = maps:fold(F, #{}, Stats),
-   {jiffy:encode(Map), Req, State}.
+      proplists:delete(ssl, All0)),
+   maps:from_list(All).
+

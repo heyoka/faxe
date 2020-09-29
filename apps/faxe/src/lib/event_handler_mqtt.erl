@@ -86,7 +86,7 @@ init([Callback, Args]) ->
    %% get the device name
    Name = faxe_util:device_name(),
    BaseTopic = proplists:get_value(base_topic, Args, ?TOPIC_BASE),
-   Topic = <<BaseTopic/binary, Name/binary, "/">>,
+   Topic = filename:join(<<BaseTopic/binary, Name/binary, "/">>),
    {ok, CbState} = Callback:init(Topic),
    {ok,
       #state{publisher = Publisher, publisher_opts = MqttOpts,

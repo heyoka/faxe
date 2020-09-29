@@ -24,7 +24,7 @@
    {ok, State :: #state{}, hibernate} |
    {error, Reason :: term()}).
 init(Topic0) ->
-   Topic = <<Topic0/binary, "debug">>,
+   Topic = filename:join(<<Topic0/binary>>, <<"debug">>),
    {ok, #state{topic = Topic}}.
 
 handle_event({Key, {FlowId, NodeId} = _FNId, Port, Item}, State = #state{topic = Topic}) ->
