@@ -71,7 +71,7 @@
 {mapping, "dfs.script_path", "faxe.dfs.script_path",
     [{default, "{{dfs_script_path}}"},
     {datatype, directory},
-    {commented, "/path/to/dfs/scripts"}]
+    {commented, "{{dfs_script_path}}"}]
 }.
 
 %% @doc ----------------------------------------------------------------

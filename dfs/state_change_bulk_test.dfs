@@ -1,5 +1,7 @@
 %% if val1
 
+def pre = 'obj'
+
 def state =
     |json_emitter()
     .every(1s).align()
@@ -16,13 +18,18 @@ def state =
     <<< {"err1": 0, "err2":1, "err3":0, "nr" : 233, "errcode1": 0, "errcode2": 222, "errcode3": 0} >>>,
     <<< {"err1": 0, "err2":0, "err3":1, "nr" : 233, "errcode1": 0, "errcode2": 0, "errcode3": 333} >>>
     )
-
+|rename()
+.fields('data')
+.as_fields('data.obj')
     |debug('info')
 
 |state_change_bulk()
 .lambda_pattern(<<<$field == 1>>>)
-.field('data')
+.field('data.obj')
+.exclude_fields('data.obj.nr')
+.enter()
+.enter_keep('data.obj.nr')
 .leave()
-.leave_keep('data.errcode1')
+.leave_keep('data.obj.errcode1', 'data.object.errcode3')
 
 |debug('warning')
