@@ -148,7 +148,7 @@ get_states(FieldMap, #state{lambda_pattern = Pattern, state_changes = States, fi
                      undefined ->
                         Fun = build_fun(Pattern, FieldName),
                         [{FieldName, state_change:new(Fun)}|CurrentStates];
-                     Fun ->
+                     _Fun ->
                         CurrentStates
                   end
             end

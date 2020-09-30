@@ -77,7 +77,7 @@ handle_info(reconnect, State = #state{}) ->
   connection_registry:connecting(),
   NewState = connect(State),
   {noreply, NewState};
-handle_info({tcp, Socket, Data0}, State=#state{socket = _Socket, interval = Interval, prefix = Prefix}) ->
+handle_info({tcp, Socket, Data0}, State=#state{socket = _Socket, interval = _Interval, prefix = Prefix}) ->
   Data = binary_to_term(Data0),
 %%  lager:notice("Data got from TCP:  ~p",[Data]),
   dataflow:emit(convert(#data_point{ts = faxe_time:now()}, Data, Prefix)),

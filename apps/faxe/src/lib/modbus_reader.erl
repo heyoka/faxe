@@ -42,18 +42,15 @@ handle_call(_Request, _From, State = #state{}) ->
 handle_cast(_Request, State = #state{}) ->
   {noreply, State}.
 
-handle_info({'DOWN', _MonitorRef, process, _Object, Info}, State=#state{parent = Parent}) ->
+handle_info({'DOWN', _MonitorRef, process, _Object, _Info}, State=#state{parent = Parent}) ->
   Parent ! {modbus, disconnected},
-%%  lager:warning("Modbus process is DOWN with : ~p !", [Info]),
   NewState = connect(State),
   {noreply, NewState};
 handle_info({modbus, _From, connected}, S = #state{parent = Parent, last_request = LR}) ->
   Parent ! {modbus, self(), connected},
-%%  lager:debug("~p modbus connected !",[?MODULE]),
   case LR of
     {Reference, ReadReq} ->
       Res = read(ReadReq, S),
-%%      lager:notice("we have a pending request, do it: ~p",[Res]),
       Parent ! {modbus_data, self(), Reference, Res};
     undefined -> ok
   end,
@@ -61,7 +58,6 @@ handle_info({modbus, _From, connected}, S = #state{parent = Parent, last_request
   {noreply, NewState};
 %% if disconnected, we just wait for a connected message and stop polling in the mean time
 handle_info({modbus, _From, disconnected}, State=#state{parent = Parent}) ->
-%%  lager:debug("~p modbus disconnected !", [?MODULE]),
   Parent ! {modbus, self(), disconnected},
   {noreply, State#state{connected = false}};
 handle_info({read, Ref, ReadReq}, State = #state{parent = P}) ->
