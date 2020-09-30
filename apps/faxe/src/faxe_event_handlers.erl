@@ -33,12 +33,21 @@ get_enabled(Key, SubKey) ->
 
 add_handler(mqtt, HandlerName, Opts) ->
   MqttOpts = faxe_util:proplists_merge(filter_options(Opts), faxe_config:get(mqtt, [])),
-  lager:notice("~p Handler MQTT: ~p",[handler_name(HandlerName, <<"mqtt">>), MqttOpts]),
-  dataflow:add_trace_handler(handler_name(HandlerName,<<"mqtt">>), event_handler_mqtt, MqttOpts);
+%%  lager:notice("~p Handler MQTT: ~p",[handler_name(HandlerName, <<"mqtt">>), MqttOpts]),
+  add_event_handler(HandlerName, handler_name(HandlerName,<<"mqtt">>), event_handler_mqtt, MqttOpts);
 add_handler(amqp, HandlerName, Opts) ->
   AmqpOpts = faxe_util:proplists_merge(filter_options(Opts), faxe_config:get(amqp, [])),
-  lager:notice("~p Handler AMQP: ~p",[handler_name(HandlerName, <<"amqp">>), AmqpOpts]),
-  dataflow:add_trace_handler(handler_name(HandlerName, <<"amqp">>), event_handler_amqp, AmqpOpts).
+%%  lager:notice("~p Handler AMQP: ~p",[handler_name(HandlerName, <<"amqp">>), AmqpOpts]),
+  add_event_handler(HandlerName, handler_name(HandlerName, <<"amqp">>), event_handler_amqp, AmqpOpts).
+
+
+add_event_handler(<<"conn_status">>, Name, Type, Args) ->
+  dataflow:add_conn_status_handler(Name, Type, Args);
+add_event_handler(<<"debug">>, Name, Type, Args) ->
+  dataflow:add_trace_handler(Name, Type, Args);
+add_event_handler(<<"metrics">>, Name, Type, Args) ->
+  dataflow:add_metrics_handler(Name, Type, Args).
+
 
 handler_name(Name, Type) ->
   binary_to_atom(<<Name/binary, "_handler_", Type/binary>>, utf8).

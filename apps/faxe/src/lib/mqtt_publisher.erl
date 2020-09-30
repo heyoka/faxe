@@ -84,7 +84,7 @@ init([#{} = Opts, Queue]) ->
    init_all(Opts, #state{queue = Queue}).
 
 init_all(#{host := Host, port := Port} = Opts, State) ->
-   lager:info("MQTT_OPTS are: ~p",[Opts]),
+%%   lager:info("MQTT_OPTS are: ~p",[Opts]),
    NId =
    case maps:is_key(node_id, Opts) of
       true -> maps:get(node_id, Opts);

@@ -23,7 +23,7 @@
    {ok, State :: #state{}, hibernate} |
    {error, Reason :: term()}).
 init(Topic0) ->
-   Topic = filename:join(<<Topic0/binary>>, <<"metrics">>),
+   Topic = faxe_util:build_topic([Topic0, <<"metrics">>]),
    {ok, #state{topic = Topic}}.
 
 handle_event({{FlowId}, Item}, State = #state{topic = Topic}) ->

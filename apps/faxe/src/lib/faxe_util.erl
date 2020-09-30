@@ -19,7 +19,8 @@
    , decimal_part/2, check_select_statement/1,
    clean_query/1, stringize_lambda/1,
    bytes_from_words/1, local_ip_v4/0,
-   ip_to_bin/1, device_name/0, proplists_merge/2, levenshtein/2]).
+   ip_to_bin/1, device_name/0, proplists_merge/2,
+   levenshtein/2, build_topic/2, build_topic/1]).
 
 -define(HTTP_PROTOCOL, <<"http://">>).
 
@@ -120,6 +121,24 @@ device_name() ->
 
 proplists_merge(L, T) ->
    lists:ukeymerge(1, lists:keysort(1,L), lists:keysort(1,T)).
+
+
+-spec build_topic(list(list()|binary())) -> binary().
+build_topic(Parts) when is_list(Parts) ->
+   build_topic(Parts, <<"/">>).
+
+-spec build_topic(list(list()|binary()), binary()) -> binary().
+build_topic(Parts, Separator) when is_list(Parts) andalso is_binary(Separator) ->
+   PartsBin = [to_bin(Part) || Part <- Parts],
+   PartsClean = [
+      estr:str_replace_leading(
+         estr:str_replace_trailing(P, Separator, <<>>
+         ), Separator, <<>>)
+      || P <- PartsBin, P /= Separator],
+   iolist_to_binary(lists:join(Separator, PartsClean)).
+
+to_bin(I) when is_list(I) -> list_to_binary(I);
+to_bin(I) -> I.
 
 
 %% Levenshtein code by Adam Lindberg, Fredrik Svensson via
@@ -230,6 +249,19 @@ check_select_4_test() ->
 ip_to_bin_test() ->
    Ip = {127, 0, 0, 1},
    ?assertEqual(<<"127.0.0.1">>, ip_to_bin(Ip)).
+
+build_topic_1_test() ->
+   Res = faxe_util:build_topic([<<"/ttgw/sys/faxe/">>, <<"/conn_status/hee/">>, <<"flowid/nodeid/#/">>], <<"/">>),
+   Expected = <<"ttgw/sys/faxe/conn_status/hee/flowid/nodeid/#">>,
+   ?assertEqual(Expected, Res).
+build_topic_2_test() ->
+   Expected = <<"ttgw/sys/faxe/conn_status/hee/flowid/nodeid/#">>,
+   Res = faxe_util:build_topic(["/ttgw/sys/faxe/", <<"conn_status/hee">>, <<"flowid/nodeid/#/">>, "/"], <<"/">>),
+   ?assertEqual(Expected, Res).
+build_topic_3_test() ->
+   Expected = <<"ttgw.sys.faxe.conn_status.hee.flowid.nodeid.#">>,
+   Res = faxe_util:build_topic([<<".ttgw.sys.faxe.">>, "conn_status.hee.", <<"flowid.nodeid.#">>], <<".">>),
+   ?assertEqual(Expected, Res).
 
 -endif.
 

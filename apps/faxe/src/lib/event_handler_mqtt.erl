@@ -86,7 +86,7 @@ init([Callback, Args]) ->
    %% get the device name
    Name = faxe_util:device_name(),
    BaseTopic = proplists:get_value(base_topic, Args, ?TOPIC_BASE),
-   Topic = filename:join(<<BaseTopic/binary, Name/binary, "/">>),
+   Topic = faxe_util:build_topic([BaseTopic, Name]),
    {ok, CbState} = Callback:init(Topic),
    {ok,
       #state{publisher = Publisher, publisher_opts = MqttOpts,
@@ -108,6 +108,7 @@ init([Callback, Args]) ->
       Handler2 :: (atom() | {atom(), Id :: term()}), Args2 :: term()} |
    remove_handler).
 handle_event(Event, State = #state{cb = Callback, cb_state = CbState, publisher = Publisher}) ->
+%%   lager:notice("~p handle event: ~p",[{?MODULE, Callback}, Event]),
    NewCbState =
    case Callback:handle_event(Event, CbState) of
       {ok, CbState0} ->

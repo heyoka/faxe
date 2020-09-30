@@ -78,8 +78,6 @@ init(NodeId, _Ins,
       dt_format := DTFormat, user := User, pass := Pass,
       retained := Retained, ssl := UseSSL, qos := Qos} = _Opts) ->
 
-   lager:warning("Options are: ~p",[_Opts]),
-
    Host = binary_to_list(Host0),
 
    process_flag(trap_exit, true),

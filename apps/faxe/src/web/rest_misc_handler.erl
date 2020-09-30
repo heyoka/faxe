@@ -52,8 +52,10 @@ opts_mqtt(Key) ->
          case K of
             base_topic ->
                Name = faxe_util:device_name(),
-               V0 = rest_helper:to_bin(V), T = rest_helper:to_bin(Key),
-               filename:join(<<V0/binary>>, <<Name/binary, "/", T/binary>>);
+               T = rest_helper:to_bin(Key),
+               faxe_util:build_topic([V, Name, T]);
+%%               V0 = rest_helper:to_bin(V), T = rest_helper:to_bin(Key),
+%%               filename:join(<<V0/binary>>, <<Name/binary, "/", T/binary>>);
             _ -> V
          end,
          {K, rest_helper:to_bin(NewV)}

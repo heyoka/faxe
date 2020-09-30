@@ -47,7 +47,8 @@ init(Args) ->
 
    Name = faxe_util:device_name(),
    BaseTopic = proplists:get_value(base_topic, Options),
-   Topic = <<BaseTopic/binary, Name/binary, "/log/">>,
+   Topic = faxe_util:build_topic([BaseTopic, Name, "/log"]),
+%%   lager:notice("~p topic: ~p", [?MODULE, Topic]),
 
    erlang:send_after(?START_DELAY, self(), reconnect),
    erlang:send_after(?FLOW_LIST_UPDATE_INTERVAL, self(), update_flow_list),
@@ -119,7 +120,7 @@ code_change(_, State, _) ->
 %%==============================================================================
 publish(_F, undefined, _, _S) -> ok;
 publish(FlowId, NodeId, Message, #state{publisher = Publisher, topic = T}) ->
-   Topic = <<T/binary, FlowId/binary, "/", NodeId/binary>>,
+   Topic = <<T/binary, "/", FlowId/binary, "/", NodeId/binary>>,
 %%   lager:notice("publish: ~p~n on topic : ~p",[flowdata:to_json(format_data(Message)), Topic]),
    Publisher ! {publish, {Topic, flowdata:to_json(format_data(Message))}}.
 
