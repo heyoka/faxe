@@ -1,5 +1,5 @@
 ### Build stage 0
-FROM erlang:22.3.4.2 as erlang
+FROM erlang:22.3.4.10 as erlang
 
 # Set working directory
 RUN mkdir -p /buildroot/rebar3/bin
@@ -17,7 +17,7 @@ RUN apt-get update && apt-get install git
 RUN rebar3 as k8s release
 
 ### Build stage 1
-FROM erlang:22.3.4.2-slim
+FROM erlang:22.3.4.10-slim
 
 # Install some libs
 RUN apt-get update && apt-get install openssl

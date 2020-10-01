@@ -103,7 +103,7 @@ delete_resource(Req, State=#state{template_id = TaskId}) ->
          {true, Req2, State};
       {error, Error} ->
          lager:error("Error occured when deleting template: ~p",[Error]),
-         Req3 = cowboy_req:set_resp_body(jiffy:encode(#{success => false, error => rest_helper:to_bin(Error)}), Req),
+         Req3 = cowboy_req:set_resp_body(jiffy:encode(#{success => false, error => faxe_util:to_bin(Error)}), Req),
          {false, Req3, State}
    end.
 
@@ -142,7 +142,7 @@ from_totask(Req, State=#state{template_id = TId}) ->
       {error, Error} ->
          lager:info("Error occured when generating flow from template: ~p",[Error]),
          Req4 = cowboy_req:set_resp_body(
-            jiffy:encode(#{success => false, error => rest_helper:to_bin(Error)}), Req1),
+            jiffy:encode(#{success => false, error => faxe_util:to_bin(Error)}), Req1),
          {false, Req4, State}
    end.
 

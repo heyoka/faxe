@@ -13,7 +13,8 @@
 
 %% API
 -export([task_to_map/1, template_to_map/1, do_register/6,
-   to_bin/1, reg_fun/3, report_malformed/3, add_tags/2, set_tags/2, get_task_or_template_id/2]).
+   reg_fun/3, report_malformed/3, add_tags/2, set_tags/2,
+   get_task_or_template_id/2]).
 
 task_to_map(_T = #task{
    id = Id, name = Name, date = Dt, is_running = Running,
@@ -69,7 +70,7 @@ do_register(Req, TaskName, Dfs, Tags, State, Type) ->
                _ -> "-template"
             end,
          lager:warning("Error occured when registering faxe-flow"++Add++": ~p",[Error]),
-         Req4 = cowboy_req:set_resp_body(jiffy:encode(#{success => false, error => to_bin(Error)}), Req),
+         Req4 = cowboy_req:set_resp_body(jiffy:encode(#{success => false, error => faxe_util:to_bin(Error)}), Req),
          {false, Req4, State}
    end.
 
@@ -105,9 +106,3 @@ get_task_or_template_id(TName, _) ->
          #template{id = NewId} -> NewId;
          _  -> 0
       end.
-
--spec to_bin(any()) -> binary().
-to_bin(L) when is_list(L) -> list_to_binary(L);
-to_bin(E) when is_atom(E) -> atom_to_binary(E, utf8);
-to_bin(Bin) when is_binary(Bin) -> Bin;
-to_bin(Bin) -> Bin.

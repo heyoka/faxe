@@ -52,13 +52,13 @@ opts_mqtt(Key) ->
          case K of
             base_topic ->
                Name = faxe_util:device_name(),
-               T = rest_helper:to_bin(Key),
+               T = faxe_util:to_bin(Key),
                faxe_util:build_topic([V, Name, T]);
-%%               V0 = rest_helper:to_bin(V), T = rest_helper:to_bin(Key),
+%%               V0 = faxe_util:to_bin(V), T = faxe_util:to_bin(Key),
 %%               filename:join(<<V0/binary>>, <<Name/binary, "/", T/binary>>);
             _ -> V
          end,
-         {K, rest_helper:to_bin(NewV)}
+         {K, faxe_util:to_bin(NewV)}
       end,
       proplists:delete(ssl, All0)),
    maps:from_list(All).

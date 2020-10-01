@@ -117,7 +117,7 @@ do_import(TasksList, Req, State) ->
          fun(TaskMap=#{<<"name">> := TName}, {OkList, ErrList}) ->
             case import_task(TaskMap) of
                {ok, _Id} -> {[TName|OkList], ErrList};
-               {error, What} -> {OkList, [#{TName => rest_helper:to_bin(What)}|ErrList]}
+               {error, What} -> {OkList, [#{TName => faxe_util:to_bin(What)}|ErrList]}
             end
          end,
          {[],[]},
@@ -174,7 +174,7 @@ list_json(Req, State=#state{mode = Mode}) ->
           end,
    case Tasks of
       {error, What} ->
-         {jiffy:encode(#{<<"error">> => rest_helper:to_bin(What)}), Req, State};
+         {jiffy:encode(#{<<"error">> => faxe_util:to_bin(What)}), Req, State};
       _ ->
 
          Sorted = lists:sort(order_fun(OrderBy, Direction), Tasks),

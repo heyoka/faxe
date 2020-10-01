@@ -77,7 +77,7 @@ do_import(TemplateList, Req, State) ->
       fun(TemplateMap = #{<<"name">> := TName}, {OkList, ErrList}) ->
         case import_template(TemplateMap) of
           {ok, _Id} -> {[TName|OkList], ErrList};
-          {error, What} -> {OkList, [#{TName => rest_helper:to_bin(What)}|ErrList]}
+          {error, What} -> {OkList, [#{TName => faxe_util:to_bin(What)}|ErrList]}
         end
       end,
       {[],[]},

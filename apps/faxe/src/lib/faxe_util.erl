@@ -20,7 +20,7 @@
    clean_query/1, stringize_lambda/1,
    bytes_from_words/1, local_ip_v4/0,
    ip_to_bin/1, device_name/0, proplists_merge/2,
-   levenshtein/2, build_topic/2, build_topic/1]).
+   levenshtein/2, build_topic/2, build_topic/1, to_bin/1]).
 
 -define(HTTP_PROTOCOL, <<"http://">>).
 
@@ -137,8 +137,11 @@ build_topic(Parts, Separator) when is_list(Parts) andalso is_binary(Separator) -
       || P <- PartsBin, P /= Separator],
    iolist_to_binary(lists:join(Separator, PartsClean)).
 
-to_bin(I) when is_list(I) -> list_to_binary(I);
-to_bin(I) -> I.
+-spec to_bin(any()) -> binary().
+to_bin(L) when is_list(L) -> list_to_binary(L);
+to_bin(E) when is_atom(E) -> atom_to_binary(E, utf8);
+to_bin(Bin) when is_binary(Bin) -> Bin;
+to_bin(Bin) -> Bin.
 
 
 %% Levenshtein code by Adam Lindberg, Fredrik Svensson via

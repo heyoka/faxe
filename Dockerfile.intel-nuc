@@ -1,14 +1,14 @@
 ### Build stage 0
 FROM balenalib/amd64-alpine:latest as erlang
 
-ENV OTP_VERSION="22.3" \
+ENV OTP_VERSION="22.3.4.10" \
     REBAR3_VERSION="3.13.1"
 
 LABEL org.opencontainers.image.version=$OTP_VERSION
 
 RUN set -xe \
 	&& OTP_DOWNLOAD_URL="https://github.com/erlang/otp/archive/OTP-${OTP_VERSION}.tar.gz" \
-	&& OTP_DOWNLOAD_SHA256="886e6dbe1e4823c7e8d9c9c1ba8315075a1a9f7717f5a1eaf3b98345ca6c798e" \
+	&& OTP_DOWNLOAD_SHA256="cb986b97321dfff4d1fd32fc4bb8fe0f2fd3addfe0eedade787c9f3443e41cc9" \
 	&& REBAR3_DOWNLOAD_SHA256="706cc0770062bde2674abc01964c68553398fe4d8023605b305cfe326b92520f" \
 	&& apk add --no-cache --virtual .fetch-deps \
 		curl \

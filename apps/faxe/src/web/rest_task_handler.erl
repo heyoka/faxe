@@ -213,7 +213,7 @@ delete_resource(Req, State=#state{task_id = TaskId}) ->
       {error, Error} ->
          lager:info("Error occured when deleting flow: ~p",[Error]),
          Req3 = cowboy_req:set_resp_body(
-            jiffy:encode(#{success => false, error => rest_helper:to_bin(Error)}), Req),
+            jiffy:encode(#{success => false, error => faxe_util:to_bin(Error)}), Req),
          {false, Req3, State}
    end.
 
@@ -241,7 +241,7 @@ from_start_temp_task(Req, State) ->
                {true, Req4, State};
       {error, Error} -> lager:warning("Error occured when starting temporary task: ~p",[Error]),
          Req4 = cowboy_req:set_resp_body(jiffy:encode(#{success => false,
-            error => rest_helper:to_bin(Error)}), Req3),
+            error => faxe_util:to_bin(Error)}), Req3),
          {false, Req4, State}
    end.
 
@@ -254,7 +254,7 @@ from_update_to_json(Req, State=#state{task_id = TaskId, dfs = Dfs, tags = Tags})
          {true, Req4, State};
       {error, Error} ->
          Req3 = cowboy_req:set_resp_body(
-            jiffy:encode(#{success => false, error => rest_helper:to_bin(Error)}), Req),
+            jiffy:encode(#{success => false, error => faxe_util:to_bin(Error)}), Req),
          {false, Req3, State}
    end.
 
@@ -266,7 +266,7 @@ from_ping_to_json(Req, State=#state{task_id = TaskId}) ->
          {true, Req4, State};
       {error, Error} ->
          Req3 = cowboy_req:set_resp_body(
-            jiffy:encode(#{success => false, error => rest_helper:to_bin(Error)}), Req),
+            jiffy:encode(#{success => false, error => faxe_util:to_bin(Error)}), Req),
          {false, Req3, State}
    end.
 
@@ -275,7 +275,7 @@ start_to_json(Req, State = #state{task_id = Id}) ->
       {ok, _Graph} ->
          {jiffy:encode(#{<<"ok">> => <<"started">>}), Req, State};
       {error, Error} ->
-         {jiffy:encode(#{<<"error">> => rest_helper:to_bin(Error)}), Req, State}
+         {jiffy:encode(#{<<"error">> => faxe_util:to_bin(Error)}), Req, State}
    end.
 
 start_debug_to_json(Req, State = #state{task_id = Id}) ->
@@ -284,7 +284,7 @@ start_debug_to_json(Req, State = #state{task_id = Id}) ->
       {ok, _Graph} ->
          {jiffy:encode(#{<<"ok">> => <<"debug_started">>}), Req, State};
       {error, Error} ->
-         {jiffy:encode(#{<<"error">> => rest_helper:to_bin(Error)}), Req, State}
+         {jiffy:encode(#{<<"error">> => faxe_util:to_bin(Error)}), Req, State}
    end.
 
 stop_to_json(Req, State = #state{task_id = Id}) ->
@@ -292,7 +292,7 @@ stop_to_json(Req, State = #state{task_id = Id}) ->
       ok ->
          {jiffy:encode(#{<<"ok">> => <<"stopped">>}), Req, State};
       {error, Error} ->
-         {jiffy:encode(#{<<"error">> => rest_helper:to_bin(Error)}), Req, State}
+         {jiffy:encode(#{<<"error">> => faxe_util:to_bin(Error)}), Req, State}
    end.
 
 stop_debug_to_json(Req, State = #state{task_id = Id}) ->
@@ -300,15 +300,15 @@ stop_debug_to_json(Req, State = #state{task_id = Id}) ->
       {ok, _Graph} ->
          {jiffy:encode(#{<<"ok">> => <<"debug_stopped">>}), Req, State};
       {error, Error} ->
-         {jiffy:encode(#{<<"error">> => rest_helper:to_bin(Error)}), Req, State}
+         {jiffy:encode(#{<<"error">> => faxe_util:to_bin(Error)}), Req, State}
    end.
 
 errors_to_json(Req, State = #state{task_id = Id}) ->
    case faxe:get_errors(Id) of
       {ok, Errors} ->
-         {jiffy:encode(#{<<"error">> => rest_helper:to_bin(Errors)}), Req, State};
+         {jiffy:encode(#{<<"error">> => faxe_util:to_bin(Errors)}), Req, State};
       {error, What} ->
-         {jiffy:encode(#{<<"error">> => rest_helper:to_bin(What)}), Req, State}
+         {jiffy:encode(#{<<"error">> => faxe_util:to_bin(What)}), Req, State}
    end.
 
 %% read log from crate db
@@ -321,7 +321,7 @@ logs_to_json(Req, State = #state{task_id = Id}) ->
       {ok, Logs} ->
          {jiffy:encode(#{<<"logs">> => Logs}), Req, State};
       {error, What} ->
-         {jiffy:encode(#{<<"error">> => rest_helper:to_bin(What)}), Req, State}
+         {jiffy:encode(#{<<"error">> => faxe_util:to_bin(What)}), Req, State}
    end.
 
 create_to_json(Req, State) ->
@@ -336,7 +336,7 @@ add_tags_from_json(Req, State = #state{task_id = TaskId, tags = TagsJson}) ->
          {true, Req4, State};
       {error, Error} ->
          Req4 = cowboy_req:set_resp_body(
-            jiffy:encode(#{success => false, error => rest_helper:to_bin(Error)}), Req),
+            jiffy:encode(#{success => false, error => faxe_util:to_bin(Error)}), Req),
          {false, Req4, State}
    end.
 
@@ -349,7 +349,7 @@ remove_tags_from_json(Req, State = #state{task_id = TaskId, tags = TagsJson}) ->
          {true, Req4, State};
       {error, Error} ->
          Req4 = cowboy_req:set_resp_body(
-            jiffy:encode(#{success => false, error => rest_helper:to_bin(Error)}), Req),
+            jiffy:encode(#{success => false, error => faxe_util:to_bin(Error)}), Req),
          {false, Req4, State}
    end.
 
