@@ -28,7 +28,8 @@
    failed_retries,
    tries,
    tls,
-   fn_id
+   fn_id,
+   last_error
 }).
 
 -define(KEY, <<"stmt">>).
@@ -135,7 +136,7 @@ send(Item, State = #state{query = Q, faxe_fields = Fields, remaining_fields_as =
          Auth = base64:encode(UP),
          Headers0 ++ [{?AUTH_HEADER_KEY, <<"Basic ", Auth/binary>>}]
    end,
-   NewState = do_send(Query, Headers, 0, State),
+   NewState = do_send(Query, Headers, 0, State#state{last_error = undefined}),
    case is_binary(Query) of
       true -> node_metrics:metric(?METRIC_BYTES_SENT, byte_size(Query), State#state.fn_id);
       false -> ok
@@ -153,9 +154,9 @@ build(Item, Query, Fields, RemFieldsAs) ->
       end,
    jiffy:encode(#{?KEY => Query, ?ARGS => BulkArgs}).
 
-do_send(_Body, _Headers, MaxFailedRetries, S = #state{failed_retries = MaxFailedRetries}) ->
-   lager:warning("could not send ~p with ~p retries", [_Body, MaxFailedRetries]),
-   S;
+do_send(_Body, _Headers, MaxFailedRetries, S = #state{failed_retries = MaxFailedRetries, last_error = Err}) ->
+   lager:warning("could not send ~p with ~p retries, last error: ~p", [_Body, MaxFailedRetries, Err]),
+   S#state{last_error = undefined};
 do_send(Body, Headers, Retries, S = #state{client = Client}) ->
    Ref = gun:post(Client, ?PATH, Headers, Body),
    case catch(get_response(Client, Ref)) of
@@ -166,7 +167,7 @@ do_send(Body, Headers, Retries, S = #state{client = Client}) ->
          lager:warning("could not send ~p: invalid request", [Body]),
          S;
 
-      _O ->
+      O ->
 %%         lager:warning("sending problem :~p",[_O]),
 %%         NewState =
 %%         case is_process_alive(Client) of
@@ -174,7 +175,7 @@ do_send(Body, Headers, Retries, S = #state{client = Client}) ->
 %%               S;
 %%            false -> {ok, C} = fusco:start(S#state.host, []), S#state{client = C}
 %%         end,
-         do_send(Body, Headers, Retries+1, S)
+         do_send(Body, Headers, Retries+1, S#state{last_error = O})
 
    end.
 
