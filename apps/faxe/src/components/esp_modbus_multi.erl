@@ -195,7 +195,7 @@ handle_disconnect(Reader, State = #state{readers = Readers, timer = Timer}) ->
    case Readers0 of
       [] ->
          connection_registry:disconnected(),
-         lager:warning("All Modbus readers are disconnected!!, stop polling ....", [Reader]),
+         lager:warning("All Modbus readers are disconnected!!, stop polling ....", []),
          {ok, State#state{timer = faxe_time:timer_cancel(Timer), connected = false, readers = Readers0}};
       [_R|_] ->
          lager:notice("Modbus reader ~p disconnected!!, ~p readers left ....", [Reader, length(Readers0)]),
@@ -274,6 +274,8 @@ find_contiguous(L) ->
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 %% read all prepared requests
+read([], _Reqs, _Ts) ->
+   {error, no_connection};
 read(Readers, Reqs, Ts) ->
    read_all_multi(Readers, #data_point{ts = Ts}, Reqs).
 

@@ -72,7 +72,7 @@ init(NodeId, _Inputs, #{host := Host0, port := Port, user := User, every := Ever
 
    process_flag(trap_exit, true),
    Host = binary_to_list(Host0),
-   Opts = #{host => Host, port => Port, username => User, pass => Pass, database => DB},
+   Opts = #{host => Host, port => Port, username => User, password => Pass, database => DB},
    DBOpts = maps:merge(?DB_OPTIONS, Opts),
 
 %%   lager:warning("the QUERY before: ~p",[Q0]),
@@ -100,6 +100,7 @@ handle_info(query,
    NewTimer = faxe_time:timer_next(Timer),
    %% do query
    Resp = epgsql:prepared_query(C, ?STMT, [QueryMark-Period, QueryMark]),
+   lager:notice("Resp: ~p",[Resp]),
    handle_response(Resp, RType, State#state{timer = NewTimer});
 
 handle_info({'EXIT', _C, Reason}, State = #state{timer = Timer}) ->

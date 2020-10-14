@@ -42,16 +42,8 @@ options() -> [
 ].
 
 init(_NodeId, _Ins, #{fields := FieldList, reset_timeout := ResetTimeout, timeout := TOut}) ->
-   ResetTime =
-      case ResetTimeout of
-         undefined -> undefined;
-         _ -> faxe_time:duration_to_ms(ResetTimeout)
-      end,
-   TimeOut =
-      case TOut of
-         undefined -> undefined;
-         _ -> faxe_time:duration_to_ms(TOut)
-      end,
+   ResetTime = timer_interval(ResetTimeout),
+   TimeOut = timer_interval(TOut),
    Timer = start_timeout(TimeOut),
    {ok, all, #state{fields = FieldList, reset_timeout = ResetTime, timeout = TimeOut, timer = Timer}}.
 
@@ -145,7 +137,8 @@ cancel_timer(undefined) -> ok;
 cancel_timer(TimerRef) when is_reference(TimerRef) ->
    erlang:cancel_timer(TimerRef, [{async, true}, {info, false}]).
 
-
+timer_interval(undefined) -> undefined;
+timer_interval(Duration) -> faxe_time:duration_to_ms(Duration).
 
 
 -ifdef(TEST).
