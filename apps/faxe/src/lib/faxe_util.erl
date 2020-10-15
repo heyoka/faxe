@@ -96,10 +96,15 @@ bytes_from_words(Words) ->
 -spec local_ip_v4() -> tuple().
 local_ip_v4() ->
    {ok, Addrs} = inet:getifaddrs(),
-   hd([
+   A =
+   [
       Addr || {_, Opts} <- Addrs, {addr, Addr} <- Opts,
       size(Addr) == 4, Addr =/= {127,0,0,1}
-   ]).
+   ],
+   case A of
+      [] -> {127,0,0,1};
+      [Ip|_] -> Ip
+   end.
 
 -spec ip_to_bin(tuple()) -> binary().
 ip_to_bin({_A, _B, _C, _D} = Ip) ->

@@ -12,7 +12,7 @@
 -export([
    init/3, process/3, options/0, handle_info/2,
    to_flowdata/3, handle_result/4, check_options/0,
-   metrics/0]).
+   metrics/0, shutdown/1]).
 
 -record(state, {
    host :: string(),
@@ -78,7 +78,7 @@ init(NodeId, _Inputs, #{host := Host0, port := Port, user := User0, every := Eve
 
    DBOpts = [{host, Host}, {port, Port}, {user, User}, {password, Pass}, {service_name, ServiceName}],
 
-   lager:notice("the QUERY : ~p",[Query]),
+   lager:info("the QUERY : ~p",[Query]),
    connection_registry:reg(NodeId, Host, Port, <<"oracle_sql">>),
    State = #state{host = Host, port = Port, user = User, pass = Pass, service_name = ServiceName, query = Query,
       db_opts = DBOpts, every = Every, align = Align, result_type = ResType, fn_id = NodeId},
@@ -91,18 +91,28 @@ process(_In, _P = #data_point{}, State = #state{}) ->
 process(_In, _B = #data_batch{}, State = #state{}) ->
    {ok, State}.
 
-handle_info(reconnect, State) ->
-   {ok, connect(State)};
+handle_info(reconnect, State = #state{client = Client}) ->
+   NewState =
+   case Client /= undefined andalso is_process_alive(Client) of
+      true -> State;
+      false -> connect(State)
+   end,
+   {ok, NewState};
 handle_info(query, State = #state{timer = Timer, client = C, result_type = RType}) ->
 %% use timestamp from timer, in case of aligned queries, we have a straight
    Timestamp = Timer#faxe_timer.last_time,
    NewTimer = faxe_time:timer_next(Timer),
    %% do query
-   Res = jamdb_oracle:sql_query(C, State#state.query),
+   Res = (catch jamdb_oracle:sql_query(C, State#state.query)),
    node_metrics:metric(?METRIC_ITEMS_IN, 1, State#state.fn_id),
    case handle_response(Res, Timestamp, RType) of
-      {emit, Data} -> {emit, {1, Data}, State#state{timer = NewTimer}};
-      _ -> {ok, State#state{timer = NewTimer}}
+      {emit, Data} ->
+         {emit, {1, Data}, State#state{timer = NewTimer}};
+      {error, disconnected} ->
+         catch exit(C),
+         {ok, State#state{timer = cancel_timer(NewTimer)}};
+      _ ->
+         {ok, State#state{timer = NewTimer}}
    end;
 
 
@@ -115,6 +125,10 @@ handle_info({'EXIT', _C, _Reason}, State = #state{timer = Timer}) ->
 handle_info(What, State) ->
    lager:warning("++other info : ~p",[What]),
    {ok, State}.
+
+
+shutdown(#state{client = Client}) ->
+   catch jamdb_oracle:stop(Client).
 
 -spec connect(#state{}) -> #state{}.
 connect(State = #state{db_opts = Opts}) ->
@@ -130,17 +144,20 @@ connect(State = #state{db_opts = Opts}) ->
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 handle_response({ok, [{result_set, Columns, [], Rows}]}, Timestamp, RType) ->
-   lager:info("RESULT-length: ~n ~p",[length(Rows)]),
+   lager:info("RESULT-length: ~p",[length(Rows)]),
    Data = handle_result(Columns, Rows, Timestamp, RType),
    {emit, Data};
 handle_response({ok,[{proc_result,_ ,Message}]}, _, _) ->
    lager:warning("No query-result, but message: ~p",[Message]);
 handle_response({error,socket,closed}, _, _) ->
-   lager:warning("Got closed socket when reading from db");
+   lager:warning("Got closed socket when reading from db"),
+   {error, disconnected};
 handle_response({error, Type, Reason}, _, _) ->
-   lager:warning("Got error when reading from db: ~p: ~p",[Type, Reason]);
+   lager:warning("Got error when reading from db: ~p: ~p",[Type, Reason]),
+   {error, disconnected};
 handle_response(What, _, _) ->
-   lager:warning("Unexpected query-response: ~p", [What]).
+   lager:warning("Unexpected query-response: ~p", [What]),
+   {error, disconnected}.
 
 
 handle_result(Columns, Rows, Ts, <<"batch">>) ->
