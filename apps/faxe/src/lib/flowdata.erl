@@ -70,7 +70,7 @@
    merge_points/1, merge/2, merge_points/2
 %%   ,
 %%   get_schema/1
-]).
+   , clean_field_keys/1]).
 
 
 -define(DEFAULT_ID, <<"00000">>).
@@ -112,6 +112,14 @@ to_mapstruct(_B=#data_batch{points = Points}) ->
 to_s_msgpack(P) when is_record(P, data_point) orelse is_record(P, data_batch) ->
    msgpack:pack(to_mapstruct(P), [{map_format, jiffy}]).
 
+
+from_json(Message) ->
+   try jiffy:decode(Message, [return_maps, dedupe_keys]) of
+      Json when is_map(Json) orelse is_list(Json) -> Json
+   catch
+      _:_ -> #{}
+   end.
+
 from_json(JSONMessage, _FieldMapping) ->
    Map = from_json(JSONMessage),
    Data = maps:without(?DEFAULT_FIELDS, Map),
@@ -126,11 +134,19 @@ from_json_struct(JSON, TimeField, TimeFormat) ->
    Struct = from_json(JSON),
    case Struct of
       Map when is_map(Map) ->
-         point_from_json_map(Map, TimeField, TimeFormat);
+         point_from_json_map(clean_field_keys(Map), TimeField, TimeFormat);
       List when is_list(List) ->
-         Points = [point_from_json_map(PMap, TimeField, TimeFormat) || PMap <- List],
+         Points = [point_from_json_map(clean_field_keys(PMap), TimeField, TimeFormat) || PMap <- List],
          #data_batch{points = Points}
    end.
+
+%% remove dots in field keys
+clean_field_keys(Map) when is_map(Map) ->
+   F = fun(Key, Val, Acc) ->
+      NewKey = binary:replace(Key, <<".">>, <<"_">>, [global]),
+      Acc#{NewKey => Val}
+      end,
+   maps:fold(F, #{}, Map).
 
 %% from a map get a data_point record
 -spec point_from_json_map(map()) -> #data_point{}.
@@ -150,12 +166,6 @@ point_from_json_map(Map, TimeField, TimeFormat) ->
    Point = #data_point{ts = Ts, fields = Data},
    set_fields(Point, maps:to_list(Fields)).
 
-from_json(Message) ->
-   try jiffy:decode(Message, [return_maps, dedupe_keys]) of
-      Json when is_map(Json) orelse is_list(Json) -> Json
-   catch
-      _:_ -> #{}
-   end.
 
 %% return a pure map representation from a data_point/data_batch, adds a timestamp as <<"ts">>
 -spec to_map(#data_point{}|#data_batch{}) -> map()|list(map()).

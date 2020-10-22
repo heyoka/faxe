@@ -518,4 +518,16 @@ root_path_bin_test() ->
    ?assertEqual(false, flowdata:is_root_path(<<"root.a.path[13]">>)),
    ?assertEqual(false, flowdata:is_root_path({<<"root">>, <<"path">>})).
 
+
+clean_keys_test() ->
+   Map =
+      #{<<"df.">> => <<"02.005">>,<<"double_val">> => 10.220761769454324,
+      <<"id">> => <<"oi23u4oi23u4oi32u34oi2u3">>,<<"ts">> => 1573546741698,
+      <<"val">> => 5.110380884727162,<<"this.is.a.key.with.points">> => <<"val.with.points">>},
+   Expected =
+      #{<<"df_">> => <<"02.005">>,<<"double_val">> => 10.220761769454324,
+         <<"id">> => <<"oi23u4oi23u4oi32u34oi2u3">>,<<"ts">> => 1573546741698,
+         <<"val">> => 5.110380884727162,<<"this_is_a_key_with_points">> => <<"val.with.points">>},
+   ?assertEqual(Expected, flowdata:clean_field_keys(Map)).
+
 -endif.
