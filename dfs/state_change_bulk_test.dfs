@@ -4,9 +4,9 @@ def pre = 'obj'
 
 def state =
     |json_emitter()
-    .every(1s).align()
+    .every(5s).align()
     .json(
-    <<< {"err1": 0, "err2":0, "err3":0, "nr" : 233, "errcode1": 0, "errcode2": 0, "errcode3": 0} >>>,
+    <<< {"err1": 0, "err2":0, "err3":0, "nr" : 233, "errcode1": 0, "errcode2": 0, "errcode3": 0, "sub": {"val1": 22}} >>>,
     <<< {"err1": 1, "err2":0, "err3":0, "nr" : 233, "errcode1": 111, "errcode2": 0, "errcode3": 0} >>>,
     <<< {"err1": 1, "err2":0, "err3":0, "nr" : 233, "errcode1": 111, "errcode2": 0, "errcode3": 0} >>>,
     <<< {"err1": 1, "err2":0, "err3":0, "nr" : 233, "errcode1": 111, "errcode2": 0, "errcode3": 0} >>>,

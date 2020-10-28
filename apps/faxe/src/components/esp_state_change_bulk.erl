@@ -89,6 +89,7 @@ process(_In, #data_batch{points = _Points} = _Batch, _State = #state{state_lambd
    {error, not_implemented};
 process(_Inport, #data_point{} = Point, State = #state{field = Field}) ->
    FieldMap = flowdata:field(Point, Field),
+   lager:notice("fieldmap is: ~p",[FieldMap]),
    StateTrackers = get_states(FieldMap, State),
    F = fun({FieldName, StateChange}, UpdatedStateChanges) ->
       case state_change:process(StateChange, Point) of
@@ -140,16 +141,22 @@ get_states(FieldMap, #state{lambda_pattern = Pattern, state_changes = States, fi
       fun
          (FieldName0, CurrentStates) ->
             FieldName = <<ParentField/binary, ".", FieldName0/binary>>,
+            lager:notice("fieldname: ~p",[FieldName]),
             case lists:member(FieldName, Ex) of
                true ->
                   CurrentStates;
                false ->
-                  case proplists:get_value(FieldName, States) of
-                     undefined ->
-                        Fun = build_fun(Pattern, FieldName),
-                        [{FieldName, state_change:new(Fun)}|CurrentStates];
-                     _Fun ->
-                        CurrentStates
+                  case maps:get(FieldName, Fields) of
+                     M when is_map(M) ->
+                        CurrentStates;
+                     _ ->
+                        case proplists:get_value(FieldName, States) of
+                           undefined ->
+                              Fun = build_fun(Pattern, FieldName),
+                              [{FieldName, state_change:new(Fun)}|CurrentStates];
+                           _Fun ->
+                              CurrentStates
+                        end
                   end
             end
       end,

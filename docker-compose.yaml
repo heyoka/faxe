@@ -1,0 +1,18 @@
+# HOST: /var/lib/docker/volumes/<APP ID>_resin-data/_data
+volumes:
+  resin-data:
+
+
+
+services:
+  faxe:
+    build:
+      context: "./"
+      dockerfile: "Dockerfile.intel-nuc"
+    ports:
+      #      - "1883:1883"
+      - "80:80"
+    container_name: faxe
+    volumes:
+      - 'resin-data:/data/'
+    restart: always
