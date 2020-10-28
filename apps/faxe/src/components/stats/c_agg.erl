@@ -29,5 +29,5 @@ result({Tss, ValueList}, As, _Tss) when is_list(Tss) andalso is_list(ValueList)-
 %%   lists:foreach(fun({T, V}) ->
       % lager:notice("out: ~p :: ~p",[faxe_time:to_htime(T), V]) end, L),
    Points = lists:map(fun({_T, _V}=P) -> result(P, As, _T) end, L),
-   flowdata:set_bounds(#data_batch{points = Points}).
+   #data_batch{points = Points}.
 

@@ -2,16 +2,19 @@
 %% Ⓒ 2019 heyoka
 %% @doc emits new point-values only if different from the previous point
 %%
-%% * multiple fields can be monitored by this node, if no field is specified, the whole datapoint will be used for
-%% comparison
+%% * multiple fields can be monitored by this node, if no field is specified,
+%% the whole datapoint will be used for comparison
 %%
 %% if nothing is given for 'fields', the complete data-item is compared to the last one
 %%
 %% * if reset_timeout is given, all previous values are reset, if there are no points
 %% coming in for this amount of time
 %%
-%% * if timeout is given, it specifies an interval where previous values are reset, even if there were dataitem coming
-%% in the meantime
+%% resetting a value means the next time a new value comes in, there is no last value to compare to, thus
+%% the node will always emit after a reset_timeout
+%%
+%% * if timeout is given, it specifies an interval where previous values are reset, regardless of incoming data
+%%
 %%
 %% * for value comparison erlang's strict equals (=:=) is used, so 1.0 is not equal to 1
 %%
