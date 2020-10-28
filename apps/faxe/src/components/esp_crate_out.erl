@@ -1,5 +1,5 @@
 %% Date: 30.12.16 - 23:01
-%% HTTP Post Request
+%% CrateDB Writer that uses crate's http endpoint
 %% Ⓒ 2019 heyoka
 %%
 -module(esp_crate_out).
@@ -40,7 +40,7 @@
 -define(QUERY_TIMEOUT, 5000).
 -define(FAILED_RETRIES, 3).
 
--define(CONNECT_OPTS, #{transport => tls, connect_timeout => 3000}).
+-define(CONNECT_OPTS, #{connect_timeout => 3000}).
 
 
 options() ->
@@ -98,11 +98,10 @@ shutdown(#state{client = C}) ->
 
 start_client(State = #state{host = Host, port = Port, tls = Tls}) ->
    connection_registry:connecting(),
-   Opts = #{connect_timeout => 3000},
    Options =
       case Tls of
-         true -> Opts#{transport => tls};
-         false -> Opts
+         true -> ?CONNECT_OPTS#{transport => tls};
+         false -> ?CONNECT_OPTS
       end,
    case gun:open(Host, Port, Options) of
       {ok, C} ->
@@ -162,21 +161,12 @@ do_send(Body, Headers, Retries, S = #state{client = Client}) ->
    case catch(get_response(Client, Ref)) of
       ok ->
          S;
-
       {error, _} ->
          lager:warning("could not send ~p: invalid request", [Body]),
          S;
 
       O ->
-%%         lager:warning("sending problem :~p",[_O]),
-%%         NewState =
-%%         case is_process_alive(Client) of
-%%            true ->
-%%               S;
-%%            false -> {ok, C} = fusco:start(S#state.host, []), S#state{client = C}
-%%         end,
          do_send(Body, Headers, Retries+1, S#state{last_error = O})
-
    end.
 
 

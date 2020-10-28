@@ -1,6 +1,7 @@
 %% Date: 30.12.16 - 23:01
 %% HTTP Post Request
 %% Ⓒ 2019 heyoka
+%% @deprecated
 %%
 -module(esp_http_post_crate).
 -author("Alexander Minichmair").
