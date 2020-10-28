@@ -1,18 +1,21 @@
-# HOST: /var/lib/docker/volumes/<APP ID>_resin-data/_data
+version: '2'
 volumes:
-  resin-data:
-
-
-
+  mnesia-data:
+  esq-data:
 services:
   faxe:
     build:
       context: "./"
       dockerfile: "Dockerfile.intel-nuc"
     ports:
-      #      - "1883:1883"
       - "80:80"
     container_name: faxe
     volumes:
-      - 'resin-data:/data/'
+      - 'mnesia-data:/data/mnesia'
+      - 'esq-data:/data/esq'
+    ulimits:
+      nproc: 65535
+      nofile:
+        soft: 20000
+        hard: 40000
     restart: always
