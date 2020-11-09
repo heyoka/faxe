@@ -64,20 +64,15 @@
    field/3, to_s_msgpack/1, from_json/1,
    to_map/1, set_fields/3, set_tags/3, fields/2, tags/2,
    delete_fields/2, delete_tags/2, path/1, paths/1, set_fields/2,
-   to_mapstruct/1, from_json/2, from_json_struct/1, from_json_struct/3,
-   to_map_except/2, point_from_json_map/1, point_from_json_map/3,
+   to_mapstruct/1, from_json_struct/1, from_json_struct/3,
+   point_from_json_map/1, point_from_json_map/3,
    set_tags/2, is_root_path/1,
    merge_points/1, merge/2, merge_points/2
 %%   ,
 %%   get_schema/1
    , clean_field_keys/1]).
 
-
--define(DEFAULT_ID, <<"00000">>).
--define(DEFAULT_VS, 1).
--define(DEFAULT_DF, <<"00.000">>).
-
--define(DEFAULT_FIELDS, [<<"id">>, <<"vs">>, <<"df">>, <<"ts">>]).
+-define(DEFAULT_FIELDS, [<<"id">>, <<"df">>, <<"ts">>]).
 -define(DEFAULT_TS_FIELD, <<"ts">>).
 
 
@@ -92,19 +87,8 @@ to_json(P) when is_record(P, data_point) orelse is_record(P, data_batch) ->
 %% empty message, when there is no field set (empty map)
 to_mapstruct(#data_point{ts = _Ts, fields = Fields, tags = _Tags}) when map_size(Fields) == 0 ->
    #{};
-to_mapstruct(P=#data_point{ts = Ts, fields = Fields, tags = _Tags}) ->
-
-   AllDataFields = maps:without([<<"id">>,<<"df">>], Fields),
-   DataFields =
-      case maps:get(<<"data">>, AllDataFields, nil) of
-         nil -> AllDataFields;
-         Data -> maps:merge(maps:without([<<"data">>], AllDataFields), Data)
-      end,
-   #{?DEFAULT_TS_FIELD => Ts,
-      <<"id">> => field(P ,<<"id">>, ?DEFAULT_ID),
-      <<"df">> => field(P, <<"df">>, ?DEFAULT_DF),
-      <<"data">> => DataFields};
-
+to_mapstruct(_P=#data_point{ts = Ts, fields = Fields, tags = _Tags}) ->
+   Fields#{?DEFAULT_TS_FIELD => Ts};
 to_mapstruct(_B=#data_batch{points = Points}) ->
    [to_mapstruct(P) || P <- Points].
 
@@ -119,11 +103,6 @@ from_json(Message) ->
    catch
       _:_ -> #{}
    end.
-
-from_json(JSONMessage, _FieldMapping) ->
-   Map = from_json(JSONMessage),
-   Data = maps:without(?DEFAULT_FIELDS, Map),
-   set_field(#data_point{}, <<"data">>, Data).
 
 -spec from_json_struct(binary()) -> #data_point{}|#data_batch{}.
 from_json_struct(JSON) ->
@@ -154,6 +133,17 @@ point_from_json_map(Map) ->
    point_from_json_map(Map, ?DEFAULT_TS_FIELD, ?TF_TS_MILLI).
 
 -spec point_from_json_map(map(), binary(), binary()) -> #data_point{}.
+%%point_from_json_map(Map, TimeField, TimeFormat) ->
+%%   Ts0 = maps:get(TimeField, Map, undefined),
+%%   Ts =
+%%      case Ts0 of
+%%         undefined -> faxe_time:now();
+%%         Timestamp -> time_format:convert(Timestamp, TimeFormat)
+%%      end,
+%%   Data = maps:without(?DEFAULT_FIELDS, Map),
+%%   Fields = maps:remove(?DEFAULT_TS_FIELD, maps:with(?DEFAULT_FIELDS, Map)),
+%%   Point = #data_point{ts = Ts, fields = Data},
+%%   set_fields(Point, maps:to_list(Fields)).
 point_from_json_map(Map, TimeField, TimeFormat) ->
    Ts0 = maps:get(TimeField, Map, undefined),
    Ts =
@@ -161,10 +151,8 @@ point_from_json_map(Map, TimeField, TimeFormat) ->
          undefined -> faxe_time:now();
          Timestamp -> time_format:convert(Timestamp, TimeFormat)
       end,
-   Data = maps:without(?DEFAULT_FIELDS, Map),
-   Fields = maps:remove(?DEFAULT_TS_FIELD, maps:with(?DEFAULT_FIELDS, Map)),
-   Point = #data_point{ts = Ts, fields = Data},
-   set_fields(Point, maps:to_list(Fields)).
+   Fields = maps:remove(?DEFAULT_TS_FIELD, Map),
+   #data_point{ts = Ts, fields = Fields}.
 
 
 %% return a pure map representation from a data_point/data_batch, adds a timestamp as <<"ts">>
@@ -174,10 +162,6 @@ to_map(#data_point{ts = Ts, fields = Fields, tags = Tags}) ->
    M#{<<"ts">> => Ts};
 to_map(#data_batch{points = Points}) ->
    [to_map(P) || P <- Points].
-
-%% return a map representation of #data_point without the given keys
-to_map_except(P=#data_point{}, Without) when is_list(Without) ->
-   maps:without([[<<"ts">>]|Without], to_map(P)).
 
 %% extract a given map into the fields-list in data_point P
 %% return the updated data_point

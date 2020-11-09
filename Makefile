@@ -5,9 +5,9 @@ dev1:
 #	export FAXE_FLOW_AUTO_START=off && \
 #	export FAXE_S7POOL_MIN_SIZE=1 && \
 #	export FAXE_CONN_STATUS_HANDLER_MQTT_PORT=9876 && \
-	export FAXE_CONN_STATUS_HANDLER_MQTT_ENABLE=on && \
-	export FAXE_METRICS_HANDLER_MQTT_ENABLE=on && \
-	export FAXE_DEBUG_HANDLER_MQTT_ENABLE=on && \
+	export FAXE_CONN_STATUS_HANDLER_MQTT_ENABLE=off && \
+	export FAXE_METRICS_HANDLER_MQTT_ENABLE=off && \
+	export FAXE_DEBUG_HANDLER_MQTT_ENABLE=off && \
 	rebar3 as dev1 release && _build/dev1/rel/faxe/bin/faxe console
 
 

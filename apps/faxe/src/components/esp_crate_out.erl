@@ -136,10 +136,16 @@ send(Item, State = #state{query = Q, faxe_fields = Fields, remaining_fields_as =
          Headers0 ++ [{?AUTH_HEADER_KEY, <<"Basic ", Auth/binary>>}]
    end,
    NewState = do_send(Query, Headers, 0, State#state{last_error = undefined}),
+   MBytes =
    case is_binary(Query) of
-      true -> node_metrics:metric(?METRIC_BYTES_SENT, byte_size(Query), State#state.fn_id);
-      false -> ok
+      true -> byte_size(Query);
+      false ->
+         case is_list(Query) of
+            true -> byte_size(iolist_to_binary(Query));
+            false -> 0
+         end
    end,
+   node_metrics:metric(?METRIC_BYTES_SENT, MBytes, State#state.fn_id),
    node_metrics:metric(?METRIC_ITEMS_OUT, 1, State#state.fn_id),
    NewState.
 
