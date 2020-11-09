@@ -569,8 +569,6 @@ jsn_deletelist(Paths, Map) ->
 
 %% @doc Convert a binary path into its tuple-form, only when array-indices are used in the path.
 %% This is required, because binary paths do not support array indices.
-%% It is recommended to compile the paths used in your flow-components at startup and use the
-%% compiled version in consecutive calls to the flowdata functions
 -spec paths(list(binary())) -> list(binary()|tuple()).
 paths(Paths) when is_list(Paths) ->
    [path(Path) || Path <- Paths].

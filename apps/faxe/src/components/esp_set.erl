@@ -39,7 +39,7 @@ check_options() ->
 
 init(NodeId, _Ins, #{fields := Fields0, tags := Tags0,
    tag_values := TagV, field_values := FieldV}) ->
-   %% optimize field_lookup by translating the possibly deep path to its tuple form and if all paths are
+   %% optimize field_lookup: if all paths are
    %% just root paths, we work directly on the underlying map structure
    {RootFields, Fields} = prepare_paths(Fields0),
    {RootTags, Tags} = prepare_paths(Tags0),
