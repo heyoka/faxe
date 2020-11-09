@@ -104,7 +104,7 @@ shutdown(#state{publisher = P}) ->
 
 build_message(Point, State = #state{fn_id = FNId}) ->
    Json = flowdata:to_json(Point),
-   lager:notice("mqtt-message: ~s",[Json]),
+%%   lager:notice("mqtt-message: ~s",[Json]),
    node_metrics:metric(?METRIC_BYTES_SENT, byte_size(Json), FNId),
    node_metrics:metric(?METRIC_ITEMS_OUT, 1, FNId),
    {get_topic(Point, State), Json}.
