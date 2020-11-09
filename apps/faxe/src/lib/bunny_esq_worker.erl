@@ -184,7 +184,7 @@ next(#state{queue = Q} = State) ->
    start_deq_timer(NewState).
 
 deliver({_Exchange, _Key, _Payload, _Args}, _QReceipt, State = #state{available = false}) ->
-   lager:warning("channel is not availbale"),
+   lager:warning("channel is not available"),
    State;
 deliver({Exchange, Key, Payload, Args}, QReceipt, State = #state{channel = Channel}) ->
 %%   lager:notice("Channel is: ~p",[Channel]),
