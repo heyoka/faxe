@@ -145,7 +145,9 @@ build_topic(Parts, Separator) when is_list(Parts) andalso is_binary(Separator) -
 -spec to_bin(any()) -> binary().
 to_bin(L) when is_list(L) -> list_to_binary(L);
 to_bin(E) when is_atom(E) -> atom_to_binary(E, utf8);
-to_bin(Bin) when is_binary(Bin) -> Bin;
+to_bin(Int) when is_integer(Int) -> integer_to_binary(Int);
+to_bin(Float) when is_float(Float) -> float_to_binary(Float);
+%%to_bin(Bin) when is_binary(Bin) -> Bin;
 to_bin(Bin) -> Bin.
 
 

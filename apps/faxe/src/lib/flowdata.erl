@@ -547,7 +547,6 @@ jsn_setlist([], Map) ->
    Map;
 %% is the path a tuple already? then do not convert paths
 jsn_setlist([{K, _V}|_]=KeysValues, Map) when is_tuple(K) ->
-   lager:info("Key is : ~p",[K]),
    jsn:set_list(KeysValues, Map);
 jsn_setlist(KeysValues, Map) when is_list(KeysValues) ->
    {Keys, Values} = lists:unzip(KeysValues),

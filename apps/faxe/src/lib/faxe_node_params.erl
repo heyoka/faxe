@@ -34,6 +34,7 @@ options(<<"state_change">>) -> [{1, <<"lambda">>, lambda}];
 options(<<"debug">>) -> [{1, <<"level">>, string}];
 options(<<"case">>) -> [{all, <<"lambdas">>, lambda_list}];
 options(<<"change_detect">>) -> [{all, <<"fields">>, string_list}];
+options(<<"collect_unique">>) -> [{1, <<"field">>, string}];
 options(_) -> undefined.
 
 %% helper functions

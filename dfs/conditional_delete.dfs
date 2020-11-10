@@ -1,0 +1,26 @@
+def emit_every = 2s
+def emit_every_jitter = 1s
+def debug_type = 'info'
+
+|json_emitter()
+    .every(emit_every)
+    .jitter(emit_every_jitter)
+    .json(
+        <<<{"condition": {"state": "IDLE"}, "topic": "in2"} >>>,
+        <<<{"condition": {"state": "IDLE"}, "topic": "in1"} >>>,
+        <<<{"condition": {"state": "IDLE"}, "topic": "in1"} >>>,
+        <<<{"condition": {"state": "IDLE"}, "topic": "in2"} >>>,
+        <<<{"condition": {"state": "IDLE"}, "topic": "in3"} >>>,
+        <<<{"condition": {"state": "IDLE"}, "topic": "in1"} >>>,
+        <<<{"condition": {"state": "IDLER"}, "topic": "in1"} >>>,
+        <<<{"condition": {"state": "IDLE"}, "topic": "in1"} >>>,
+        <<<{"condition": {"state": "IDLE"}, "topic": "in1"} >>>
+        )
+
+|debug(debug_type)
+
+|delete()
+.fields('data.condition.state')
+.where(lambda: "data.topic" == 'in2' OR "data.topic" == 'in3')
+
+|debug()

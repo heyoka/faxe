@@ -3,7 +3,7 @@
 %%% @copyright (C) 2019, <COMPANY>
 %%% @doc
 %%% get data from a siemens s7 plc via the snap7 library
-%%%
+%%% @todo check for more bytes to read at a time
 %%% @end
 %%% Created : 14. June 2019 11:32:22
 %%%-------------------------------------------------------------------
@@ -97,9 +97,11 @@ check_options() ->
       fun(List, #{vars_prefix := VarsPrefix}) ->
         List1 = translate_vars(List, VarsPrefix),
         {P, _} = build_addresses(List1, lists:seq(1, length(List1)), 0),
+        lager:warning("bytes: ~p",[bit_count(P)/8]),
         bit_count(P)/8 =< ?DEFAULT_BYTE_LIMIT
       end,
-      <<", byte-limit of ", ?DEFAULT_BYTE_LIMIT, " bytes exceeded!">>
+
+      <<", byte-limit of 128 bytes exceeded!">>
     },
 
     {same_length, [vars, as]}
