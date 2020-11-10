@@ -84,7 +84,7 @@ to_json(P) when is_record(P, data_point) orelse is_record(P, data_batch) ->
       IoList when is_list(IoList) -> iolist_to_binary(IoList)
    end.
 %%
-%% empty message, when there is no field set (empty map)
+%% empty, when there is no field set (empty map)
 to_mapstruct(#data_point{ts = _Ts, fields = Fields, tags = _Tags}) when map_size(Fields) == 0 ->
    #{};
 to_mapstruct(_P=#data_point{ts = Ts, fields = Fields, tags = _Tags}) ->
@@ -615,12 +615,12 @@ is_root_path(_) ->
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %% merge funcs
-
+%% @todo document !!
 merge(M1, M2) when is_map(M1), is_map(M2) -> mapz:deep_merge(merge_fun(), #{}, [M1, M2]);
 merge(M1, M2) when is_list(M1), is_list(M2) -> lists:merge(M1, M2);
 merge(V1, V2) when is_number(V1), is_number(V2) -> V1 + V2;
 merge(S1, S2) when is_binary(S1), is_binary(S2) -> string:concat(S1, S2);
-merge(_, _) -> error(cannot_merge_wrong_or_different_datatypes).
+merge(_, _) -> error(cannot_merge_datatypes).
 merge_fun() ->
    fun
       (Prev, Val) when is_map(Prev), is_map(Val) -> maps:merge(Prev, Val);

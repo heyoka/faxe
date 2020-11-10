@@ -3,7 +3,7 @@
 %%
 %% @doc
 %% Sample a stream of data based on count or duration.
-%% if rate is an integer, every rate'th message will be passed on to the next node(s)
+%% if rate is an integer, every n'th message will be passed on to the next node(s)
 %% if rate is a duration literal, the first message that comes in after the timeout will be passed on
 %% @end
 -module(esp_sample).
@@ -18,7 +18,7 @@
 
 -record(state, {
    node_id,
-   point_count = 0,
+   point_count = 1,
    rate_count,
    rate_interval,
    gate_open = false
@@ -27,7 +27,7 @@
 options() -> [{rate, any}].
 
 check_options() ->
-   [{func, rate, fun check_rate/1, <<", must be 'integer' or 'duration'">>}].
+   [{func, rate, fun check_rate/1, <<", must be of type 'integer' or 'duration'">>}].
 
 check_rate(Param) when is_integer(Param) -> true;
 check_rate(Param) when is_binary(Param) -> faxe_time:is_duration_string(Param);
@@ -47,9 +47,10 @@ init(NodeId, _Ins, #{rate := Rate}) ->
    {ok, all, NewState}.
 
 process(_In, Item, State = #state{rate_interval = undefined, rate_count = Count, point_count = Count}) ->
-   {emit, Item, State#state{point_count = 0}};
+   {emit, Item, State#state{point_count = 1}};
 process(_In, _Item, State = #state{rate_interval = undefined, point_count = Count}) ->
    {ok, State#state{point_count = Count+1}};
+
 process(_In, Item, State = #state{gate_open = true}) ->
    start_timer(State),
    {emit, Item, State#state{gate_open = false}};
