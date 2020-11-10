@@ -54,9 +54,7 @@
    set_field/3,
    set_tag/3,
    value/2, values/2, delete_field/2, delete_tag/2,
-   %% batch only
    first_ts/1, set_bounds/1,
-   %% point only
    set_ts/2,
    field_names/1, tag_names/1,
    rename_fields/3, rename_tags/3,
@@ -70,7 +68,7 @@
    merge_points/1, merge/2, merge_points/2
 %%   ,
 %%   get_schema/1
-   , clean_field_keys/1]).
+   , clean_field_keys/1, to_map_except/2]).
 
 -define(DEFAULT_FIELDS, [<<"id">>, <<"df">>, <<"ts">>]).
 -define(DEFAULT_TS_FIELD, <<"ts">>).
@@ -162,6 +160,10 @@ to_map(#data_point{ts = Ts, fields = Fields, tags = Tags}) ->
    M#{<<"ts">> => Ts};
 to_map(#data_batch{points = Points}) ->
    [to_map(P) || P <- Points].
+
+%% return a map representation of #data_point without the given keys
+to_map_except(P=#data_point{}, Without) when is_list(Without) ->
+   maps:without([[<<"ts">>]|Without], to_map(P)).
 
 %% extract a given map into the fields-list in data_point P
 %% return the updated data_point
