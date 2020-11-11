@@ -146,17 +146,12 @@ get_states(FieldMap, #state{lambda_pattern = Pattern, state_changes = States, fi
                true ->
                   CurrentStates;
                false ->
-                  case maps:get(FieldName, Fields) of
-                     M when is_map(M) ->
-                        CurrentStates;
-                     _ ->
-                        case proplists:get_value(FieldName, States) of
-                           undefined ->
-                              Fun = build_fun(Pattern, FieldName),
-                              [{FieldName, state_change:new(Fun)}|CurrentStates];
-                           _Fun ->
-                              CurrentStates
-                        end
+                  case proplists:get_value(FieldName, States) of
+                     undefined ->
+                        Fun = build_fun(Pattern, FieldName),
+                        [{FieldName, state_change:new(Fun)}|CurrentStates];
+                     _Fun ->
+                        CurrentStates
                   end
             end
       end,
