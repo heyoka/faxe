@@ -4,6 +4,7 @@ volumes:
   esq-data:
 services:
   faxe:
+    hostname: "balena-faxe"
     build:
       context: "./"
       dockerfile: "Dockerfile.intel-nuc"
