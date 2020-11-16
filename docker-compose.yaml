@@ -4,6 +4,7 @@ volumes:
   esq-data:
 services:
   faxe:
+    # to have a fixed hostname for mnesia
     hostname: "balena-faxe"
     build:
       context: "./"

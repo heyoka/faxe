@@ -348,6 +348,14 @@
 {mapping, "email.smtp", "faxe.email.smtp_relay",
     [{default, "smtp.example.com"}, {datatype, string}]
 }.
+%% @doc email smtp port
+{mapping, "email.port", "faxe.email.smtp_port",
+    [{default, 25}, {datatype, integer}]
+}.
+%% @doc email smtp tls, whether to use tls
+{mapping, "email.tls", "faxe.email.smtp_tls",
+    [{default, off}, {datatype, flag}]
+}.
 %% @doc email smtp user
 {mapping, "email.user", "faxe.email.smtp_user",
     [{datatype, string}, {commented, "username"}]

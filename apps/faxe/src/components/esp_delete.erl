@@ -2,7 +2,8 @@
 %% Ⓒ 2017 heyoka
 %% @doc
 %% Delete value(s) with the given fieldname or path from data_point and data_batch
-%% Now also conditional with a lambda expression !
+%%
+%% Now, conditional delete with a lambda expression is possible.
 %% @end
 -module(esp_delete).
 -author("Alexander Minichmair").

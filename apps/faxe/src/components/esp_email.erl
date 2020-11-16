@@ -24,7 +24,9 @@
    template,
    smtp_relay,
    smtp_user,
-   smtp_pass
+   smtp_pass,
+   smtp_port,
+   tls
 }).
 
 options() -> [
@@ -32,6 +34,8 @@ options() -> [
    {smtp_relay, binary, {email, smtp_relay}},
    {smtp_user, any, {email, smtp_user}},
    {smtp_pass, any, {email, smtp_pass}},
+   {smtp_port, integer, {email, smtp_port}},
+   {smtp_tls, is_set, false},
    {template, binary, {email, template}},
    {to, string_list},
    {subject, string},
@@ -54,7 +58,7 @@ check_email(Address) when is_binary(Address) ->
 
 init(NodeId, _Ins, #{
    from_address := From, smtp_relay := SmtpRelay, template := Template0,
-   smtp_user := User, smtp_pass := Pass,
+   smtp_user := User, smtp_pass := Pass, smtp_port := SmtpPort, smtp_tls := Tls,
    to := To0, subject := Subj, body := Body, body_field := BodyField}) ->
 
    TemplateFile = binary_to_list(Template0),
@@ -70,7 +74,10 @@ init(NodeId, _Ins, #{
       smtp_relay = SmtpRelay,
       smtp_user = User,
       smtp_pass = Pass,
-      template = ContBin
+      template = ContBin,
+      smtp_port = SmtpPort,
+      tls = Tls
+
       },
 
    {ok, all, State}.
@@ -85,8 +92,9 @@ process(_In, P = #data_point{}, State = #state{from = From, to = To, subject = S
    lager:notice("sent email to ~p, result: ~p",[To, Res]),
    {ok, State}.
 
-email_options(#state{smtp_relay = Relay, smtp_user = User, smtp_pass = Pass}) ->
-   Opts = [{relay, Relay}],
+email_options(#state{smtp_relay = Relay, smtp_user = User, smtp_pass = Pass, smtp_port = Port, tls = Tls0}) ->
+   Tls = case Tls0 of true -> always; false -> never end,
+   Opts = [{relay, Relay}, {port, Port}, {tls, Tls}],
    case User of
       undefined -> Opts;
       _ -> Opts ++ [{username, User}, {password, Pass}]
