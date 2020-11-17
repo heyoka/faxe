@@ -23,7 +23,7 @@ spec:
               scheme: HTTP
             initialDelaySeconds: 3
             timeoutSeconds: 1
-            periodSeconds: 10
+            periodSeconds: 30
             successThreshold: 1
             failureThreshold: 3
           terminationMessagePath: /dev/termination-log
@@ -65,7 +65,10 @@ spec:
       restartPolicy: Always
       terminationGracePeriodSeconds: 30
       dnsPolicy: ClusterFirst
-      securityContext: {}
+      securityContext: 
+        runAsUser: 1001
+        runAsGroup: 1001
+        fsGroup: 1001
       schedulerName: default-scheduler
   volumeClaimTemplates:
     - metadata:
