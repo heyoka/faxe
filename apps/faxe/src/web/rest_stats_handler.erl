@@ -11,7 +11,7 @@
 %%
 %% Cowboy callbacks
 -export([
-   init/2, allowed_methods/2, stats_json/2, content_types_provided/2]).
+  init/2, allowed_methods/2, stats_json/2, content_types_provided/2, is_authorized/2]).
 
 %%
 %% Additional callbacks
@@ -22,6 +22,9 @@
 
 init(Req, [{op, Mode}]) ->
    {cowboy_rest, Req, #state{mode = Mode}}.
+
+is_authorized(Req, State) ->
+  rest_helper:is_authorized(Req, State).
 
 allowed_methods(Req, State) ->
     Value = [<<"GET">>, <<"OPTIONS">>],

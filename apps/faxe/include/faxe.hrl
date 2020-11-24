@@ -25,6 +25,10 @@
    id, count
 }).
 
+-record(faxe_user, {
+   name, pw, role = admin
+}).
+
 -record(task, {
    id                   :: list()|binary(),
    name                 :: binary(),

@@ -10,8 +10,8 @@
 %% Application callbacks
 -export([start/2, stop/1, prepare_stop/1]).
 
--define(PRIV_DIR, code:priv_dir(faxe)).
 -define(APP, faxe).
+-define(PRIV_DIR, code:priv_dir(?APP)).
 
 %%====================================================================
 %% API
@@ -20,12 +20,20 @@
 start(_StartType, _StartArgs) ->
    print_banner(),
    %% Mnesia
-   faxe_db:create(),
+   faxe_db:db_init(),
    %% COWBOY
    {ok, [Routes]} = file:consult(filename:join(?PRIV_DIR, "rest_routes.config")),
    Dispatch = cowboy_router:compile(Routes),
    HttpPort = faxe_config:get(http_api_port, 8081),
-   {ok, _} = cowboy:start_clear(http_rest, [{port, HttpPort}],
+   {StartFunction, SockOpts} =
+      case faxe_config:get_http_tls() of
+         true -> {start_tls, faxe_config:get_http_ssl_opts()};
+         _ -> {start_clear, []} end,
+   lager:notice("cowboy http(s) listener starting with: ~p",[{StartFunction, SockOpts}]),
+   MaxConns = 200, Acceptors = 5,
+   {ok, _} = cowboy:StartFunction(http,
+      #{socket_opts => [{port, HttpPort}] ++ SockOpts,
+      max_connections => MaxConns, num_acceptors => Acceptors},
       #{
          env =>  #{dispatch => Dispatch},
          middlewares => [cowboy_router, cmw_headers, cowboy_handler]
@@ -39,7 +47,7 @@ start(_StartType, _StartArgs) ->
 
 %%--------------------------------------------------------------------
 prepare_stop(State) ->
-   lager:notice("Application faxe prepare to stop with state: ~p",[State]),
+   lager:notice("Application faxe prepares to stop with state: ~p",[State]),
    State.
 
 

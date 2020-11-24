@@ -75,6 +75,20 @@
 }.
 
 %% @doc ----------------------------------------------------------------
+%% API USER - default user, that will be created on first startup
+%%----------------------------------------------------------------
+
+%% username
+{mapping, "default_username", "faxe.default_username",
+    [{default, "user" }, {datatype, string}, {commented, "user" }]
+}.
+
+%% password
+{mapping, "default_password", "faxe.default_password",
+    [{default, "pass" }, {datatype, string}, {commented, "pass" }]
+}.
+
+%% @doc ----------------------------------------------------------------
 %% REST API
 %%----------------------------------------------------------------
 
@@ -83,7 +97,26 @@
     [{default, {{http_api_port}} }, {datatype, integer}]
 }.
 
-%% @doc -----------------------------------------------------------------
+%% @doc http-api tls
+%% enable the use of tls for the http-api
+{mapping, "http_api.tls.enable", "faxe.http_api.tls.enable",
+    [{default, on}, {datatype, flag}, {commented, on}]
+}.
+%% @doc http-api ssl certificate
+{mapping, "http_api.ssl.certfile", "faxe.http_api.ssl.certfile",
+    [{default, "/path/to/certfile.pem"}, {datatype, file}, {commented, "/path/to/certfile.pem"}]
+}.
+%% @doc http-api ssl ca certificate
+{mapping, "http_api.ssl.cacertfile", "faxe.http_api.ssl.cacertfile",
+    [{default, "/path/to/cacertfile.pem"}, {datatype, file}, {commented, "/path/to/cacertfile.pem"}]
+}.
+%% @doc http-api ssl key file
+{mapping, "http_api.ssl.keyfile", "faxe.http_api.ssl.keyfile",
+    [{default, "/path/to/keyfile.key"}, {datatype, file}, {commented, "/path/to/cert.key"}]
+}.
+
+
+%% @doc -----------------------------------------------------------
 %% PYTHON
 %%-----------------------------------------------------------------
 

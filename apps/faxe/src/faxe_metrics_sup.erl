@@ -23,6 +23,10 @@ init([]) ->
       {connection_registry, start_link, []},
       permanent, 5000, worker, []}
     ,
+    {rest_audit_server,
+      {rest_audit_server, start_link, []},
+      permanent, 5000, worker, []}
+    ,
     {faxe_metrics,
       {gen_event, start_link, [{local, faxe_metrics}]},
       permanent, 5000, worker, []}

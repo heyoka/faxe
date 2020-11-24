@@ -67,9 +67,9 @@ process(_Port, #data_point{} = Point, State = #state{min_count = Min, row_buffer
    case NewBuffer /= Buf andalso maps:size(NewBuffer) >= Min of
       true ->
          P0 = #data_point{ts = faxe_time:now()},
-         Fold = fun(_K, KeyValues, Point) ->
+         Fold = fun(_K, KeyValues, Point1) ->
 %%            lager:notice("set keyvalues: ~p",[KeyValues]),
-            flowdata:set_fields(Point, KeyValues) end,
+            flowdata:set_fields(Point1, KeyValues) end,
          P = maps:fold(Fold, P0, NewBuffer),
 %%         lager:info("output buffer: ~p",[P]),
          {emit, P, NewState};
