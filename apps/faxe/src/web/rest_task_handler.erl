@@ -17,7 +17,9 @@
    resource_exists/2,
    content_types_accepted/2,
    delete_resource/2
-   , allow_missing_post/2, malformed_request/2]).
+   , allow_missing_post/2,
+   malformed_request/2,
+   is_authorized/2]).
 
 %%
 %% Additional callbacks
@@ -50,6 +52,9 @@ init(Req, [{op, Mode}]) ->
       _ -> TId
    end,
    {cowboy_rest, Req, #state{mode = Mode, task_id = TaskId}}.
+
+is_authorized(Req, State) ->
+   rest_helper:is_authorized(Req, State).
 
 allowed_methods(Req, State=#state{mode = get}) ->
    {[<<"GET">>, <<"OPTIONS">>], Req, State};
@@ -207,7 +212,7 @@ delete_resource(Req, State=#state{task_id = TaskId}) ->
    case faxe:delete_task(TaskId) of
       ok ->
          RespMap = #{success => true, message =>
-            iolist_to_binary([<<"Task ">>, TaskId, <<" successfully deleted.">>])},
+            iolist_to_binary([<<"Task ">>, faxe_util:to_bin(TaskId), <<" successfully deleted.">>])},
          Req2 = cowboy_req:set_resp_body(jiffy:encode(RespMap), Req),
          {true, Req2, State};
       {error, Error} ->

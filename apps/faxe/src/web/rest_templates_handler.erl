@@ -17,7 +17,9 @@
   list_json/2,
   content_types_provided/2,
   allow_missing_post/2,
-  content_types_accepted/2, from_import/2]).
+  content_types_accepted/2,
+  from_import/2,
+  is_authorized/2]).
 
 
 %%
@@ -29,6 +31,9 @@
 
 init(Req, [{op, Mode}]) ->
    {cowboy_rest, Req, #state{mode = Mode}}.
+
+is_authorized(Req, State) ->
+  rest_helper:is_authorized(Req, State).
 
 allowed_methods(Req, State=#state{mode = import}) ->
   {[<<"POST">>], Req, State};

@@ -14,9 +14,7 @@
    init/2
    , allowed_methods/2, content_types_provided/2,
    resource_exists/2, content_types_accepted/2
-   %,
-   %allow_missing_post/2
-   , delete_resource/2, malformed_request/2]).
+   , delete_resource/2, malformed_request/2, is_authorized/2]).
 
 %%
 %% Additional callbacks
@@ -36,6 +34,9 @@ init(Req, [{op, Mode}]) ->
          _ -> TId
       end,
    {cowboy_rest, Req, #state{mode = Mode, template_id = TaskId}}.
+
+is_authorized(Req, State) ->
+   rest_helper:is_authorized(Req, State).
 
 allowed_methods(Req, State=#state{mode = get}) ->
    {[<<"GET">>, <<"OPTIONS">>], Req, State};

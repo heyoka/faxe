@@ -5,6 +5,11 @@ dev1:
 #	export FAXE_FLOW_AUTO_START=off && \
 #	export FAXE_S7POOL_MIN_SIZE=1 && \
 #	export FAXE_CONN_STATUS_HANDLER_MQTT_PORT=9876 && \
+	export FAXE_HTTP_API_TLS_ENABLE=on && \
+	export FAXE_HTTP_API_SSL_CERTFILE=/home/heyoka/workspace/faxe/certs_tgw/tgw_wildcard.crt && \
+	export FAXE_HTTP_API_SSL_CACERTFILE='' && \
+	#/home/heyoka/workspace/faxe/certs_tgw/ca_certificate.pem && \
+	export FAXE_HTTP_API_SSL_KEYFILE=/home/heyoka/workspace/faxe/certs_tgw/tgw_wildcard.key && \
 	export FAXE_CONN_STATUS_HANDLER_MQTT_ENABLE=off && \
 	export FAXE_METRICS_HANDLER_MQTT_ENABLE=off && \
 	export FAXE_DEBUG_HANDLER_MQTT_ENABLE=off && \

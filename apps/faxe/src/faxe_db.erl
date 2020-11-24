@@ -36,6 +36,8 @@
    set_tags/2
 ]).
 
+-export([has_user_with_pw/2]).
+
 get_all_tasks() ->
    get_all(task).
 
@@ -122,7 +124,6 @@ delete_template(TId) ->
       T = #template{} -> delete_template(T)
    end
 .
-
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%% Tags %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %% get a list of all used tags
@@ -222,6 +223,15 @@ set_tags(TaskId, Tags) ->
 next_id(Table) ->
    mnesia:dirty_update_counter({ids, Table}, 1).
 
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%% USER
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+has_user_with_pw(User, Pw) ->
+   case mnesia:dirty_read(faxe_user, User) of
+      [#faxe_user{pw = Pw}] -> true;
+      _ -> false
+   end.
+
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%% table managememt %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
@@ -241,9 +251,6 @@ db_init() ->
          end
 
    end.
-
-
-
 
 
 %% deletes a local schema.
@@ -273,20 +280,14 @@ copy_tables(Node) ->
    Res4 = mnesia:add_table_copy(ids, Node, disc_copies),
    lager:debug("remote_init add_table copy = ~p~n", [Res4])
    ,
-%%
-%%   Res5 = mnesia:add_table_copy(task_tags, Node, disc_copies),
-%%   lager:debug("remote_init add_table copy = ~p~n", [Res5])
-%%   ,
-
    Res6 = mnesia:add_table_copy(tag_tasks, Node, disc_copies),
    lager:debug("remote_init add_table copy = ~p~n", [Res6])
    ,
-
-%%   Res5 = mnesia:add_table_copy(component_state, Node, disc_copies),
-%%   lager:debug("remote_init add_table copy = ~p~n", [Res5]),
-
    Res7 = mnesia:add_table_copy(template, Node, disc_copies),
    lager:debug("remote_init add_table copy = ~p~n", [Res7])
+   ,
+   Res8 = mnesia:add_table_copy(faxe_user, Node, disc_copies),
+   lager:debug("remote_init add_table copy = ~p~n", [Res8])
 
 .
 
@@ -295,6 +296,7 @@ renew_tables() ->
    mnesia:delete_table(template),
    mnesia:delete_table(ids),
    mnesia:delete_table(tag_tasks),
+   mnesia:delete_table(faxe_user),
    create().
 
 %%
@@ -329,6 +331,12 @@ create() ->
 %%   ,
    _Res2 = mnesia:create_table(tag_tasks, [
       {attributes, record_info(fields, tag_tasks)},
+      {type, set},
+      {disc_copies, [node()]}
+   ]),
+
+   mnesia:create_table(faxe_user, [
+      {attributes, record_info(fields, faxe_user)},
       {type, set},
       {disc_copies, [node()]}
    ])

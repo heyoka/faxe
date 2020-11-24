@@ -14,7 +14,25 @@
 %% API
 -export([task_to_map/1, template_to_map/1, do_register/6,
    reg_fun/3, report_malformed/3, add_tags/2, set_tags/2,
-   get_task_or_template_id/2]).
+   get_task_or_template_id/2, is_authorized/1, is_authorized/2]).
+
+
+is_authorized(Req) ->
+   case cowboy_req:parse_header(<<"authorization">>, Req) of
+      {basic, User , Pass} ->
+         case faxe_db:has_user_with_pw(User, Pass) of
+            true -> rest_audit_server:audit(User, Req), {true, User};
+            false -> false
+         end;
+      _ -> false
+   end.
+
+is_authorized(Req, State) ->
+   case rest_helper:is_authorized(Req) of
+      {true, _User} -> {true, Req, State};
+      false -> {{false, <<"Basic realm=\"faxe\"">>}, Req, State}
+   end.
+
 
 task_to_map(_T = #task{
    id = Id, name = Name, date = Dt, is_running = Running,
