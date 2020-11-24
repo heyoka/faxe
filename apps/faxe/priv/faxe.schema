@@ -75,6 +75,20 @@
 }.
 
 %% @doc ----------------------------------------------------------------
+%% API USER - default user, that will be created on first startup
+%%----------------------------------------------------------------
+
+%% username
+{mapping, "default_username", "faxe.default_username",
+    [{default, "user" }, {datatype, string}, {commented, "user" }]
+}.
+
+%% password
+{mapping, "default_password", "faxe.default_password",
+    [{default, "pass" }, {datatype, string}, {commented, "pass" }]
+}.
+
+%% @doc ----------------------------------------------------------------
 %% REST API
 %%----------------------------------------------------------------
 

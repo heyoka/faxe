@@ -353,12 +353,6 @@ create() ->
       {disc_copies, [node()]}, {index, [name]}
    ])
    ,
-%%   Res1 = mnesia:create_table(task_tags, [
-%%      {attributes, record_info(fields, task_tags)},
-%%      {type, set},
-%%      {disc_copies, [node()]}
-%%   ])
-%%   ,
    _Res2 = mnesia:create_table(tag_tasks, [
       {attributes, record_info(fields, tag_tasks)},
       {type, set},
@@ -369,9 +363,13 @@ create() ->
       {attributes, record_info(fields, faxe_user)},
       {type, set},
       {disc_copies, [node()]}
-   ])
-%%   ,
-%%   lager:notice("create tables: ~p", [Res2])
+   ]),
+   %% after creating all the tables, we add the default user
+   DefaultUser = #faxe_user{
+      name = faxe_util:to_bin(faxe_config:get(default_username)),
+      pw = faxe_util:to_bin(faxe_config:get(default_password))},
+   lager:debug("create default user: ~p",[DefaultUser]),
+   save_user(DefaultUser)
 
 .
 

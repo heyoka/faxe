@@ -20,7 +20,7 @@
 start(_StartType, _StartArgs) ->
    print_banner(),
    %% Mnesia
-   faxe_db:create(),
+   faxe_db:db_init(),
    %% COWBOY
    {ok, [Routes]} = file:consult(filename:join(?PRIV_DIR, "rest_routes.config")),
    Dispatch = cowboy_router:compile(Routes),
