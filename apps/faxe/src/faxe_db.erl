@@ -36,7 +36,14 @@
    set_tags/2
 ]).
 
--export([has_user_with_pw/2]).
+-export([
+   has_user_with_pw/2,
+   get_user/1,
+   list_users/0,
+   delete_user/1,
+   save_user/1,
+   save_user/2,
+   save_user/3]).
 
 get_all_tasks() ->
    get_all(task).
@@ -226,6 +233,29 @@ next_id(Table) ->
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %% USER
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+save_user(User = #faxe_user{}) ->
+   mnesia:dirty_write(User).
+save_user(UserName, Pass) ->
+   save_user(UserName, Pass, admin).
+save_user(UserName, Pass, Role) ->
+   save_user(#faxe_user{name = UserName, pw = Pass, role = Role}).
+
+list_users() ->
+   List = mnesia:dirty_all_keys(faxe_user),
+   lists:flatten([get_user(Key) || Key <- List]).
+
+get_user(UserName) ->
+   case mnesia:dirty_read(faxe_user, UserName) of
+      [] -> {error, not_found};
+      [User] -> User
+   end.
+
+delete_user(UserName) ->
+   case get_user(UserName) of
+      #faxe_user{name = Key} -> mnesia:dirty_delete({faxe_user, Key});
+      Other -> Other
+   end.
+
 has_user_with_pw(User, Pw) ->
    case mnesia:dirty_read(faxe_user, User) of
       [#faxe_user{pw = Pw}] -> true;
