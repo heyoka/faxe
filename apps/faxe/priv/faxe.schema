@@ -78,6 +78,12 @@
 %% API USER - default user, that will be created on first startup
 %%----------------------------------------------------------------
 
+%% anonymous access to the api endpoint
+%% set to false for production use
+{mapping, "allow_anonymous", "faxe.allow_anonymous",
+    [{default, {{allow_anonymous}} }, {datatype, {flag, true, false}}]
+}.
+
 %% username
 {mapping, "default_username", "faxe.default_username",
     [{default, "user" }, {datatype, string}, {commented, "user" }]
@@ -395,7 +401,7 @@
 }.
 %% @doc email smtp pass
 {mapping, "email.pass", "faxe.email.smtp_pass",
-    [{datatype, string}, {commented, "password"}]
+    [{datatype, string}, {default, "password"}, {commented, "password"}]
 }.
 %% @doc email html template
 {mapping, "email.template", "faxe.email.template",

@@ -24,7 +24,13 @@ is_authorized(Req) ->
             true -> rest_audit_server:audit(User, Req), {true, User};
             false -> false
          end;
-      _ -> false
+      _ ->
+         case faxe_config:get(allow_anonymous, false) of
+            true ->
+               User = <<"anon">>,
+               rest_audit_server:audit(User, Req), {true, User};
+            false -> false
+         end
    end.
 
 is_authorized(Req, State) ->

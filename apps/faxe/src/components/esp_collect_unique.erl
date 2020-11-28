@@ -43,25 +43,27 @@
    min_count,
    field
    ,keep
-   ,as
+   ,keep_as,
+   as
 }).
 
 options() -> [
    {field, string},
    {min_vals, integer, 1}, %% number of distinct values in the buffer, before first output
    {keep, string_list}, %% a list of field path to keep for every data_point
-   {as, string_list, undefined} %% rename the kept fields
+   {keep_as, string_list, undefined}, %% rename the kept fields
+   {as, string, undefined} %% rename the whole field construct on output
 ].
 
 check_options() ->
    [
-      {same_length, [keep, as]}
+      {same_length, [keep, keep_as]}
    ].
 
-init(NodeId, _Ins, #{field := Field, min_vals := Min, keep := Keep, as := As}) ->
-   {ok, all, #state{node_id = NodeId, field = Field, min_count = Min, keep = Keep, as = As}}.
+init(NodeId, _Ins, #{field := Field, min_vals := Min, keep := Keep, keep_as := KeepAs, as := As}) ->
+   {ok, all, #state{node_id = NodeId, field = Field, min_count = Min, keep = Keep, keep_as = KeepAs, as = As}}.
 
-process(_Port, #data_point{} = Point, State = #state{min_count = Min, row_buffer = Buf}) ->
+process(_Port, #data_point{} = Point, State = #state{min_count = Min, row_buffer = Buf, as = As}) ->
    NewBuffer = maybe_add_point(Point, State),
    NewState = State#state{row_buffer = NewBuffer},
    case NewBuffer /= Buf andalso maps:size(NewBuffer) >= Min of
@@ -71,12 +73,18 @@ process(_Port, #data_point{} = Point, State = #state{min_count = Min, row_buffer
 %%            lager:notice("set keyvalues: ~p",[KeyValues]),
             flowdata:set_fields(Point1, KeyValues) end,
          P = maps:fold(Fold, P0, NewBuffer),
-%%         lager:info("output buffer: ~p",[P]),
-         {emit, P, NewState};
+%%         lager:info("output point: ~p",[maybe_rewrite(P, As)]),
+         {emit, maybe_rewrite(P, As), NewState};
       false -> {ok, NewState}
    end.
 
-maybe_add_point(Point, #state{row_buffer = Buffer, field = FieldName, keep = KeepFields, as = Aliases}) ->
+maybe_rewrite(P, undefined) ->
+   P;
+maybe_rewrite(P = #data_point{fields = Fields}, Path) ->
+   NewFields = jsn:set(flowdata:path(Path), #{}, Fields),
+   P#data_point{fields = NewFields}.
+
+maybe_add_point(Point, #state{row_buffer = Buffer, field = FieldName, keep = KeepFields, keep_as = Aliases}) ->
    case flowdata:field(Point, FieldName, undefined) of
       undefined ->
          Buffer;

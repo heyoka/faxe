@@ -21,7 +21,7 @@
 
 -include("faxe.hrl").
 %% API
--export([init/3, process/3, options/0, handle_info/2, shutdown/1, metrics/0]).
+-export([init/3, process/3, options/0, handle_info/2, shutdown/1, metrics/0, check_options/0]).
 
 -record(state, {
   ip,
@@ -34,7 +34,8 @@
   parser = undefined :: undefined|atom(), %% parser module
   changes = false,
   prev_crc32,
-  fn_id
+  fn_id,
+  packet = 2
 }).
 
 -define(SOCKOPTS,
@@ -42,7 +43,6 @@
     {active, once},
     binary,
     {reuseaddr, true},
-    {packet, 2},
     {keepalive, true},
     {recbuf, 2048},
     {buffer, 4096}
@@ -57,8 +57,16 @@ options() -> [
   {as, binary, <<"data">>}, %% alias for fieldname
   {extract, is_set}, %% overrides as
   {parser, atom, undefined}, %% parser module to use
-  {changed, is_set, false} %% only emit, when new data is different to previous
+  {changed, is_set, false}, %% only emit, when new data is different to previous
+  {packet, integer, 2}
+                      %% 1 | 2 | 4
+                      %% Packets consist of a header specifying the number of bytes in the packet,
+                      %% followed by that number of bytes. The header length can be one, two, or four bytes,
+                      %% and containing an unsigned integer in big-endian byte order.
 ].
+
+check_options() ->
+  [{one_of, packet, [1, 2, 4]}].
 
 metrics() ->
   [
@@ -66,7 +74,7 @@ metrics() ->
   ].
 
 init(NodeId, _Ins,
-    #{ip := Ip, port := Port, as := As, parser := Parser, extract := Extract, changed := Changed}) ->
+    #{ip := Ip, port := Port, as := As, parser := Parser, extract := Extract, changed := Changed, packet := Packet}) ->
   Reconnector = faxe_backoff:new(
     {?RECON_MIN_INTERVAL, ?RECON_MAX_INTERVAL, ?RECON_MAX_RETRIES}),
   {ok, Reconnector1} = faxe_backoff:execute(Reconnector, do_reconnect),
@@ -74,7 +82,7 @@ init(NodeId, _Ins,
   connection_registry:reg(NodeId, Ip, Port, <<"tcp">>),
   {ok, all,
     #state{ip = Ip, port = Port, as = As, extract = Extract, changes = Changed,
-      parser = Parser, reconnector = Reconnector1, fn_id = NodeId}}.
+      parser = Parser, reconnector = Reconnector1, fn_id = NodeId, packet = Packet}}.
 
 process(_In, #data_batch{points = _Points} = _Batch, State = #state{}) ->
   {ok, State};
@@ -82,6 +90,7 @@ process(_Inport, #data_point{} = _Point, State = #state{}) ->
   {ok, State}.
 
 handle_info({tcp, Socket, Data}, State=#state{fn_id = FNId}) ->
+  lager:info("got tcp data: ~p",[Data]),
   node_metrics:metric(?METRIC_ITEMS_IN, 1, FNId),
   node_metrics:metric(?METRIC_BYTES_READ, byte_size(Data), FNId),
   NewState = maybe_emit(Data, State),
@@ -93,9 +102,9 @@ handle_info({tcp_closed, _S}, S=#state{}) ->
 handle_info({tcp_error, Socket, _}, State) ->
   inet:setopts(Socket, [{active, once}]),
   {ok, State};
-handle_info(do_reconnect, State=#state{ip = Ip, port = Port}) ->
+handle_info(do_reconnect, State=#state{ip = Ip, port = Port, packet = Packet}) ->
   connection_registry:connecting(),
-  case connect(Ip, Port) of
+  case connect(Ip, Port, Packet) of
     {ok, Socket} ->
       connection_registry:connected(),
       inet:setopts(Socket, [{active, once}]),
@@ -118,9 +127,9 @@ try_reconnect(State=#state{reconnector = Reconnector}) ->
       {stop, {shutdown, Error}, State}
   end.
 
-connect(Ip, Port) ->
+connect(Ip, Port, Packet) ->
   reconnect_watcher:bump(),
-  gen_tcp:connect(binary_to_list(Ip), Port, ?SOCKOPTS).
+  gen_tcp:connect(binary_to_list(Ip), Port, ?SOCKOPTS++[{packet, Packet}]).
 
 
 maybe_emit(Data, State = #state{changes = false}) -> do_emit(Data, State);

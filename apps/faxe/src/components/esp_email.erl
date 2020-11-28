@@ -16,6 +16,7 @@
 
 -record(state, {
    node_id,
+   flow_id,
    from :: binary(),
    to :: list(),
    subject :: binary(),
@@ -35,7 +36,7 @@ options() -> [
    {smtp_user, any, {email, smtp_user}},
    {smtp_pass, any, {email, smtp_pass}},
    {smtp_port, integer, {email, smtp_port}},
-   {smtp_tls, is_set, false},
+   {smtp_tls, is_set, {email, smtp_tls}},
    {template, binary, {email, template}},
    {to, string_list},
    {subject, string},
@@ -56,13 +57,17 @@ check_email(Address) when is_binary(Address) ->
 
 
 
-init(NodeId, _Ins, #{
+init({FId, _N} = NodeId, _Ins, #{
    from_address := From, smtp_relay := SmtpRelay, template := Template0,
    smtp_user := User, smtp_pass := Pass, smtp_port := SmtpPort, smtp_tls := Tls,
    to := To0, subject := Subj, body := Body, body_field := BodyField}) ->
 
+   %% prepare template
    TemplateFile = binary_to_list(Template0),
    {ok, ContBin} = file:read_file(TemplateFile),
+   DeviceName = faxe_util:device_name(),
+   Pre = <<FId/binary, "@", DeviceName/binary>>,
+   Template = binary:replace(ContBin, [<<"##DEVICE##">>], Pre, [global]),
 
    State = #state{
       to = To0,
@@ -70,11 +75,12 @@ init(NodeId, _Ins, #{
       body = Body,
       body_field = BodyField,
       node_id = NodeId,
+      flow_id = FId,
       from = From,
       smtp_relay = SmtpRelay,
       smtp_user = User,
       smtp_pass = Pass,
-      template = ContBin,
+      template = Template,
       smtp_port = SmtpPort,
       tls = Tls
 
