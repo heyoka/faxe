@@ -68,7 +68,7 @@
    merge_points/1, merge/2, merge_points/2
 %%   ,
 %%   get_schema/1
-   , clean_field_keys/1, to_map_except/2]).
+   , clean_field_keys/1, to_map_except/2, new/0, new/1]).
 
 -define(DEFAULT_FIELDS, [<<"id">>, <<"df">>, <<"ts">>]).
 -define(DEFAULT_TS_FIELD, <<"ts">>).
@@ -194,6 +194,16 @@ merge_fields([], Acc) ->
    Acc;
 merge_fields([F1|Fields], Acc) ->
    merge_fields(Fields, merge(F1, Acc)).
+
+%% get an empty data_point or data_batch record
+-spec new() -> #data_point{}.
+new() ->
+   new(data_point).
+-spec new(data_point|data_batch) -> #data_point{}|#data_batch{}.
+new(data_point) ->
+   #data_point{ts = faxe_time:now()};
+new(data_batch) ->
+   #data_batch{}.
 
 %% @doc
 %% get the timestamp from the given field
