@@ -22,7 +22,7 @@ is_authorized(Req) ->
       {basic, User , Pass} ->
          case faxe_db:has_user_with_pw(User, Pass) of
             true -> rest_audit_server:audit(User, Req), {true, User};
-            false -> false
+            false -> lager:notice("user: ~p with pw: ~p is not authorized", [User, Pass]), false
          end;
       _ ->
          case faxe_config:get(allow_anonymous, false) of
