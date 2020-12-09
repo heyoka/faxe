@@ -37,18 +37,7 @@
           }
         ]}
         ,
-        {lager_flowlog_backend, [
-          {level, notice},
-          {host, <<"http://10.14.204.8">>},
-          {port, 4201},
-          {fields,
-            [<<"ts">>, <<"severity">>, <<"flow">>, <<"comp">>, <<"message">>, <<"meta">>]
-          },
-          {storage_backend, crate_log_writer}
-        ]
-        }
-        ,
-    %%    {lager_emit_backend, [{level, EmitLevel}]} ,
+        {lager_emit_backend, [{level, EmitLevel}]} ,
         {lager_file_backend, [{file, "log/error.log"}, {level, error}]}
       ]
     end}.
@@ -194,11 +183,11 @@
 }.
 %% @doc mqtt user
 {mapping, "mqtt.user", "faxe.mqtt.user",
-    [{datatype, string}, {commented, "username"}]
+    [{default, "username"}, {datatype, string}, {commented, "username"}]
 }.
 %% @doc mqtt pass
 {mapping, "mqtt.pass", "faxe.mqtt.pass",
-    [{datatype, string}, {commented, "password"}]
+    [{default, "password"}, {datatype, string}, {commented, "password"}]
 }.
 %% @doc mqtt ssl
 %% enable the use of ssl for mqtt connections
@@ -207,15 +196,17 @@
 }.
 %% @doc mqtt ssl certificate
 {mapping, "mqtt.ssl.certfile", "faxe.mqtt.ssl.certfile",
-    [{datatype, file}, {commented, "/path/to/certfile.pem"}]
+    [{default, ""},
+    {datatype, file},
+    {commented, "/path/to/certfile.pem"}]
 }.
 %% @doc mqtt ssl ca certificate
 {mapping, "mqtt.ssl.cacertfile", "faxe.mqtt.ssl.cacertfile",
-    [{datatype, file}, {commented, "/path/to/cacertfile.pem"}]
+    [{default, ""}, {datatype, file}, {commented, "/path/to/cacertfile.pem"}]
 }.
 %% @doc mqtt ssl key file
 {mapping, "mqtt.ssl.keyfile", "faxe.mqtt.ssl.keyfile",
-    [{datatype, file}, {commented, "/path/to/cert.key"}]
+    [{default, ""}, {datatype, file}, {commented, "/path/to/cert.key"}]
 }.
 
 
@@ -250,15 +241,15 @@
 }.
 %% @doc amqp ssl certificate
 {mapping, "amqp.ssl.certfile", "faxe.amqp.ssl.certfile",
-    [{datatype, file}, {commented, "/path/to/certfile.pem"}]
+    [{default, ""}, {datatype, file}, {commented, "/path/to/certfile.pem"}]
 }.
 %% @doc amqp ssl ca certificate
 {mapping, "amqp.ssl.cacertfile", "faxe.amqp.ssl.cacertfile",
-    [{datatype, file}, {commented, "/path/to/cacertfile.pem"}]
+    [{default, ""}, {datatype, file}, {commented, "/path/to/cacertfile.pem"}]
 }.
 %% @doc amqp ssl key file
 {mapping, "amqp.ssl.keyfile", "faxe.amqp.ssl.keyfile",
-    [{datatype, file}, {commented, "/path/to/cert.key"}]
+    [{default, ""}, {datatype, file}, {commented, "/path/to/cert.key"}]
 }.
 
 %% @doc -------------------------------------------------------------------------------
@@ -292,7 +283,7 @@
 
 %% @doc CrateDB password
 {mapping, "crate.pass", "faxe.crate.pass",
-    [{datatype, string}, {commented, "pass"}]
+    [{default, ""}, {datatype, string}, {commented, "pass"}]
 }.
 
 %% @doc CrateDB database
@@ -321,7 +312,7 @@
 
 %% @doc CrateDB password
 {mapping, "crate_http.pass", "faxe.crate_http.pass",
-    [{datatype, string}, {commented, "pass"}]
+    [{default, ""}, {datatype, string}, {commented, "pass"}]
 }.
 
 %% @doc CrateDB database
@@ -350,7 +341,7 @@
 
 %% @doc InfluxDB pass
 {mapping, "influx_http.pass", "faxe.influx_http.pass",
-    [{datatype, string}, {commented, "password"}]
+    [{default, ""}, {datatype, string}, {commented, "password"}]
 }.
 
 
@@ -397,7 +388,7 @@
 }.
 %% @doc email smtp user
 {mapping, "email.user", "faxe.email.smtp_user",
-    [{datatype, string}, {commented, "username"}]
+    [{default, "username"}, {datatype, string}, {commented, "username"}]
 }.
 %% @doc email smtp pass
 {mapping, "email.pass", "faxe.email.smtp_pass",
@@ -432,11 +423,11 @@
 
 %% @doc metrics handler mqtt host
 {mapping, "metrics.handler.mqtt.host", "faxe.metrics.handler.mqtt.host",
-    [{datatype, string}, {commented, "example.com"}]
+    [{default, ""}, {datatype, string}, {commented, "example.com"}]
 }.
 %% @doc metrics handler mqtt port
 {mapping, "metrics.handler.mqtt.port", "faxe.metrics.handler.mqtt.port",
-    [{datatype, integer}, {commented, 1883}]
+    [{default, 1883}, {datatype, integer}, {commented, 1883}]
 }.
 %% @doc metrics handler mqtt base topic
 %% The mqtt handler will prefix its topic with this value,
@@ -459,11 +450,11 @@
 }.
 %% connection status handler mqtt host
 {mapping, "conn_status.handler.mqtt.host", "faxe.conn_status.handler.mqtt.host",
-    [{datatype, string}, {commented, "example.com"}]
+    [{default, ""}, {datatype, string}, {commented, "example.com"}]
 }.
 %% @doc connection status handler mqtt port
 {mapping, "conn_status.handler.mqtt.port", "faxe.conn_status.handler.mqtt.port",
-    [{datatype, integer}, {commented, 1883}]
+    [{default, 1883}, {datatype, integer}, {commented, 1883}]
 }.
 %% @doc connection status handler mqtt base topic
 {mapping, "conn_status.handler.mqtt.base_topic", "faxe.conn_status.handler.mqtt.base_topic",
@@ -482,11 +473,11 @@
 }.
 %% @doc debug_trace handler mqtt host
 {mapping, "debug.handler.mqtt.host", "faxe.debug.handler.mqtt.host",
-    [{datatype, string}, {commented, "example.com"}]
+    [{default, ""}, {datatype, string}, {commented, "example.com"}]
 }.
 %% @doc debug_trace handler mqtt port
 {mapping, "debug.handler.mqtt.port", "faxe.debug.handler.mqtt.port",
-    [{datatype, integer}, {commented, 1883}]
+    [{default, 1883}, {datatype, integer}, {commented, 1883}]
 }.
 %% @doc debug_trace handler mqtt base topic
 {mapping, "debug.handler.mqtt.base_topic", "faxe.debug.handler.mqtt.base_topic",

@@ -20,7 +20,7 @@
 
 %% delay the start of our mqtt publisher
 -define(START_DELAY, 200).
--define(FLOW_LIST_UPDATE_INTERVAL, 5000).
+-define(FLOW_LIST_UPDATE_INTERVAL, 3000).
 
 %%==============================================================================
 %% gen_event callbacks
@@ -35,25 +35,24 @@ stop_trace(FlowId) ->
 
 init(Args) ->
    Level = proplists:get_value(level, Args, info),
-   Options =
-   case proplists:get_value(host, Args) of
-      undefined -> faxe_config:get(mqtt);
-      _O -> Args
+
+   State =
+   case faxe_event_handlers:get_enabled(debug, handler) of
+      [] -> #state{level = Level}; %% not enabled;
+      [{mqtt, HandlerOpts}] ->
+%%         lager:info("mqtt-opts: ~p",[HandlerOpts]),
+         MqttOpts0 = faxe_event_handlers:mqtt_opts(HandlerOpts),
+%%         lager:info("options: ~p",[MqttOpts0]),
+         Name = faxe_util:device_name(),
+         BaseTopic = proplists:get_value(base_topic, MqttOpts0),
+         Topic = faxe_util:build_topic([BaseTopic, Name, "/log"]),
+         erlang:send_after(?START_DELAY, self(), reconnect),
+         erlang:send_after(?FLOW_LIST_UPDATE_INTERVAL, self(), update_flow_list),
+         MqttOpts1 = maps:from_list(MqttOpts0),
+         MqttOpts = MqttOpts1#{retained => false,  qos => 0 },
+         #state{level = Level, mqtt_opts = MqttOpts, topic = Topic}
    end,
-
-%%   lager:info("options: ~p",[maps:from_list(Options)]),
-   OptMap = maps:from_list(Options),
-   MqttOpts = OptMap#{retained => false, qos => 1},
-
-   Name = faxe_util:device_name(),
-   BaseTopic = proplists:get_value(base_topic, Options),
-   Topic = faxe_util:build_topic([BaseTopic, Name, "/log"]),
-%%   lager:notice("~p topic: ~p", [?MODULE, Topic]),
-
-   erlang:send_after(?START_DELAY, self(), reconnect),
-   erlang:send_after(?FLOW_LIST_UPDATE_INTERVAL, self(), update_flow_list),
-
-   {ok, #state{level = Level, mqtt_opts = MqttOpts, topic = Topic}}.
+   {ok, State}.
 
 handle_call(get_loglevel, State = #state{level = Level}) ->
    {ok, Level, State};
@@ -62,17 +61,20 @@ handle_call({set_loglevel, Level}, State) ->
 handle_call(_Request, State) ->
    {ok, ok, State}.
 handle_event({log, _M}, State = #state{flow_ids = []}) ->
+%%   lager:info("no flows registered for logging"),
    {ok, State};
 handle_event({log, _M}, State = #state{publisher = undefined}) ->
+%%   lager:info("no publisher!"),
    {ok, State};
 handle_event({log, Message}, State = #state{level = Level, flow_ids = Flows}) ->
-
+%%   lager:notice("log it: ~p",[Message]),
    case lager_util:is_loggable(Message, Level, ?MODULE) of
       true ->
          %% we only log messages concerning dataflows
          MetaData = lager_msg:metadata(Message),
          case proplists:get_value(flow, MetaData) of
-            undefined -> ok;
+            undefined ->
+               ok;
             FlowId ->
                case lists:member(FlowId, Flows) of
                   true ->

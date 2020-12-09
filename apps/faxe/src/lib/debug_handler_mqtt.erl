@@ -25,7 +25,7 @@
    {error, Reason :: term()}).
 init(Topic0) ->
    Topic = faxe_util:build_topic([Topic0, <<"debug">>]),
-   {ok, #state{topic = Topic}}.
+   {ok, #{retained => false, qos => 0}, #state{topic = Topic}}.
 
 handle_event({Key, {FlowId, NodeId} = _FNId, Port, Item}, State = #state{topic = Topic}) ->
    K = atom_to_binary(Key, utf8),

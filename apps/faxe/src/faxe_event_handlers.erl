@@ -10,7 +10,7 @@
 -author("heyoka").
 
 %% API
--export([install/0]).
+-export([install/0, get_enabled/2, mqtt_opts/1]).
 
 install() ->
   install_handlers(debug),
@@ -32,14 +32,14 @@ get_enabled(Key, SubKey) ->
 .
 
 add_handler(mqtt, HandlerName, Opts) ->
-  MqttOpts = faxe_util:proplists_merge(filter_options(Opts), faxe_config:get(mqtt, [])),
-%%  lager:notice("~p Handler MQTT: ~p",[handler_name(HandlerName, <<"mqtt">>), MqttOpts]),
+  MqttOpts = mqtt_opts(Opts),
   add_event_handler(HandlerName, handler_name(HandlerName,<<"mqtt">>), event_handler_mqtt, MqttOpts);
 add_handler(amqp, HandlerName, Opts) ->
   AmqpOpts = faxe_util:proplists_merge(filter_options(Opts), faxe_config:get(amqp, [])),
-%%  lager:notice("~p Handler AMQP: ~p",[handler_name(HandlerName, <<"amqp">>), AmqpOpts]),
   add_event_handler(HandlerName, handler_name(HandlerName, <<"amqp">>), event_handler_amqp, AmqpOpts).
 
+mqtt_opts(HandlerOpts) ->
+  faxe_util:proplists_merge(filter_options(HandlerOpts), faxe_config:get(mqtt, [])).
 
 add_event_handler(<<"conn_status">>, Name, Type, Args) ->
   dataflow:add_conn_status_handler(Name, Type, Args);

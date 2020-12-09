@@ -81,13 +81,14 @@ add_handler(EventMgrName) ->
    {error, Reason :: term()}).
 init([Callback, Args]) ->
    MqttOpts1 = maps:from_list(Args),
-   MqttOpts = MqttOpts1#{retained => true,  qos => 1 },
-   {ok, Publisher} = mqtt_publisher:start_link(MqttOpts),
+   MqttOpts0 = MqttOpts1#{retained => true,  qos => 1},
    %% get the device name
    Name = faxe_util:device_name(),
    BaseTopic = proplists:get_value(base_topic, Args, ?TOPIC_BASE),
    Topic = faxe_util:build_topic([BaseTopic, Name]),
-   {ok, CbState} = Callback:init(Topic),
+   {ok, AdditionalOpts, CbState} = Callback:init(Topic),
+   MqttOpts = maps:merge(MqttOpts0, AdditionalOpts),
+   {ok, Publisher} = mqtt_publisher:start_link(MqttOpts),
    {ok,
       #state{publisher = Publisher, publisher_opts = MqttOpts,
          topic = Topic, cb = Callback, cb_state = CbState}}.

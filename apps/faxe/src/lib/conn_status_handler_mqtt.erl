@@ -24,7 +24,7 @@
    {error, Reason :: term()}).
 init(Topic0) ->
    Topic = faxe_util:build_topic([Topic0, <<"conn_status">>]),
-   {ok, #state{topic = Topic}}.
+   {ok, #{retained => true, qos => 1}, #state{topic = Topic}}.
 
 handle_event({{FlowId, NodeId}, Item}, State = #state{topic = Topic}) ->
    T = <<Topic/binary, "/", FlowId/binary, "/", NodeId/binary>>,
