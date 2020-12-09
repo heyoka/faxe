@@ -82,7 +82,10 @@ do_collect() ->
   All.
 
 get_flows() ->
-  faxe:list_running_tasks() ++ faxe:list_temporary_tasks().
+  case (catch faxe:list_running_tasks() ++ faxe:list_temporary_tasks()) of
+    List when is_list(List) -> List;
+    _ -> []
+  end.
 
 flow_nodes(FlowList) ->
   F = fun(E, Acc) ->

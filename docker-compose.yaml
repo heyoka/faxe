@@ -2,6 +2,7 @@ version: '2'
 volumes:
   mnesia-data:
   esq-data:
+  python-data:
 services:
   faxe:
     # to have a fixed hostname for mnesia
@@ -15,6 +16,7 @@ services:
     volumes:
       - 'mnesia-data:/data/mnesia'
       - 'esq-data:/data/esq'
+      - 'python-data:/data/python'
     ulimits:
       nproc: 65535
       nofile:

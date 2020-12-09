@@ -39,10 +39,10 @@ from_data(Req, State) ->
    end.
 
 save_data(Files, Mode) ->
-   Path = get_filepath(Mode),
+   Path0 = get_filepath(Mode),
    Fun =
       fun({FileName, Bin}, Acc) ->
-         Path = filename:join(Path, FileName),
+         Path = filename:join(Path0, FileName),
          case file:write_file(Path, Bin) of
             ok -> [#{uploaded => FileName, stored => Path} | Acc];
             {error, What} -> [#{error => FileName, message => What } | Acc]
@@ -51,7 +51,7 @@ save_data(Files, Mode) ->
    lists:foldl(Fun, [], Files).
 
 get_filepath(Mode) ->
-   Ops = faxe_config:get(binary_to_existing_atom(Mode, utf8)),
+   Ops = faxe_config:get(Mode),
    proplists:get_value(script_path, Ops).
 
 
