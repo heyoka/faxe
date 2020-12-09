@@ -95,7 +95,7 @@
 %% @doc http-api tls
 %% enable the use of tls for the http-api
 {mapping, "http_api.tls.enable", "faxe.http_api.tls.enable",
-    [{default, on}, {datatype, flag}, {commented, on}]
+    [{default, {{http_api_tls_enable}}}, {datatype, flag}, {commented, on}]
 }.
 %% @doc http-api ssl certificate
 {mapping, "http_api.ssl.certfile", "faxe.http_api.ssl.certfile",
