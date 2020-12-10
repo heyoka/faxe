@@ -38,31 +38,29 @@ content_types_provided(Req, State) ->
 
 %% faxe's config hand picked
 config_json(Req, State=#state{mode = config}) ->
-   Debug = opts_mqtt(debug),
-   Metrics = opts_mqtt(metrics),
-   ConnStatus = opts_mqtt(conn_status),
+   Debug = opts_mqtt(debug, <<"debug">>),
+   Logs = opts_mqtt(debug, <<"log">>),
+   Metrics = opts_mqtt(metrics, <<"metrics">>),
+   ConnStatus = opts_mqtt(conn_status, <<"conn_status">>),
    DebugTime = faxe_config:get(debug_time),
-   Out = #{<<"debug">> => Debug, <<"metrics">> => Metrics,
+   Out = #{<<"debug">> => Debug, <<"log">> => Logs, <<"metrics">> => Metrics,
       <<"conn_status">> => ConnStatus, <<"debug_time_ms">> => DebugTime},
    {jiffy:encode(Out, [uescape]), Req, State}.
 
-opts_mqtt(Key) ->
+opts_mqtt(Key, TopicKey) ->
    [{handler, [{mqtt, Debug0}]}] = faxe_config:get(Key),
-   All0 = faxe_util:proplists_merge(Debug0, faxe_config:get(mqtt, [])),
+   All0 = faxe_event_handlers:mqtt_opts(Debug0),
    All = lists:map(
       fun({K, V}) ->
          NewV =
          case K of
             base_topic ->
                Name = faxe_util:device_name(),
-               T = faxe_util:to_bin(Key),
-               faxe_util:build_topic([V, Name, T]);
-%%               V0 = faxe_util:to_bin(V), T = faxe_util:to_bin(Key),
-%%               filename:join(<<V0/binary>>, <<Name/binary, "/", T/binary>>);
+               faxe_util:build_topic([V, Name, TopicKey]);
             _ -> V
          end,
          {K, faxe_util:to_bin(NewV)}
       end,
       proplists:delete(ssl, All0)),
-   maps:from_list(All).
+   maps:without([user, pass], maps:from_list(All)).
 
