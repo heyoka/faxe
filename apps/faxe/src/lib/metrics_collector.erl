@@ -183,7 +183,12 @@ collect([#{type := Type, name := Name, node_id := NId, flow_id := FId, metric_na
     <<"type">> => atom_to_binary(Type, latin1), <<"node_id">> => NId,
     <<"flow_id">> => FId, <<"metric_name">> => MName, <<"df">> => ?DATA_FORMAT_NODE
   },
-  collect(R, [#data_point{ts = faxe_time:now(), fields = maps:merge(MTrans, get_data(Type, Name))} | Acc]).
+  Data =
+  case (catch get_data(Type, Name)) of
+    M when is_map(M) -> M;
+    _ -> #{}
+  end,
+  collect(R, [#data_point{ts = faxe_time:now(), fields = maps:merge(MTrans, Data)} | Acc]).
 
 get_data(histogram, Name) ->
   S = folsom_metrics:get_histogram_statistics(Name),

@@ -1,3 +1,6 @@
 |mqtt_subscribe()
-.topics('ttgw/sys/faxe/192_168_201_92/conn_status/#')
+.host('10.10.1.102')
+.topics('tgw/data/petzold/rovolutionwels/pcr/cwa/conn_status/v1')
+.topic_as('flatta.topic')
+.include_topic(false)
 |debug()

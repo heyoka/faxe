@@ -12,7 +12,7 @@
 %%%      handle_batch(self, batch_data) -> batch_data is a list of dicts (points)
 %%% * the callbacks need not return anything except for the options method
 %%% * to emit data the method self.emit(data) has to be used, where data is a dict or a list of dicts
-%%%
+%%% @todo make a regular option out of the 'as' field
 
 
 -module(c_python).
@@ -36,7 +36,8 @@
    callback_class :: atom(),
    python_instance :: pid()|undefined,
    cb_object :: term(),
-   func_calls = []
+   func_calls = [],
+   as = <<"data">>
 }).
 
 
@@ -81,9 +82,11 @@ init(NodeId, _Ins, #{cb_module := Callback, cb_class := CBClass} = Args) ->
       python_instance = PInstance},
    {ok, all, State}.
 
-process(_Inp, #data_batch{} = Batch, State = #state{callback_module = _Mod, python_instance = Python,
+process(_Inp, #data_batch{points = Points} = Batch, State = #state{callback_module = _Mod, python_instance = Python,
    cb_object = Obj}) ->
-   Data = flowdata:to_mapstruct(Batch),
+
+   NewPoints = [data_map(P) || P <- Points],
+   Data = flowdata:to_mapstruct(Batch#data_batch{points = NewPoints}),
 %%   lager:warning("data: ~p",[Data]),
    {_T, NewObj} =
       timer:tc(pythra, method, [Python, Obj, ?PYTHON_BATCH_CALL, [Data]]),
@@ -92,7 +95,7 @@ process(_Inp, #data_batch{} = Batch, State = #state{callback_module = _Mod, pyth
 ;
 process(_Inp, #data_point{} = Point, State = #state{python_instance = Python, cb_object = Obj}) ->
 
-   Data = flowdata:to_mapstruct(Point),
+   Data = flowdata:to_mapstruct(data_map(Point)),
 %%   lager:warning("Data: ~p" ,[Data]),
 %%   {_, _, Ob} =
 %%   case catch pythra:method(Python, Obj, ?PYTHON_POINT_CALL, [Data]) of
@@ -117,13 +120,13 @@ handle_info({emit_data, Data0}, State) when is_map(Data0) ->
 %%   lager:notice("conversion took: ~p ~ngot point data as map from python: ~p", [T,Map]),
    Point = flowdata:point_from_json_map(Data0),
 %%   lager:info("emit point: ~p " ,[Point]),
-   {emit, {1, Point}, State};
+   {emit, {1, maybe_rename(Point, State)}, State};
 handle_info({emit_data, Data}, State) when is_list(Data) ->
    lager:notice("got batch data from python: ~p", [Data]),
    Points = [flowdata:point_from_json_map(D) || D <- Data],
    Batch = #data_batch{points = Points},
    lager:info("emit batch: ~p",[Batch]),
-   {emit, {1, Batch}, State};
+   {emit, {1, maybe_rename(Batch, State)}, State};
 handle_info({emit_data, {"Map", Data}}, State) when is_list(Data) ->
    lager:notice("got point data from python: ~p", [Data]),
    {emit, {1, Data}, State};
@@ -138,6 +141,23 @@ shutdown(#state{python_instance = Python}) ->
    pythra:stop(Python).
 
 %%%%%%%%%%%%%%%%%%%% internal %%%%%%%%%%%%
+
+maybe_rename(Item, #state{as = undefined}) ->
+   Item;
+maybe_rename(Point = #data_point{}, #state{as = Alias}) ->
+   data_map(Point, Alias);
+maybe_rename(Batch = #data_batch{points = Points}, #state{as = Alias}) ->
+   NewPoints = [data_map(Point, Alias) || Point <- Points],
+   Batch#data_batch{points = NewPoints}.
+
+data_map(#data_point{} = Point) ->
+   data_map(Point, <<"data">>).
+
+data_map(#data_point{fields = Fields} = Point, Key) ->
+   case maps:is_key(Key, Fields) of
+      true -> Point;
+      false -> Point#data_point{fields = #{Key => Fields}}
+   end.
 
 get_python() ->
    {ok, PythonParams} = application:get_env(faxe, python),

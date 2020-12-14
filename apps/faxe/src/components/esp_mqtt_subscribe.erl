@@ -47,7 +47,8 @@
    ssl_opts = [],
    topics_seen = [],
    fn_id,
-   include_topic = true
+   include_topic = true,
+   topic_key
 }).
 
 options() -> [
@@ -62,6 +63,7 @@ options() -> [
    {dt_field, string, <<"ts">>},
    {dt_format, string, ?TF_TS_MILLI},
    {include_topic, bool, true},
+   {topic_as, string, <<"topic">>},
    {ssl, is_set}].
 
 check_options() ->
@@ -77,7 +79,7 @@ metrics() ->
 
 init(NodeId, _Ins,
    #{ host := Host0, port := Port, topic := Topic, topics := Topics, dt_field := DTField,
-      dt_format := DTFormat, user := User, pass := Pass,
+      dt_format := DTFormat, user := User, pass := Pass, include_topic := IncludeTopic, topic_as := TopicKey,
       retained := Retained, ssl := UseSSL, qos := Qos} = _Opts) ->
 
    Host = binary_to_list(Host0),
@@ -91,7 +93,8 @@ init(NodeId, _Ins,
 
    connection_registry:reg(NodeId, Host, Port, <<"mqtt">>),
    State = #state{host = Host, port = Port, topic = Topic, dt_field = DTField, dt_format = DTFormat,
-      retained = Retained, ssl = UseSSL, qos = Qos, topics = Topics, client_id = ClientId,
+      retained = Retained, ssl = UseSSL, qos = Qos, client_id = ClientId,
+      topics = Topics, include_topic = IncludeTopic, topic_key = TopicKey,
       reconnector = Reconnector1, user = User, pass = Pass, fn_id = NodeId, ssl_opts = ssl_opts(UseSSL)},
    {ok, State}.
 
@@ -139,11 +142,16 @@ handle_info(What, State) ->
 shutdown(#state{client = C}) ->
    catch (emqttc:disconnect(C)).
 
-data_received(Topic, Payload, S = #state{dt_field = DTField, dt_format = DTFormat}) ->
+data_received(Topic, Payload,
+    S = #state{dt_field = DTField, dt_format = DTFormat, include_topic = AddTopic, topic_key = TopicKey}) ->
    node_metrics:metric(?METRIC_BYTES_READ, byte_size(Payload), S#state.fn_id),
    node_metrics:metric(?METRIC_ITEMS_IN, 1, S#state.fn_id),
    P0 = flowdata:from_json_struct(Payload, DTField, DTFormat),
-   P = flowdata:set_field(P0, <<"topic">>, Topic),
+   P =
+   case AddTopic of
+      true -> flowdata:set_field(P0, TopicKey, Topic);
+      false -> P0
+   end,
    {emit, {1, P}, S}.
 
 connect(State = #state{host = Host, port = Port, client_id = ClientId}) ->
