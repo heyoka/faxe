@@ -76,7 +76,7 @@ bridge_test() ->
           dt_format => <<"millisecond">>,
           host => <<"10.102.1.102">>,pass => undefined,
           port => 1883,qos => 1,retained => false,
-          ssl => false,
+          ssl => false, include_topic => true,
           topic => <<"some/crazy/topic/this/is">>,
           topics => undefined,user => undefined}}]}
   ,
