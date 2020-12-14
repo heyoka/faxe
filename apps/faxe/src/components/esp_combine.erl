@@ -11,7 +11,7 @@
 %% The node will never emit on port 2 values,
 %% it will only emit, when a value is received on port 1 (the trigger port).
 %%
-%% No output is given, if there has never arrived a value on port 2 to combine with.
+%% No output is given, if there has never arrived a value on port 2 to combine with, except when nofill is given.
 %%
 %% given 'fields' will be copied from the point on port 2 and added to points coming in on port 1
 %% if instead param 'merge_field' is given then the two points on each port will be merge on base of that field
@@ -42,7 +42,8 @@
    row_aliases = [],
    prefix,
    name_param,
-   merge_field
+   merge_field,
+   no_fill = false
 }).
 
 inports() ->
@@ -57,7 +58,8 @@ options() -> [
    {aliases, string_list, undefined},
    {prefix, binary, undefined},
    {prefix_delimiter, binary, ?PREFIX_DEL},
-   {merge_field, binary, undefined}
+   {merge_field, binary, undefined},
+   {nofill, is_set}
       ].
 
 check_options() ->
@@ -65,9 +67,9 @@ check_options() ->
       {one_of_params, [fields, merge_field]}
    ].
 
-init(NodeId, _Ins, #{fields := undefined, merge_field := MergeField}) ->
-   {ok, all, #state{node_id = NodeId, merge_field = MergeField}};
-init(NodeId, _Ins, #{fields := Fields, aliases := Aliases, prefix := Prefix, prefix_delimiter := PFL}) ->
+init(NodeId, _Ins, #{fields := undefined, merge_field := MergeField, nofill := NoFill}) ->
+   {ok, all, #state{node_id = NodeId, merge_field = MergeField, no_fill = NoFill}};
+init(NodeId, _Ins, #{fields := Fields, aliases := Aliases, prefix := Prefix, prefix_delimiter := PFL, nofill := NoFill}) ->
    Asses =
    case Aliases of
       undefined -> Fields;
@@ -78,12 +80,13 @@ init(NodeId, _Ins, #{fields := Fields, aliases := Aliases, prefix := Prefix, pre
          undefined -> lists:zip(Fields, Asses);
          _ when is_binary(Prefix) -> <<Prefix/binary, PFL/binary>>
       end,
-   {ok, all, #state{fields = Fields, node_id = NodeId, row_aliases = Asses, prefix = Prefix, name_param = NP}}.
+   {ok, all, #state{fields = Fields, node_id = NodeId, row_aliases = Asses,
+      prefix = Prefix, name_param = NP, no_fill = NoFill}}.
 
 
 
 %% trigger port
-process(1, #data_point{} = _Point, State = #state{row_buffer = undefined}) ->
+process(1, #data_point{} = _Point, State = #state{row_buffer = undefined, no_fill = false}) ->
    {ok, State};
 process(1, #data_point{} = Point, State = #state{fields = undefined, row_buffer = Buffer, merge_field = MergeField}) ->
    Merged = merge(Point, Buffer, MergeField),
@@ -98,6 +101,9 @@ process(_Port, #data_batch{}, State = #state{}) ->
    {ok, State}.
 
 
+-spec combine(#data_point{}, undefined|#data_point{}, list(), list()|binary()) -> #data_point{}.
+combine(Point=#data_point{}, undefined, _Fields, _Prefix) ->
+   Point;
 combine(Point=#data_point{}, SPoint=#data_point{}, Fields, Prefix) when is_binary(Prefix) ->
    N = fun(Param, FName) ->
       <<Param/binary, FName/binary>>
@@ -109,6 +115,10 @@ combine(Point=#data_point{}, SPoint=#data_point{}, Fields, Names) when is_list(N
        end,
    trans(Point, SPoint, Fields, N, Names).
 
+
+-spec merge(#data_point{}, undefined|#data_point{}, atom()) -> #data_point{}.
+merge(P = #data_point{fields = _PointFields}, undefined, _) ->
+   P;
 merge(P = #data_point{fields = PointFields}, #data_point{fields = SFields}, all) ->
    NewFields = flowdata:merge(PointFields, SFields),
    P#data_point{fields = NewFields};
@@ -119,6 +129,7 @@ merge(P=#data_point{}, SPoint=#data_point{}, Field) ->
    flowdata:set_field(P, Field, flowdata:merge(PFieldData, FieldData)).
 
 
+-spec trans(#data_point{}, #data_point{}, list(), function(), list()) -> #data_point{}.
 trans(Point, SPoint, Fields, ToNameFun, Params) ->
    lists:foldl(
       fun(FName, P) ->

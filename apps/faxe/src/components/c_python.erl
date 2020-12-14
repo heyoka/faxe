@@ -95,6 +95,17 @@ process(_Inp, #data_point{} = Point, State = #state{python_instance = Python, cb
    Data = flowdata:to_mapstruct(Point),
 %%   lager:warning("Data: ~p" ,[Data]),
 %%   {_, _, Ob} =
+%%   case catch pythra:method(Python, Obj, ?PYTHON_POINT_CALL, [Data]) of
+%%      Bin when is_binary(Bin) -> {ok, State#state{cb_object = Bin}};
+%%      {'EXIT',{{python,PythonErr,Desc,{'$erlport.opaque',python,Err}}}} ->
+%%         lager:warning("Python ERROR: ~p:~p :: ~s",[PythonErr, Desc, Err]),
+%%         {ok, State};
+%%      {'$erlport.opaque',python,Err} ->  lager:warning("Python ERROR: ~p",[Err]),
+%%         {ok, State};
+%%      Err -> lager:warning("Python Error: ~p",[Err]),
+%%         {ok, State}
+%%   end.
+%%   ,
       NewObj = pythra:method(Python, Obj, ?PYTHON_POINT_CALL, [Data]),
 %%   lager:warning("new obj has size: ~p", [byte_size(Ob)]),
    {ok, State#state{cb_object = NewObj}}.
@@ -105,7 +116,7 @@ handle_info({emit_data, Data0}, State) when is_map(Data0) ->
 %%
 %%   lager:notice("conversion took: ~p ~ngot point data as map from python: ~p", [T,Map]),
    Point = flowdata:point_from_json_map(Data0),
-   lager:info("emit point: ~p " ,[Point]),
+%%   lager:info("emit point: ~p " ,[Point]),
    {emit, {1, Point}, State};
 handle_info({emit_data, Data}, State) when is_list(Data) ->
    lager:notice("got batch data from python: ~p", [Data]),

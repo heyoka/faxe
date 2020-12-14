@@ -46,7 +46,8 @@
    ssl = false,
    ssl_opts = [],
    topics_seen = [],
-   fn_id
+   fn_id,
+   include_topic = true
 }).
 
 options() -> [
@@ -60,6 +61,7 @@ options() -> [
    {retained, is_set},
    {dt_field, string, <<"ts">>},
    {dt_format, string, ?TF_TS_MILLI},
+   {include_topic, bool, true},
    {ssl, is_set}].
 
 check_options() ->
@@ -117,19 +119,11 @@ handle_info({mqttc, _C,  disconnected}, State=#state{client = Client}) ->
    lager:debug("mqtt client disconnected!!"),
    {ok, State#state{connected = false, client = undefined}};
 %% for emqtt
-handle_info({publish, #{payload := Payload, topic := Topic} }, S=#state{dt_field = DTField, dt_format = DTFormat}) ->
-   node_metrics:metric(?METRIC_BYTES_READ, byte_size(Payload), S#state.fn_id),
-   node_metrics:metric(?METRIC_ITEMS_IN, 1, S#state.fn_id),
-   P0 = flowdata:from_json_struct(Payload, DTField, DTFormat),
-   P = flowdata:set_field(P0, <<"topic">>, Topic),
-   {emit, {1, P}, S};
+handle_info({publish, #{payload := Payload, topic := Topic} }, S=#state{}) ->
+   data_received(Topic, Payload, S);
 %% for emqttc
-handle_info({publish, Topic, Payload }, S=#state{dt_field = DTField, dt_format = DTFormat}) ->
-   node_metrics:metric(?METRIC_BYTES_READ, byte_size(Payload), S#state.fn_id),
-   node_metrics:metric(?METRIC_ITEMS_IN, 1, S#state.fn_id),
-   P0 = flowdata:from_json_struct(Payload, DTField, DTFormat),
-   P = flowdata:set_field(P0, <<"topic">>, Topic),
-   {emit, {1, P}, S};
+handle_info({publish, Topic, Payload }, S=#state{}) ->
+   data_received(Topic, Payload, S);
 handle_info({disconnected, shutdown, tcp_closed}=M, State = #state{}) ->
    lager:warning("emqtt : ~p", [M]),
    {ok, State};
@@ -144,6 +138,13 @@ handle_info(What, State) ->
 
 shutdown(#state{client = C}) ->
    catch (emqttc:disconnect(C)).
+
+data_received(Topic, Payload, S = #state{dt_field = DTField, dt_format = DTFormat}) ->
+   node_metrics:metric(?METRIC_BYTES_READ, byte_size(Payload), S#state.fn_id),
+   node_metrics:metric(?METRIC_ITEMS_IN, 1, S#state.fn_id),
+   P0 = flowdata:from_json_struct(Payload, DTField, DTFormat),
+   P = flowdata:set_field(P0, <<"topic">>, Topic),
+   {emit, {1, P}, S}.
 
 connect(State = #state{host = Host, port = Port, client_id = ClientId}) ->
    connection_registry:connecting(),

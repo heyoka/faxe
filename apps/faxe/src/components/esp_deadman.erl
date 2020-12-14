@@ -70,7 +70,7 @@ process(_In, Data, State = #state{}) ->
    {emit, Data, maybe_restart_timer(NewState)}.
 
 handle_info(q_timeout, State = #state{}) ->
-%%   lager:info("quiet timeout is up"),
+%%   lager:info("silent timeout is up"),
    {ok, restart_timer(State#state{is_quiet = false, silent_timer_ref = undefined})};
 
 handle_info(timeout, State = #state{}) ->
@@ -91,7 +91,7 @@ build_message(#state{field_vals = Vals, fields = Fields}) ->
 maybe_start_qtimer(State = #state{silent_time = 0}) ->
    State;
 maybe_start_qtimer(State = #state{silent_time = QTime}) ->
-%%   lager:notice("start quiet_timer"),
+%%   lager:notice("start silent_timer"),
    NewQTimer = erlang:send_after(QTime, self(), q_timeout),
    State#state{silent_timer_ref = NewQTimer, is_quiet = true}.
 
@@ -107,6 +107,7 @@ maybe_restart_timer(State) ->
    restart_timer(State).
 
 restart_timer(State = #state{timer_ref = TRef, timeout = Timeout}) ->
+%%   lager:notice("(re)start timer"),
    catch erlang:cancel_timer(TRef),
    NewTimer = erlang:send_after(Timeout, self(), timeout),
    State#state{timer_ref = NewTimer}.
