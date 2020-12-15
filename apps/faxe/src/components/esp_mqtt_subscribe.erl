@@ -48,7 +48,8 @@
    topics_seen = [],
    fn_id,
    include_topic = true,
-   topic_key
+   topic_key,
+   as
 }).
 
 options() -> [
@@ -64,6 +65,7 @@ options() -> [
    {dt_format, string, ?TF_TS_MILLI},
    {include_topic, bool, true},
    {topic_as, string, <<"topic">>},
+   {as, string, undefined},
    {ssl, is_set}].
 
 check_options() ->
@@ -78,7 +80,7 @@ metrics() ->
    ].
 
 init(NodeId, _Ins,
-   #{ host := Host0, port := Port, topic := Topic, topics := Topics, dt_field := DTField,
+   #{ host := Host0, port := Port, topic := Topic, topics := Topics, dt_field := DTField, as := As,
       dt_format := DTFormat, user := User, pass := Pass, include_topic := IncludeTopic, topic_as := TopicKey,
       retained := Retained, ssl := UseSSL, qos := Qos} = _Opts) ->
 
@@ -94,7 +96,7 @@ init(NodeId, _Ins,
    connection_registry:reg(NodeId, Host, Port, <<"mqtt">>),
    State = #state{host = Host, port = Port, topic = Topic, dt_field = DTField, dt_format = DTFormat,
       retained = Retained, ssl = UseSSL, qos = Qos, client_id = ClientId,
-      topics = Topics, include_topic = IncludeTopic, topic_key = TopicKey,
+      topics = Topics, include_topic = IncludeTopic, topic_key = TopicKey, as = As,
       reconnector = Reconnector1, user = User, pass = Pass, fn_id = NodeId, ssl_opts = ssl_opts(UseSSL)},
    {ok, State}.
 
@@ -143,14 +145,20 @@ shutdown(#state{client = C}) ->
    catch (emqttc:disconnect(C)).
 
 data_received(Topic, Payload,
-    S = #state{dt_field = DTField, dt_format = DTFormat, include_topic = AddTopic, topic_key = TopicKey}) ->
+    S = #state{dt_field = DTField, dt_format = DTFormat, include_topic = AddTopic, topic_key = TopicKey, as = As}) ->
    node_metrics:metric(?METRIC_BYTES_READ, byte_size(Payload), S#state.fn_id),
    node_metrics:metric(?METRIC_ITEMS_IN, 1, S#state.fn_id),
    P0 = flowdata:from_json_struct(Payload, DTField, DTFormat),
-   P =
+   P1 =
    case AddTopic of
       true -> flowdata:set_field(P0, TopicKey, Topic);
       false -> P0
+   end,
+   lager:notice("as is :~p",[As]),
+   P =
+   case As of
+      undefined -> P1;
+      Root -> #data_point{fields = Fields} = P1, P1#data_point{fields = #{Root => Fields}}
    end,
    {emit, {1, P}, S}.
 
