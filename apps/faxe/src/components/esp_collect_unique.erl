@@ -44,7 +44,8 @@
    field
    ,keep
    ,keep_as,
-   as
+   as,
+   max_age
 }).
 
 options() -> [
@@ -52,7 +53,8 @@ options() -> [
    {min_vals, integer, 1}, %% number of distinct values in the buffer, before first output
    {keep, string_list}, %% a list of field path to keep for every data_point
    {keep_as, string_list, undefined}, %% rename the kept fields
-   {as, string, undefined} %% rename the whole field construct on output
+   {as, string, undefined}, %% rename the whole field construct on output
+   {max_age, duration, undefined}
 ].
 
 check_options() ->
@@ -60,8 +62,10 @@ check_options() ->
       {same_length, [keep, keep_as]}
    ].
 
-init(NodeId, _Ins, #{field := Field, min_vals := Min, keep := Keep, keep_as := KeepAs, as := As}) ->
-   {ok, all, #state{node_id = NodeId, field = Field, min_count = Min, keep = Keep, keep_as = KeepAs, as = As}}.
+init(NodeId, _Ins, #{field := Field, min_vals := Min, keep := Keep, keep_as := KeepAs, as := As, max_age := MaxAge0}) ->
+   MaxAge = case MaxAge0 of undefined -> undefined; Age -> faxe_time:duration_to_ms(Age) end,
+   {ok, all,
+      #state{node_id = NodeId, field = Field, min_count = Min, keep = Keep, keep_as = KeepAs, as = As, max_age = MaxAge}}.
 
 process(_Port, #data_point{} = Point, State = #state{min_count = Min, row_buffer = Buf, as = As}) ->
    NewBuffer = maybe_add_point(Point, State),
@@ -69,7 +73,7 @@ process(_Port, #data_point{} = Point, State = #state{min_count = Min, row_buffer
    case NewBuffer /= Buf andalso maps:size(NewBuffer) >= Min of
       true ->
          P0 = #data_point{ts = faxe_time:now()},
-         Fold = fun(_K, KeyValues, Point1) ->
+         Fold = fun(_K, #{data := KeyValues}, Point1) ->
 %%            lager:notice("set keyvalues: ~p",[KeyValues]),
             flowdata:set_fields(Point1, KeyValues) end,
          P = maps:fold(Fold, P0, NewBuffer),
@@ -84,14 +88,18 @@ maybe_rewrite(P = #data_point{fields = Fields}, Path) ->
    NewFields = jsn:set(flowdata:path(Path), #{}, Fields),
    P#data_point{fields = NewFields}.
 
-maybe_add_point(Point, #state{row_buffer = Buffer, field = FieldName, keep = KeepFields, keep_as = Aliases}) ->
+maybe_add_point(Point = #data_point{ts = Ts},
+    State = #state{row_buffer = Buffer0, field = FieldName, keep = KeepFields, keep_as = Aliases}) ->
+   Buffer = clean(Buffer0, State),
+%%   lager:info("Buffer: ~p", [Buffer]),
    case flowdata:field(Point, FieldName, undefined) of
       undefined ->
          Buffer;
       Val0 ->
          Val = faxe_util:to_bin(Val0),
          Kept = keep(Point, KeepFields, Val, Aliases),
-         maps:put(Val, Kept, Buffer)
+         PointData = #{data => Kept, ts => Ts},
+         maps:put(Val, PointData, Buffer)
    end.
 
 keep(Point, Names, GroupName,  undefined) ->
@@ -102,4 +110,10 @@ keep(Point, Names, GroupName, Aliases) ->
    Paths = [erlang:insert_element(1, P, GroupName) || P <- Paths0],
    lists:zip(Paths, Fs).
 
-
+clean(Buffer, #state{max_age = undefined}) ->
+   Buffer;
+clean(Buffer, #state{max_age = MaxAge}) ->
+%%   F = fun(_Key, #{ts := Ts}) -> lager:notice("ts too old?:~p",[Ts > faxe_time:now() - MaxAge]) end,
+%%   maps:map(F, Buffer),
+   Pred = fun(_Key, #{ts := Ts}) -> Ts > faxe_time:now() - MaxAge end,
+   maps:filter(Pred, Buffer).

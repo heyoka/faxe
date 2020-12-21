@@ -2,7 +2,7 @@
 
 
 |json_emitter()
-.every(1s)
+.every(3s)
 .json(<<< {"condition": {"id": 0, "name": "OK"}, "condition_reason": "OK-Reason", "predicted_maintenance_time": 1584246411783,
         "vac_on_without_contact": [1.2, 2.5, 4.33], "vac_on_with_contact": [5.6, 45.98, 7.012]} >>>,
       <<< {"condition": {"id": 1, "name": "Warning"}, "condition_reason": "bad succer", "predicted_maintenance_time": 1583246411783,
@@ -19,7 +19,8 @@
 
     |collect_unique('data.condition.id')
     .keep('data.condition_reason', 'data.condition.name', 'data.condition.id')
-    .as('condition_reason', 'condition_name', 'condition_id')
+    .keep_as('condition_reason', 'condition_name', 'condition_id')
     .min_vals(2)
+%    .max_age(7s)
 
     |debug('warning')
