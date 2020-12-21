@@ -154,7 +154,6 @@ data_received(Topic, Payload,
       true -> flowdata:set_field(P0, TopicKey, Topic);
       false -> P0
    end,
-   lager:notice("as is :~p",[As]),
    P =
    case As of
       undefined -> P1;

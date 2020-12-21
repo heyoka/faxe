@@ -1,5 +1,5 @@
 def topic = 'ttgw/grip_images/#'
-def mqtt_host = '10.14.204.3'
+def mqtt_host = '10.10.1.102'
 def topic_base = 'ttgw/data/grip_images/'
 
 def image =

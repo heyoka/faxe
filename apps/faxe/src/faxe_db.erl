@@ -370,7 +370,6 @@ create() ->
       pw = faxe_util:to_bin(faxe_config:get(default_password))},
    lager:debug("create default user: ~p",[DefaultUser]),
    save_user(DefaultUser)
-
 .
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
