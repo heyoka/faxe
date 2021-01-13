@@ -1,5 +1,5 @@
 ### Build stage 0
-FROM erlang:22.3.4.10 as erlang
+FROM erlang:22.3.4.12 as erlang
 
 # Set working directory
 RUN mkdir -p /buildroot/rebar3/bin
@@ -10,17 +10,20 @@ COPY ./ faxe
 
 WORKDIR faxe
 
-# need git
-RUN apt-get update && apt-get install git
-
-# And build the release
-RUN rebar3 as prod release
+# need git and build release
+RUN apt-get update && apt-get install git \
+    && rebar3 as prod release
 
 ### Build stage 1
-FROM erlang:22.3.4.10-slim
+FROM erlang
 
-# Install some libs
-RUN apt-get update && apt-get install openssl
+# Install python + some libs
+### python requirements
+COPY python_requirements_prod.txt ./
+RUN apt-get update && apt-get install -y --no-install-recommends gcc g++ make openssl \
+    && pip install --no-cache-dir -r python_requirements_prod.txt \
+    && apt-get purge -y --auto-remove gcc g++ make \
+    && rm -rf /var/lib/apt/lists/*
 
 ENV RELX_REPLACE_OS_VARS true
 
@@ -37,10 +40,6 @@ RUN rm -rf /buildroot
 # Expose relevant ports
 ## http api
 EXPOSE 8081
-EXPOSE 102
-EXPOSE 502
-EXPOSE 1883
-EXPOSE 8883
 
 ENTRYPOINT ["/faxe/bin/faxe"]
 CMD ["foreground"]

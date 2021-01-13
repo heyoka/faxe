@@ -119,7 +119,7 @@ shutdown(#state{consumer = C}) ->
 maybe_emit(DTag, From, State = #state{prefetch = Prefetch, collected = Prefetch, points = Points}) ->
    DataBatch = #data_batch{points = queue:to_list(Points)},
    NewState = State#state{points = queue:new(), collected = 0},
-   lager:notice("emit: ~p",[Prefetch]),
+%%   lager:notice("emit: ~p",[Prefetch]),
    carrot:ack_multiple(From, DTag),
 %%   gen_event:notify(faxe_debug, {Key, {GId, NId}, Port, Value}).
    {emit, {1, DataBatch}, NewState};
@@ -148,8 +148,6 @@ start_emitter(State = #state{queue = Q}) ->
 -spec consumer_config(Opts :: map()) -> list().
 consumer_config(Opts = #{vhost := VHost, queue := Q,
    prefetch := Prefetch, exchange := XChange, routing_key := RoutingKey}) ->
-
-%%   HostParams = %% connection parameters
 %%   [
 %%      {hosts, [ {Host, Port} ]},
 %%      {user, User},
@@ -159,6 +157,7 @@ consumer_config(Opts = #{vhost := VHost, queue := Q,
 %%   ],
    RMQConfig = faxe_config:get(rabbitmq),
    RootExchange = proplists:get_value(root_exchange, RMQConfig, <<"amq.topic">>),
+%%   HostParams = %% connection parameters
    Config =
       [
          {workers, 1},  % Number of connections, but not relevant here,
@@ -180,7 +179,7 @@ consumer_config(Opts = #{vhost := VHost, queue := Q,
                {exchange, [
                          {exchange, XChange},
                          {type, <<"topic">>},
-                         {source, RootExchange}
+                         {source, faxe_util:to_bin(RootExchange)}
                          ]
                       }
             ]

@@ -71,7 +71,7 @@ next(State=#state{queue = Q, deq_interval = Interval}) ->
    case esq:deq(Q) of
       [] -> ok; %lager:info("Queue is empty!"), ok;
       [#{payload := M}] ->
-         lager:notice("~p: msg from Q: ~p", [faxe_time:now(), M]),
+%%         lager:notice("~p: msg from Q: ~p", [faxe_time:now(), M]),
          publish(M, State)
    end,
    erlang:send_after(Interval, self(), deq).

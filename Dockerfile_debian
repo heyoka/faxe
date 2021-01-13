@@ -1,0 +1,107 @@
+### Build stage 0
+FROM python:3.9.1 as debian
+
+### erlang and rebar3
+ENV OTP_VERSION="22.3.4.12" \
+    REBAR3_VERSION="3.13.1"
+
+LABEL org.opencontainers.image.version=$OTP_VERSION
+
+RUN set -xe \
+	&& OTP_DOWNLOAD_URL="https://github.com/erlang/otp/archive/OTP-${OTP_VERSION}.tar.gz" \
+	&& OTP_DOWNLOAD_SHA256="5607b27169edb2c02806f21330a3d430c55f21580292743d25b29b678e951aaf" \
+	&& fetchDeps=' \
+		curl \
+		ca-certificates' \
+	&& apt-get update \
+	&& apt-get install -y --no-install-recommends $fetchDeps \
+	&& curl -fSL -o otp-src.tar.gz "$OTP_DOWNLOAD_URL" \
+	&& echo "$OTP_DOWNLOAD_SHA256  otp-src.tar.gz" | sha256sum -c - \
+	&& runtimeDeps=' \
+		libodbc1 \
+		libssl1.1 \
+		libsctp1 \
+	' \
+	&& buildDeps=' \
+		autoconf \
+		dpkg-dev \
+		gcc \
+		g++ \
+		make \
+		libncurses-dev \
+		unixodbc-dev \
+		libssl-dev \
+		libsctp-dev \
+	' \
+	&& apt-get install -y --no-install-recommends $runtimeDeps \
+	&& apt-get install -y --no-install-recommends $buildDeps \
+	&& export ERL_TOP="/usr/src/otp_src_${OTP_VERSION%%@*}" \
+	&& mkdir -vp $ERL_TOP \
+	&& tar -xzf otp-src.tar.gz -C $ERL_TOP --strip-components=1 \
+	&& rm otp-src.tar.gz \
+	&& ( cd $ERL_TOP \
+	  && ./otp_build autoconf \
+	  && gnuArch="$(dpkg-architecture --query DEB_HOST_GNU_TYPE)" \
+	  && ./configure --build="$gnuArch" \
+	  && make -j$(nproc) \
+	  && make install ) \
+	## REBAR3
+	&& REBAR3_DOWNLOAD_URL="https://github.com/erlang/rebar3/archive/${REBAR3_VERSION}.tar.gz" \
+	&& REBAR3_DOWNLOAD_SHA256="706cc0770062bde2674abc01964c68553398fe4d8023605b305cfe326b92520f" \
+	&& mkdir -p /usr/src/rebar3-src \
+	&& curl -fSL -o rebar3-src.tar.gz "$REBAR3_DOWNLOAD_URL" \
+	&& echo "$REBAR3_DOWNLOAD_SHA256 rebar3-src.tar.gz" | sha256sum -c - \
+	&& tar -xzf rebar3-src.tar.gz -C /usr/src/rebar3-src --strip-components=1 \
+	&& rm rebar3-src.tar.gz \
+	&& cd /usr/src/rebar3-src \
+	&& HOME=$PWD ./bootstrap \
+	&& install -v ./rebar3 /usr/local/bin/ \
+	&& rm -rf /usr/src/rebar3-src \
+	&& find /usr/local -name examples | xargs rm -rf \
+    && apt-get purge -y --auto-remove $buildDeps $fetchDeps \
+    && rm -rf $ERL_TOP /var/lib/apt/lists/*
+
+CMD ["erl"]
+
+### python requirements
+COPY python_requirements_prod.txt ./
+RUN apt-get update && apt-get install -y --no-install-recommends gcc g++ make \
+    && pip install --no-cache-dir -r python_requirements_prod.txt \
+    && apt-get purge -y --auto-remove gcc g++ make \
+    && rm -rf /var/lib/apt/lists/*
+
+
+### Build stage 1
+ARG VERSION=latest
+FROM debian AS erlang
+
+# Set working directory
+RUN mkdir -p /buildroot/rebar3/bin
+WORKDIR /buildroot
+
+# Copy faxe application
+COPY ./ faxe
+
+WORKDIR faxe
+
+# install git, build release and cleanup deps
+RUN apt-get update && apt-get install -y --no-install-recommends gcc g++ make git-all \
+    && rebar3 as prod release \
+    && apt-get purge -y --auto-remove gcc g++ make git-all \
+    && rm -rf /var/lib/apt/lists/*
+
+
+### Build stage 2
+FROM erlang
+
+# Install the released application
+COPY --from=erlang /buildroot/faxe/_build/prod/rel/faxe /faxe
+# cleanup
+RUN rm -rf /buildroot
+
+# Expose relevant ports
+## http api
+EXPOSE 80
+
+ENTRYPOINT ["/faxe/bin/faxe"]
+CMD ["foreground"]

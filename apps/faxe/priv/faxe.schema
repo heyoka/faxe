@@ -25,6 +25,19 @@
     ConsoleLevel = cuttlefish:conf_get("log.console_level", Conf),
     EmitLevel = cuttlefish:conf_get("log.emit_level", Conf),
     [
+    {lager_logstash_backend,
+          [
+           {level,         notice},
+           {logstash_host, "10.14.204.17"},
+           {logstash_port, 9125},
+           {node_role,     "erlang"},
+           {node_version,  "0.0.1"},
+           {metadata, [
+                       {account_token,  [{encoding, string}]},
+                       {client_os,      [{encoding, string}]},
+                       {client_version, [{encoding, string}]}
+                      ]}
+          ]},
         {lager_console_backend, [
         {level, ConsoleLevel},
           {formatter, lager_default_formatter},

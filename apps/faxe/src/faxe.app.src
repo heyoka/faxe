@@ -10,6 +10,7 @@
     xmerl,
     mnesia,
     lager,
+    lager_logstash_backend,
     esq,
     emqttc,
     jiffy,

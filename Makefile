@@ -14,6 +14,7 @@ dev1:
 	export FAXE_METRICS_HANDLER_MQTT_ENABLE=off && \
 #	export FAXE_DEBUG_HANDLER_MQTT_HOST=10.156.15.11 && \
 	export FAXE_DEBUG_HANDLER_MQTT_ENABLE=on && \
+	export RELX_REPLACE_OS_VARS=true && \
 	rebar3 as dev1 release && _build/dev1/rel/faxe/bin/faxe console
 
 
