@@ -30,7 +30,6 @@ steps:
       !Dockerfile.revpi-core-3
       !docker-compose-azure.yml
       !docker-compose-devat.yml
-
     TargetFolder: '/opt/faxe/faxe_repo'
     CleanTargetFolder: true
     overWrite: true
@@ -42,6 +41,7 @@ steps:
         whoami
         sudo -u faxe docker kill faxe; 
         sudo -u faxe docker container rm faxe;
+        sudo -u faxe docker rmi faxe_repo_faxe;
         echo "running faxe found - kill+remove it"
       else
         echo "no running faxe found - skip"
