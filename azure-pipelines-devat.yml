@@ -30,7 +30,7 @@ steps:
     overWrite: true
 
 - script: | 
-    if [[ $(docker ps -a | grep faxe ) ]]; 
+    sudo (if [[ $(docker ps -a | grep faxe ) ]]; 
       then
         docker kill faxe; 
         docker container rm faxe;
@@ -39,6 +39,6 @@ steps:
         echo "no running faxe found - skip"
     fi
     cd /opt/faxe/faxe_repo
-    docker-compose -f docker-compose-devat.yml  up -d
+    docker-compose -f docker-compose-devat.yml  up -d)
   displayName: 'start container via docker-compose'
   
