@@ -12,6 +12,8 @@ steps:
 - displayName: kill old app
   script: |
     docker-compose -f docker-compose-devat.yml down
+    docker container kill faxe 2>/dev/null
+    docker container rm faxe 2>/dev/null
 - task: CopyFiles@2
   inputs:
     Contents: |
