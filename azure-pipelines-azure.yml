@@ -1,0 +1,48 @@
+# Starter pipeline
+# Start with a minimal pipeline that you can customize to build and deploy your code.
+# Add steps that build, run tests, deploy, and more:
+# https://aka.ms/yaml
+
+trigger:
+- none
+
+pool: azure-faxe-cluster
+
+steps:
+- task: CopyFiles@2
+  inputs:
+    Contents: |
+      **/*
+      !todo
+      !statefulset.yml
+      !README.md
+      !docker.run
+      !Dockerfile_azedge
+      !azure-pipelines.yml
+      !azure-pipelines-devat.yml
+      !docker-compose.yaml
+      !Dockerfile_debian.intel-nuc
+      !Dockerfile.intel-nuc
+      !Dockerfile.k8s
+      !Dockerfile_faxe
+      !Dockerfile.revpi-core-3
+
+    TargetFolder: '/opt/faxe/faxe_repo'
+    CleanTargetFolder: true
+    overWrite: true
+
+- script: | 
+    cd /opt/faxe/faxe_repo
+    if [[ $(sudo -u faxe docker ps -a | grep faxe ) ]]; 
+      then
+        whoami
+        sudo -u faxe docker kill faxe; 
+        sudo -u faxe docker container rm faxe;
+        echo "running faxe found - kill+remove it"
+      else
+        echo "no running faxe found - skip"
+    fi
+    cd /opt/faxe/faxe_repo
+    sudo -u faxe docker-compose -f docker-compose-devat.yml  up -d
+  displayName: 'start container via docker-compose'
+  
