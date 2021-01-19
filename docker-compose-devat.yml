@@ -10,15 +10,9 @@ services:
       - "80:80"
     container_name: faxe
     volumes:
-      - type: bind
-         source: $HOST/opt/faxe/docker_storage/mnesia
-         target: /data/mnesia
-      - type: bind
-         source: $HOST/opt/faxe/docker_storage/esq
-         target: /data/esq
-      - type: bind
-         source: $HOST/opt/faxe/docker_storage/python
-         target: /data/python
+      - /opt/faxe/docker_storage/mnesia:/data/mnesia
+      - /opt/faxe/docker_storage/esq:/data/esq
+      - /opt/faxe/docker_storage/python:/data/python
     environment:
       - FAXE_AMQP_HOST=unset
       - FAXE_DEBUG_HANDLER_MQTT_ENABLE=on
