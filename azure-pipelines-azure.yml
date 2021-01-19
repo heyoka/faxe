@@ -28,6 +28,8 @@ steps:
       !Dockerfile.k8s
       !Dockerfile_faxe
       !Dockerfile.revpi-core-3
+      !docker-compose-devat.yml
+      !docker-compose-helix.yml
 
     TargetFolder: '/opt/faxe/faxe_repo'
     CleanTargetFolder: true
