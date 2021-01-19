@@ -30,12 +30,9 @@ steps:
       !Dockerfile.revpi-core-3
       !docker-compose-azure.yml
       !docker-compose-helix.yml
-
-
     TargetFolder: '/opt/faxe/faxe_repo'
     CleanTargetFolder: true
     overWrite: true
-
 - script: | 
     cd /opt/faxe/faxe_repo
     if [[ $(sudo -u faxe docker ps -a | grep faxe ) ]]; 
