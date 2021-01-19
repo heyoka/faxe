@@ -1,0 +1,31 @@
+# Starter pipeline
+# Start with a minimal pipeline that you can customize to build and deploy your code.
+# Add steps that build, run tests, deploy, and more:
+# https://aka.ms/yaml
+
+trigger:
+- none
+
+pool: DEVAT-InternalDeployments
+
+steps:
+- task: CopyFiles@2
+  inputs:
+    Contents: |
+      'apps/**'
+      'config/**'
+      'dfs/**'
+      'python/**'
+      .dockerignore
+      .gitignore
+      docker_compose.yaml
+      devrel
+      Dockerfile_faxe
+      Dockerfile_intel-nuc
+      Dockerfile_debian
+      Dockerfile_debian-intel-nuc
+      rebar.config
+      License
+    TargetFolder: '/opt/faxe/faxe_repo'
+    CleanTargetFolder: true
+    overWrite: true
