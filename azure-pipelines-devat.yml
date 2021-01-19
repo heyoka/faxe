@@ -38,6 +38,7 @@ steps:
       else
         echo "no running faxe found - skip"
     fi
+    cd /opt/faxe/faxe_repo
     docker-compose -f docker-compose-devat.yml  up -d
   displayName: 'start container via docker-compose'
   
