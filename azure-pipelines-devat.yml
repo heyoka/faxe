@@ -12,18 +12,27 @@ steps:
 - task: CopyFiles@2
   inputs:
     Contents: |
-      ./apps/**
-      ./config/**
-      ./dfs/**
-      ./python/**
-      .dockerignore
-      .gitignore
-      docker_compose.yaml
-      devrel
-      Dockerfile_debian
-      Dockerfile_debian.intel-nuc
-      rebar.config
-      License
+      **/*
+      !todo
+      !statefulset.yml
+      !README.md
+      !docker.run
+      !Dockerfile_azedge
+      !azure-pipelines.yml
+      !azure-pipelines-devat.yml
+      
+      #./apps/**
+      #./config/**
+      #./dfs/**
+      #./python/**
+      #.dockerignore
+      #.gitignore
+      #docker_compose.yaml
+      #devrel
+      #Dockerfile_debian
+      #Dockerfile_debian.intel-nuc
+      #rebar.config
+      #License
     TargetFolder: '/opt/faxe/faxe_repo'
     CleanTargetFolder: true
     overWrite: true
