@@ -24,6 +24,10 @@ steps:
       !azure-pipelines.yml
       !azure-pipelines-devat.yml
       !docker-compose.yaml
+      !Dockerfile_debian.intel-nuc
+      !Dockerfile.intel-nuc
+      !Dockerfile.k8s
+      !Dockerfile_faxe
 
     TargetFolder: '/opt/faxe/faxe_repo'
     CleanTargetFolder: true
@@ -43,6 +47,5 @@ steps:
     fi
     cd /opt/faxe/faxe_repo
     docker-compose -f docker-compose-devat.yml  up -d
-
   displayName: 'start container via docker-compose'
   
