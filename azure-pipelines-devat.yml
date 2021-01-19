@@ -45,6 +45,9 @@ steps:
         echo "no running faxe found - skip"
     fi
     cd /opt/faxe/faxe_repo
+    # change port binding dynamically to host, used for loadbalancing to prevent duplicate port binding
+    sed "sL8080:8080L$(hostname -i):8080:8080Lg" -i docker-compose-devat.yml
+    sed "sL1883:1883L$(hostname -i):1883:1883Lg" -i docker-compose-devat.yml
     sudo -u faxe docker-compose -f docker-compose-devat.yml  up -d
   displayName: 'start container via docker-compose'
   
