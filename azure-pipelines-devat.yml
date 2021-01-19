@@ -6,7 +6,7 @@
 trigger:
 - none
 
-pool: DEVAT-InternalDeployments
+pool: devat-faxe-cluster
 
 steps:
 - task: CopyFiles@2
