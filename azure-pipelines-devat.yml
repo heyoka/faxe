@@ -28,6 +28,7 @@ steps:
       !Dockerfile.intel-nuc
       !Dockerfile.k8s
       !Dockerfile_faxe
+      !Dockerfile.revpi-core-3
 
     TargetFolder: '/opt/faxe/faxe_repo'
     CleanTargetFolder: true
