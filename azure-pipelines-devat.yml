@@ -40,7 +40,7 @@ steps:
     cd /opt/faxe/faxe_repo
     if [[ $(sudo -u faxe docker ps -a | grep faxe ) ]]; 
       then
-        whoami
+        sudo -u faxe docker rmi faxe_repo_faxe;
         sudo -u faxe docker kill faxe; 
         sudo -u faxe docker container rm faxe;
         echo "running faxe found - kill+remove it"
