@@ -8,7 +8,6 @@ services:
       dockerfile: "Dockerfile_debian"
     ports:
       - "8080:8080"
-      - "1883:1883"
     container_name: faxe
     volumes:
       - /opt/faxe/docker_storage/mnesia:/data/mnesia
