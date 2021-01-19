@@ -9,9 +9,9 @@ trigger:
 pool: devat-faxe-cluster
 
 steps:
-- script: |
-    docker-compose -f docker-compose-devat.yml down
-  displayName: kill old app 
+#- script: |
+#    docker-compose -f docker-compose-devat.yml down
+#  displayName: kill old app 
 - task: CopyFiles@2
   inputs:
     Contents: |
@@ -30,6 +30,14 @@ steps:
     overWrite: true
 
 - script: | 
+    if [[ $(docker ps -a | grep faxe ) ]]; 
+      then
+        docker kill faxe; 
+        docker container rm faxe;
+        echo "running faxe found - kill+remove it"
+      else
+        echo "no running faxe found - skip"
+    fi
     docker-compose -f docker-compose-devat.yml  up -d
   displayName: 'start container via docker-compose'
   
