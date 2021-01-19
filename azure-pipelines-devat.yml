@@ -20,12 +20,15 @@ steps:
       !Dockerfile_azedge
       !azure-pipelines.yml
       !azure-pipelines-devat.yml
+      !azure-pipelines-azure.yml
+      !azure-pipelines-helix.yml
       !docker-compose.yaml
       !Dockerfile_debian.intel-nuc
       !Dockerfile.intel-nuc
       !Dockerfile.k8s
       !Dockerfile_faxe
       !Dockerfile.revpi-core-3
+
 
     TargetFolder: '/opt/faxe/faxe_repo'
     CleanTargetFolder: true
