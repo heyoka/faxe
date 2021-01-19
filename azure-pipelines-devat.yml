@@ -9,11 +9,11 @@ trigger:
 pool: devat-faxe-cluster
 
 steps:
-- displayName: kill old app
-  script: |
+- script: |
     docker-compose -f docker-compose-devat.yml down
     docker container kill faxe 2>/dev/null
     docker container rm faxe 2>/dev/null
+  displayName: kill old app 
 - task: CopyFiles@2
   inputs:
     Contents: |
@@ -31,8 +31,7 @@ steps:
     CleanTargetFolder: true
     overWrite: true
 
-- displayName: 'start container via docker-compose'
-  script: | 
+- script: | 
     docker-compose -f docker-compose-devat.yml  up -d
-  
+  displayName: 'start container via docker-compose'
   
