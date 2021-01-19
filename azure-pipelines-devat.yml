@@ -12,18 +12,16 @@ steps:
 - task: CopyFiles@2
   inputs:
     Contents: |
-      'apps/**'
-      'config/**'
-      'dfs/**'
-      'python/**'
+      ./apps/**
+      ./config/**
+      ./dfs/**
+      ./python/**
       .dockerignore
       .gitignore
       docker_compose.yaml
       devrel
-      Dockerfile_faxe
-      Dockerfile_intel-nuc
       Dockerfile_debian
-      Dockerfile_debian-intel-nuc
+      Dockerfile_debian.intel-nuc
       rebar.config
       License
     TargetFolder: '/opt/faxe/faxe_repo'
