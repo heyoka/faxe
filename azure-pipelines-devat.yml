@@ -20,7 +20,7 @@ steps:
       !Dockerfile_azedge
       !azure-pipelines.yml
       !azure-pipelines-devat.yml
-      
+      !docker-compose.yaml
       #./apps/**
       #./config/**
       #./dfs/**
