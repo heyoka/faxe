@@ -35,9 +35,7 @@ steps:
 
 - script: | 
     cd /opt/faxe/faxe_repo
-    #     chmod +x run_docker_compose.sh
-    #     bash run_docker_compose.sh
-    if [[ $(docker ps -a | grep faxe ) ]]; 
+    if [[ $(sudo -u faxe docker ps -a | grep faxe ) ]]; 
       then
         whoami
         sudo -u faxe docker kill faxe; 
