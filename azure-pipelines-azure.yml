@@ -42,6 +42,7 @@ steps:
         whoami
         sudo -u faxe docker kill faxe; 
         sudo -u faxe docker container rm faxe;
+        sudo -u faxe docker rmi faxe_repo_faxe;
         echo "running faxe found - kill+remove it"
       else
         echo "no running faxe found - skip"
