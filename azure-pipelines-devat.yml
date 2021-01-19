@@ -9,6 +9,9 @@ trigger:
 pool: devat-faxe-cluster
 
 steps:
+- displayName: kill old app
+  script: |
+    docker-compose -f docker-compose-devat.yml down
 - task: CopyFiles@2
   inputs:
     Contents: |
@@ -21,18 +24,13 @@ steps:
       !azure-pipelines.yml
       !azure-pipelines-devat.yml
       !docker-compose.yaml
-      #./apps/**
-      #./config/**
-      #./dfs/**
-      #./python/**
-      #.dockerignore
-      #.gitignore
-      #docker_compose.yaml
-      #devrel
-      #Dockerfile_debian
-      #Dockerfile_debian.intel-nuc
-      #rebar.config
-      #License
+
     TargetFolder: '/opt/faxe/faxe_repo'
     CleanTargetFolder: true
     overWrite: true
+
+- displayName: 'start container via docker-compose'
+  script: | 
+    docker-compose -f docker-compose-devat.yml  up -d
+  
+  
