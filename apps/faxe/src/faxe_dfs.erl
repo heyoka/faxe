@@ -80,9 +80,10 @@ maybe_compile({DFSString, ParserResult}) ->
 
 -spec compile({list(), list()}) -> {error, term()} | map().
 compile(D) ->
-%%   lager:notice("dfs compile: ~p", [D]),
+   lager:notice("dfs compile: ~p", [D]),
    try eval(D) of
       GraphDef when is_map(GraphDef) ->
+         lager:notice("GraphMap: ~p" ,[GraphDef]),
          GraphDef;
       Err -> {error, Err}
    catch

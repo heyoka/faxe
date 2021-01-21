@@ -43,6 +43,7 @@
    template_vars = #{}  :: map(), %% list of template vars
    template  = <<>>, %% task is created from this template
    tags = [] %% a list of tags for the task
+%%   , concurrency = 0 :: non_neg_integer() %% concurrency for the task
 }).
 
 -record(template, {
