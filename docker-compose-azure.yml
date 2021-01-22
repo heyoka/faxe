@@ -13,6 +13,7 @@ services:
       - /opt/faxe/docker_storage/mnesia:/data/mnesia
       - /opt/faxe/docker_storage/esq:/data/esq
       - /opt/faxe/docker_storage/python:/data/python
+      - /opt/faxe/certs/running:/data/certs/
     environment:
       - FAXE_AMQP_HOST=unset
       - FAXE_DEBUG_HANDLER_MQTT_ENABLE=on
