@@ -14,20 +14,21 @@ services:
       - /opt/faxe/docker_storage/esq:/data/esq
       - /opt/faxe/docker_storage/python:/data/python
     environment:
-      - FAXE_AMQP_HOST=unset
       - FAXE_DEBUG_HANDLER_MQTT_ENABLE=on
       - FAXE_FLOW_AUTO_START=on
       - FAXE_HTTP_API_PORT=8080
       - FAXE_HTTP_API_TLS_ENABLE=off
       - FAXE_MNESIA_DIR=/data/mnesia
-      - FAXE_MQTT_HOST=devat-cw-mqtt
+      - FAXE_MQTT_HOST=10.14.204.3
       - FAXE_QUEUE_BASE_DIR=/data/esq
       - FAXE_ALLOW_ANONYMOUS=true
       - FAXE_AMQP_HOST=10.14.204.3
       - FAXE_PYTHON_SCRIPT_PATH=/data/python
       - FAXE_CRATE_HOST=10.14.204.10
       - FAXE_CRATE_HTTP_HOST=10.14.204.10
-      - FAXE_CRATE_HTTP_PORT=4200      
+      - FAXE_CRATE_HTTP_PORT=4200
+      - FAXE_CRATE_HTTP_USER=faxe
+      - FAXE_CRATE_HTTP_PASS=faxe1234!
     ulimits:
       nproc: 65535
       nofile:
