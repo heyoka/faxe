@@ -12,15 +12,8 @@ services:
       - /opt/faxe/docker_storage/esq:/data/esq
       - /opt/faxe/docker_storage/python:/data/python
       - /opt/faxe/certs/running:/data/certs/
-    environment:
-      - FAXE_AMQP_HOST=unset
-      - FAXE_DEBUG_HANDLER_MQTT_ENABLE=on
-      - FAXE_FLOW_AUTO_START=on
-      - FAXE_HTTP_API_PORT=8080
-      - FAXE_HTTP_API_TLS_ENABLE=off
-      - FAXE_MNESIA_DIR=/data/mnesia
-      - FAXE_MQTT_HOST=devat-cw-mqtt
-      - FAXE_QUEUE_BASE_DIR=/data/esq
+    env_file:
+    - /opt/faxe/docker_storage/azure.env
     ulimits:
       nproc: 65535
       nofile:
