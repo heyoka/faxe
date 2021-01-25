@@ -3,9 +3,10 @@ services:
   faxe:
     # to have a fixed hostname for mnesia
     hostname: "faxe"
-    build:
-      context: "./"
-      dockerfile: "Dockerfile_debian"
+    #build:
+    #  context: "./"
+    #  dockerfile: "Dockerfile_debian"
+    image: "Dockerfile_debian"
     ports:
       - "8080:8080"
     container_name: faxe
