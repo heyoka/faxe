@@ -35,9 +35,12 @@ steps:
     overWrite: true
 - script: | 
     cd /opt/faxe/faxe_repo
+    # gather azure build information:
     echo '$(Build.Repository.Name).$(Build.BuildNumber)'
     TAG=$(echo '$(Build.Repository.Name):$(Build.BuildNumber)')
+    #build container-image
     sudo -u faxe docker build -t $(Build.Repository.Name):$(Build.BuildNumber) -f Dockerfile_debian .
+    # inject current build number into compose-file
     sed "s!Dockerfile_debian!$TAG!g" -i docker-compose-devat.yml
     # change port binding dynamically to host, used for loadbalancing to prevent duplicate port binding
     sed "sL8080:8080L$(hostname -i):8080:8080Lg" -i docker-compose-devat.yml
