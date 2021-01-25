@@ -30,16 +30,15 @@ steps:
       !Dockerfile.revpi-core-3
       !docker-compose-azure.yml
       !docker-compose-helix.yml
-    #TargetFolder: '/opt/faxe/faxe_repo'
-    TargetFolder: '/opt/faxe/faxe_repo_tst'
+    TargetFolder: '/opt/faxe/faxe_repo'
     CleanTargetFolder: true
     overWrite: true
 - script: | 
-    #cd /opt/faxe/faxe_repo
-    cd /opt/faxe/faxe_repo_tst
+    cd /opt/faxe/faxe_repo
     echo '$(Build.Repository.Name).$(Build.BuildNumber)'
+    TAG=$(echo '$(Build.Repository.Name):$(Build.BuildNumber)')
     sudo -u faxe docker build -t $(Build.Repository.Name):$(Build.BuildNumber) -f Dockerfile_debian .
-    sed "s!Dockerfile_debian!$(Build.Repository.Name):$(Build.BuildNumber)!g" -i docker-compose-devat.yml
+    sed "s!Dockerfile_debian!$TAG!g" -i docker-compose-devat.yml
     # change port binding dynamically to host, used for loadbalancing to prevent duplicate port binding
     sed "sL8080:8080L$(hostname -i):8080:8080Lg" -i docker-compose-devat.yml
     
