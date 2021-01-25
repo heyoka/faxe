@@ -47,8 +47,8 @@ steps:
   displayName: 'build new image and tag it with azure pipeline build number'
 - script: |     
     # stop old version
+    cd /opt/faxe/faxe_repo
     sudo -u faxe docker-compose -f docker-compose-devat.yml down
-    
     # kill/remove old data
     if [[ $(sudo -u faxe docker ps -a | grep faxe ) ]]; 
       then
@@ -61,6 +61,7 @@ steps:
     fi
   displayName: 'stop old container via docker-compose'    
 - script: |     
-    sudo -u faxe docker-compose -f docker-compose-devat.yml  up -d
+    cd /opt/faxe/faxe_repo
+    sudo -u faxe docker-compose -f docker-compose-devat.yml up -d
   displayName: 'start container via docker-compose'
   
