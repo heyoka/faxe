@@ -37,17 +37,30 @@ steps:
 
 - script: | 
     cd /opt/faxe/faxe_repo
+    # gather azure build information:
+    echo '$(Build.Repository.Name).$(Build.BuildNumber)'
+    TAG=$(echo '$(Build.Repository.Name):$(Build.BuildNumber)')
+    #build container-image
+    sudo -u faxe docker build -t $(Build.Repository.Name):$(Build.BuildNumber) -f Dockerfile_debian .
+    # inject current build number into compose-file
+    sed "s!Dockerfile_debian!$TAG!g" -i docker-compose-devat.yml
+  displayName: 'build new image and tag it with azure pipeline build number'
+- script: |     
+    # stop old version
+    cd /opt/faxe/faxe_repo
+    sudo -u faxe docker-compose -f docker-compose-devat.yml down
+    # kill/remove old data
     if [[ $(sudo -u faxe docker ps -a | grep faxe ) ]]; 
       then
-        whoami
         sudo -u faxe docker kill faxe; 
         sudo -u faxe docker container rm faxe;
-        sudo -u faxe docker rmi faxe_repo_faxe;
+        #sudo -u faxe docker rmi faxe_repo_faxe;
         echo "running faxe found - kill+remove it"
       else
         echo "no running faxe found - skip"
     fi
+  displayName: 'stop old container via docker-compose'    
+- script: |     
     cd /opt/faxe/faxe_repo
-    sudo -u faxe docker-compose -f docker-compose-devat.yml  up -d
+    sudo -u faxe docker-compose -f docker-compose-devat.yml up -d
   displayName: 'start container via docker-compose'
-  
