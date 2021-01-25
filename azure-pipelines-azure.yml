@@ -48,13 +48,13 @@ steps:
 - script: |     
     # stop old version
     cd /opt/faxe/faxe_repo
-    sudo -u faxe docker-compose -f docker-compose-azure.yml down
+    sudo -u faxe /usr/local/bin/docker-compose -f docker-compose-azure.yml down
     # kill/remove old data
     if [[ $(sudo -u faxe docker ps -a | grep faxe ) ]]; 
       then
-        sudo -u faxe docker kill faxe; 
-        sudo -u faxe docker container rm faxe;
-        #sudo -u faxe docker rmi faxe_repo_faxe;
+        sudo -u faxe /usr/bin/docker kill faxe; 
+        sudo -u faxe /usr/bin/docker container rm faxe;
+        #sudo -u faxe /usr/bin/docker rmi faxe_repo_faxe;
         echo "running faxe found - kill+remove it"
       else
         echo "no running faxe found - skip"
@@ -62,5 +62,5 @@ steps:
   displayName: 'stop old container via docker-compose'    
 - script: |     
     cd /opt/faxe/faxe_repo
-    sudo -u faxe docker-compose -f docker-compose-azure.yml up -d
+    sudo -u faxe /usr/local/bin/docker-compose -f docker-compose-azure.yml up -d
   displayName: 'start container via docker-compose'
