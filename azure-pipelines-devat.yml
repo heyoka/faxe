@@ -30,23 +30,33 @@ steps:
       !Dockerfile.revpi-core-3
       !docker-compose-azure.yml
       !docker-compose-helix.yml
-    TargetFolder: '/opt/faxe/faxe_repo'
+    #TargetFolder: '/opt/faxe/faxe_repo'
+    TargetFolder: '/opt/faxe/faxe_repo_tst'
     CleanTargetFolder: true
     overWrite: true
 - script: | 
-    cd /opt/faxe/faxe_repo
-    if [[ $(sudo -u faxe docker ps -a | grep faxe ) ]]; 
-      then
-        sudo -u faxe docker kill faxe; 
-        sudo -u faxe docker container rm faxe;
-        sudo -u faxe docker rmi faxe_repo_faxe;
-        echo "running faxe found - kill+remove it"
-      else
-        echo "no running faxe found - skip"
-    fi
-    cd /opt/faxe/faxe_repo
+    #cd /opt/faxe/faxe_repo
+    cd /opt/faxe/faxe_repo_tst
+    echo '$(Build.Repository.Name).$(Build.BuildNumber)'
+    sudo -u faxe docker build -t $(Build.Repository.Name):$(Build.BuildNumber) -f Dockerfile_debian .
+    sed "s!Dockerfile_debian!$(Build.Repository.Name):$(Build.BuildNumber)!g" -i docker-compose-devat.yml
     # change port binding dynamically to host, used for loadbalancing to prevent duplicate port binding
     sed "sL8080:8080L$(hostname -i):8080:8080Lg" -i docker-compose-devat.yml
-    sudo -u faxe docker-compose -f docker-compose-devat.yml  up -d
+    
+    # stop old version
+    #sudo -u faxe docker-compose -f docker-compose-devat.yml down
+    
+    # kill/remove old data
+    #if [[ $(sudo -u faxe docker ps -a | grep faxe ) ]]; 
+    #  then
+    #    sudo -u faxe docker kill faxe; 
+    #    sudo -u faxe docker container rm faxe;
+    #    #sudo -u faxe docker rmi faxe_repo_faxe;
+    #    echo "running faxe found - kill+remove it"
+    #  else
+    #    echo "no running faxe found - skip"
+    #fi
+    #cd /opt/faxe/faxe_repo
+    #sudo -u faxe docker-compose -f docker-compose-devat.yml  up -d
   displayName: 'start container via docker-compose'
   
