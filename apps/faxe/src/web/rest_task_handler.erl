@@ -38,7 +38,9 @@
    add_tags_from_json/2
    , logs_to_json/2,
    start_debug_to_json/2,
-   stop_debug_to_json/2]).
+   stop_debug_to_json/2,
+   start_group_to_json/2,
+   stop_group_to_json/2]).
 
 -include("faxe.hrl").
 
@@ -74,7 +76,11 @@ allowed_methods(Req, State=#state{mode = ping}) ->
    {[<<"POST">>], Req, State};
 allowed_methods(Req, State=#state{mode = start}) ->
    {[<<"GET">>, <<"OPTIONS">>], Req, State};
+allowed_methods(Req, State=#state{mode = start_group}) ->
+   {[<<"GET">>, <<"OPTIONS">>], Req, State};
 allowed_methods(Req, State=#state{mode = stop}) ->
+   {[<<"GET">>, <<"OPTIONS">>], Req, State};
+allowed_methods(Req, State=#state{mode = stop_group}) ->
    {[<<"GET">>, <<"OPTIONS">>], Req, State};
 allowed_methods(Req, State=#state{mode = stats}) ->
    {[<<"GET">>, <<"OPTIONS">>], Req, State};
@@ -83,6 +89,8 @@ allowed_methods(Req, State=#state{mode = errors}) ->
 allowed_methods(Req, State=#state{mode = logs}) ->
    {[<<"GET">>, <<"OPTIONS">>], Req, State};
 allowed_methods(Req, State=#state{mode = delete}) ->
+   {[<<"DELETE">>], Req, State};
+allowed_methods(Req, State=#state{mode = delete_group}) ->
    {[<<"DELETE">>], Req, State};
 allowed_methods(Req, State=#state{mode = remove_tags}) ->
    {[<<"POST">>], Req, State};
@@ -131,6 +139,10 @@ content_types_provided(Req, State=#state{mode = start}) ->
       {{<<"application">>, <<"json">>, []}, start_to_json},
       {{<<"text">>, <<"html">>, []}, start_to_json}
    ], Req, State};
+content_types_provided(Req, State=#state{mode = start_group}) ->
+   {[
+      {{<<"application">>, <<"json">>, []}, start_group_to_json}
+   ], Req, State};
 content_types_provided(Req, State=#state{mode = start_debug}) ->
    {[
       {{<<"application">>, <<"json">>, []}, start_debug_to_json},
@@ -145,6 +157,10 @@ content_types_provided(Req, State=#state{mode = stop}) ->
    {[
       {{<<"application">>, <<"json">>, []}, stop_to_json},
       {{<<"text">>, <<"html">>, []}, stop_to_json}
+   ], Req, State};
+content_types_provided(Req, State=#state{mode = stop_group}) ->
+   {[
+      {{<<"application">>, <<"json">>, []}, stop_group_to_json}
    ], Req, State};
 content_types_provided(Req0 = #{method := _Method}, State=#state{mode = errors}) ->
    {[
@@ -208,11 +224,30 @@ check_resource(TId, Req, State) ->
    end,
    {Value, Req, NewState}.
 
-delete_resource(Req, State=#state{task_id = TaskId}) ->
+delete_resource(Req, State=#state{}) ->
+   do_delete(Req, State).
+
+%% delete a task-group
+do_delete(Req, State=#state{task_id = undefined}) ->
+   GroupName = cowboy_req:binding(groupname, Req),
+   case faxe:delete_task_group(GroupName) of
+      {error, Error} ->
+         lager:info("Error occured when deleting group: ~p",[Error]),
+         Req3 = cowboy_req:set_resp_body(
+            jiffy:encode(#{success => false, error => faxe_util:to_bin(Error)}), Req),
+         {false, Req3, State};
+      _Other ->
+         RespMap = #{success => true, message =>
+         iolist_to_binary([<<"Task-Group ">>, GroupName, <<" successfully deleted.">>])},
+         Req2 = cowboy_req:set_resp_body(jiffy:encode(RespMap), Req),
+         {true, Req2, State}
+   end;
+%% delete a single task
+do_delete(Req, State=#state{task_id = TaskId}) ->
    case faxe:delete_task(TaskId) of
       ok ->
          RespMap = #{success => true, message =>
-            iolist_to_binary([<<"Task ">>, faxe_util:to_bin(TaskId), <<" successfully deleted.">>])},
+         iolist_to_binary([<<"Task ">>, faxe_util:to_bin(TaskId), <<" successfully deleted.">>])},
          Req2 = cowboy_req:set_resp_body(jiffy:encode(RespMap), Req),
          {true, Req2, State};
       {error, Error} ->
@@ -221,7 +256,6 @@ delete_resource(Req, State=#state{task_id = TaskId}) ->
             jiffy:encode(#{success => false, error => faxe_util:to_bin(Error)}), Req),
          {false, Req3, State}
    end.
-
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%% costum CALLBACKS %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 
@@ -283,6 +317,17 @@ start_to_json(Req, State = #state{task_id = Id}) ->
          {jiffy:encode(#{<<"error">> => faxe_util:to_bin(Error)}), Req, State}
    end.
 
+start_group_to_json(Req, State = #state{task_id = Id}) ->
+   Num0 = cowboy_req:binding(concurrency, Req),
+   Num = case catch binary_to_integer(Num0) of N when is_integer(N) -> N; _ -> 1 end,
+   Mode = #task_modes{concurrency = Num, permanent = is_permanent(Req)},
+   case faxe:start_task(Id, Mode) of
+      {ok, _Graph} ->
+         {jiffy:encode(#{<<"ok">> => <<"group started">>}), Req, State};
+      {error, Error} ->
+         {jiffy:encode(#{<<"error">> => faxe_util:to_bin(Error)}), Req, State}
+   end.
+
 start_debug_to_json(Req, State = #state{task_id = Id}) ->
 %%   lager:info("start trace: ~p",[Id]),
    case faxe:start_trace(Id) of
@@ -298,6 +343,15 @@ stop_to_json(Req, State = #state{task_id = Id}) ->
          {jiffy:encode(#{<<"ok">> => <<"stopped">>}), Req, State};
       {error, Error} ->
          {jiffy:encode(#{<<"error">> => faxe_util:to_bin(Error)}), Req, State}
+   end.
+
+stop_group_to_json(Req, State = #state{task_id = Id}) ->
+   GroupName = cowboy_req:binding(groupname, Req),
+   case faxe:stop_task_group(GroupName, is_permanent(Req)) of
+      {error, Error} ->
+         {jiffy:encode(#{<<"error">> => faxe_util:to_bin(Error)}), Req, State};
+      _Other ->
+         {jiffy:encode(#{<<"ok">> => <<"group stopped">>}), Req, State}
    end.
 
 stop_debug_to_json(Req, State = #state{task_id = Id}) ->

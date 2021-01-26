@@ -174,7 +174,14 @@ list_json(Req, State=#state{mode = Mode}) ->
                _ -> L
             end;
          list_by_tags ->
-            tasks_by_tags(Req)
+            tasks_by_tags(Req);
+         list_by_group ->
+            GroupName = cowboy_req:binding(groupname, Req),
+            L = faxe:list_tasks_by_group(GroupName),
+            case L of
+               {error, not_found} -> {error, group_not_found};
+               _ -> L
+            end
           end,
    case Tasks of
       {error, What} ->

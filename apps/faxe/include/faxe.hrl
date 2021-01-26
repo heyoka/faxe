@@ -42,8 +42,10 @@
    is_running = false,
    template_vars = #{}  :: map(), %% list of template vars
    template  = <<>>, %% task is created from this template
-   tags = [] %% a list of tags for the task
-%%   , concurrency = 0 :: non_neg_integer() %% concurrency for the task
+   tags = [], %% a list of tags for the task
+%%   , concurrency = 1 :: non_neg_integer() %% concurrency for the task
+   group = undefined :: undefined|binary(),
+   group_leader = false :: true|false
 }).
 
 -record(template, {
@@ -65,7 +67,8 @@
    temporary = false    :: true|false,
    temp_ttl = infinity  :: infinity|non_neg_integer(),
    permanent = false    :: true|false,
-   run_mode = push      :: push|pull
+   run_mode = push      :: push|pull,
+   concurrency = 1      :: non_neg_integer()
 
 }).
 

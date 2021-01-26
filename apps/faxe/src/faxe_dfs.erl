@@ -83,7 +83,10 @@ compile(D) ->
    lager:notice("dfs compile: ~p", [D]),
    try eval(D) of
       GraphDef when is_map(GraphDef) ->
-         lager:notice("GraphMap: ~p" ,[GraphDef]),
+         #{nodes := Nodes, edges := Edges} = GraphDef,
+         [lager:notice("GraphNode: ~p (~p)" ,[NodeName, Type]) || {NodeName, Type, _Params} <- Nodes],
+         [lager:notice("GraphEdge from: ~p (~p) to : ~p (~p)  " ,
+            [OutNode, OutPort, InNode, InPort]) || {OutNode, OutPort, InNode, InPort, _Opts} <- Edges],
          GraphDef;
       Err -> {error, Err}
    catch
@@ -91,6 +94,9 @@ compile(D) ->
          lager:error("error evaluating dfs result: ~p~n~p",[Err, Stack]),
          {error, Err}
    end.
+
+duplicate(#{edges := Edges, nodes := Nodes}, Num) ->
+   ok.
 
 
 -spec eval({list(), list()}) -> map().

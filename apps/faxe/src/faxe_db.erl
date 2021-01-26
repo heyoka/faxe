@@ -25,7 +25,8 @@
    get_tasks_by_pids/1,
    get_permanent_tasks/0,
    get_tasks_by_template/1
-   , get_tasks_by_ids/1]).
+   , get_tasks_by_ids/1,
+   get_tasks_by_group/1]).
 
 -export([
    add_tags/2,
@@ -76,15 +77,18 @@ get_template(TemplateName) ->
       [] -> {error, not_found}
    end.
 
+get_tasks_by_group(GroupName) ->
+   case mnesia:dirty_index_read(task, GroupName, #task.group) of
+      [#task{} | _] = L -> [T#task{definition = maps:from_list(Def)} || T=#task{definition = Def} <- L];
+      [] -> {error, not_found}
+   end.
+
 
 get_tasks_by_ids(IdList) ->
    Specs =
       lists:map(
          fun(Id) ->
-            {#task{id = '$1',name = '$2',dfs = '_',definition = '_',
-               date = '_',pid = '_',last_start = '_',last_stop = '_',
-               permanent = '_',is_running = '_',template_vars = '_',
-               template = '_', tags = '_'},
+            {#task{id = '$1',name = '$2', _ = '_'},
                [{'orelse', {'==', '$1', Id}, {'==', '$2', Id}}],
                ['$_']}
 
@@ -339,7 +343,7 @@ create() ->
    mnesia:create_table(task, [
       {attributes, record_info(fields, task)},
       {type, set},
-      {disc_copies, [node()]}, {index, [name, pid, permanent, template]}
+      {disc_copies, [node()]}, {index, [name, pid, permanent, template, group]}
    ]),
    mnesia:create_table(ids, [
       {attributes, record_info(fields, ids)},
