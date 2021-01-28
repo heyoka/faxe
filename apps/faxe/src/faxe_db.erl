@@ -113,6 +113,7 @@ save_template(#template{id = undefined, definition = Def} = Template) ->
 save_template(#template{definition = Def} = T) ->
    mnesia:dirty_write(T#template{definition = maps:to_list(Def)}).
 
+-spec save_task(#task{}) -> ok|{error, term()}.
 save_task(#task{id = undefined, definition = Def} = Task) ->
    mnesia:dirty_write(Task#task{id = next_id(task), definition = maps:to_list(Def)});
 save_task(#task{definition = Def} = T) ->

@@ -16,5 +16,3 @@ in1
     .fields('val2', 'val3')
     .prefix('comb')
     .prefix_delimiter('-')
-
-|debug()

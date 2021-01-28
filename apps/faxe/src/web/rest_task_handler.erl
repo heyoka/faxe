@@ -40,7 +40,8 @@
    start_debug_to_json/2,
    stop_debug_to_json/2,
    start_group_to_json/2,
-   stop_group_to_json/2]).
+   stop_group_to_json/2,
+   set_group_size_to_json/2]).
 
 -include("faxe.hrl").
 
@@ -96,6 +97,8 @@ allowed_methods(Req, State=#state{mode = remove_tags}) ->
    {[<<"POST">>], Req, State};
 allowed_methods(Req, State=#state{mode = add_tags}) ->
    {[<<"POST">>], Req, State};
+allowed_methods(Req, State=#state{mode = set_group_size}) ->
+   {[<<"GET">>], Req, State};
 allowed_methods(Req, State=#state{}) ->
    {[], Req, State}.
 
@@ -161,6 +164,10 @@ content_types_provided(Req, State=#state{mode = stop}) ->
 content_types_provided(Req, State=#state{mode = stop_group}) ->
    {[
       {{<<"application">>, <<"json">>, []}, stop_group_to_json}
+   ], Req, State};
+content_types_provided(Req, State=#state{mode = set_group_size}) ->
+   {[
+      {{<<"application">>, <<"json">>, []}, set_group_size_to_json}
    ], Req, State};
 content_types_provided(Req0 = #{method := _Method}, State=#state{mode = errors}) ->
    {[
@@ -327,6 +334,19 @@ start_group_to_json(Req, State = #state{task_id = Id}) ->
       {error, Error} ->
          {jiffy:encode(#{<<"error">> => faxe_util:to_bin(Error)}), Req, State}
    end.
+
+set_group_size_to_json(Req, State) ->
+   NewSize0 = cowboy_req:binding(group_size, Req),
+   GroupName = cowboy_req:binding(groupname, Req),
+   NewSize = case catch binary_to_integer(NewSize0) of N when is_integer(N) -> N; _ -> 1 end,
+   case faxe:set_group_size(GroupName, NewSize) of
+      {error, What} ->
+         {jiffy:encode(#{<<"error">> => faxe_util:to_bin(What)}), Req, State};
+      _Other ->
+         SizeBin = integer_to_binary(NewSize),
+         {jiffy:encode(#{<<"ok">> => <<"set new group size to ", SizeBin/binary>>}), Req, State}
+   end.
+
 
 start_debug_to_json(Req, State = #state{task_id = Id}) ->
 %%   lager:info("start trace: ~p",[Id]),

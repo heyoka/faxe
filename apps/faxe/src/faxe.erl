@@ -52,7 +52,7 @@
    start_trace/1,
    stop_trace/1,
    update_all/0,
-   stop_task_group/2, delete_task_group/1, list_tasks_by_group/1]).
+   stop_task_group/2, delete_task_group/1, list_tasks_by_group/1, set_group_size/2]).
 
 start_permanent_tasks() ->
    Tasks = faxe_db:get_permanent_tasks(),
@@ -193,7 +193,9 @@ register_task(DfsScript, Name, Type) ->
                   date = faxe_time:now_date(),
                   dfs = DFS,
                   definition = Def,
-                  name = Name
+                  name = Name,
+                  group = Name,
+                  group_leader = true
                },
                faxe_db:save_task(Task);
 
@@ -228,11 +230,28 @@ update_string_task(DfsScript, TaskId) ->
 
 -spec update_task(list()|binary(), integer()|binary(), atom()) -> ok|{error, term()}.
 update_task(DfsScript, TaskId, ScriptType) ->
+   lager:notice("update task: ~p with dfs : ~p",[TaskId, DfsScript]),
+   Res =
    case get_running(TaskId) of
-      {true, T} -> update_running(DfsScript, T, ScriptType);
-      {false, T} -> update(DfsScript, T, ScriptType);
-      Err -> Err
+      {true, T} -> {update_running(DfsScript, T, ScriptType), T};
+      {false, T} -> {update(DfsScript, T, ScriptType), T};
+      Err -> {Err, nil}
+   end,
+   case Res of
+      {ok, _Task = #task{group_leader = true, group = Group}} ->
+         GroupMembers = faxe_db:get_tasks_by_group(Group),
+         case GroupMembers of
+            {error, not_found} -> ok;
+            L when is_list(L) ->
+               %% update group-members
+               [update_task(DfsScript, Id, ScriptType)
+                  || #task{id = Id, group_leader = Lead} <- L, Lead == false],
+               ok
+         end;
+      {ok, _Task} -> ok;
+      {Error, nil} -> Error
    end.
+
 
 -spec update(list()|binary(), #task{}, atom()) -> ok|{error, term()}.
 update(DfsScript, Task, ScriptType) ->
@@ -249,7 +268,7 @@ update(DfsScript, Task, ScriptType) ->
 -spec update_running(list()|binary(), #task{}, atom()) -> ok|{error, term()}.
 update_running(DfsScript, Task = #task{id = TId, pid = TPid}, ScriptType) ->
    erlang:monitor(process, TPid),
-   stop_task(Task),
+   stop_task(Task, false),
    case update(DfsScript, Task, ScriptType) of
       {error, Err} -> {error, Err};
       ok ->
@@ -257,7 +276,7 @@ update_running(DfsScript, Task = #task{id = TId, pid = TPid}, ScriptType) ->
             {'DOWN', _MonitorRef, process, TPid, _Info} ->
                start_task(TId, Task#task.permanent), ok
             after 5000 ->
-               erlang:demonitor(TPid, true), {error, updated_task_start_timeout}
+               catch erlang:demonitor(TPid, true), {error, updated_task_start_timeout}
          end
    end.
 
@@ -381,7 +400,7 @@ start_task(TaskId) ->
 start_task(TaskId, #task_modes{run_mode = _RunMode} = Mode) ->
    case faxe_db:get_task(TaskId) of
       {error, not_found} -> {error, task_not_found};
-      T = #task{name = Name} -> do_start_task(T#task{group = Name, group_leader = true}, Mode)
+      T = #task{} -> do_start_task(T, Mode)
    end;
 start_task(TaskId, Permanent) when Permanent == true orelse Permanent == false ->
    start_task(TaskId, push, Permanent).
@@ -436,7 +455,68 @@ start_copy(Task = #task{definition = GraphDef, name = TName}, #task_modes{perman
    end
    .
 
+%%%-------------------------------------------------
+%%% task group
+%%%-------------------------------------------------
+-spec set_group_size(binary(), non_neg_integer()) -> ok|list().
+set_group_size(GroupName, NewSize) when is_binary(GroupName), is_integer(NewSize) ->
+   case faxe_db:get_tasks_by_group(GroupName) of
+      {error, not_found} -> {error, group_not_found};
+      GroupList when is_list(GroupList) ->
+         Leader = get_group_leader(GroupList),
+         case is_task_alive(Leader) of
+            false -> {error, not_running};
+            true ->
+               RunningMembers = [T || T <- GroupList, is_task_alive(T)],
+               lager:notice("running members are: ~p",[RunningMembers]),
+               case NewSize - length(RunningMembers) of
+%%                  0 ->
+%%                     lager:notice("No group-member add or deletion"),
+%%                     ok;
+                  N when N >= 0 -> %% we want more
+                     lager:notice("Add ~p group-members",[N]),
+                     start_concurrent(Leader,
+                        #task_modes{concurrency = NewSize, permanent = Leader#task.permanent});
+                  N1 when N1 < 0 -> %% we want less
+                     Num = abs(N1),
+                     lager:notice("delete: ~p group-members",[Num]),
+                     SB = byte_size(GroupName),
+                     SortFun =
+                     fun
+                        (#task{name = <<GroupName:SB/binary, "--", Rank/binary>>},
+                            #task{name = <<GroupName:SB/binary, "--", OtherRank/binary>>}) ->
+                           binary_to_integer(Rank) > binary_to_integer(OtherRank);
+                        (E, _) -> true
+                     end,
+                     Sorted = lists:sort(SortFun, RunningMembers),
+                     [lager:notice("sorted grouplist: ~p",[T#task.name]) || T <- Sorted],
+                     del_group_members(Sorted, Num)
+               end
+         end
+   end.
 
+
+del_group_members([], _) ->
+   [];
+del_group_members(GroupList, 0) ->
+   GroupList;
+del_group_members([#task{group_leader = true} | R], Num) ->
+   del_group_members(R, Num);
+del_group_members([T=#task{group_leader = false, id = TaskId} | R], Num) ->
+   StopRes = do_stop_task(T, false),
+   lager:notice("stop task: ~p gives: ~p",[T#task.name, StopRes]),
+   DelRes = faxe_db:delete_task(TaskId),
+   lager:notice("delete task: ~p gives: ~p",[T#task.name, DelRes]),
+   del_group_members(R, Num - 1).
+
+
+
+get_group_leader([]) ->
+   {error, group_leader_not_found};
+get_group_leader([T=#task{group_leader = false} | R]) ->
+   get_group_leader(R);
+get_group_leader([T=#task{group_leader = true} | _R]) ->
+   T.
 
 -spec stop_task(integer()|binary()|#task{}) -> ok.
 %% @doc just stop the graph process and its children
@@ -449,7 +529,9 @@ stop_task(_T=#task{pid = Graph}) when is_pid(Graph) ->
 
 stop_task(TaskId) ->
    stop_task(TaskId, false).
--spec stop_task(integer()|binary(), true|false) -> ok.
+-spec stop_task(#task{}|integer()|binary(), true|false) -> ok.
+stop_task(T = #task{}, Permanent) ->
+   do_stop_task(T, Permanent);
 stop_task(TaskId, Permanent) ->
    T = faxe_db:get_task(TaskId),
    case T of
@@ -467,7 +549,7 @@ stop_task_group(TaskGroupName, Permanent) ->
          [do_stop_task(T, Permanent) || T <- TaskList]
    end.
 
-do_stop_task(T = #task{pid = Graph}, Permanent) ->
+do_stop_task(T = #task{pid = Graph, group_leader = _Leader, group = _Group}, Permanent) ->
    case is_task_alive(T) of
       true ->
          df_graph:stop(Graph),
@@ -477,6 +559,17 @@ do_stop_task(T = #task{pid = Graph}, Permanent) ->
                false -> T
             end,
          faxe_db:save_task(NewT#task{pid = undefined, last_stop = faxe_time:now_date()});
+%%         case Leader of
+%%            true ->
+%%               GroupMembers = faxe_db:get_tasks_by_group(Group),
+%%               case GroupMembers of
+%%                  {error, not_found} -> ok;
+%%                  L when is_list(L) ->
+%%                     %% stop group-members
+%%                     [do_stop_task(Task, Permanent) || Task <- L], ok
+%%               end;
+%%            false -> ok
+%%         end;
       false -> {error, not_running}
    end.
 
@@ -485,12 +578,17 @@ delete_task(TaskId) ->
    T = faxe_db:get_task(TaskId),
    case T of
       {error, not_found} -> {error, not_found};
-      #task{} ->
-         case is_task_alive(T) of
-            true -> {error, task_is_running};
-            false -> faxe_db:delete_task(TaskId)
-         end;
-      #task{} -> faxe_db:delete_task(TaskId)
+      T = #task{} -> do_delete_task(T)
+   end.
+
+do_delete_task(T = #task{id = TaskId, group = Group, group_leader = Leader}) ->
+   case is_task_alive(T) of
+      true -> {error, task_is_running};
+      false ->
+         case faxe_db:delete_task(TaskId) of
+            ok -> case Leader of true -> delete_task_group(Group), ok; false -> ok end;
+            Else -> Else
+         end
    end.
 
 %% delete all tasks from db with group == TaskGroupName
@@ -524,6 +622,7 @@ ping_task(TaskId) ->
       [{TaskId, GraphPid}] -> df_graph:ping(GraphPid)
    end.
 
+%% @deprecated
 get_stats(TaskId) ->
    T = faxe_db:get_task(TaskId),
    case T of
@@ -536,6 +635,7 @@ get_stats(TaskId) ->
       #task{} -> {ok, []}
    end.
 
+%% @deprecated
 -spec get_errors(integer()|binary()) -> {error, term()} | {ok, term()}.
 get_errors(TaskId) ->
    T = faxe_db:get_task(TaskId),
@@ -549,6 +649,7 @@ get_errors(TaskId) ->
       #task{} -> {ok, []}
    end.
 
+%% @deprecated
 -spec get_logs(integer()|binary(), binary(), non_neg_integer(), non_neg_integer()) ->
    {error, term()} | {ok, list(map())}.
 get_logs(TaskId, Severity, MaxAge, Limit) ->

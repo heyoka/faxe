@@ -249,7 +249,7 @@ stop_list(TaskList, Req, State) ->
             #task{id = Id} -> Id;
             _ -> Task
          end,
-         case faxe:stop_task(TId) of
+         case faxe:stop_task(TId, false) of
             ok -> [TId | Stopped];
             _ -> Stopped
          end
