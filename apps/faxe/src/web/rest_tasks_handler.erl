@@ -136,6 +136,7 @@ do_import(TasksList, Req, State) ->
    {true, Req2, State}.
 
 
+import_task(#{<<"group_leader">> := false}) -> {error, group_leader_import_only};
 import_task(#{<<"dfs">> := Dfs, <<"name">> := Name, <<"permanent">> := Perm, <<"tags">> := Tags}) ->
    case faxe:register_string_task(Dfs, Name) of
       ok ->

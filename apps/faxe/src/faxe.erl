@@ -230,11 +230,11 @@ update_string_task(DfsScript, TaskId) ->
 
 -spec update_task(list()|binary(), integer()|binary(), atom()) -> ok|{error, term()}.
 update_task(DfsScript, TaskId, ScriptType) ->
-   lager:notice("update task: ~p with dfs : ~p",[TaskId, DfsScript]),
    Res =
    case get_running(TaskId) of
-      {true, T} -> {update_running(DfsScript, T, ScriptType), T};
-      {false, T} -> {update(DfsScript, T, ScriptType), T};
+      {true, T=#task{}} -> {update_running(DfsScript, T, ScriptType), T};
+      {false, T=#task{}} -> {update(DfsScript, T, ScriptType), T};
+%%      {_, T=#task{group_leader = false}} -> {error, group_leader_update_only};
       Err -> {Err, nil}
    end,
    case Res of
@@ -468,28 +468,21 @@ set_group_size(GroupName, NewSize) when is_binary(GroupName), is_integer(NewSize
             false -> {error, not_running};
             true ->
                RunningMembers = [T || T <- GroupList, is_task_alive(T)],
-               lager:notice("running members are: ~p",[RunningMembers]),
                case NewSize - length(RunningMembers) of
-%%                  0 ->
-%%                     lager:notice("No group-member add or deletion"),
-%%                     ok;
                   N when N >= 0 -> %% we want more
-                     lager:notice("Add ~p group-members",[N]),
                      start_concurrent(Leader,
                         #task_modes{concurrency = NewSize, permanent = Leader#task.permanent});
                   N1 when N1 < 0 -> %% we want less
                      Num = abs(N1),
-                     lager:notice("delete: ~p group-members",[Num]),
                      SB = byte_size(GroupName),
                      SortFun =
                      fun
-                        (#task{name = <<GroupName:SB/binary, "--", Rank/binary>>},
-                            #task{name = <<GroupName:SB/binary, "--", OtherRank/binary>>}) ->
+                        (#task{name = <<GN:SB/binary, "--", Rank/binary>>},
+                            #task{name = <<GN:SB/binary, "--", OtherRank/binary>>}) ->
                            binary_to_integer(Rank) > binary_to_integer(OtherRank);
-                        (E, _) -> true
+                        (_, _) -> true
                      end,
                      Sorted = lists:sort(SortFun, RunningMembers),
-                     [lager:notice("sorted grouplist: ~p",[T#task.name]) || T <- Sorted],
                      del_group_members(Sorted, Num)
                end
          end
@@ -503,17 +496,15 @@ del_group_members(GroupList, 0) ->
 del_group_members([#task{group_leader = true} | R], Num) ->
    del_group_members(R, Num);
 del_group_members([T=#task{group_leader = false, id = TaskId} | R], Num) ->
-   StopRes = do_stop_task(T, false),
-   lager:notice("stop task: ~p gives: ~p",[T#task.name, StopRes]),
-   DelRes = faxe_db:delete_task(TaskId),
-   lager:notice("delete task: ~p gives: ~p",[T#task.name, DelRes]),
+   do_stop_task(T, false),
+   faxe_db:delete_task(TaskId),
    del_group_members(R, Num - 1).
 
 
 
 get_group_leader([]) ->
    {error, group_leader_not_found};
-get_group_leader([T=#task{group_leader = false} | R]) ->
+get_group_leader([#task{group_leader = false} | R]) ->
    get_group_leader(R);
 get_group_leader([T=#task{group_leader = true} | _R]) ->
    T.

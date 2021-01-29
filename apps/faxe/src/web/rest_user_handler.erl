@@ -100,8 +100,5 @@ user_list_json(Req, State=#state{}) ->
    Out = [user_to_map(U) || U <- Users],
    {jiffy:encode(Out, [uescape]), Req, State}.
 
-create_to_json(Req, State) ->
-   {stop, Req, State}.
-
 user_to_map(#faxe_user{name = Name, pw = PW, role = Role}) ->
    #{<<"name">> => Name, <<"pass">> => PW, <<"role">> => Role}.

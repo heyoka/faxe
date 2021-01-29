@@ -365,7 +365,7 @@ stop_to_json(Req, State = #state{task_id = Id}) ->
          {jiffy:encode(#{<<"error">> => faxe_util:to_bin(Error)}), Req, State}
    end.
 
-stop_group_to_json(Req, State = #state{task_id = Id}) ->
+stop_group_to_json(Req, State = #state{}) ->
    GroupName = cowboy_req:binding(groupname, Req),
    case faxe:stop_task_group(GroupName, is_permanent(Req)) of
       {error, Error} ->
