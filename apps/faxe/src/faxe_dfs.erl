@@ -2,6 +2,7 @@
 %% Ⓒ 2017 heyoka
 -module(faxe_dfs).
 -author("Alexander Minichmair").
+-compile({no_auto_import,[binary_to_atom/1]}).
 
 -include("faxe.hrl").
 

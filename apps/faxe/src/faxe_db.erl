@@ -275,6 +275,7 @@ db_init() ->
 
       true 	-> lager:info("schema already there, loading tables from disc"),
          Tables = mnesia:system_info(tables),
+         faxe_migration:migrate(),
          lists:foreach(fun(T) -> mnesia:force_load_table(T) end, Tables)
       ;
 

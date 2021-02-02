@@ -14,15 +14,14 @@ dev1:
 	export FAXE_METRICS_HANDLER_MQTT_ENABLE=off && \
 #	export FAXE_DEBUG_HANDLER_MQTT_HOST=10.156.15.11 && \
 	export FAXE_DEBUG_HANDLER_MQTT_ENABLE=on && \
-	export RELX_REPLACE_OS_VARS=true && \
-	rebar3 as dev1 release && _build/dev1/rel/faxe/bin/faxe console
+	./rebar3 as dev1 release && _build/dev1/rel/faxe/bin/faxe console
 
 
 start:
 	export FAXE_DFS_SCRIPT_PATH=/home/heyoka/workspace/faxe/dfs/ && \
     #	export FAXE_FLOW_AUTO_START=off && \
-    	export FAXE_ALLOW_ANONYMOUS=true && \
-  export FAXE_EMAIL_PASS='34joijr2#zzub#fe553' && \
+    export FAXE_ALLOW_ANONYMOUS=true && \
+  	export FAXE_EMAIL_PASS='34joijr2#zzub#fe553' && \
     #	export FAXE_CONN_STATUS_HANDLER_MQTT_PORT=9876 && \ 
     	export FAXE_CONN_STATUS_HANDLER_MQTT_ENABLE=off && \
     	export FAXE_METRICS_HANDLER_MQTT_ENABLE=off && \
