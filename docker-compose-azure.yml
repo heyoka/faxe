@@ -12,7 +12,7 @@ services:
       - /opt/faxe/docker_storage/mnesia:/data/mnesia
       - /opt/faxe/docker_storage/esq:/data/esq
       - /opt/faxe/docker_storage/python:/data/python
-      - /opt/faxe/docker_storage/certs/running:/data/certs/
+      - /opt/faxe/docker_storage/certs:/data/certs/
     env_file:
     - /opt/faxe/docker_storage/azure.env
     ulimits:
