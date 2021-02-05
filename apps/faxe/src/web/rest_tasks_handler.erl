@@ -61,6 +61,14 @@ content_types_provided(Req, State=#state{mode = update}) ->
    {[
       {{<<"application">>, <<"json">>, []}, update_json}
    ], Req, State};
+content_types_provided(Req, State=#state{mode = update_by_tags}) ->
+   {[
+      {{<<"application">>, <<"json">>, []}, update_json}
+   ], Req, State};
+content_types_provided(Req, State=#state{mode = update_by_template}) ->
+   {[
+      {{<<"application">>, <<"json">>, []}, update_json}
+   ], Req, State};
 content_types_provided(Req, State=#state{mode = start_permanent}) ->
    {[
       {{<<"application">>, <<"json">>, []}, start_permanent_json}
@@ -194,9 +202,20 @@ list_json(Req, State=#state{mode = Mode}) ->
          {jiffy:encode(Maps), Req, State}
    end.
 
-update_json(Req, State) ->
+update_json(Req, State = #state{mode = Mode}) ->
+   Result =
+      case Mode of
+         update -> faxe:update_all();
+         update_by_template ->
+            TemplateId = cowboy_req:binding(template, Req),
+            faxe:update_by_template(TemplateId);
+         update_by_tags ->
+            Tags0 = cowboy_req:binding(tags, Req),
+            Tags = binary:split(Tags0,[<<",">>, <<" ">>],[global, trim_all]),
+            faxe:update_by_tags(Tags)
+      end,
    Resp =
-   case faxe:update_all() of
+   case Result of
       R when is_list(R) ->
          Add = maybe_plural(length(R), <<"flow">>),
          #{<<"success">> => true, <<"message">> => <<"updated ", Add/binary>>};

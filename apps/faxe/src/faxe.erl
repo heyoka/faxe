@@ -52,7 +52,7 @@
    start_trace/1,
    stop_trace/1,
    update_all/0,
-   stop_task_group/2, delete_task_group/1, list_tasks_by_group/1, set_group_size/2]).
+   stop_task_group/2, delete_task_group/1, list_tasks_by_group/1, set_group_size/2, update_by_tags/1, update_by_template/1]).
 
 start_permanent_tasks() ->
    Tasks = faxe_db:get_permanent_tasks(),
@@ -208,8 +208,18 @@ register_task(DfsScript, Name, Type) ->
 %% @doc update all tasks that exist, use with care
 -spec update_all() -> [ok|{error, term()}].
 update_all() ->
-   [update_task(DfsScript, Id, data) || #task{id = Id, dfs = DfsScript} <- list_tasks()].
+   update_list(list_tasks()).
 
+update_by_tags(Tags) when is_list(Tags) ->
+   Tasks = list_tasks_by_tags(Tags),
+   update_list(Tasks).
+
+update_by_template(TemplateId) ->
+   Tasks = list_tasks_by_template(TemplateId),
+   update_list(Tasks).
+
+update_list(TaskList) when is_list(TaskList) ->
+   [update_task(DfsScript, Id, data) || #task{id = Id, dfs = DfsScript} <- TaskList].
 
 %%set_all_offline() ->
 %%   [
