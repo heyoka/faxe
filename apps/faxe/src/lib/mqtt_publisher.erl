@@ -36,6 +36,8 @@
    ssl_opts = [],
    queue,
    mem_queue,
+   mem_queue_len = 0,
+   max_mem_queue_len = 10,
    deq_interval = 15,
    reconnector,
    node_id,
@@ -79,7 +81,7 @@ start_link(Opts) ->
    {ok, State :: #state{}} | {ok, State :: #state{}, timeout() | hibernate} |
    {stop, Reason :: term()} | ignore).
 init([#{} = Opts]) ->
-   init_all(Opts, #state{mem_queue = queue:new()});
+   init_all(Opts, #state{mem_queue = queue:new(), mem_queue_len = 0});
 init([#{} = Opts, Queue]) ->
    init_all(Opts, #state{queue = Queue}).
 
@@ -118,6 +120,8 @@ init_opts([{retained, Ret} | R], State) when is_atom(Ret) ->
    init_opts(R, State#state{retained = Ret});
 init_opts([{qos, Qos} | R], State) when is_integer(Qos) ->
    init_opts(R, State#state{qos = Qos});
+init_opts([{q_len, QLen} | R], State) when is_integer(QLen) andalso QLen > 0 ->
+   init_opts(R, State#state{max_mem_queue_len = QLen});
 init_opts([{client_id, ClientId} | R], State) when is_binary(ClientId) ->
    init_opts(R, State#state{client_id = ClientId});
 init_opts([{ssl, false} | R], State) ->
@@ -174,7 +178,7 @@ handle_info({mqttc, C, connected},
     State=#state{queue = undefined, mem_queue = Q}) ->
    connection_registry:connected(),
    PendingList = queue:to_list(Q),
-   NewState = State#state{client = C, connected = true, mem_queue = queue:new()},
+   NewState = State#state{client = C, connected = true, mem_queue = queue:new(), mem_queue_len = 0},
    [publish(M, NewState) || M <- PendingList],
    lager:info("mqtt client connected!!"),
    {noreply, NewState};
@@ -192,9 +196,10 @@ handle_info({mqttc, _C,  disconnected}, State=#state{client = Client}) ->
 handle_info(deq, State=#state{}) ->
    next(State),
    {noreply, State};
-handle_info({publish, {Topic, Message}}, State = #state{connected = false, mem_queue = Q}) ->
-   Q1 = queue:in({Topic, Message}, Q),
-   {noreply, State#state{mem_queue = Q1}};
+handle_info({publish, {_Topic, _Message}=M}, State = #state{connected = false, mem_queue = Q}) ->
+   {noreply, enqueue_mem(M, State)};
+%%   Q1 = queue:in({Topic, Message}, Q),
+%%   {noreply, State#state{mem_queue = Q1}};
 handle_info({publish, {Topic, Message}}, State = #state{}) ->
    publish({Topic, Message}, State),
    {noreply, State};
@@ -211,6 +216,17 @@ handle_info(E, S) ->
    lager:warning("unexpected: ~p~n", [E]),
    {noreply, S}.
 
+-spec enqueue_mem(tuple(), #state{}) -> #state{}.
+enqueue_mem(NewItem, State = #state{mem_queue = Q, mem_queue_len = Len, max_mem_queue_len = MaxQLen}) ->
+   {NewQ, NewQLen} =
+   case Len >= MaxQLen of
+      true -> {queue:drop(Q), Len - 1};
+      false -> {Q, Len}
+   end,
+   lager:notice("mqtt_mem_q: old_len: ~p, new_len: ~p", [Len, NewQLen+1]),
+   QOut = queue:in(NewItem, NewQ),
+   [lager:info("~p",[E]) || E <- queue:to_list(QOut) ],
+   State#state{mem_queue = QOut, mem_queue_len = NewQLen + 1}.
 
 next(State=#state{queue = Q, deq_interval = Interval}) ->
    case esq:deq(Q) of
