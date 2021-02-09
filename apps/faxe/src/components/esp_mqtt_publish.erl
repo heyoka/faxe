@@ -49,7 +49,9 @@ options() -> [
    {topic_lambda, lambda, undefined},
    {retained, is_set},
    {ssl, is_set, {mqtt, ssl, enable}},
-   {safe, is_set, false}].
+   {safe, is_set, false},
+   {max_mem_queue_size, integer, 100}
+].
 
 check_options() ->
    [

@@ -36,8 +36,7 @@
    ssl_opts = [],
    queue,
    mem_queue,
-   mem_queue_len = 0,
-   max_mem_queue_len = 10,
+   max_mem_queue_len = 100,
    deq_interval = 15,
    reconnector,
    node_id,
@@ -120,7 +119,7 @@ init_opts([{retained, Ret} | R], State) when is_atom(Ret) ->
    init_opts(R, State#state{retained = Ret});
 init_opts([{qos, Qos} | R], State) when is_integer(Qos) ->
    init_opts(R, State#state{qos = Qos});
-init_opts([{q_len, QLen} | R], State) when is_integer(QLen) andalso QLen > 0 ->
+init_opts([{max_mem_queue_size, QLen} | R], State) when is_integer(QLen) andalso QLen > 0 ->
    init_opts(R, State#state{max_mem_queue_len = QLen});
 init_opts([{client_id, ClientId} | R], State) when is_binary(ClientId) ->
    init_opts(R, State#state{client_id = ClientId});

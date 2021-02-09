@@ -98,9 +98,6 @@
 
 %%%% Tunables
 %% @doc Name of the Erlang node
-%{mapping, "nodename", "vm_args.-sname", [
-%  {default, "{{nodename}}" }
-%]}.
 
 {mapping, "nodename", "vm_args.-name", [
   {default, "{{nodename}}" }
