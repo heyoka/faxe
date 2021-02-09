@@ -35,8 +35,9 @@
    queue,
    exchange,
    routing_key = false,
-   routing_keys = false,
+   bindings = false,
    prefetch,
+   ack_every,
    ssl = false,
    opts,
    dt_field,
@@ -53,12 +54,13 @@ options() -> [
    {user, string, {amqp, user}},
    {pass, string, {amqp, pass}},
    {ssl, is_set, false},
-   {vhost, binary, <<"/">>},
-   {routing_key, binary, undefined},
-   {routing_keys, string_list, []},
-   {queue, binary},
-   {exchange, binary},
+   {vhost, string, <<"/">>},
+   {routing_key, string, undefined},
+   {bindings, string_list, []},
+   {queue, string},
+   {exchange, string},
    {prefetch, integer, 1},
+   {ack_every, integer, 7},
    {dt_field, string, <<"ts">>},
    {dt_format, string, ?TF_TS_MILLI}
 ].
@@ -70,15 +72,15 @@ metrics() ->
 
 init({_GraphId, _NodeId} = Idx, _Ins,
    #{ host := Host0, port := Port, user := _User, pass := _Pass, vhost := _VHost, queue := _Q,
-      exchange := _Ex, prefetch := Prefetch, routing_key := _RoutingKey, routing_keys := RKeys, dt_field := DTField,
-      dt_format := DTFormat, ssl := _UseSSL}
+      exchange := _Ex, prefetch := Prefetch, routing_key := _RoutingKey, bindings := _Bindings,
+      dt_field := DTField, dt_format := DTFormat, ssl := _UseSSL, ack_every := AckEvery0}
       = Opts0) ->
 
    Host = binary_to_list(Host0),
-   Opts1 = Opts0#{host => Host, bindings => RKeys},
-   %% get rid of the routing_keys entry, it is named bindings
-   Opts = maps:without([routing_keys], Opts1),
-   State = #state{opts = Opts, prefetch = Prefetch, dt_field = DTField, dt_format = DTFormat},
+   Opts = Opts0#{host => Host},
+   State = #state{
+      opts = Opts, prefetch = Prefetch, ack_every = AckEvery0,
+      dt_field = DTField, dt_format = DTFormat},
 
    QFile = faxe_config:q_file(Idx),
    {ok, Q} = esq:new(QFile, ?Q_OPTS),
