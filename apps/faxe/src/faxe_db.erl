@@ -25,7 +25,8 @@
    get_tasks_by_pids/1,
    get_permanent_tasks/0,
    get_tasks_by_template/1
-   , get_tasks_by_ids/1]).
+   , get_tasks_by_ids/1,
+   get_tasks_by_group/1]).
 
 -export([
    add_tags/2,
@@ -76,15 +77,18 @@ get_template(TemplateName) ->
       [] -> {error, not_found}
    end.
 
+get_tasks_by_group(GroupName) ->
+   case mnesia:dirty_index_read(task, GroupName, #task.group) of
+      [#task{} | _] = L -> [T#task{definition = maps:from_list(Def)} || T=#task{definition = Def} <- L];
+      [] -> {error, not_found}
+   end.
+
 
 get_tasks_by_ids(IdList) ->
    Specs =
       lists:map(
          fun(Id) ->
-            {#task{id = '$1',name = '$2',dfs = '_',definition = '_',
-               date = '_',pid = '_',last_start = '_',last_stop = '_',
-               permanent = '_',is_running = '_',template_vars = '_',
-               template = '_', tags = '_'},
+            {#task{id = '$1',name = '$2', _ = '_'},
                [{'orelse', {'==', '$1', Id}, {'==', '$2', Id}}],
                ['$_']}
 
@@ -109,6 +113,7 @@ save_template(#template{id = undefined, definition = Def} = Template) ->
 save_template(#template{definition = Def} = T) ->
    mnesia:dirty_write(T#template{definition = maps:to_list(Def)}).
 
+-spec save_task(#task{}) -> ok|{error, term()}.
 save_task(#task{id = undefined, definition = Def} = Task) ->
    mnesia:dirty_write(Task#task{id = next_id(task), definition = maps:to_list(Def)});
 save_task(#task{definition = Def} = T) ->
@@ -270,6 +275,7 @@ db_init() ->
 
       true 	-> lager:info("schema already there, loading tables from disc"),
          Tables = mnesia:system_info(tables),
+         faxe_migration:migrate(),
          lists:foreach(fun(T) -> mnesia:force_load_table(T) end, Tables)
       ;
 
@@ -339,7 +345,7 @@ create() ->
    mnesia:create_table(task, [
       {attributes, record_info(fields, task)},
       {type, set},
-      {disc_copies, [node()]}, {index, [name, pid, permanent, template]}
+      {disc_copies, [node()]}, {index, [name, pid, permanent, template, group]}
    ]),
    mnesia:create_table(ids, [
       {attributes, record_info(fields, ids)},

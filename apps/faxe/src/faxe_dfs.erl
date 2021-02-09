@@ -2,6 +2,7 @@
 %% Ⓒ 2017 heyoka
 -module(faxe_dfs).
 -author("Alexander Minichmair").
+-compile({no_auto_import,[binary_to_atom/1]}).
 
 -include("faxe.hrl").
 
@@ -83,6 +84,10 @@ compile(D) ->
 %%   lager:notice("dfs compile: ~p", [D]),
    try eval(D) of
       GraphDef when is_map(GraphDef) ->
+%%         #{nodes := Nodes, edges := Edges} = GraphDef,
+%%         [lager:notice("GraphNode: ~p (~p)" ,[NodeName, Type]) || {NodeName, Type, _Params} <- Nodes],
+%%         [lager:notice("GraphEdge from: ~p (~p) to : ~p (~p)  " ,
+%%            [OutNode, OutPort, InNode, InPort]) || {OutNode, OutPort, InNode, InPort, _Opts} <- Edges],
          GraphDef;
       Err -> {error, Err}
    catch

@@ -35,7 +35,9 @@
    queue,
    exchange,
    routing_key = false,
+   bindings = false,
    prefetch,
+   ack_every,
    ssl = false,
    opts,
    dt_field,
@@ -51,12 +53,14 @@ options() -> [
    {port, integer, {amqp, port}},
    {user, string, {amqp, user}},
    {pass, string, {amqp, pass}},
-   {ssl, bool, false},
-   {vhost, binary, <<"/">>},
-   {routing_key, binary},
-   {queue, binary},
-   {exchange, binary},
+   {ssl, is_set, false},
+   {vhost, string, <<"/">>},
+   {routing_key, string, undefined},
+   {bindings, string_list, []},
+   {queue, string},
+   {exchange, string},
    {prefetch, integer, 1},
+   {ack_every, integer, 7},
    {dt_field, string, <<"ts">>},
    {dt_format, string, ?TF_TS_MILLI}
 ].
@@ -68,13 +72,15 @@ metrics() ->
 
 init({_GraphId, _NodeId} = Idx, _Ins,
    #{ host := Host0, port := Port, user := _User, pass := _Pass, vhost := _VHost, queue := _Q,
-      exchange := _Ex, prefetch := Prefetch, routing_key := _RoutingKey, dt_field := DTField,
-      dt_format := DTFormat, ssl := _UseSSL}
+      exchange := _Ex, prefetch := Prefetch, routing_key := _RoutingKey, bindings := _Bindings,
+      dt_field := DTField, dt_format := DTFormat, ssl := _UseSSL, ack_every := AckEvery0}
       = Opts0) ->
 
    Host = binary_to_list(Host0),
    Opts = Opts0#{host => Host},
-   State = #state{opts = Opts, prefetch = Prefetch, dt_field = DTField, dt_format = DTFormat},
+   State = #state{
+      opts = Opts, prefetch = Prefetch, ack_every = AckEvery0,
+      dt_field = DTField, dt_format = DTFormat},
 
    QFile = faxe_config:q_file(Idx),
    {ok, Q} = esq:new(QFile, ?Q_OPTS),
@@ -147,7 +153,8 @@ start_emitter(State = #state{queue = Q}) ->
 
 -spec consumer_config(Opts :: map()) -> list().
 consumer_config(Opts = #{vhost := VHost, queue := Q,
-   prefetch := Prefetch, exchange := XChange, routing_key := RoutingKey}) ->
+   prefetch := Prefetch, exchange := XChange, bindings := Bindings, routing_key := RoutingKey}) ->
+   lager:info("AMQP consumer_config: ~p",[Opts]),
 %%   [
 %%      {hosts, [ {Host, Port} ]},
 %%      {user, User},
@@ -171,9 +178,8 @@ consumer_config(Opts = #{vhost := VHost, queue := Q,
                {queue, [
                   {queue, Q},
                   {exchange, XChange},
-                  {routing_key, RoutingKey}
-%%                     ,
-%%                  {bindings, StreamIds}
+                  {routing_key, RoutingKey},
+                  {bindings, Bindings}
 
                ]},
                {exchange, [
@@ -185,9 +191,8 @@ consumer_config(Opts = #{vhost := VHost, queue := Q,
             ]
          }
 
-
       ],
-   Props = carrot_util:proplists_merge(maps:to_list(Opts), Config),
+   Props = carrot_util:proplists_merge(maps:to_list(Opts) ++ [{ssl_opts, faxe_config:get_amqp_ssl_opts()}], Config),
    lager:warning("giving carrot these Configs: ~p", [Props]),
    Props.
 

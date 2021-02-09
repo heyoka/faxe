@@ -36,6 +36,8 @@
    ssl_opts = [],
    queue,
    mem_queue,
+   mem_queue_len = 0,
+   max_mem_queue_len = 10,
    deq_interval = 15,
    reconnector,
    node_id,
@@ -79,7 +81,7 @@ start_link(Opts) ->
    {ok, State :: #state{}} | {ok, State :: #state{}, timeout() | hibernate} |
    {stop, Reason :: term()} | ignore).
 init([#{} = Opts]) ->
-   init_all(Opts, #state{mem_queue = queue:new()});
+   init_all(Opts, #state{mem_queue = memory_queue:new()});
 init([#{} = Opts, Queue]) ->
    init_all(Opts, #state{queue = Queue}).
 
@@ -118,6 +120,8 @@ init_opts([{retained, Ret} | R], State) when is_atom(Ret) ->
    init_opts(R, State#state{retained = Ret});
 init_opts([{qos, Qos} | R], State) when is_integer(Qos) ->
    init_opts(R, State#state{qos = Qos});
+init_opts([{q_len, QLen} | R], State) when is_integer(QLen) andalso QLen > 0 ->
+   init_opts(R, State#state{max_mem_queue_len = QLen});
 init_opts([{client_id, ClientId} | R], State) when is_binary(ClientId) ->
    init_opts(R, State#state{client_id = ClientId});
 init_opts([{ssl, false} | R], State) ->
@@ -173,8 +177,8 @@ handle_cast(_Request, State) ->
 handle_info({mqttc, C, connected},
     State=#state{queue = undefined, mem_queue = Q}) ->
    connection_registry:connected(),
-   PendingList = queue:to_list(Q),
-   NewState = State#state{client = C, connected = true, mem_queue = queue:new()},
+   {PendingList, NewQ} = memory_queue:to_list_reset(Q),
+   NewState = State#state{client = C, connected = true, mem_queue = NewQ},
    [publish(M, NewState) || M <- PendingList],
    lager:info("mqtt client connected!!"),
    {noreply, NewState};
@@ -192,9 +196,11 @@ handle_info({mqttc, _C,  disconnected}, State=#state{client = Client}) ->
 handle_info(deq, State=#state{}) ->
    next(State),
    {noreply, State};
-handle_info({publish, {Topic, Message}}, State = #state{connected = false, mem_queue = Q}) ->
-   Q1 = queue:in({Topic, Message}, Q),
-   {noreply, State#state{mem_queue = Q1}};
+handle_info({publish, {_Topic, _Message}=M}, State = #state{connected = false, mem_queue = Q}) ->
+   NewQ = memory_queue:enq(M, Q),
+   {noreply, State#state{mem_queue = NewQ}};
+%%   Q1 = queue:in({Topic, Message}, Q),
+%%   {noreply, State#state{mem_queue = Q1}};
 handle_info({publish, {Topic, Message}}, State = #state{}) ->
    publish({Topic, Message}, State),
    {noreply, State};
@@ -210,7 +216,6 @@ handle_info({'EXIT', _Client, Reason}, State = #state{reconnector = Recon, host 
 handle_info(E, S) ->
    lager:warning("unexpected: ~p~n", [E]),
    {noreply, S}.
-
 
 next(State=#state{queue = Q, deq_interval = Interval}) ->
    case esq:deq(Q) of

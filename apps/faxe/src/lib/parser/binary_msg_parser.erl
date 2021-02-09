@@ -29,7 +29,7 @@ convert(Data, Point = #data_point{}, As, Parser) when is_binary(Data) ->
       {Time, {Ts, DataFormat, Vers, Map}} -> {Time, Point#data_point{ts=Ts}, {DataFormat, Vers, Map}}
    end,
 %%   lager:notice("Parser time <~p>: ~p",[Parser, T]),
-   {DataF, Vs, Mp} = D,
+   {DataF, _Vs, Mp} = D,
    P0 = flowdata:set_field(NPoint, As, Mp),
    flowdata:set_field(P0, <<"df">>, DataF).
 

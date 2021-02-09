@@ -43,7 +43,8 @@ is_authorized(Req, State) ->
 task_to_map(_T = #task{
    id = Id, name = Name, date = Dt, is_running = Running,
    last_start = LStart, last_stop = LStop, dfs = Dfs, permanent = Perm,
-   template = Template, template_vars = TemplateVars, tags = Tags
+   template = Template, template_vars = TemplateVars, tags = Tags,
+   group = Group, group_leader = Leader
 }) ->
    Map = #{
       <<"id">> => Id,
@@ -54,7 +55,9 @@ task_to_map(_T = #task{
       <<"changed">> => faxe_time:to_iso8601(Dt),
       <<"last_start">> => faxe_time:to_iso8601(LStart),
       <<"last_stop">> => faxe_time:to_iso8601(LStop),
-      <<"tags">> => Tags
+      <<"tags">> => Tags,
+      <<"group">> => Group,
+      <<"group_leader">> => Leader
    },
    OutMap =
    case Template of
