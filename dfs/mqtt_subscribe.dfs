@@ -1,6 +1,6 @@
 |mqtt_subscribe()
 .host('10.10.1.102')
-.topics('tgw/data/petzold/rovolutionwels/pcr/cwa/conn_status/v1')
+.topics('ttgw/robot_plc/petzoldstr')
 .topic_as('flatta.topic')
 .include_topic(false)
 |debug()

@@ -1,20 +1,27 @@
+%% demonstrates the use of the combine node
+
+
+%% we setup 2 random-value streams
+
 def in1 =
  |value_emitter()
- .every(500ms)
+ .every(50ms)
  .type(point)
- .fields(val)
+ .fields('vall')
 
 def in2 =
     |value_emitter()
-    .every(4s)
+    .every(2s)
     .type(point)
     .fields('val2', 'val3')
 
-def combined =
+%%% combine the 2 streams, so that we get a value every 50ms (from in1) but only after initially 2s passed (in2)
+%%% the values of the resulting fields 'val2' and 'val3' will change every 2s
+%%% while the value of 'vall' will change every 50ms
 in1
     |combine(in2)
     .fields('val2', 'val3')
-    .prefix('comb')
-    .prefix_delimiter('-')
+    %.prefix('comb')
+    %.prefix_delimiter('-')
 
 |debug()

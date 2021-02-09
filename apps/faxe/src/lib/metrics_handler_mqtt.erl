@@ -24,7 +24,7 @@
    {error, Reason :: term()}).
 init(Topic0) ->
    Topic = faxe_util:build_topic([Topic0, <<"metrics">>]),
-   {ok, #state{topic = Topic}}.
+   {ok, #{qos => 1}, #state{topic = Topic}}.
 
 handle_event({{FlowId}, Item}, State = #state{topic = Topic}) ->
    T = <<Topic/binary, "/", FlowId/binary>>,

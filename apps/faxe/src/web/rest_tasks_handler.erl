@@ -61,6 +61,14 @@ content_types_provided(Req, State=#state{mode = update}) ->
    {[
       {{<<"application">>, <<"json">>, []}, update_json}
    ], Req, State};
+content_types_provided(Req, State=#state{mode = update_by_tags}) ->
+   {[
+      {{<<"application">>, <<"json">>, []}, update_json}
+   ], Req, State};
+content_types_provided(Req, State=#state{mode = update_by_template}) ->
+   {[
+      {{<<"application">>, <<"json">>, []}, update_json}
+   ], Req, State};
 content_types_provided(Req, State=#state{mode = start_permanent}) ->
    {[
       {{<<"application">>, <<"json">>, []}, start_permanent_json}
@@ -136,6 +144,7 @@ do_import(TasksList, Req, State) ->
    {true, Req2, State}.
 
 
+import_task(#{<<"group_leader">> := false}) -> {error, group_leader_import_only};
 import_task(#{<<"dfs">> := Dfs, <<"name">> := Name, <<"permanent">> := Perm, <<"tags">> := Tags}) ->
    case faxe:register_string_task(Dfs, Name) of
       ok ->
@@ -174,7 +183,14 @@ list_json(Req, State=#state{mode = Mode}) ->
                _ -> L
             end;
          list_by_tags ->
-            tasks_by_tags(Req)
+            tasks_by_tags(Req);
+         list_by_group ->
+            GroupName = cowboy_req:binding(groupname, Req),
+            L = faxe:list_tasks_by_group(GroupName),
+            case L of
+               {error, not_found} -> {error, group_not_found};
+               _ -> L
+            end
           end,
    case Tasks of
       {error, What} ->
@@ -186,9 +202,20 @@ list_json(Req, State=#state{mode = Mode}) ->
          {jiffy:encode(Maps), Req, State}
    end.
 
-update_json(Req, State) ->
+update_json(Req, State = #state{mode = Mode}) ->
+   Result =
+      case Mode of
+         update -> faxe:update_all();
+         update_by_template ->
+            TemplateId = cowboy_req:binding(template, Req),
+            faxe:update_by_template(TemplateId);
+         update_by_tags ->
+            Tags0 = cowboy_req:binding(tags, Req),
+            Tags = binary:split(Tags0,[<<",">>, <<" ">>],[global, trim_all]),
+            faxe:update_by_tags(Tags)
+      end,
    Resp =
-   case faxe:update_all() of
+   case Result of
       R when is_list(R) ->
          Add = maybe_plural(length(R), <<"flow">>),
          #{<<"success">> => true, <<"message">> => <<"updated ", Add/binary>>};
@@ -242,7 +269,7 @@ stop_list(TaskList, Req, State) ->
             #task{id = Id} -> Id;
             _ -> Task
          end,
-         case faxe:stop_task(TId) of
+         case faxe:stop_task(TId, false) of
             ok -> [TId | Stopped];
             _ -> Stopped
          end

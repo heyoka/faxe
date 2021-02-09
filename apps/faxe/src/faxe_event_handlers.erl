@@ -49,12 +49,6 @@ add_event_handler(<<"metrics">>, Name, Type, Args) ->
   dataflow:add_metrics_handler(Name, Type, Args).
 
 
-handler_name(Name, Type) ->
-  binary_to_atom(<<Name/binary, "_handler_", Type/binary>>, utf8).
+handler_name(Name, Type) -> binary_to_atom(<<Name/binary, "_handler_", Type/binary>>, utf8).
 
-filter_options(Proplist) ->
-  lists:filter(
-    fun({_Key, Value}) ->
-      Value /= [] andalso Value /= undefined andalso Value /= <<>> andalso Value /= undef
-    end,
-    Proplist).
+filter_options(Proplist) -> faxe_config:filter_empty_options(Proplist).

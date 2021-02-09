@@ -265,6 +265,11 @@
     [{default, ""}, {datatype, file}, {commented, "/path/to/cert.key"}]
 }.
 
+%% @doc amqp ssl peer verification
+{mapping, "amqp.ssl.verify", "faxe.amqp.ssl.verify",
+    [{default, verify_none}, {datatype, {enum,[verify_none, verify_peer]}}, {commented, verify_none}]
+}.
+
 %% @doc -------------------------------------------------------------------------------
 %% RabbitMQ defaults
 %% -------------------------------------------------------------------------------

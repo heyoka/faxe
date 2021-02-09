@@ -14,7 +14,7 @@
    get/1, get/2,
    q_file/1,
    get_mqtt_ssl_opts/0,
-   get_amqp_ssl_opts/0, get_ssl_opts/1, get_http_ssl_opts/0, get_http_tls/0]).
+   get_amqp_ssl_opts/0, get_ssl_opts/1, get_http_ssl_opts/0, get_http_tls/0, filter_empty_options/1]).
 
 get(Key) ->
    application:get_env(faxe, Key, undefined).
@@ -38,7 +38,7 @@ get_ssl_opts(Key) when is_atom(Key) ->
    case faxe_config:get(Key) of
       KeyOpts when is_list(KeyOpts) ->
          SslOpts = proplists:get_value(ssl, KeyOpts, []),
-         proplists:delete(enable, SslOpts);
+         filter_empty_options(proplists:delete(enable, SslOpts));
       _ -> []
    end.
 
@@ -59,4 +59,12 @@ get_http_ssl_opts() ->
          lists:filter(FilerFun, SslOpts) ++ Additional;
       _ -> []
    end.
+
+
+filter_empty_options(Proplist) ->
+   lists:filter(
+      fun({_Key, Value}) ->
+         Value /= [] andalso Value /= undefined andalso Value /= <<>> andalso Value /= undef
+      end,
+      Proplist).
 
