@@ -154,7 +154,7 @@ start_emitter(State = #state{queue = Q}) ->
 -spec consumer_config(Opts :: map()) -> list().
 consumer_config(Opts = #{vhost := VHost, queue := Q,
    prefetch := Prefetch, exchange := XChange, bindings := Bindings, routing_key := RoutingKey}) ->
-   lager:info("AMQP consumer_config: ~p",[Opts]),
+%%   lager:info("AMQP consumer_config: ~p",[Opts]),
 %%   [
 %%      {hosts, [ {Host, Port} ]},
 %%      {user, User},
@@ -193,7 +193,7 @@ consumer_config(Opts = #{vhost := VHost, queue := Q,
 
       ],
    Props = carrot_util:proplists_merge(maps:to_list(Opts) ++ [{ssl_opts, faxe_config:get_amqp_ssl_opts()}], Config),
-   lager:warning("giving carrot these Configs: ~p", [Props]),
+%%   lager:warning("giving carrot these Configs: ~p", [Props]),
    Props.
 
 
