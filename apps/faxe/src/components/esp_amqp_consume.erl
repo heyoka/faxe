@@ -26,7 +26,6 @@
 %% state for direct publish mode
 -record(state, {
    consumer,
-   connected = false,
    host,
    port,
    user,
@@ -37,15 +36,18 @@
    routing_key = false,
    bindings = false,
    prefetch,
+   collected = 0,
    ack_every,
+   ack_after,
+   ack_timer,
+   last_dtag,
    ssl = false,
    opts,
    dt_field,
    dt_format,
-   collected = 0,
-   points = queue:new(),
    emitter,
-   flownodeid
+   flownodeid,
+   save = false
 }).
 
 options() -> [
@@ -60,9 +62,11 @@ options() -> [
    {queue, string},
    {exchange, string},
    {prefetch, integer, 1},
-   {ack_every, integer, 7},
+   {ack_every, integer, 5},
+   {ack_after, duration, <<"5s">>},
    {dt_field, string, <<"ts">>},
-   {dt_format, string, ?TF_TS_MILLI}
+   {dt_format, string, ?TF_TS_MILLI},
+   {safe, is_set, false}
 ].
 
 metrics() ->
@@ -73,13 +77,15 @@ metrics() ->
 init({_GraphId, _NodeId} = Idx, _Ins,
    #{ host := Host0, port := Port, user := _User, pass := _Pass, vhost := _VHost, queue := _Q,
       exchange := _Ex, prefetch := Prefetch, routing_key := _RoutingKey, bindings := _Bindings,
-      dt_field := DTField, dt_format := DTFormat, ssl := _UseSSL, ack_every := AckEvery0}
+      dt_field := DTField, dt_format := DTFormat, ssl := _UseSSL,
+      ack_every := AckEvery0, ack_after := AckTimeout0}
       = Opts0) ->
 
+   AckTimeout = faxe_time:duration_to_ms(AckTimeout0),
    Host = binary_to_list(Host0),
    Opts = Opts0#{host => Host},
    State = #state{
-      opts = Opts, prefetch = Prefetch, ack_every = AckEvery0,
+      opts = Opts, prefetch = Prefetch, ack_every = AckEvery0, ack_after = AckTimeout,
       dt_field = DTField, dt_format = DTFormat},
 
    QFile = faxe_config:q_file(Idx),
@@ -95,19 +101,14 @@ process(_In, _, State = #state{}) ->
 %%
 %% new queue-message arrives ...
 %%
-handle_info({ {DTag, RKey}, {Payload, _Headers}, From}, State=#state{prefetch = 1, queue = Q, flownodeid = FNId}) ->
+handle_info({ {DTag, RKey}, {Payload, _Headers}, _From},
+    State=#state{queue = Q, flownodeid = FNId, collected = NumCollected}) ->
    node_metrics:metric(?METRIC_BYTES_READ, byte_size(Payload), FNId),
    node_metrics:metric(?METRIC_ITEMS_IN, 1, FNId),
    DataPoint = build_point(Payload, RKey, State#state.dt_field, State#state.dt_format),
    ok = esq:enq(DataPoint, Q),
-   carrot:ack(From, DTag),
-   {ok, State};
-
-handle_info({ {DTag, RKey}, {Payload, _Headers}, From},
-    State=#state{collected = NumCollected, points = Batch}) ->
-   DataPoint = build_point(Payload, RKey, State#state.dt_field, State#state.dt_format),
-   NewState = State#state{points = queue:in(DataPoint, Batch), collected = NumCollected+1},
-   maybe_emit(DTag, From, NewState);
+   NewState = maybe_ack(State#state{collected = NumCollected+1, last_dtag = DTag}),
+   {ok, NewState};
 
 handle_info({'DOWN', _MonitorRef, process, Consumer, _Info}, #state{consumer = Consumer} = State) ->
    connection_registry:disconnected(),
@@ -116,22 +117,39 @@ handle_info({'DOWN', _MonitorRef, process, Consumer, _Info}, #state{consumer = C
 handle_info({'DOWN', _MonitorRef, process, Emitter, _Info}, #state{emitter = Emitter} = State) ->
    lager:notice("Q-Emitter ~p is 'DOWN'",[Emitter]),
    {ok, start_emitter(State)};
+handle_info(ack_timeout, State = #state{last_dtag = undefined}) ->
+   {ok, State#state{ack_timer = undefined}};
+handle_info(ack_timeout, State = #state{collected = Num}) ->
+   NewState = do_ack(State),
+   {ok, NewState};
 handle_info(_R, State) ->
    {ok, State}.
 
-shutdown(#state{consumer = C}) ->
+shutdown(State = #state{consumer = C, last_dtag = DTag}) ->
+   case DTag of
+      undefined -> ok;
+      _ -> carrot:ack_multiple(C, DTag)
+   end,
    catch (rmq_consumer:stop(C)).
 
-maybe_emit(DTag, From, State = #state{prefetch = Prefetch, collected = Prefetch, points = Points}) ->
-   DataBatch = #data_batch{points = queue:to_list(Points)},
-   NewState = State#state{points = queue:new(), collected = 0},
-%%   lager:notice("emit: ~p",[Prefetch]),
-   carrot:ack_multiple(From, DTag),
-%%   gen_event:notify(faxe_debug, {Key, {GId, NId}, Port, Value}).
-   {emit, {1, DataBatch}, NewState};
-maybe_emit(_DTag, _From, State = #state{}) ->
-   {ok, State}.
+maybe_ack(State = #state{last_dtag = undefined, collected = 0}) ->
+   State;
+maybe_ack(State = #state{collected = NumCollected, ack_every = NumCollected}) ->
+   do_ack(State);
+maybe_ack(State = #state{collected = 1}) ->
+   restart_ack_timeout(State);
+maybe_ack(State) ->
+   State.
 
+do_ack(State = #state{last_dtag = DTag, consumer = From, ack_timer = Timer, collected = Num}) ->
+   catch erlang:cancel_timer(Timer),
+   carrot:ack_multiple(From, DTag),
+   State#state{collected = 0, last_dtag = undefined, ack_timer = undefined}.
+
+restart_ack_timeout(State = #state{ack_after = Time, ack_timer = Timer}) ->
+   catch erlang:cancel_timer(Timer),
+   NewTimer = erlang:send_after(Time, self(), ack_timeout),
+   State#state{ack_timer = NewTimer}.
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %%% internal
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -154,14 +172,6 @@ start_emitter(State = #state{queue = Q}) ->
 -spec consumer_config(Opts :: map()) -> list().
 consumer_config(Opts = #{vhost := VHost, queue := Q,
    prefetch := Prefetch, exchange := XChange, bindings := Bindings, routing_key := RoutingKey}) ->
-%%   lager:info("AMQP consumer_config: ~p",[Opts]),
-%%   [
-%%      {hosts, [ {Host, Port} ]},
-%%      {user, User},
-%%      {pass, Pass},
-%%      {reconnect_timeout, ?RECONNECT_TIMEOUT},
-%%      {ssl_options, none} % Optional. Can be 'none' or [ssl_option()]
-%%   ],
    RMQConfig = faxe_config:get(rabbitmq),
    RootExchange = proplists:get_value(root_exchange, RMQConfig, <<"amq.topic">>),
 %%   HostParams = %% connection parameters

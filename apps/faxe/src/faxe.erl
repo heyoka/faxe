@@ -303,7 +303,7 @@ eval_dfs(DfsScript, Type) ->
 %%      exit:Err:Stacktrace -> {error, Err};
 %%      error:Err:Stacktrace -> {error, Err};
       _:Err:Stacktrace      ->
-         lager:warning("stacktrace: ~p",[Stacktrace]),
+         lager:warning("Error: ~p ~nstacktrace: ~p",[Err, Stacktrace]),
          {error, Err}
    end.
 

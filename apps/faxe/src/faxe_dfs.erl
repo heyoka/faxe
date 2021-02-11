@@ -56,7 +56,9 @@ data(DfsData, Vars) when is_list(Vars) ->
 macro_fun() ->
    fun(MacroName) ->
       case faxe:get_task(MacroName) of
-         #task{dfs = MacroDfs} -> MacroDfs;
+         #task{dfs = MacroDfs} ->
+%%            lager:notice("MacroDFS is: ~p",[MacroDfs]),
+            MacroDfs;
          _ -> throw("macro '" ++ binary_to_list(MacroName) ++ "' could not be found")
       end
    end.

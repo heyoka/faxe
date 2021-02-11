@@ -131,9 +131,10 @@ send(Item, State = #state{query = Q, faxe_fields = Fields, remaining_fields_as =
    Headers =
    case Pass of
       undefined -> Headers0;
-      _ -> UP = <<User/binary, ":", Pass/binary>>,
+      _ when is_binary(Pass) andalso is_binary(User) -> UP = <<User/binary, ":", Pass/binary>>,
          Auth = base64:encode(UP),
-         Headers0 ++ [{?AUTH_HEADER_KEY, <<"Basic ", Auth/binary>>}]
+         Headers0 ++ [{?AUTH_HEADER_KEY, <<"Basic ", Auth/binary>>}];
+      _ -> Headers0
    end,
    NewState = do_send(Query, Headers, 0, State#state{last_error = undefined}),
    MBytes = case (catch bytes(Query)) of

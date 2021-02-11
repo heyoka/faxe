@@ -71,11 +71,6 @@ init({_GraphId, _NodeId} = Idx, _Ins,
    connection_registry:connecting(),
    State = start_connection(#state{opts = Opts, exchange = Ex, routing_key = RoutingKey, queue = Q,
       rk_lambda = RkLambda}),
-%%   NewState =
-%%      case RoutingKey of
-%%         _ when is_binary(RoutingKey) -> State#state{routing_key = RoutingKey};
-%%         _ -> when is_function(), State#state{rk_lambda = RoutingKey}
-%%      end,
    {ok, State#state{flowid_nodeid = Idx}}.
 
 process(_In, Item, State = #state{exchange = Exchange, queue = Q,
