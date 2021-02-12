@@ -2,6 +2,7 @@
 
 dev1:
 	export FAXE_DFS_SCRIPT_PATH=/home/heyoka/workspace/faxe/dfs/ && \
+	export FAXE_QUEUE_BASE_DIR=/home/heyoka/esq_data/ && \
 	export FAXE_MQTT_HOST=10.14.204.3 && \
 #	export FAXE_FLOW_AUTO_START=off && \
 	export FAXE_ALLOW_ANONYMOUS=true && \

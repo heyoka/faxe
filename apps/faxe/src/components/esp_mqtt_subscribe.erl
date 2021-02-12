@@ -3,14 +3,6 @@
 %%% @copyright (C) 2019, <COMPANY>
 %%% @doc
 %%% Receive data from an mqtt-broker.
-%%% Incoming data_points or data_batchs are converted to a JSON string before sending.
-%%% If the save() parameter is given, every message first gets stored in an ondisk queue before it will
-%%% be sent, this way we can make sure no message gets lost when disconnected from the broker.
-%%% other params:
-%%% port() is 1883 by default
-%%% qos() is 1 by default
-%%% ssl() is false by default
-%%% retained() is false by default
 %%% @end
 %%% Created : 27. May 2019 09:00
 %%%-------------------------------------------------------------------
@@ -40,7 +32,6 @@
    topic,
    topics,
    client_id,
-   retained = false,
    dt_field,
    dt_format,
    ssl = false,
@@ -60,7 +51,6 @@ options() -> [
    {qos, integer, 1},
    {topic, binary, undefined},
    {topics, binary_list, undefined},
-   {retained, is_set},
    {dt_field, string, <<"ts">>},
    {dt_format, string, ?TF_TS_MILLI},
    {include_topic, bool, true},
@@ -82,7 +72,7 @@ metrics() ->
 init(NodeId, _Ins,
    #{ host := Host0, port := Port, topic := Topic, topics := Topics, dt_field := DTField, as := As,
       dt_format := DTFormat, user := User, pass := Pass, include_topic := IncludeTopic, topic_as := TopicKey,
-      retained := Retained, ssl := UseSSL, qos := Qos} = _Opts) ->
+      ssl := UseSSL, qos := Qos} = _Opts) ->
 
    Host = binary_to_list(Host0),
 
@@ -95,7 +85,7 @@ init(NodeId, _Ins,
 
    connection_registry:reg(NodeId, Host, Port, <<"mqtt">>),
    State = #state{host = Host, port = Port, topic = Topic, dt_field = DTField, dt_format = DTFormat,
-      retained = Retained, ssl = UseSSL, qos = Qos, client_id = ClientId,
+      ssl = UseSSL, qos = Qos, client_id = ClientId,
       topics = Topics, include_topic = IncludeTopic, topic_key = TopicKey, as = As,
       reconnector = Reconnector1, user = User, pass = Pass, fn_id = NodeId, ssl_opts = ssl_opts(UseSSL)},
    {ok, State}.
