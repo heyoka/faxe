@@ -2,7 +2,16 @@
 %%% @author heyoka
 %%% @copyright (C) 2019, <COMPANY>
 %%% @doc
-%%% Receive data from an mqtt-broker.
+%%% The mqtt_amqp-bridge node provides a message-order preserving and fail-safe mqtt-to-amqp bridge.
+%%% It is designed for minimized overhead, high throughput and fault-tolerant message delivery.
+%%% Receives data from an mqtt-broker and writes each indiviual topic with it's own amqp-publisher.
+%%% This node starts 1 mqtt-subscriber and for every unique topic it sees, it will start an amqp-publisher.
+%%%
+%%% The node does only work standalone at the moment, meaning you can not connect it to other nodes.
+%%% It is completely unaware of the message content.
+%%% For performance reasons the node does not use data_items as every other node
+%%% in faxe does, instead internally it will work with the raw binaries received from the mqtt broker.
+%%%
 %%% @end
 %%% Created : 27. May 2019 09:00
 %%%-------------------------------------------------------------------
@@ -38,14 +47,12 @@
 
    %% AMQP
    amqp_opts,
-   amqp_vhost,
    amqp_exchange,
-   amqp_routing_key,
-   amqp_ssl = false,
 
    %% other
    queues = #{},
-   amqp_publisher = #{}
+   amqp_publisher = #{},
+   reset_timeout
    }).
 
 options() -> [
@@ -66,8 +73,9 @@ options() -> [
    {amqp_vhost, string, <<"/">>},
    {amqp_exchange, string, <<"x">>},
    {amqp_routing_key, string, <<"">>},
-   {amqp_ssl, is_set, false}
-
+   {amqp_ssl, is_set, false},
+   %% OTHER
+   {reset_timeout, duration, <<"10m">>}
 ].
 
 check_options() ->
@@ -78,17 +86,19 @@ check_options() ->
 metrics() ->
    [
       {?METRIC_SENDING_TIME, histogram, [slide, 60], "Network time for sending a message."},
-      {?METRIC_BYTES_READ, meter, [], "Size of item sent in kib."}
+      {?METRIC_BYTES_READ, meter, [], "Size of item read in kib."}
    ].
 
 init(NodeId, _Ins,
+      %% MQTT
    #{ host := Host0, port := Port, topic := Topic, topics := Topics, user := User, pass := Pass,
       ssl := UseSSL, qos := Qos,
       %% AMQP
       amqp_host := AMQPHost0, amqp_port := AMQPPort, amqp_user := AMQPUser, amqp_pass := AMQPPass,
       amqp_vhost := AMQPVHost, amqp_exchange := AMQPEx, amqp_routing_key := AMQPRoutingKey,
-      amqp_ssl := AMQPUseSSL
-
+      amqp_ssl := AMQPUseSSL,
+      %% OTHER
+      reset_timeout := RTimeout
       } = _Opts) ->
 
    %% AMQP
@@ -109,8 +119,11 @@ init(NodeId, _Ins,
 
    connection_registry:reg(NodeId, Host, Port, <<"mqtt">>),
 
+   ResetTimeout = faxe_time:duration_to_ms(RTimeout),
+
    State = #state{
-      amqp_opts = AMQPOpts, amqp_exchange = AMQPEx, amqp_routing_key = AMQPRoutingKey,
+      reset_timeout = ResetTimeout,
+      amqp_opts = AMQPOpts, amqp_exchange = AMQPEx,
 
       host = Host, port = Port, topic = Topic, ssl = UseSSL, qos = Qos,
       client_id = ClientId, topics = Topics, reconnector = Reconnector1, user = User,
