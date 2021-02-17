@@ -163,6 +163,20 @@
     [{default, "300ms"}, {datatype, {duration, ms}}]
 }.
 
+%% @doc queue time to flight
+%% ttf message time-to-flight in milliseconds,
+%% the time required to deliver message acknowledgment before it reappears to client(s) again.
+{mapping, "queue_ttf", "faxe.esq.ttf",
+    [{default, "20000ms"}, {datatype, {duration, ms}}]
+}.
+
+%% @doc capacity defines the size of in-memory queue.
+%% The queue would not fetch anything from disk into memory buffer if capacity is 0.
+%%
+{mapping, "queue_capacity", "faxe.esq.capacity",
+    [{default, 10}, {datatype, integer}]
+}.
+
 %% @doc -------------------------------------------------------------------------
 %% S7 DEFAULTS
 %%-------------------------------------------------------------------------

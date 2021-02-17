@@ -66,7 +66,7 @@ init({_GraphId, _NodeId} = Idx, _Ins,
    Host = binary_to_list(Host0),
    Opts = Opts0#{host => Host},
    QFile = faxe_config:q_file(Idx),
-   {ok, Q} = esq:new(QFile, [{tts, 300}, {capacity, 10}, {ttf, 20000}]),
+   {ok, Q} = esq:new(QFile, faxe_config:get_esq_opts()),
    connection_registry:reg(Idx, Host, Port, <<"amqp">>),
    connection_registry:connecting(),
    State = start_connection(#state{opts = Opts, exchange = Ex, routing_key = RoutingKey, queue = Q,
@@ -80,7 +80,7 @@ process(_In, Item, State = #state{exchange = Exchange, queue = Q,
    node_metrics:metric(?METRIC_BYTES_SENT, byte_size(Payload), FNId),
    node_metrics:metric(?METRIC_ITEMS_OUT, 1, FNId),
    ok = esq:enq({Exchange, key(Item, State), Payload, []}, Q),
-   dataflow:maybe_debug(emit, 1, Item, FNId, Debug),
+   dataflow:maybe_debug(item_out, 1, Item, FNId, Debug),
    {ok, State}.
 
 handle_info(start_debug, State) -> {ok, State#state{debug_mode = true}};

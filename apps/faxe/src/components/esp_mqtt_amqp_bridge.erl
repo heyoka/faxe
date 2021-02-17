@@ -167,6 +167,7 @@ handle_info({'EXIT', _C, _Reason}, State = #state{reconnector = Recon, host = H,
    lager:warning("EXIT emqtt: ~p [~p]", [_Reason,{H, P}]),
    {ok, Reconnector} = faxe_backoff:execute(Recon, connect_mqtt),
    {ok, State#state{connected = false, client = undefined, reconnector = Reconnector}};
+%% @todo handle EXIT message from esq processes
 handle_info({'DOWN', _MonitorRef, process, Client, _Info}, #state{amqp_publisher = Pubs} = State) ->
    PublisherList = maps:to_list(Pubs),
    {Topics, Pids} = lists:unzip(PublisherList),
@@ -220,9 +221,13 @@ start_amqp_connection(Topic, State = #state{amqp_opts = Opts, amqp_publisher = P
 start_queue(Topic, State = #state{fn_id = {FlowId, NodeId}, queues = Queues}) ->
    Key = topic_to_key(Topic),
    QFile = faxe_config:q_file({FlowId, <<NodeId/binary, "-", Key/binary>>}),
-   {ok, Q} = esq:new(QFile, [{tts, 300}, {capacity, 10}, {ttf, 20000}]),
+   {ok, Q} = esq:new(QFile, faxe_config:get_esq_opts()),
    NewQueues = Queues#{Topic => Q},
    State#state{queues = NewQueues}.
+
+%%esq_params() ->
+%%   Conf = faxe_config:get(esq),
+%%   carrot_util:proplists_merge()
 
 connect_mqtt(State = #state{host = Host, port = Port, client_id = ClientId}) ->
    connection_registry:connecting(),

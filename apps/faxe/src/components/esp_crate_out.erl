@@ -29,7 +29,8 @@
    tries,
    tls,
    fn_id,
-   last_error
+   last_error,
+   debug_mode = false
 }).
 
 -define(KEY, <<"stmt">>).
@@ -79,8 +80,9 @@ init(NodeId, _Inputs,
 %% @todo buffer these messages when not connected
 process(_In, _DataItem, State = #state{client = undefined}) ->
    {ok, State};
-process(_In, DataItem, State = #state{}) ->
+process(_In, DataItem, State = #state{fn_id = FNId}) ->
    _NewState = send(DataItem, State),
+   dataflow:maybe_debug(item_in, 1, DataItem, FNId, State#state.debug_mode),
    {ok, State}.
 
 handle_info({'DOWN', _MonitorRef, _Type, Pid, _Info}, State = #state{client = Pid}) ->
@@ -90,6 +92,8 @@ handle_info({'DOWN', _MonitorRef, _Type, Pid, _Info}, State = #state{client = Pi
 handle_info(start_client, State) ->
    NewState = start_client(State),
    {ok, NewState};
+handle_info(start_debug, State) -> {ok, State#state{debug_mode = true}};
+handle_info(stop_debug, State) -> {ok, State#state{debug_mode = false}};
 handle_info(_Req, State) ->
    {ok, State}.
 

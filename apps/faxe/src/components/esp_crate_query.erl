@@ -27,7 +27,8 @@
    result_type,
    align = false,
    timer,
-   fn_id
+   fn_id,
+   debug_mode = false
 }).
 
 -define(DB_OPTIONS, #{

@@ -13,7 +13,6 @@
    code_change/3]).
 
 -define(SERVER, ?MODULE).
--define(Q_OPTS, [{tts, 300}, {capacity, 10}]).
 
 -record(state, {
    queue,
@@ -36,7 +35,7 @@ start_monitor(Queue) ->
 
 init([{_,_}=Idx, Parent]) ->
    QFile = faxe_config:q_file(Idx),
-   {ok, Q} = esq:new(QFile, ?Q_OPTS),
+   {ok, Q} = esq:new(QFile, faxe_config:get_esq_opts()),
    init([Q, Parent]);
 init([Queue, Parent]) ->
    State = #state{queue = Queue, parent = Parent},

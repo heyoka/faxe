@@ -40,7 +40,8 @@
    fn_id,
    include_topic = true,
    topic_key,
-   as
+   as,
+   debug_mode = false
 }).
 
 options() -> [
@@ -127,6 +128,8 @@ handle_info({'EXIT', _C, _Reason}, State = #state{reconnector = Recon, host = H,
    lager:warning("EXIT emqtt: ~p [~p]", [_Reason,{H, P}]),
    {ok, Reconnector} = faxe_backoff:execute(Recon, connect),
    {ok, State#state{connected = false, client = undefined, reconnector = Reconnector}};
+handle_info(start_debug, State) -> {ok, State#state{debug_mode = true}};
+handle_info(stop_debug, State) -> {ok, State#state{debug_mode = false}};
 handle_info(What, State) ->
    lager:warning("~p handle_info: ~p", [?MODULE, What]),
    {ok, State}.
@@ -139,6 +142,7 @@ data_received(Topic, Payload,
    node_metrics:metric(?METRIC_BYTES_READ, byte_size(Payload), S#state.fn_id),
    node_metrics:metric(?METRIC_ITEMS_IN, 1, S#state.fn_id),
    P0 = flowdata:from_json_struct(Payload, DTField, DTFormat),
+   dataflow:maybe_debug(item_in, 1, P0, S#state.fn_id, S#state.debug_mode),
    P1 =
    case AddTopic of
       true -> flowdata:set_field(P0, TopicKey, Topic);
@@ -149,6 +153,7 @@ data_received(Topic, Payload,
       undefined -> P1;
       Root -> #data_point{fields = Fields} = P1, P1#data_point{fields = #{Root => Fields}}
    end,
+
    {emit, {1, P}, S}.
 
 connect(State = #state{host = Host, port = Port, client_id = ClientId}) ->
