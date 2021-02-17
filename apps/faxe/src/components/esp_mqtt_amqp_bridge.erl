@@ -155,10 +155,10 @@ handle_info({mqttc, _C,  disconnected}, State=#state{client = Client}) ->
    {ok, State#state{connected = false, client = undefined}};
 %% for emqtt
 handle_info({publish, #{payload := Payload, topic := Topic} }, S=#state{}) ->
-   m_data_received(Topic, Payload, S);
+   data_received(Topic, Payload, S);
 %% for emqttc
 handle_info({publish, Topic, Payload }, S=#state{}) ->
-   m_data_received(Topic, Payload, S);
+   data_received(Topic, Payload, S);
 handle_info({disconnected, shutdown, tcp_closed}=M, State = #state{}) ->
    lager:warning("emqtt : ~p", [M]),
    {ok, State};
