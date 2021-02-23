@@ -66,7 +66,7 @@ get_http_ssl_opts() ->
    end.
 
 
-filter_empty_options(Proplist) ->
+filter_empty_options(Proplist) when is_list(Proplist)->
    lists:filter(
       fun({_Key, Value}) ->
          Value /= [] andalso Value /= undefined andalso Value /= <<>> andalso Value /= undef

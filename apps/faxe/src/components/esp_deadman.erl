@@ -33,6 +33,7 @@
    is_quiet = false,
    trigger_on_value = false,
    repeat_last = false,
+   repeat_with_new_ts = true,
    last_point,
    no_forward
 }).
@@ -43,6 +44,7 @@ options() -> [
    {field_values, list, []},
    {silent_time, duration, <<"0ms">>}, %% for this amount of time no timeout is triggered
    {repeat_last, is_set},
+   {repeat_with_new_ts, bool, true},
    {trigger_on_value, is_set},
    {no_forward, is_set}
 ].
@@ -51,14 +53,15 @@ check_options() -> [{same_length, [fields, field_values]}].
 
 init(NodeId, _Ins,
     #{timeout := Timeout0, fields := Fields, repeat_last := Repeat, no_forward := NoForward,
-       trigger_on_value := Trigger, field_values := Vals, silent_time := QTime0}) ->
+       trigger_on_value := Trigger, field_values := Vals, silent_time := QTime0, repeat_with_new_ts := NewTs}) ->
 
 
    Timeout = faxe_time:duration_to_ms(Timeout0),
    QTimeout = faxe_time:duration_to_ms(QTime0),
    State =
       #state{timeout = Timeout, fields = Fields, repeat_last = Repeat, no_forward = NoForward,
-         node_id = NodeId, field_vals = Vals, silent_time = QTimeout, trigger_on_value = Trigger},
+         repeat_with_new_ts = NewTs, node_id = NodeId, field_vals = Vals, silent_time = QTimeout,
+         trigger_on_value = Trigger},
 
    {ok, all, maybe_trigger_restart_timer(State)}.
 
@@ -82,8 +85,11 @@ handle_info(_R, State) ->
    {ok, State}.
 
 
-build_message(#state{repeat_last = true, last_point = P=#data_point{}}) ->
-   P;
+build_message(#state{repeat_last = true, repeat_with_new_ts = NewTs, last_point = P=#data_point{}}) ->
+   case NewTs of
+      true -> P#data_point{ts = faxe_time:now()};
+      false -> P
+   end;
 build_message(#state{field_vals = Vals, fields = Fields}) ->
    DataPoint = #data_point{ts = faxe_time:now()},
    flowdata:set_fields(DataPoint, Fields, Vals).

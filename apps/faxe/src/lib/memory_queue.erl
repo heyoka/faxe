@@ -51,6 +51,7 @@ to_list(#mem_queue{q = Queue}) ->
 -spec to_list_reset(#mem_queue{}) -> {list(), #mem_queue{}}.
 to_list_reset(Q = #mem_queue{q = Queue}) ->
    {queue:to_list(Queue),
+      %% reset, max_size stays the same
       Q#mem_queue{q = queue:new(), current = 0}
    }.
 

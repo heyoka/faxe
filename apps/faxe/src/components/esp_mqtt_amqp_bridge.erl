@@ -50,8 +50,11 @@
    amqp_exchange,
 
    %% other
-   queues = #{},
-   amqp_publisher = #{},
+   max_publishers = 5,
+   topic_to_queue = #{},
+   queue_to_topics = #{},
+   publisher_to_queue = #{},
+%%   amqp_publisher = #{},
    reset_timeout
    }).
 
@@ -75,7 +78,9 @@ options() -> [
    {amqp_routing_key, string, <<"">>},
    {amqp_ssl, is_set, false},
    %% OTHER
-   {reset_timeout, duration, <<"10m">>}
+   {reset_timeout, duration, <<"10m">>},
+   {max_publishers, integer, 3}
+
 ].
 
 check_options() ->
@@ -98,7 +103,7 @@ init(NodeId, _Ins,
       amqp_vhost := AMQPVHost, amqp_exchange := AMQPEx, amqp_routing_key := AMQPRoutingKey,
       amqp_ssl := AMQPUseSSL,
       %% OTHER
-      reset_timeout := RTimeout
+      reset_timeout := RTimeout, max_publishers := MaxPublishers
       } = _Opts) ->
 
    %% AMQP
@@ -122,7 +127,7 @@ init(NodeId, _Ins,
    ResetTimeout = faxe_time:duration_to_ms(RTimeout),
 
    State = #state{
-      reset_timeout = ResetTimeout,
+      reset_timeout = ResetTimeout, max_publishers = MaxPublishers,
       amqp_opts = AMQPOpts, amqp_exchange = AMQPEx,
 
       host = Host, port = Port, topic = Topic, ssl = UseSSL, qos = Qos,
@@ -162,23 +167,38 @@ handle_info({publish, Topic, Payload }, S=#state{}) ->
 handle_info({disconnected, shutdown, tcp_closed}=M, State = #state{}) ->
    lager:warning("emqtt : ~p", [M]),
    {ok, State};
-handle_info({'EXIT', _C, _Reason}, State = #state{reconnector = Recon, host = H, port = P}) ->
+handle_info({'EXIT', C, _Reason}, State = #state{reconnector = Recon, host = H, port = P, client = C}) ->
    connection_registry:disconnected(),
    lager:warning("EXIT emqtt: ~p [~p]", [_Reason,{H, P}]),
    {ok, Reconnector} = faxe_backoff:execute(Recon, connect_mqtt),
    {ok, State#state{connected = false, client = undefined, reconnector = Reconnector}};
-%% @todo handle EXIT message from esq processes
-handle_info({'DOWN', _MonitorRef, process, Client, _Info}, #state{amqp_publisher = Pubs} = State) ->
-   PublisherList = maps:to_list(Pubs),
-   {Topics, Pids} = lists:unzip(PublisherList),
-   NewState =
-   case lists:member(Client, Pids) of
-      true ->
-         Flipped = lists:zip(Pids, Topics),
-         Topic = proplists:get_value(Client, Flipped),
-         start_amqp_connection(Topic, State);
-      false -> State
-   end,
+%% esq process is down
+handle_info({'EXIT', Q, _Reason}, State = #state{queue_to_topics = QueueTopics,
+      topic_to_queue = TopicQueue, publisher_to_queue = Pubs}) ->
+
+   %% stop the publisher, we need a new one anyway
+   Publisher = maps:get(Q, faxe_util:flip_map(Pubs)),
+   lager:warning("will stop amqp_publisher, because esq process died: ~p",[Publisher]),
+   gen_server:stop(Publisher),
+
+   %% delete all map entries from topic_to_queue, where the Q is the exited one
+   NewQTopics = maps:without([Q], QueueTopics),
+   NewTopicQs = maps:fold(
+      fun(K, V, Acc) ->
+         case V of
+            Q -> Acc;
+            _ -> Acc#{K => V}
+         end
+      end, #{}, TopicQueue),
+
+%%   lager:notice("Q ~p EXIT before cleanup: Q-to-Topics ~p, TopicToQueue: ~p",[Q, QueueTopics, TopicQueue]),
+%%   lager:notice("Q ~p EXIT AFTER cleanup: Q-to-Topics ~p, TopicToQueue: ~p",[Q, NewQTopics, NewTopicQs]),
+   {ok, State#state{queue_to_topics = NewQTopics, topic_to_queue = NewTopicQs,
+      publisher_to_queue = maps:without([Publisher], Pubs)}};
+handle_info({'DOWN', _MonitorRef, process, Client, _Info}, #state{publisher_to_queue = Pubs} = State)
+      when is_map_key(Client, Pubs) ->
+   Q = maps:get(Client, Pubs),
+   NewState = start_amqp_connection(Q, State#state{publisher_to_queue = maps:without([Client], Pubs)}),
    lager:notice("AMQP-PubWorker ~p is 'DOWN' Info:~p", [Client, _Info]),
    {ok, NewState};
 handle_info({publisher_ack, Ref}, State) ->
@@ -189,8 +209,8 @@ handle_info(What, State) ->
    {ok, State}.
 
 %% @todo shutdown esq queues ?
-shutdown(#state{client = C, amqp_publisher = Pubs}) ->
-   [catch (bunny_esq_worker:stop(CPub)) || {_T, CPub} <- maps:to_list(Pubs)],
+shutdown(#state{client = C, publisher_to_queue = PubsToQ}) ->
+   [catch begin bunny_esq_worker:stop(CPub), esq:free(Q) end || {CPub, Q} <- maps:to_list(PubsToQ)],
    catch (emqttc:disconnect(C)).
 
 m_data_received(Topic, Payload, State) ->
@@ -198,7 +218,7 @@ m_data_received(Topic, Payload, State) ->
    lager:info("Time to process Payload: ~p",[TimeMy]),
    Res.
 
-data_received(Topic, Payload, S = #state{queues = Queues, amqp_exchange = Exchange })
+data_received(Topic, Payload, S = #state{topic_to_queue = Queues, amqp_exchange = Exchange })
       when is_map_key(Topic, Queues) ->
    Q = maps:get(Topic, Queues),
    RK = topic_to_key(Topic),
@@ -206,24 +226,40 @@ data_received(Topic, Payload, S = #state{queues = Queues, amqp_exchange = Exchan
    ok = esq:enq({Exchange, RK, Payload, []}, Q),
    {ok, S};
 data_received(Topic, Payload, S = #state{}) ->
-   lager:warning("start new queue and publisher: ~p",[Topic]),
-   NewState0 = start_queue(Topic, S),
-   NewState = start_amqp_connection(Topic, NewState0),
+   lager:warning("get new queue and publisher: ~p",[Topic]),
+   NewState = new_queue_publisher(Topic, S),
    data_received(Topic, Payload, NewState).
 
-start_amqp_connection(Topic, State = #state{amqp_opts = Opts, amqp_publisher = Pubs, queues = Queues}) ->
-   Q = maps:get(Topic, Queues),
+new_queue_publisher(Topic, State = #state{max_publishers = MaxPubs,
+   queue_to_topics = QueueTopics}) when map_size(QueueTopics) < MaxPubs ->
+   lager:warning("start new queue and publisher: ~p", [Topic]),
+   NewState0 = start_queue(Topic, State),
+   start_amqp_connection(Topic, NewState0);
+new_queue_publisher(Topic, State = #state{queue_to_topics = QueueTopics, topic_to_queue = TopicQueue}) ->
+   lager:warning("add topic to existing queue: ~p",[Topic]),
+   QTopics = maps:to_list(QueueTopics),
+   SortFun = fun({_AQ, ATopics}, {_BQ, BTopics}) -> length(ATopics) =< length(BTopics) end,
+   [{Q, Topics} | _] = lists:sort(SortFun, QTopics),
+   lager:notice("add: ~p to q: ~p, (~p)",[Topic, Q, Topics]),
+   QueueToTopicsNew = QueueTopics#{Q => [Topic|Topics]},
+%%   lager:info("Q-Topics new: ~p",[QueueToTopicsNew]),
+   State#state{queue_to_topics = QueueToTopicsNew, topic_to_queue = TopicQueue#{Topic => Q}}.
+
+start_amqp_connection(Q, State = #state{amqp_opts = Opts, publisher_to_queue = PubQ})
+      when is_pid(Q) ->
    {ok, Pid} = bunny_esq_worker:start(Q, Opts),
    erlang:monitor(process, Pid),
-   NewPublishers = Pubs#{Topic => Pid},
-   State#state{amqp_publisher = NewPublishers}.
+   State#state{publisher_to_queue = PubQ#{Pid => Q}};
+start_amqp_connection(Topic, State = #state{topic_to_queue = Queues}) ->
+   Q = maps:get(Topic, Queues),
+   start_amqp_connection(Q, State).
 
-start_queue(Topic, State = #state{fn_id = {FlowId, NodeId}, queues = Queues}) ->
+start_queue(Topic, State = #state{fn_id = {FlowId, NodeId}, topic_to_queue = TopicQueue, queue_to_topics = QTopics}) ->
    Key = topic_to_key(Topic),
    QFile = faxe_config:q_file({FlowId, <<NodeId/binary, "-", Key/binary>>}),
    {ok, Q} = esq:new(QFile, faxe_config:get_esq_opts()),
-   NewQueues = Queues#{Topic => Q},
-   State#state{queues = NewQueues}.
+   NewQueues = TopicQueue#{Topic => Q},
+   State#state{topic_to_queue = NewQueues, queue_to_topics = QTopics#{Q => [Topic]}}.
 
 %%esq_params() ->
 %%   Conf = faxe_config:get(esq),

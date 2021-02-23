@@ -20,9 +20,16 @@
    clean_query/1, stringize_lambda/1,
    bytes_from_words/1, local_ip_v4/0,
    ip_to_bin/1, device_name/0, proplists_merge/2,
-   levenshtein/2, build_topic/2, build_topic/1, to_bin/1]).
+   levenshtein/2, build_topic/2, build_topic/1, to_bin/1, flip_map/1]).
 
 -define(HTTP_PROTOCOL, <<"http://">>).
+
+%% @doc returns a new map where the keys are the input map's values and vice versa
+-spec flip_map(map()) -> map().
+flip_map(Map) when map_size(Map) == 0 ->
+   #{};
+flip_map(Map) when is_map(Map) ->
+   maps:fold(fun(K, V, M) -> M#{V => K} end, #{}, Map).
 
 %% @doc get a uuid v4 binary string
 -spec uuid_string() -> binary().
@@ -272,6 +279,14 @@ build_topic_3_test() ->
    Expected = <<"ttgw.sys.faxe.conn_status.hee.flowid.nodeid.#">>,
    Res = faxe_util:build_topic([<<".ttgw.sys.faxe.">>, "conn_status.hee.", <<"flowid.nodeid.#">>], <<".">>),
    ?assertEqual(Expected, Res).
+
+map_flip_test() ->
+   Map = #{k1 => v1, "k2" => "v2", <<"k3">> => <<"v3">>},
+   Expected = #{v1 => k1, "v2" => "k2", <<"v3">> => <<"k3">>},
+   ?assertEqual(Expected, faxe_util:flip_map(Map)).
+
+map_flip_empty_test() ->
+   ?assertEqual(#{}, faxe_util:flip_map(#{})).
 
 -endif.
 

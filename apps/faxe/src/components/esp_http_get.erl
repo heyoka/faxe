@@ -60,10 +60,10 @@ init(NodeId, _Inputs, Opts =
          failed_retries = ?FAILED_RETRIES,
          fn_id = NodeId}}.
 
-process(_In, P = #data_point{}, State = #state{}) ->
+process(_In, #data_point{}, State = #state{}) ->
    _Res = request(State),
    {ok, State};
-process(_In, B = #data_batch{}, State = #state{}) ->
+process(_In, #data_batch{}, State = #state{}) ->
    _Res = request(State),
    {ok, State}.
 
@@ -85,39 +85,16 @@ request(_State = #state{client = Client, path = Path}) ->
    %Headers = [{<<"Authorization">>, <<"Basic ">>}],
    StreamRef = gun:get(Client, Path, []),
    case gun:await(Client, StreamRef) of
-      {response, fin, Status, Headers} ->
+      {response, fin, Status, _Headers} ->
          lager:notice("Response Status: ~p",[Status]),
          no_data;
-      {response, nofin, Status, Headers} ->
+      {response, nofin, Status, _Headers} ->
          {ok, Body} = gun:await_body(Client, StreamRef),
-         io:format("~s~n", [Body]),
-         Body
+         lager:notice("~s~n", [Body]),
+         handle_response(integer_to_binary(Status), Body)
    end.
 
 
-send(Item, State = #state{}) ->
-   M = flowdata:to_mapstruct(Item),
-   Body = jiffy:encode(M),
-   Headers = [{<<"content-type">>, <<"application/json">>}],
-   do_send(Body, Headers, 0, State).
-
-do_send(_Body, _Headers, MaxFailedRetries, S = #state{failed_retries = MaxFailedRetries}) ->
-   lager:warning("could not send ~p with ~p retries", [_Body, MaxFailedRetries]),
-   S;
-do_send(Body, Headers, Retries, S = #state{client = Client, path = Path, fn_id = FNId}) ->
-   Ref = gun:post(Client, Path, Headers, Body),
-   case catch(get_response(Client, Ref)) of
-      ok ->
-         node_metrics:metric(?METRIC_ITEMS_OUT, 1, FNId),
-         node_metrics:metric(?METRIC_BYTES_SENT, byte_size(Body), FNId),
-         S;
-      {error, _} ->
-         lager:warning("could not send ~p: invalid request", [Body]),
-         S;
-      _O ->
-         do_send(Body, Headers, Retries+1, S)
-
-   end.
 
 start_client(State = #state{host = Host, port = Port, tls = Tls}) ->
    lager:info("start client: ~n~p",[State]),
@@ -129,25 +106,20 @@ start_client(State = #state{host = Host, port = Port, tls = Tls}) ->
       false -> Opts
    end,
    {ok, C} = gun:open(Host, Port, Options),
-   erlang:monitor(process, C),
+   MonitorRef = erlang:monitor(process, C),
    case gun:await_up(C) of
       {ok, _} ->
          connection_registry:connected(),
          State#state{client = C};
       E -> lager:warning("~p connecting to ~p:~p", [E, Host, Port]),
+         erlang:demonitor(MonitorRef),
          erlang:send_after(1000, self(), start_client), State#state{client = undefined}
    end.
 
-get_response(Client, Ref) ->
-   {response, _IsFin, Status, _Headers} = _Res = gun:await(Client, Ref),
-%%   lager:notice("resp-res: ~p",[Res]),
-   {ok, Message} = gun:await_body(Client, Ref),
-%%   lager:notice("resp-body: ~p",[Message]),
-   handle_response(integer_to_binary(Status), Message).
 
 -spec handle_response(integer(), binary()) -> ok|{error, invalid}|{failed, term()}.
-handle_response(<<"2", _/binary>>, _BodyJSON) ->
-   ok;
+handle_response(<<"2", _/binary>>, BodyJSON) ->
+   {ok, BodyJSON};
 handle_response(<<"4", _/binary>>,_BodyJSON) ->
    lager:error("Error 400: ~p",[_BodyJSON]),
    {error, invalid};

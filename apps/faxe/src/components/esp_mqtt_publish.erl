@@ -69,7 +69,8 @@ metrics() ->
 init({_GraphId, _NodeId} = GId, _Ins, #{safe := true, host := Host0}=Opts) ->
    Host = binary_to_list(Host0),
    QFile = faxe_config:q_file(GId),
-   {ok, Q} = esq:new(QFile, faxe_config:get_esq_opts()),
+   QConf = proplists:delete(ttf, faxe_config:get_esq_opts()),
+   {ok, Q} = esq:new(QFile, QConf),
    {ok, Publisher} = mqtt_publisher:start_link(Opts#{host := Host, node_id => GId}, Q),
    init_all(Opts#{host := Host}, #state{publisher = Publisher, queue = Q, fn_id = GId});
 %% direct publish mode

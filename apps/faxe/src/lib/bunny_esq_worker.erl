@@ -103,14 +103,17 @@ handle_info(#'basic.ack'{delivery_tag = DTag, multiple = Multiple},
     State = #state{queue = Q, pending_acks = Pending}) ->
    Tags =
    case Multiple of
-      true -> %lager:warning("RabbitMQ confirmed MULTIPLE Tags till ~p",[DTag]),
+      true -> lager:warning("RabbitMQ confirmed MULTIPLE Tags till ~p",[DTag]),
                lists:seq(State#state.last_confirmed_dtag + 1, DTag);
       false -> %lager:notice("RabbitMQ confirmed Tag ~p",[DTag]),
                [DTag]
    end,
 %%   lager:notice("bunny_worker ~p has pending_acks: ~p~n acks: ~p",[self(), State#state.pending_acks, Tags]),
+%%   lager:notice("bunny_worker ~p has pending_acks: ~p",[self(), State#state.pending_acks]),
    [esq:ack(Ack, Q) || {_T, Ack} <- maps:to_list(maps:with(Tags, Pending))],
-   %lager:notice("new pending: ~p",[maps:without(Tags, Pending)]),
+
+%%   lager:notice("new pending: ~p",[maps:without(Tags, Pending)]),
+   lager:notice("acked esq: ~p",[maps:to_list(maps:with(Tags, Pending))]),
    {noreply, State#state{last_confirmed_dtag = DTag, pending_acks = maps:without(Tags, Pending)}};
 
 handle_info(#'basic.return'{reply_text = RText, routing_key = RKey}, State) ->
@@ -152,12 +155,36 @@ handle_call(Req, _From, State) ->
 
 
 -spec terminate(atom(), state()) -> ok.
-terminate(Reason, #state{channel = Channel, connection = Conn}) ->
+terminate(Reason, #state{channel = Channel, connection = Conn} = State) ->
    lager:notice("~p ~p terminating with reason: ~p",[?MODULE, self(), Reason]),
-   catch(close(Channel, Conn))
+   catch(close(Channel, Conn, State))
    .
 
-close(Channel, Conn) ->
+collect_ack(_Q, _LastTag, Pending) when map_size(Pending) == 0 -> lager:info("no more pending acks"),ok;
+collect_ack(Q, LastTag, Pending) ->
+   receive
+      #'basic.ack'{delivery_tag = DTag, multiple = Multiple} ->
+         Tags =
+            case Multiple of
+               true -> lager:warning("RabbitMQ confirmed MULTIPLE Tags till ~p",[DTag]),
+                  lists:seq(LastTag + 1, DTag);
+               false -> lager:notice("RabbitMQ confirmed Tag ~p",[DTag]),
+                  [DTag]
+            end,
+   lager:notice("bunny_worker ~p has pending_acks: ~p~n acks: ~p",[self(), Pending, Tags]),
+         [esq:ack(Ack, Q) || {_T, Ack} <- maps:to_list(maps:with(Tags, Pending))],
+         collect_ack(Q, DTag, maps:without(Tags, Pending))
+
+   after 1000 -> lager:info("after 1000 ms"), ok
+   end.
+
+
+close(Channel, Conn, #state{queue = _Q, last_confirmed_dtag = _LastTag, pending_acks = _Pending, deq_timer_ref = T}) ->
+   catch (erlang:cancel_timer(T)),
+%%   lager:info("close: collect pending acks: ~p", [map_size(Pending)]),
+   %% try to collect pending acks from server
+%%   collect_ack(Q, LastTag, Pending),
+   lager:info("close: channel and connection"),
    amqp_channel:unregister_confirm_handler(Channel),
    amqp_channel:unregister_return_handler(Channel),
    amqp_channel:unregister_flow_handler(Channel),
@@ -249,7 +276,8 @@ configure_channel({ok, Channel}) ->
 
    case amqp_channel:call(Channel, #'confirm.select'{}) of
       {'confirm.select_ok'} ->
-%%         lager:notice("amqp channel is ok: ~p",[Channel]),
+         %% we link to the channel, to get the EXIT signal
+         link(Channel),
          {ok, Channel};
       Error ->
          lager:error("Could not configure channel: ~p", [Error]),

@@ -47,7 +47,10 @@
    emitter,
    flownodeid,
    save = false,
-   debug_mode = false
+   debug_mode = false,
+   include_topic = true,
+   topic_key,
+   as
 }).
 
 options() -> [
@@ -61,12 +64,15 @@ options() -> [
    {bindings, string_list, []},
    {queue, string},
    {exchange, string},
-   {prefetch, integer, 1},
+   {prefetch, integer, 10},
    {ack_every, integer, 5},
    {ack_after, duration, <<"5s">>},
    {dt_field, string, <<"ts">>},
    {dt_format, string, ?TF_TS_MILLI},
-   {safe, is_set, false}
+   {safe, is_set, false},
+   {include_topic, bool, true},
+   {topic_as, string, <<"topic">>},
+   {as, string, undefined}
 ].
 
 metrics() ->
@@ -77,19 +83,23 @@ metrics() ->
 init({_GraphId, _NodeId} = Idx, _Ins,
    #{ host := Host0, port := Port, user := _User, pass := _Pass, vhost := _VHost, queue := _Q,
       exchange := _Ex, prefetch := Prefetch, routing_key := _RoutingKey, bindings := _Bindings,
-      dt_field := DTField, dt_format := DTFormat, ssl := _UseSSL,
-      ack_every := AckEvery0, ack_after := AckTimeout0}
+      dt_field := DTField, dt_format := DTFormat, ssl := _UseSSL, include_topic := IncludeTopic, topic_as := TopicKey,
+      ack_every := AckEvery0, ack_after := AckTimeout0, as := As}
       = Opts0) ->
 
+   process_flag(trap_exit, true),
    AckTimeout = faxe_time:duration_to_ms(AckTimeout0),
    Host = binary_to_list(Host0),
    Opts = Opts0#{host => Host},
    State = #state{
+      include_topic = IncludeTopic, topic_key = TopicKey, as = As,
       opts = Opts, prefetch = Prefetch, ack_every = AckEvery0, ack_after = AckTimeout,
       dt_field = DTField, dt_format = DTFormat},
 
    QFile = faxe_config:q_file(Idx),
-   {ok, Q} = esq:new(QFile, faxe_config:get_esq_opts()),
+   QConf = proplists:delete(ttf, faxe_config:get_esq_opts()),
+   lager:notice("esq_opts: ~p" ,[QConf]),
+   {ok, Q} = esq:new(QFile, QConf),
 
    NewState = start_emitter(State#state{queue = Q, flownodeid = Idx}),
    connection_registry:reg(Idx, Host, Port, <<"amqp">>),
@@ -105,7 +115,7 @@ handle_info({ {DTag, RKey}, {Payload, _Headers}, _From},
     State=#state{queue = Q, flownodeid = FNId, collected = NumCollected}) ->
    node_metrics:metric(?METRIC_BYTES_READ, byte_size(Payload), FNId),
    node_metrics:metric(?METRIC_ITEMS_IN, 1, FNId),
-   DataPoint = build_point(Payload, RKey, State#state.dt_field, State#state.dt_format),
+   DataPoint = build_point(Payload, RKey, State),
    ok = esq:enq(DataPoint, Q),
    dataflow:maybe_debug(item_in, 1, DataPoint, FNId, State#state.debug_mode),
    NewState = maybe_ack(State#state{collected = NumCollected+1, last_dtag = DTag}),
@@ -120,7 +130,7 @@ handle_info({'DOWN', _MonitorRef, process, Emitter, _Info}, #state{emitter = Emi
    {ok, start_emitter(State)};
 handle_info(ack_timeout, State = #state{last_dtag = undefined}) ->
    {ok, State#state{ack_timer = undefined}};
-handle_info(ack_timeout, State = #state{collected = Num}) ->
+handle_info(ack_timeout, State = #state{collected = _Num}) ->
    NewState = do_ack(State),
    {ok, NewState};
 handle_info(start_debug, State) -> {ok, State#state{debug_mode = true}};
@@ -156,9 +166,18 @@ restart_ack_timeout(State = #state{ack_after = Time, ack_timer = Timer}) ->
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %%% internal
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-build_point(Payload, RKey, DTField, DTFormat) ->
+build_point(Payload, RKey,
+    #state{as = As, include_topic = AddTopic, topic_key = TopicKey, dt_field = DTField, dt_format = DTFormat}) ->
    Msg0 = flowdata:from_json_struct(Payload, DTField, DTFormat),
-   flowdata:set_field(Msg0, <<"topic">>, RKey).
+   P0 =
+   case AddTopic of
+      true -> flowdata:set_field(Msg0, TopicKey, RKey);
+      false -> Msg0
+   end,
+   case As of
+      undefined -> P0;
+      Root -> #data_point{fields = Fields} = P0, P0#data_point{fields = #{Root => Fields}}
+   end.
 
 start_consumer(State = #state{opts = ConsumerOpts}) ->
    connection_registry:connecting(),

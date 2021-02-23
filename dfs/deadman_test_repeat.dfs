@@ -1,0 +1,13 @@
+def republish_timeout = 2s
+|value_emitter()
+.every(10s)
+.type(point)
+
+|deadman()
+    .timeout(republish_timeout)
+    .repeat_last()
+    .trigger_on_value()
+    .repeat_with_new_ts(false)
+
+%|eval(lambda: now()).as('ts')
+|debug()
