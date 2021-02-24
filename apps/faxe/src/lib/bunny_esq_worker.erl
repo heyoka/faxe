@@ -8,6 +8,9 @@
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 -include_lib("amqp_client/include/amqp_client.hrl").
 
+-define(DELIVERY_MODE, 1).
+-define(DEQ_INTERVAL, 15).
+
 -record(state, {
    connection           = undefined :: undefined|pid(),
    channel              = undefined :: undefined|pid(),
@@ -17,13 +20,12 @@
    pending_acks         = #{}       :: map(),
    last_confirmed_dtag  = 0         :: non_neg_integer(),
    queue,
-   deq_timer_ref
+   deq_interval         = ?DEQ_INTERVAL,
+   deq_timer_ref,
+   safe_mode            = false %% whether to work with ondisc queue acks
 }).
 
 -type state():: #state{}.
-
--define(DELIVERY_MODE, 1).
--define(DEQ_INTERVAL, 15).
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %%% Exports.
@@ -58,8 +60,9 @@ init([Queue, Config]) ->
    process_flag(trap_exit, true),
    erlang:send_after(0, self(), connect),
    AmqpParams = amqp_options:parse(Config),
-%%   lager:notice("AmqpParams: ~p", [lager:pr(AmqpParams, ?MODULE)]),
-   {ok, #state{queue = Queue, config = AmqpParams}}.
+   DeqInterval = proplists:get_value(deq_interval, faxe_config:get_esq_opts(), ?DEQ_INTERVAL),
+   SafeMode = maps:get(safe_mode, Config, false),
+   {ok, #state{queue = Queue, config = AmqpParams, deq_interval = DeqInterval, safe_mode = SafeMode}}.
 
 -spec handle_cast(term(), state()) -> {noreply, state()}.
 handle_cast(Msg, State) ->
@@ -97,23 +100,26 @@ handle_info(deq, State = #state{available = true}) ->
 %% the last delivery tag will be stored in #state
 %% if the 'multiple' flag is set, the sequence is : |- from ('#state.last_confirmed_dtag' + 1) to DTag -|
 %%
-%% this function will release the given leases (delivery_tag(s)) in acking the stored esq-receipts
+%% this function will release the given leases (delivery_tag(s)) in acking the stored esq-receipts, if in safe_mode
 %% @end
+handle_info(#'basic.ack'{}, State = #state{safe_mode = false}) ->
+   {noreply, State};
 handle_info(#'basic.ack'{delivery_tag = DTag, multiple = Multiple},
     State = #state{queue = Q, pending_acks = Pending}) ->
    Tags =
    case Multiple of
-      true -> lager:warning("RabbitMQ confirmed MULTIPLE Tags till ~p",[DTag]),
+      true -> %lager:warning("RabbitMQ confirmed MULTIPLE Tags till ~p",[DTag]),
                lists:seq(State#state.last_confirmed_dtag + 1, DTag);
       false -> %lager:notice("RabbitMQ confirmed Tag ~p",[DTag]),
                [DTag]
    end,
 %%   lager:notice("bunny_worker ~p has pending_acks: ~p~n acks: ~p",[self(), State#state.pending_acks, Tags]),
-%%   lager:notice("bunny_worker ~p has pending_acks: ~p",[self(), State#state.pending_acks]),
+%%   lager:notice("bunny_worker ~p has pending_acks: ~p",[self(), map_size(State#state.pending_acks)]),
+   % @todo: check if use of multiple ack for esq is more efficient
    [esq:ack(Ack, Q) || {_T, Ack} <- maps:to_list(maps:with(Tags, Pending))],
 
 %%   lager:notice("new pending: ~p",[maps:without(Tags, Pending)]),
-   lager:notice("acked esq: ~p",[maps:to_list(maps:with(Tags, Pending))]),
+%%   lager:notice("acked esq: ~p",[maps:to_list(maps:with(Tags, Pending))]),
    {noreply, State#state{last_confirmed_dtag = DTag, pending_acks = maps:without(Tags, Pending)}};
 
 handle_info(#'basic.return'{reply_text = RText, routing_key = RKey}, State) ->
@@ -202,10 +208,10 @@ next(#state{queue = Q} = State) ->
    NewState =
       case esq:deq(Q) of
          [] ->
-%%            lager:info("esq:deq miss"),
+%%            lager:info("~p esq:deq miss (~p)",[self(), erlang:process_info(self(), message_queue_len)]),
             State;
          [#{payload := Payload, receipt := Receipt}] ->
-%%            lager:info("esq:deq hit !"),
+%%            lager:notice("esq:deq hit !"),
             deliver(Payload, Receipt, State)
       end,
    start_deq_timer(NewState).
@@ -225,6 +231,7 @@ deliver({Exchange, Key, Payload, Args}, QReceipt, State = #state{channel = Chann
       case amqp_channel:call(Channel, Publish, Message) of
          ok ->
             PenList = maps:put(NextSeqNo, QReceipt, State#state.pending_acks),
+%%            lager:info("put pending tag: ~p", [NextSeqNo]),
             State#state{pending_acks = PenList};
          Error ->
             lager:error("error when calling channel : ~p", [Error]),

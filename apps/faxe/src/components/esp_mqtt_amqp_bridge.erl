@@ -1,6 +1,6 @@
 %%%-------------------------------------------------------------------
 %%% @author heyoka
-%%% @copyright (C) 2019, <COMPANY>
+%%% @copyright (C) 2021
 %%% @doc
 %%% The mqtt_amqp-bridge node provides a message-order preserving and fail-safe mqtt-to-amqp bridge.
 %%% It is designed for minimized overhead, high throughput and fault-tolerant message delivery.
@@ -13,7 +13,7 @@
 %%% in faxe does, instead internally it will work with the raw binaries received from the mqtt broker.
 %%%
 %%% @end
-%%% Created : 27. May 2019 09:00
+%%% Created : 10. Feb 2021 09:00
 %%%-------------------------------------------------------------------
 -module(esp_mqtt_amqp_bridge).
 -author("heyoka").
@@ -54,8 +54,13 @@
    topic_to_queue = #{},
    queue_to_topics = #{},
    publisher_to_queue = #{},
-%%   amqp_publisher = #{},
-   reset_timeout
+
+   topic_last_seen = #{},
+   reset_timeout,
+   reset_check_interval = 30000,
+
+   safe_mode = false,
+   queue_opts
    }).
 
 options() -> [
@@ -78,8 +83,9 @@ options() -> [
    {amqp_routing_key, string, <<"">>},
    {amqp_ssl, is_set, false},
    %% OTHER
-   {reset_timeout, duration, <<"10m">>},
-   {max_publishers, integer, 3}
+   {reset_timeout, duration, <<"5m">>},
+   {max_publishers, integer, 3},
+   {safe, is_set, false}
 
 ].
 
@@ -103,20 +109,24 @@ init(NodeId, _Ins,
       amqp_vhost := AMQPVHost, amqp_exchange := AMQPEx, amqp_routing_key := AMQPRoutingKey,
       amqp_ssl := AMQPUseSSL,
       %% OTHER
-      reset_timeout := RTimeout, max_publishers := MaxPublishers
+      reset_timeout := RTimeout, max_publishers := MaxPublishers, safe := Safe
       } = _Opts) ->
 
    %% AMQP
    AMQPOpts = #{
       host => binary_to_list(AMQPHost0), port => AMQPPort, user => AMQPUser,
       pass => AMQPPass, vhost => AMQPVHost, exchange => AMQPEx,
-      routing_key => AMQPRoutingKey, ssl => AMQPUseSSL
+      routing_key => AMQPRoutingKey, ssl => AMQPUseSSL, safe_mode => Safe
    },
 
    %% MQTT
    Host = binary_to_list(Host0),
    process_flag(trap_exit, true),
    ClientId = list_to_binary(faxe_util:uuid_string()),
+
+   %% queue
+   QOpts0 = faxe_config:get_esq_opts(),
+   QOpts = case Safe of true -> QOpts0; false -> proplists:delete(ttf, QOpts0) end,
 
    reconnect_watcher:new(10000, 5, io_lib:format("~s:~p ~p",[Host, Port, ?MODULE])),
    Reconnector = faxe_backoff:new({5,1200}),
@@ -127,12 +137,16 @@ init(NodeId, _Ins,
    ResetTimeout = faxe_time:duration_to_ms(RTimeout),
 
    State = #state{
-      reset_timeout = ResetTimeout, max_publishers = MaxPublishers,
+      reset_timeout = ResetTimeout, max_publishers = MaxPublishers, safe_mode = Safe, queue_opts = QOpts,
       amqp_opts = AMQPOpts, amqp_exchange = AMQPEx,
 
       host = Host, port = Port, topic = Topic, ssl = UseSSL, qos = Qos,
       client_id = ClientId, topics = Topics, reconnector = Reconnector1, user = User,
       pass = Pass, fn_id = NodeId, ssl_opts = ssl_opts(UseSSL)},
+
+   %% start reset interval
+   erlang:send_after(State#state.reset_check_interval, self(), check_reset),
+
    {ok, State}.
 
 ssl_opts(false) ->
@@ -173,9 +187,39 @@ handle_info({'EXIT', C, _Reason}, State = #state{reconnector = Recon, host = H, 
    {ok, Reconnector} = faxe_backoff:execute(Recon, connect_mqtt),
    {ok, State#state{connected = false, client = undefined, reconnector = Reconnector}};
 %% esq process is down
-handle_info({'EXIT', Q, _Reason}, State = #state{queue_to_topics = QueueTopics,
-      topic_to_queue = TopicQueue, publisher_to_queue = Pubs}) ->
+handle_info({'EXIT', Q, _Reason}, State = #state{publisher_to_queue = Pubs}) ->
+   Flipped = faxe_util:flip_map(Pubs),
+   case is_map_key(Q, Flipped) of
+      true -> handle_queue_exit(Q, State);
+      false -> lager:warning("process ~p exited with Reason: ~p", [Q, _Reason]),
+         {ok, State}
+   end;
+handle_info({'DOWN', _MonitorRef, process, Client, _Info}, #state{publisher_to_queue = Pubs} = State)
+      when is_map_key(Client, Pubs) ->
+   Q = maps:get(Client, Pubs),
+   NewState = start_amqp_connection(Q, State#state{publisher_to_queue = maps:without([Client], Pubs)}),
+   lager:notice("AMQP-PubWorker ~p is 'DOWN' Info:~p", [Client, _Info]),
+   {ok, NewState};
+handle_info({publisher_ack, Ref}, State) ->
+   lager:notice("message acked: ~p",[Ref]),
+   {ok, State};
+handle_info(check_reset, State=#state{reset_check_interval = Interval}) ->
+   lager:info("check_reset"),
+   NewState = check_reset(State),
+   erlang:send_after(Interval, self(), check_reset),
+   {ok, NewState};
+handle_info(What, State) ->
+   lager:warning("~p handle_info: ~p", [?MODULE, What]),
+   {ok, State}.
 
+%% @todo shutdown esq queues ?
+shutdown(#state{client = C, publisher_to_queue = PubsToQ}) ->
+   catch (emqttc:disconnect(C)),
+   [catch begin bunny_esq_worker:stop(CPub), esq:free(Q) end || {CPub, Q} <- maps:to_list(PubsToQ)]
+.
+
+handle_queue_exit(Q, State = #state{queue_to_topics = QueueTopics,
+      topic_to_queue = TopicQueue, publisher_to_queue = Pubs}) ->
    %% stop the publisher, we need a new one anyway
    Publisher = maps:get(Q, faxe_util:flip_map(Pubs)),
    lager:warning("will stop amqp_publisher, because esq process died: ~p",[Publisher]),
@@ -194,37 +238,20 @@ handle_info({'EXIT', Q, _Reason}, State = #state{queue_to_topics = QueueTopics,
 %%   lager:notice("Q ~p EXIT before cleanup: Q-to-Topics ~p, TopicToQueue: ~p",[Q, QueueTopics, TopicQueue]),
 %%   lager:notice("Q ~p EXIT AFTER cleanup: Q-to-Topics ~p, TopicToQueue: ~p",[Q, NewQTopics, NewTopicQs]),
    {ok, State#state{queue_to_topics = NewQTopics, topic_to_queue = NewTopicQs,
-      publisher_to_queue = maps:without([Publisher], Pubs)}};
-handle_info({'DOWN', _MonitorRef, process, Client, _Info}, #state{publisher_to_queue = Pubs} = State)
-      when is_map_key(Client, Pubs) ->
-   Q = maps:get(Client, Pubs),
-   NewState = start_amqp_connection(Q, State#state{publisher_to_queue = maps:without([Client], Pubs)}),
-   lager:notice("AMQP-PubWorker ~p is 'DOWN' Info:~p", [Client, _Info]),
-   {ok, NewState};
-handle_info({publisher_ack, Ref}, State) ->
-   lager:notice("message acked: ~p",[Ref]),
-   {ok, State};
-handle_info(What, State) ->
-   lager:warning("~p handle_info: ~p", [?MODULE, What]),
-   {ok, State}.
-
-%% @todo shutdown esq queues ?
-shutdown(#state{client = C, publisher_to_queue = PubsToQ}) ->
-   [catch begin bunny_esq_worker:stop(CPub), esq:free(Q) end || {CPub, Q} <- maps:to_list(PubsToQ)],
-   catch (emqttc:disconnect(C)).
+      publisher_to_queue = maps:without([Publisher], Pubs)}}.
 
 m_data_received(Topic, Payload, State) ->
    {TimeMy, Res} = timer:tc(?MODULE, data_received, [Topic, Payload, State]),
    lager:info("Time to process Payload: ~p",[TimeMy]),
    Res.
 
-data_received(Topic, Payload, S = #state{topic_to_queue = Queues, amqp_exchange = Exchange })
+data_received(Topic, Payload, S = #state{topic_to_queue = Queues, amqp_exchange = Exchange, topic_last_seen = Last})
       when is_map_key(Topic, Queues) ->
    Q = maps:get(Topic, Queues),
    RK = topic_to_key(Topic),
 %%   lager:notice("got data with topic: ~p and enqueue with routingkey :~p",[Topic, RK]),
    ok = esq:enq({Exchange, RK, Payload, []}, Q),
-   {ok, S};
+   {ok, S#state{topic_last_seen = Last#{Topic => faxe_time:now()}}};
 data_received(Topic, Payload, S = #state{}) ->
    lager:warning("get new queue and publisher: ~p",[Topic]),
    NewState = new_queue_publisher(Topic, S),
@@ -242,7 +269,6 @@ new_queue_publisher(Topic, State = #state{queue_to_topics = QueueTopics, topic_t
    [{Q, Topics} | _] = lists:sort(SortFun, QTopics),
    lager:notice("add: ~p to q: ~p, (~p)",[Topic, Q, Topics]),
    QueueToTopicsNew = QueueTopics#{Q => [Topic|Topics]},
-%%   lager:info("Q-Topics new: ~p",[QueueToTopicsNew]),
    State#state{queue_to_topics = QueueToTopicsNew, topic_to_queue = TopicQueue#{Topic => Q}}.
 
 start_amqp_connection(Q, State = #state{amqp_opts = Opts, publisher_to_queue = PubQ})
@@ -254,16 +280,13 @@ start_amqp_connection(Topic, State = #state{topic_to_queue = Queues}) ->
    Q = maps:get(Topic, Queues),
    start_amqp_connection(Q, State).
 
-start_queue(Topic, State = #state{fn_id = {FlowId, NodeId}, topic_to_queue = TopicQueue, queue_to_topics = QTopics}) ->
+start_queue(Topic, State = #state{fn_id = {FlowId, NodeId},
+      topic_to_queue = TopicQueue, queue_to_topics = QTopics, queue_opts = QOpts}) ->
    Key = topic_to_key(Topic),
    QFile = faxe_config:q_file({FlowId, <<NodeId/binary, "-", Key/binary>>}),
-   {ok, Q} = esq:new(QFile, faxe_config:get_esq_opts()),
+   {ok, Q} = esq:new(QFile, QOpts),
    NewQueues = TopicQueue#{Topic => Q},
    State#state{topic_to_queue = NewQueues, queue_to_topics = QTopics#{Q => [Topic]}}.
-
-%%esq_params() ->
-%%   Conf = faxe_config:get(esq),
-%%   carrot_util:proplists_merge()
 
 connect_mqtt(State = #state{host = Host, port = Port, client_id = ClientId}) ->
    connection_registry:connecting(),
@@ -294,9 +317,48 @@ opts_ssl(#state{ssl = true, ssl_opts = SslOpts}, Opts) ->
 
 
 subscribe(#state{qos = Qos, client = C, topic = Topic, topics = undefined}) when is_binary(Topic) ->
-   lager:notice("mqtt_client subscribe: ~p", [Topic]),
+   lager:info("mqtt_client subscribe: ~p", [Topic]),
    ok = emqttc:subscribe(C, Topic, Qos);
 subscribe(#state{qos = Qos, client = C, topics = Topics}) ->
    TQs = [{Top, Qos} || Top <- Topics],
    ok = emqttc:subscribe(C, TQs).
+
+check_reset(State = #state{topic_last_seen = LastSeen}) when map_size(LastSeen) == 0 ->
+   State;
+check_reset(State = #state{topic_last_seen = LastSeen, reset_timeout = Timeout}) ->
+   Now = faxe_time:now(),
+   Fun =
+   fun(Topic, TopicLastSeen, Acc) ->
+      case (TopicLastSeen + Timeout) < Now of
+         true -> [Topic|Acc];
+         false -> Acc
+      end
+   end,
+   ResetList = maps:fold(Fun, [], LastSeen),
+   lists:foldl(fun(T, AccState) -> reset_topic(T, AccState) end, State, ResetList).
+
+reset_topic(Topic,
+      State = #state{topic_to_queue = TopicToQ, queue_to_topics = QToTopics, publisher_to_queue = Pubs}) ->
+
+   NewTopicToQ = maps:without(Topic, TopicToQ),
+   {NewQToTopics, NewPubs} =
+      maps:fold(
+      fun(Q, Topics, {QToTopicsAcc, PubsAcc}) ->
+         NewTopics =
+         case lists:member(Topic, Topics) of
+            true -> lists:delete(Topics, Topic);
+            false -> Topics
+         end,
+         case NewTopics of
+            [] ->
+               %% stop publisher and q and delete QTopics entry and publisher entry
+               esq:free(Q),
+               Publisher = maps:get(Q, faxe_util:flip_map(Pubs)),
+               bunny_esq_worker:stop(Publisher),
+               {QToTopicsAcc, maps:without([Publisher], PubsAcc)};
+            _ -> {QToTopicsAcc#{Q => NewTopics}, PubsAcc}
+         end
+      end, {#{}, Pubs}, QToTopics),
+   State#state{topic_to_queue = NewTopicToQ, queue_to_topics = NewQToTopics, publisher_to_queue = NewPubs}.
+
 

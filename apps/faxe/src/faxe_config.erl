@@ -58,8 +58,9 @@ get_http_ssl_opts() ->
    case faxe_config:get(http_api) of
       KeyOpts when is_list(KeyOpts) ->
          SslOpts = proplists:get_value(ssl, KeyOpts, []),
-         Additional = [{honor_cipher_order, true}, {ciphers, [
-            "ECDHE-RSA-AES256-GCM-SHA384", "ECDHE-RSA-AES128-GCM-SHA256", "AES256-GCM-SHA384"]}],
+         Ciphers0 = proplists:get_value(ciphers, KeyOpts, []),
+         Ciphers = string:split(string:replace(Ciphers0, " ", "", all), ",", all),
+         Additional = [{honor_cipher_order, true}, {ciphers, Ciphers}],
          FilerFun = fun({_K, E}) -> E /= [] andalso E /= "" andalso E /= undefined end,
          lists:filter(FilerFun, SslOpts) ++ Additional;
       _ -> []

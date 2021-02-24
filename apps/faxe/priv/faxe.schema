@@ -123,6 +123,13 @@
     [{default, "/path/to/keyfile.key"}, {datatype, file}, {commented, "/path/to/cert.key"}]
 }.
 
+%% @doc a list of ciphers to use for the http listener
+{mapping, "http_api.ciphers", "faxe.http_api.ciphers",
+    [{default, "ECDHE-RSA-AES256-GCM-SHA384, ECDHE-RSA-AES128-GCM-SHA256, DHE-RSA-AES256-GCM-SHA384, DHE-RSA-AES128-GCM-SHA256, TLS_AES_256_GCM_SHA384,ECDHE-RSA-AES256-GCM-SHA384"},
+        {datatype, string},
+        {commented, "ECDHE-RSA-AES256-GCM-SHA384, ECDHE-RSA-AES128-GCM-SHA256, DHE-RSA-AES256-GCM-SHA384, DHE-RSA-AES128-GCM-SHA256, TLS_AES_256_GCM_SHA384,ECDHE-RSA-AES256-GCM-SHA384"}
+        ]
+}.
 
 %% @doc -----------------------------------------------------------
 %% PYTHON
@@ -176,6 +183,14 @@
 {mapping, "queue_capacity", "faxe.esq.capacity",
     [{default, 10}, {datatype, integer}]
 }.
+
+%% @doc dequeue interval.
+%% Interval at which the queue is asked for an element.
+%%
+{mapping, "dequeue_interval", "faxe.esq.deq_interval",
+    [{default, "15ms"}, {datatype, {duration, ms}}]
+}.
+
 
 %% @doc -------------------------------------------------------------------------
 %% S7 DEFAULTS

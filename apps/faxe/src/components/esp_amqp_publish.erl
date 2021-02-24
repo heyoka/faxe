@@ -37,7 +37,8 @@
    opts,
    queue,
    flowid_nodeid,
-   debug_mode = false
+   debug_mode = false,
+   safe_mode = false
 }).
 
 options() -> [
@@ -49,7 +50,8 @@ options() -> [
    {routing_key, string, undefined},
    {routing_key_lambda, lambda, undefined},
    {exchange, string},
-   {ssl, is_set, false}].
+   {ssl, is_set, false},
+   {safe, is_set, false}].
 
 check_options() ->
    [{one_of_params, [routing_key, routing_key_lambda]}].
@@ -61,17 +63,22 @@ metrics() ->
 
 init({_GraphId, _NodeId} = Idx, _Ins,
    #{ host := Host0, port := Port, user := _User, pass := _Pass, vhost := _VHost, exchange := Ex,
-      routing_key := RoutingKey, routing_key_lambda := RkLambda, ssl := _UseSSL} = Opts0) ->
+      routing_key := RoutingKey, routing_key_lambda := RkLambda, ssl := _UseSSL, safe := Safe} = Opts0) ->
 
    process_flag(trap_exit, true),
    Host = binary_to_list(Host0),
-   Opts = Opts0#{host => Host},
+   Opts = Opts0#{host => Host, safe_mode => Safe},
+
+   %% config and start queue
    QFile = faxe_config:q_file(Idx),
-   {ok, Q} = esq:new(QFile, faxe_config:get_esq_opts()),
+   QOpts0 = faxe_config:get_esq_opts(),
+   QOpts = case Safe of true -> QOpts0; false -> proplists:delete(ttf, QOpts0) end,
+   {ok, Q} = esq:new(QFile, QOpts),
+
    connection_registry:reg(Idx, Host, Port, <<"amqp">>),
    connection_registry:connecting(),
    State = start_connection(#state{opts = Opts, exchange = Ex, routing_key = RoutingKey, queue = Q,
-      rk_lambda = RkLambda}),
+      rk_lambda = RkLambda, safe_mode = Safe}),
    {ok, State#state{flowid_nodeid = Idx}}.
 
 process(_In, Item, State = #state{exchange = Exchange, queue = Q,
