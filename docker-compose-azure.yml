@@ -3,26 +3,18 @@ services:
   faxe:
     # to have a fixed hostname for mnesia
     hostname: "faxe"
-    build:
-      context: "./"
-      dockerfile: "Dockerfile_debian"
+    image: "Dockerfile_debian"
     ports:
       - "8080:8080"
+      - "8443:8443"
     container_name: faxe
     volumes:
       - /opt/faxe/docker_storage/mnesia:/data/mnesia
       - /opt/faxe/docker_storage/esq:/data/esq
       - /opt/faxe/docker_storage/python:/data/python
-      - /opt/faxe/certs/running:/data/certs/
-    environment:
-      - FAXE_AMQP_HOST=unset
-      - FAXE_DEBUG_HANDLER_MQTT_ENABLE=on
-      - FAXE_FLOW_AUTO_START=on
-      - FAXE_HTTP_API_PORT=8080
-      - FAXE_HTTP_API_TLS_ENABLE=off
-      - FAXE_MNESIA_DIR=/data/mnesia
-      - FAXE_MQTT_HOST=devat-cw-mqtt
-      - FAXE_QUEUE_BASE_DIR=/data/esq
+      - /opt/faxe/docker_storage/certs:/data/certs/
+    env_file:
+    - /opt/faxe/docker_storage/azure.env
     ulimits:
       nproc: 65535
       nofile:
