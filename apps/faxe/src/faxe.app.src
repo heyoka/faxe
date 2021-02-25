@@ -1,6 +1,6 @@
 {application, faxe,
  [{description, "DataFlow based data collector / data processor"},
-  {vsn, "0.12.2"},
+  {vsn, "0.13.0"},
   {registered, []},
   {mod, { faxe_app, []}},
   {applications,
