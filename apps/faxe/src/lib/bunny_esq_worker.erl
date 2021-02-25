@@ -57,6 +57,7 @@ stop(Server) ->
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 -spec init(list()) -> {ok, state()}.
 init([Queue, Config]) ->
+
    process_flag(trap_exit, true),
    erlang:send_after(0, self(), connect),
    AmqpParams = amqp_options:parse(Config),

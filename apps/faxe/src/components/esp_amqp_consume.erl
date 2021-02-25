@@ -18,7 +18,7 @@
 
 -include("faxe.hrl").
 %% API
--export([init/3, process/3, options/0, handle_info/2, shutdown/1, metrics/0]).
+-export([init/3, process/3, options/0, handle_info/2, shutdown/1, metrics/0, check_options/0]).
 
 -define(RECONNECT_TIMEOUT, 2000).
 
@@ -75,6 +75,11 @@ options() -> [
    {as, string, undefined}
 ].
 
+check_options() ->
+   [
+      {one_of_params, [routing_key, bindings]}
+   ].
+
 metrics() ->
    [
       {?METRIC_BYTES_READ, meter, []}
@@ -98,7 +103,6 @@ init({_GraphId, _NodeId} = Idx, _Ins,
 
    QFile = faxe_config:q_file(Idx),
    QConf = proplists:delete(ttf, faxe_config:get_esq_opts()),
-   lager:notice("esq_opts: ~p" ,[QConf]),
    {ok, Q} = esq:new(QFile, QConf),
 
    NewState = start_emitter(State#state{queue = Q, flownodeid = Idx}),
