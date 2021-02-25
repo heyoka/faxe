@@ -80,7 +80,6 @@ options() -> [
    {amqp_pass, string, {amqp, pass}},
    {amqp_vhost, string, <<"/">>},
    {amqp_exchange, string, <<"x">>},
-   {amqp_routing_key, string, <<"">>},
    {amqp_ssl, is_set, false},
    %% OTHER
    {reset_timeout, duration, <<"5m">>},
@@ -106,8 +105,7 @@ init(NodeId, _Ins,
       ssl := UseSSL, qos := Qos,
       %% AMQP
       amqp_host := AMQPHost0, amqp_port := AMQPPort, amqp_user := AMQPUser, amqp_pass := AMQPPass,
-      amqp_vhost := AMQPVHost, amqp_exchange := AMQPEx, amqp_routing_key := AMQPRoutingKey,
-      amqp_ssl := AMQPUseSSL,
+      amqp_vhost := AMQPVHost, amqp_exchange := AMQPEx, amqp_ssl := AMQPUseSSL,
       %% OTHER
       reset_timeout := RTimeout, max_publishers := MaxPublishers, safe := Safe
       } = _Opts) ->
@@ -116,7 +114,7 @@ init(NodeId, _Ins,
    AMQPOpts = #{
       host => binary_to_list(AMQPHost0), port => AMQPPort, user => AMQPUser,
       pass => AMQPPass, vhost => AMQPVHost, exchange => AMQPEx,
-      routing_key => AMQPRoutingKey, ssl => AMQPUseSSL, safe_mode => Safe
+      ssl => AMQPUseSSL, safe_mode => Safe
    },
 
    %% MQTT
@@ -335,18 +333,19 @@ check_reset(State = #state{topic_last_seen = LastSeen, reset_timeout = Timeout})
       end
    end,
    ResetList = maps:fold(Fun, [], LastSeen),
+   lager:notice("reset list: ~p", [ResetList]),
    lists:foldl(fun(T, AccState) -> reset_topic(T, AccState) end, State, ResetList).
 
 reset_topic(Topic,
       State = #state{topic_to_queue = TopicToQ, queue_to_topics = QToTopics, publisher_to_queue = Pubs}) ->
 
-   NewTopicToQ = maps:without(Topic, TopicToQ),
+   NewTopicToQ = maps:without([Topic], TopicToQ),
    {NewQToTopics, NewPubs} =
       maps:fold(
       fun(Q, Topics, {QToTopicsAcc, PubsAcc}) ->
          NewTopics =
          case lists:member(Topic, Topics) of
-            true -> lists:delete(Topics, Topic);
+            true -> lists:delete(Topic, Topics);
             false -> Topics
          end,
          case NewTopics of
@@ -359,6 +358,7 @@ reset_topic(Topic,
             _ -> {QToTopicsAcc#{Q => NewTopics}, PubsAcc}
          end
       end, {#{}, Pubs}, QToTopics),
-   State#state{topic_to_queue = NewTopicToQ, queue_to_topics = NewQToTopics, publisher_to_queue = NewPubs}.
+   State#state{topic_to_queue = NewTopicToQ, queue_to_topics = NewQToTopics,
+      publisher_to_queue = NewPubs, topic_last_seen = maps:without([Topic], State#state.topic_last_seen)}.
 
 

@@ -3,7 +3,3 @@ crate_query should support time sync in a plausible way
 fix update flow with python code where a new param has been added to the py code: all params are stored with task !
 check for point/batch handling in all components
 
----
-refactor dfs to try to use node-ids as consistent as possible, beware of macros !
-add concurrency for dataflows (for bridge use)
-add firehose components
