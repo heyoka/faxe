@@ -6,6 +6,9 @@
 trigger:
 - none
 
+variables:
+- group: 'azure_faxe' # variable group
+
 pool: azure-faxe-cluster
 
 steps:
