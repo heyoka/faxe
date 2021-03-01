@@ -96,8 +96,8 @@ steps:
     sudo -u $(FAXE_RUNTIME_USER) /usr/local/bin/docker-compose -f docker-compose-azure.yml up -d
   displayName: 'start container via docker-compose'
 
-#- script: |
-#   check if we start householding
+- script: |
+    #check if we start householding
     HOUSEKEEPING=false
     IMAGE_KEEP=5
     if [ $(docker images | grep faxe | wc -l) -gt $IMAGE_KEEP ]
@@ -121,12 +121,10 @@ steps:
     	  for del in ${arr_keep[@]}
     	  do
     	    arr_all=("${arr_all[@]/$del}") 
-    	  done
-    
+    	  done   
     fi  
     echo del ${arr_all[*]}
     echo keep: ${arr_keep[*]}
     # delete old images:
 #   # sudo -u $(FAXE_RUNTIME_USER) /usr/bin/docker rmi ${arr_all[*]}
- 
-#  displayName: 'housekeeping - keep only latest 5 images'    
+  displayName: 'housekeeping - keep only latest 5 images'    
