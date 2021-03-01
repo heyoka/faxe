@@ -43,7 +43,7 @@ steps:
     echo '$(Build.Repository.Name).$(Build.BuildNumber)'
     TAG=$(echo '$(Build.Repository.Name):$(Build.BuildNumber)')
     echo "creating env file"
-    echo "FAXE_FLOW_AUTO_START=$FAXE_FLOW_AUTO_START" >> /opt/tgw/docker_storage/azure.env
+    echo "FAXE_FLOW_AUTO_START=$FAXE_FLOW_AUTO_START" > /opt/tgw/docker_storage/azure.env
     echo "FAXE_HTTP_API_PORT=$FAXE_HTTP_API_PORT" >> /opt/tgw/docker_storage/azure.env
     echo "FAXE_MNESIA_DIR=$FAXE_MNESIA_DIR" >> /opt/tgw/docker_storage/azure.env
     echo "FAXE_QUEUE_BASE_DIR=$FAXE_QUEUE_BASE_DIR" >> /opt/tgw/docker_storage/azure.env
@@ -53,12 +53,12 @@ steps:
     echo "FAXE_AMQP_HOST=$FAXE_AMQP_HOST" >> /opt/tgw/docker_storage/azure.env
     echo "FAXE_AMQP_PORT=$FAXE_AMQP_PORT" >> /opt/tgw/docker_storage/azure.env
     echo "FAXE_AMQP_USER=$FAXE_AMQP_USER" >> /opt/tgw/docker_storage/azure.env
-    echo "FAXE_AMQP_PASS=$FAXE_AMQP_PASS" >> /opt/tgw/docker_storage/azure.env
+    echo "FAXE_AMQP_PASS=$(FAXE_AMQP_PASS)" >> /opt/tgw/docker_storage/azure.env
     echo "FAXE_CRATE_HOST=$FAXE_CRATE_HOST" >> /opt/tgw/docker_storage/azure.env
     echo "FAXE_CRATE_HTTP_HOST=$FAXE_CRATE_HTTP_HOST" >> /opt/tgw/docker_storage/azure.env
     echo "FAXE_CRATE_HTTP_PORT=$FAXE_CRATE_HTTP_PORT" >> /opt/tgw/docker_storage/azure.env
     echo "FAXE_CRATE_HTTP_USER=$FAXE_CRATE_HTTP_USER" >> /opt/tgw/docker_storage/azure.env
-    echo "FAXE_CRATE_HTTP_PASS=$FAXE_CRATE_HTTP_PASS" >> /opt/tgw/docker_storage/azure.env
+    echo "FAXE_CRATE_HTTP_PASS=$(FAXE_CRATE_HTTP_PASS)" >> /opt/tgw/docker_storage/azure.env
     echo "FAXE_HTTP_API_SSL_KEYFILE=$FAXE_HTTP_API_SSL_KEYFILE" >> /opt/tgw/docker_storage/azure.env
     echo "FAXE_HTTP_API_SSL_CERTFILE=$FAXE_HTTP_API_SSL_CERTFILE" >> /opt/tgw/docker_storage/azure.env
     echo "FAXE_HTTP_API_SSL_CACERTFILE=$FAXE_HTTP_API_SSL_CACERTFILE" >> /opt/tgw/docker_storage/azure.env
@@ -68,10 +68,10 @@ steps:
     echo "FAXE_EMAIL_TLS=$FAXE_EMAIL_TLS" >> /opt/tgw/docker_storage/azure.env
     echo "FAXE_EMAIL_USER=$FAXE_EMAIL_USER" >> /opt/tgw/docker_storage/azure.env
     echo "FAXE_EMAIL_TEMPLATE=$FAXE_EMAIL_TEMPLATE" >> /opt/tgw/docker_storage/azure.env
-    echo "FAXE_EMAIL_PASS=$FAXE_EMAIL_PASS" >> /opt/tgw/docker_storage/azure.env
+    echo "FAXE_EMAIL_PASS=$(FAXE_EMAIL_PASS)" >> /opt/tgw/docker_storage/azure.env
     echo "FAXE_CONN_STATUS_HANDLER_MQTT_ENABLE=$FAXE_CONN_STATUS_HANDLER_MQTT_ENABLE" >> /opt/tgw/docker_storage/azure.env
     #build container-image
-    sudo -u faxe docker build -t $(Build.Repository.Name):$(Build.BuildNumber) -f Dockerfile_debian .
+    sudo -u $(FAXE_RUNTIME_USER) docker build -t $(Build.Repository.Name):$(Build.BuildNumber) -f Dockerfile_debian .
     # inject current build number into compose-file
     sed "s!Dockerfile_debian!$TAG!g" -i docker-compose-azure.yml
   displayName: 'build new image and tag it with azure pipeline build number'
