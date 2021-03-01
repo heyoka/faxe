@@ -41,9 +41,9 @@ steps:
     echo '$(Build.Repository.Name).$(Build.BuildNumber)'
     TAG=$(echo '$(Build.Repository.Name):$(Build.BuildNumber)')
     echo "creating env file"
-    echo $(FAXE_DEBUG_HANDLER_MQTT_ENABLE)
+    echo ${FAXE_DEBUG_HANDLER_MQTT_ENABLE}
     echo "FAXE_DEBUG_HANDLER_MQTT_ENABLE=$FAXE_DEBUG_HANDLER_MQTT_ENABLE" > /opt/tgw/docker_storage/azure.env
-    echo "FAXE_DEBUG_HANDLER_MQTT_ENABLE=$(FAXE_DEBUG_HANDLER_MQTT_ENABLE)" >> /opt/tgw/docker_storage/azure.env
+    echo "FAXE_DEBUG_HANDLER_MQTT_ENABLE=${FAXE_DEBUG_HANDLER_MQTT_ENABLE}" >> /opt/tgw/docker_storage/azure.env
     echo "FAXE__DEBUG__HANDLER__MQTT__ENABLE=$FAXE__DEBUG__HANDLER__MQTT__ENABLE" >> /opt/tgw/docker_storage/azure.env
     echo "FAXE_FLOW_AUTO_START=$FAXE_FLOW_AUTO_START" >> /opt/tgw/docker_storage/azure.env
     echo "FAXE_HTTP_API_PORT=$FAXE_HTTP_API_PORT" >> /opt/tgw/docker_storage/azure.env
