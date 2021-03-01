@@ -34,7 +34,7 @@ steps:
     TargetFolder: '/opt/tgw/faxe_repo'
     CleanTargetFolder: true
     overWrite: true
-
+- bash: echo $(FAXE_DEBUG_HANDLER_MQTT_ENABLE)
 - script: | 
     cd /opt/tgw/faxe_repo
     # gather azure build information:
