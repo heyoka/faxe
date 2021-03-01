@@ -70,6 +70,7 @@ steps:
     echo "FAXE_EMAIL_TEMPLATE=$FAXE_EMAIL_TEMPLATE" >> /opt/tgw/docker_storage/azure.env
     echo "FAXE_EMAIL_PASS=$(FAXE_EMAIL_PASS)" >> /opt/tgw/docker_storage/azure.env
     echo "FAXE_CONN_STATUS_HANDLER_MQTT_ENABLE=$FAXE_CONN_STATUS_HANDLER_MQTT_ENABLE" >> /opt/tgw/docker_storage/azure.env
+    echo "FAXE_HTTP_API_CIPHERS=$FAXE_HTTP_API_CIPHERS" >> /opt/tgw/docker_storage/azure.env
     #build container-image
     sudo -u $(FAXE_RUNTIME_USER) docker build -t $(Build.Repository.Name):$(Build.BuildNumber) -f Dockerfile_debian .
     # inject current build number into compose-file
