@@ -71,7 +71,7 @@ steps:
     echo "FAXE_EMAIL_PASS=$FAXE_EMAIL_PASS" >> /opt/tgw/docker_storage/azure.env
     echo "FAXE_CONN_STATUS_HANDLER_MQTT_ENABLE=$FAXE_CONN_STATUS_HANDLER_MQTT_ENABLE" >> /opt/tgw/docker_storage/azure.env
     #build container-image
-    #sudo -u faxe docker build -t $(Build.Repository.Name):$(Build.BuildNumber) -f Dockerfile_debian .
+    sudo -u faxe docker build -t $(Build.Repository.Name):$(Build.BuildNumber) -f Dockerfile_debian .
     # inject current build number into compose-file
     sed "s!Dockerfile_debian!$TAG!g" -i docker-compose-azure.yml
   displayName: 'build new image and tag it with azure pipeline build number'
