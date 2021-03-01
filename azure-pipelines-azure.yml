@@ -37,20 +37,12 @@ steps:
     TargetFolder: '/opt/tgw/faxe_repo'
     CleanTargetFolder: true
     overWrite: true
-- bash: echo $(FAXE_DEBUG_HANDLER_MQTT_ENABLE)
 - script: | 
     cd /opt/tgw/faxe_repo
     # gather azure build information:
     echo '$(Build.Repository.Name).$(Build.BuildNumber)'
     TAG=$(echo '$(Build.Repository.Name):$(Build.BuildNumber)')
     echo "creating env file"
-    echo 1 ${FAXE_DEBUG_HANDLER_MQTT_ENABLE}
-    echo 2 ${FAXE__DEBUG__HANDLER__MQTT__ENABLE}
-    echo 3 $(FAXE_DEBUG_HANDLER_MQTT_ENABLE)
-    echo 4 $(FAXE__DEBUG__HANDLER__MQTT__ENABLE)
-    echo "FAXE_DEBUG_HANDLER_MQTT_ENABLE=$FAXE_DEBUG_HANDLER_MQTT_ENABLE" > /opt/tgw/docker_storage/azure.env
-    echo "FAXE_DEBUG_HANDLER_MQTT_ENABLE=${FAXE_DEBUG_HANDLER_MQTT_ENABLE}" >> /opt/tgw/docker_storage/azure.env
-    echo "FAXE__DEBUG__HANDLER__MQTT__ENABLE=$FAXE__DEBUG__HANDLER__MQTT__ENABLE" >> /opt/tgw/docker_storage/azure.env
     echo "FAXE_FLOW_AUTO_START=$FAXE_FLOW_AUTO_START" >> /opt/tgw/docker_storage/azure.env
     echo "FAXE_HTTP_API_PORT=$FAXE_HTTP_API_PORT" >> /opt/tgw/docker_storage/azure.env
     echo "FAXE_MNESIA_DIR=$FAXE_MNESIA_DIR" >> /opt/tgw/docker_storage/azure.env
