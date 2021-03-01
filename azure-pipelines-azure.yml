@@ -95,3 +95,36 @@ steps:
     cd /opt/tgw/faxe_repo
     sudo -u $(FAXE_RUNTIME_USER) /usr/local/bin/docker-compose -f docker-compose-azure.yml up -d
   displayName: 'start container via docker-compose'
+
+#- script: |
+#   check if we start householding
+    HOUSEKEEPING=false
+    IMAGE_KEEP=5
+    if [ $(docker images | grep faxe | wc -l) -gt $IMAGE_KEEP ]
+      then
+    	  echo "too many images for faxe present - starting housekeeping"
+    	  HOUSEKEEPING=true
+      else
+    	  echo "skipping housekeeping"
+    	  HOUSEKEEPING=false
+        echo $(( $IMAGE_KEEP - $(docker images | grep faxe | wc -l) )) images left, before housekeeping deletes old images
+    fi
+    # clear arrays:
+    unset arr_all  arr_keep
+    if [ $HOUSEKEEPING = "true" ];
+      then
+      	echo "starting housekeeping"
+    	  arr_all=$(docker images | grep faxe | sort -k2 -r | awk '{print $3}')
+    	  echo all ${arr_all[*]}
+    	  arr_keep=$(docker images | grep faxe | sort -k2 -r | awk '{print $3}' | head -n $IMAGE_KEEP)
+    	  echo keep ${arr_keep[*]}
+    	  for del in ${arr_keep[@]}
+    	  do
+    	    arr_all=("${arr_all[@]/$del}") 
+    	  done
+    
+    fi  
+    echo del ${arr_all[*]}
+    echo keep: ${arr_keep[*]}
+ 
+#  displayName: 'housekeeping - keep only latest 5 images'    
