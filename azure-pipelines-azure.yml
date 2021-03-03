@@ -128,5 +128,5 @@ steps:
     echo delete images: ${arr_all[*]}
     echo keep images: ${arr_keep[*]}
     # delete old images:
-#   # sudo -u $(FAXE_RUNTIME_USER) /usr/bin/docker rmi ${arr_all[*]}
+    sudo -u $(FAXE_RUNTIME_USER) /usr/bin/docker rmi ${arr_all[*]}
   displayName: 'housekeeping - keep only latest 5 images'    
