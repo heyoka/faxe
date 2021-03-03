@@ -33,7 +33,9 @@ steps:
       !Dockerfile.revpi-core-3
       !docker-compose-devat.yml
       !docker-compose-helix.yml
-
+      !.git
+      !.github
+      !.gitignore
     TargetFolder: '/opt/tgw/faxe_repo'
     CleanTargetFolder: true
     overWrite: true
