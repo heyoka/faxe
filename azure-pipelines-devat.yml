@@ -45,36 +45,36 @@ steps:
     echo '$(Build.Repository.Name).$(Build.BuildNumber)'
     TAG=$(echo '$(Build.Repository.Name):$(Build.BuildNumber)')
     echo "creating env file"
-    echo "FAXE_FLOW_AUTO_START=$FAXE_FLOW_AUTO_START" > /opt/tgw/docker_storage/azure.env
-    echo "FAXE_HTTP_API_PORT=$FAXE_HTTP_API_PORT" >> /opt/tgw/docker_storage/azure.env
-    echo "FAXE_MNESIA_DIR=$FAXE_MNESIA_DIR" >> /opt/tgw/docker_storage/azure.env
-    echo "FAXE_QUEUE_BASE_DIR=$FAXE_QUEUE_BASE_DIR" >> /opt/tgw/docker_storage/azure.env
-    echo "FAXE_PYTHON_SCRIPT_PATH=$FAXE_PYTHON_SCRIPT_PATH" >> /opt/tgw/docker_storage/azure.env
-    echo "FAXE_MQTT_HOST=$FAXE_MQTT_HOST" >> /opt/tgw/docker_storage/azure.env
-    echo "FAXE_ALLOW_ANONYMOUS=$FAXE_ALLOW_ANONYMOUS" >> /opt/tgw/docker_storage/azure.env
-    echo "FAXE_AMQP_HOST=$FAXE_AMQP_HOST" >> /opt/tgw/docker_storage/azure.env
-    echo "FAXE_AMQP_PORT=$FAXE_AMQP_PORT" >> /opt/tgw/docker_storage/azure.env
-    echo "FAXE_AMQP_USER=$(FAXE_AMQP_USER)" >> /opt/tgw/docker_storage/azure.env
-    echo "FAXE_AMQP_PASS=$(FAXE_AMQP_PASS)" >> /opt/tgw/docker_storage/azure.env
-    echo "FAXE_CRATE_HOST=$FAXE_CRATE_HOST" >> /opt/tgw/docker_storage/azure.env
-    echo "FAXE_CRATE_HTTP_HOST=$FAXE_CRATE_HTTP_HOST" >> /opt/tgw/docker_storage/azure.env
-    echo "FAXE_CRATE_HTTP_PORT=$FAXE_CRATE_HTTP_PORT" >> /opt/tgw/docker_storage/azure.env
-    echo "FAXE_CRATE_HTTP_USER=$(FAXE_CRATE_HTTP_USER)" >> /opt/tgw/docker_storage/azure.env
-    echo "FAXE_CRATE_USER=$(FAXE_CRATE_USER)" >> /opt/tgw/docker_storage/azure.env
-    echo "FAXE_CRATE_PASS=$(FAXE_CRATE_PASS)" >> /opt/tgw/docker_storage/azure.env
-    echo "FAXE_CRATE_HTTP_PASS=$(FAXE_CRATE_HTTP_PASS)" >> /opt/tgw/docker_storage/azure.env
-    echo "FAXE_HTTP_API_SSL_KEYFILE=$FAXE_HTTP_API_SSL_KEYFILE" >> /opt/tgw/docker_storage/azure.env
-    echo "FAXE_HTTP_API_SSL_CERTFILE=$FAXE_HTTP_API_SSL_CERTFILE" >> /opt/tgw/docker_storage/azure.env
-    echo "FAXE_HTTP_API_SSL_CACERTFILE=$FAXE_HTTP_API_SSL_CACERTFILE" >> /opt/tgw/docker_storage/azure.env
-    echo "FAXE_HTTP_API_TLS_ENABLE=$FAXE_HTTP_API_TLS_ENABLE" >> /opt/tgw/docker_storage/azure.env
-    echo "FAXE_EMAIL_FROM=$FAXE_EMAIL_FROM" >> /opt/tgw/docker_storage/azure.env
-    echo "FAXE_EMAIL_PORT=$FAXE_EMAIL_PORT" >> /opt/tgw/docker_storage/azure.env
-    echo "FAXE_EMAIL_TLS=$FAXE_EMAIL_TLS" >> /opt/tgw/docker_storage/azure.env
-    echo "FAXE_EMAIL_USER=$(FAXE_EMAIL_USER)" >> /opt/tgw/docker_storage/azure.env
-    echo "FAXE_EMAIL_TEMPLATE=$FAXE_EMAIL_TEMPLATE" >> /opt/tgw/docker_storage/azure.env
-    echo "FAXE_EMAIL_PASS=$(FAXE_EMAIL_PASS)" >> /opt/tgw/docker_storage/azure.env
-    echo "FAXE_CONN_STATUS_HANDLER_MQTT_ENABLE=$FAXE_CONN_STATUS_HANDLER_MQTT_ENABLE" >> /opt/tgw/docker_storage/azure.env
-    echo "FAXE_HTTP_API_CIPHERS=$FAXE_HTTP_API_CIPHERS" >> /opt/tgw/docker_storage/azure.env
+    echo "FAXE_FLOW_AUTO_START=$FAXE_FLOW_AUTO_START" > /opt/faxe/docker_storage/devat.env
+    echo "FAXE_HTTP_API_PORT=$FAXE_HTTP_API_PORT" >> /opt/faxe/docker_storage/devat.env
+    echo "FAXE_MNESIA_DIR=$FAXE_MNESIA_DIR" >> /opt/faxe/docker_storage/devat.env
+    echo "FAXE_QUEUE_BASE_DIR=$FAXE_QUEUE_BASE_DIR" >> /opt/faxe/docker_storage/devat.env
+    echo "FAXE_PYTHON_SCRIPT_PATH=$FAXE_PYTHON_SCRIPT_PATH" >> /opt/faxe/docker_storage/devat.env
+    echo "FAXE_MQTT_HOST=$FAXE_MQTT_HOST" >> /opt/faxe/docker_storage/devat.env
+    echo "FAXE_ALLOW_ANONYMOUS=$FAXE_ALLOW_ANONYMOUS" >> /opt/faxe/docker_storage/devat.env
+    echo "FAXE_AMQP_HOST=$FAXE_AMQP_HOST" >> /opt/faxe/docker_storage/devat.env
+    echo "FAXE_AMQP_PORT=$FAXE_AMQP_PORT" >> /opt/faxe/docker_storage/devat.env
+    echo "FAXE_AMQP_USER=$(FAXE_AMQP_USER)" >> /opt/faxe/docker_storage/devat.env
+    echo "FAXE_AMQP_PASS=$(FAXE_AMQP_PASS)" >> /opt/faxe/docker_storage/devat.env
+    echo "FAXE_CRATE_HOST=$FAXE_CRATE_HOST" >> /opt/faxe/docker_storage/devat.env
+    echo "FAXE_CRATE_HTTP_HOST=$FAXE_CRATE_HTTP_HOST" >> /opt/faxe/docker_storage/devat.env
+    echo "FAXE_CRATE_HTTP_PORT=$FAXE_CRATE_HTTP_PORT" >> /opt/faxe/docker_storage/devat.env
+    echo "FAXE_CRATE_HTTP_USER=$(FAXE_CRATE_HTTP_USER)" >> /opt/faxe/docker_storage/devat.env
+    echo "FAXE_CRATE_USER=$(FAXE_CRATE_USER)" >> /opt/faxe/docker_storage/devat.env
+    echo "FAXE_CRATE_PASS=$(FAXE_CRATE_PASS)" >> /opt/faxe/docker_storage/devat.env
+    echo "FAXE_CRATE_HTTP_PASS=$(FAXE_CRATE_HTTP_PASS)" >> /opt/faxe/docker_storage/devat.env
+    echo "FAXE_HTTP_API_SSL_KEYFILE=$FAXE_HTTP_API_SSL_KEYFILE" >> /opt/faxe/docker_storage/devat.env
+    echo "FAXE_HTTP_API_SSL_CERTFILE=$FAXE_HTTP_API_SSL_CERTFILE" >> /opt/faxe/docker_storage/devat.env
+    echo "FAXE_HTTP_API_SSL_CACERTFILE=$FAXE_HTTP_API_SSL_CACERTFILE" >> /opt/faxe/docker_storage/devat.env
+    echo "FAXE_HTTP_API_TLS_ENABLE=$FAXE_HTTP_API_TLS_ENABLE" >> /opt/faxe/docker_storage/devat.env
+    echo "FAXE_EMAIL_FROM=$FAXE_EMAIL_FROM" >> /opt/faxe/docker_storage/devat.env
+    echo "FAXE_EMAIL_PORT=$FAXE_EMAIL_PORT" >> /opt/faxe/docker_storage/devat.env
+    echo "FAXE_EMAIL_TLS=$FAXE_EMAIL_TLS" >> /opt/faxe/docker_storage/devat.env
+    echo "FAXE_EMAIL_USER=$(FAXE_EMAIL_USER)" >> /opt/faxe/docker_storage/devat.env
+    echo "FAXE_EMAIL_TEMPLATE=$FAXE_EMAIL_TEMPLATE" >> /opt/faxe/docker_storage/devat.env
+    echo "FAXE_EMAIL_PASS=$(FAXE_EMAIL_PASS)" >> /opt/faxe/docker_storage/devat.env
+    echo "FAXE_CONN_STATUS_HANDLER_MQTT_ENABLE=$FAXE_CONN_STATUS_HANDLER_MQTT_ENABLE" >> /opt/faxe/docker_storage/devat.env
+    echo "FAXE_HTTP_API_CIPHERS=$FAXE_HTTP_API_CIPHERS" >> /opt/faxe/docker_storage/devat.env
     #build container-image
     sudo -u $(FAXE_RUNTIME_USER) docker build -t $(Build.Repository.Name):$(Build.BuildNumber) -f Dockerfile_debian .
     # inject current build number into compose-file
