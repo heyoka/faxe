@@ -60,6 +60,8 @@ steps:
     echo "FAXE_CRATE_HTTP_HOST=$FAXE_CRATE_HTTP_HOST" >> /opt/tgw/docker_storage/azure.env
     echo "FAXE_CRATE_HTTP_PORT=$FAXE_CRATE_HTTP_PORT" >> /opt/tgw/docker_storage/azure.env
     echo "FAXE_CRATE_HTTP_USER=$FAXE_CRATE_HTTP_USER" >> /opt/tgw/docker_storage/azure.env
+    echo "FAXE_CRATE_USER=$FAXE_CRATE_USER" >> /opt/tgw/docker_storage/azure.env
+    echo "FAXE_CRATE_PASS=$(FAXE_CRATE_HTTP_PASS)" >> /opt/tgw/docker_storage/azure.env
     echo "FAXE_CRATE_HTTP_PASS=$(FAXE_CRATE_HTTP_PASS)" >> /opt/tgw/docker_storage/azure.env
     echo "FAXE_HTTP_API_SSL_KEYFILE=$FAXE_HTTP_API_SSL_KEYFILE" >> /opt/tgw/docker_storage/azure.env
     echo "FAXE_HTTP_API_SSL_CERTFILE=$FAXE_HTTP_API_SSL_CERTFILE" >> /opt/tgw/docker_storage/azure.env
