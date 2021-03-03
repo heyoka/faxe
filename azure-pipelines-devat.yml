@@ -85,7 +85,7 @@ steps:
 - script: |     
     # stop old version
     cd /opt/faxe/faxe_repo
-    sudo -u $(FAXE_RUNTIME_USER) /usr/local/bin/docker-compose -f docker-compose-azure.yml down
+    sudo -u $(FAXE_RUNTIME_USER) /usr/local/bin/docker-compose -f docker-compose-devat.yml down
     # kill/remove old data
     if [[ $(sudo -u $(FAXE_RUNTIME_USER) docker ps -a | grep faxe ) ]]; 
       then
@@ -99,7 +99,7 @@ steps:
   displayName: 'stop old container via docker-compose'    
 - script: |     
     cd /opt/faxe/faxe_repo
-    sudo -u $(FAXE_RUNTIME_USER) /usr/local/bin/docker-compose -f docker-compose-azure.yml up -d
+    sudo -u $(FAXE_RUNTIME_USER) /usr/local/bin/docker-compose -f docker-compose-devat.yml up -d
   displayName: 'start container via docker-compose'
 - script: |
     #check if we start householding
