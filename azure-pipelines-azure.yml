@@ -149,7 +149,7 @@ steps:
     # inject current build number into compose-file
     sed "s!Dockerfile_debian!$TAG!g" -i docker-compose-azure.yml
     # inject env file into docker-compose file:
-    sed "sL/opt/faxe/docker_storage//devat.envL$(environmentFile)L" -i  docker-compose-azure.yml
+    sed "sL/opt/tgw/docker_storage/azure.envL$(environmentFile)L" -i  docker-compose-azure.yml
 
   displayName: 'build new image and tag it with azure pipeline build number'
 - script: |     
