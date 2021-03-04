@@ -46,7 +46,9 @@ steps:
     TAG=$(echo '$(Build.Repository.Name):$(Build.BuildNumber)')
     echo "creating env file"
     echo ---------
-    echo ${#FAXE_CRATE_USER} port chars
+    echo $(FAXE_CRATE_HTTP_USER)
+    echo $(#FAXE_CRATE_HTTP_USER)
+    echo ${#FAXE_CRATE_USER}  chars
     [ ${#FAXE_CRATE_USER} == "0" ] || 
     echo ---------
     [ ${#FAXE_FLOW_AUTO_START} == "0" ] || echo "FAXE_FLOW_AUTO_START=$FAXE_FLOW_AUTO_START" > /opt/faxe/docker_storage/devat.env
