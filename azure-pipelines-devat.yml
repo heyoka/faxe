@@ -159,11 +159,14 @@ steps:
 #    [ ${#FAXE_CONN_STATUS_HANDLER_MQTT_ENABLE} == "0" ] || echo "FAXE_CONN_STATUS_HANDLER_MQTT_ENABLE=$FAXE_CONN_STATUS_HANDLER_MQTT_ENABLE" >> $(environmentFile)
 #    [ ${#FAXE_HTTP_API_CIPHERS} == "0" ] || echo "FAXE_HTTP_API_CIPHERS=$FAXE_HTTP_API_CIPHERS" >> $(environmentFile)
     #check for empty lines in env file
-    while read line; 
+    while read line
     do
       if [ $(echo $line | cut -d "=" -f2 |wc --char) -gt 1 ]
-        then :
-        else sed "s!$line!!" -i /$(environmentFile) ;
+        then 
+          echo "key/value ok"
+        else 
+          echo "key without value: $line => remove it"
+          sed "s!$line!!" -i /$(environmentFile) ;
       fi
       echo
     done < /opt/faxe/docker_storage/devat.env2
