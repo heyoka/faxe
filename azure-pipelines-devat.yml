@@ -22,7 +22,7 @@ steps:
     #[ $(echo $(FAXE_CRATE_HTTP_USER) | wc --chars) == "0" ] || echo var set
     set -x
     echo $(FAXE_AMQP_USER)
-    echo $(FAXE_AMQP_USER) | wc --chars user
+    echo $FAXE_AMQP_USER | wc --chars user
     echo $(FAXE_AMQP_PASS) | wc --chars pass
     set +x
     #[ $(echo $(FAXE_AMQP_PASS) | wc == "0" ) == "0" ] || echo pass set
