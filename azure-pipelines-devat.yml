@@ -45,12 +45,12 @@ steps:
     echo '$(Build.Repository.Name).$(Build.BuildNumber)'
     TAG=$(echo '$(Build.Repository.Name):$(Build.BuildNumber)')
     echo "creating env file"
-    echo ---------
-    [ $(echo $(FAXE_CRATE_HTTP_USER) | wc --chars) == "0" ] || echo var set
+    #echo ---------
+    #[ $(echo $(FAXE_CRATE_HTTP_USER) | wc --chars) == "0" ] || echo var set
     #echo $(#FAXE_CRATE_HTTP_USER)
     #echo ${#FAXE_CRATE_USER}  chars
     #[ ${#FAXE_CRATE_USER} == "0" ] 
-    echo ---------
+    #echo ---------
     [ ${#FAXE_FLOW_AUTO_START} == "0" ] || echo "FAXE_FLOW_AUTO_START=$FAXE_FLOW_AUTO_START" > /opt/faxe/docker_storage/devat.env
     [ ${#FAXE_HTTP_API_PORT} == "0" ] || echo "FAXE_HTTP_API_PORT=$FAXE_HTTP_API_PORT" >> /opt/faxe/docker_storage/devat.env
     [ ${#FAXE_MNESIA_DIR} == "0" ] || echo "FAXE_MNESIA_DIR=$FAXE_MNESIA_DIR" >> /opt/faxe/docker_storage/devat.env
@@ -60,15 +60,15 @@ steps:
     [ ${#FAXE_ALLOW_ANONYMOUS} == "0" ] || echo "FAXE_ALLOW_ANONYMOUS=$FAXE_ALLOW_ANONYMOUS" >> /opt/faxe/docker_storage/devat.env
     [ ${#FAXE_AMQP_HOST} == "0" ] || echo "FAXE_AMQP_HOST=$FAXE_AMQP_HOST" >> /opt/faxe/docker_storage/devat.env
     [ ${#FAXE_AMQP_PORT} == "0" ] || echo "FAXE_AMQP_PORT=$FAXE_AMQP_PORT" >> /opt/faxe/docker_storage/devat.env
-    echo "FAXE_AMQP_USER=$(FAXE_AMQP_USER)" >> /opt/faxe/docker_storage/devat.env
-    echo "FAXE_AMQP_PASS=$(FAXE_AMQP_PASS)" >> /opt/faxe/docker_storage/devat.env
+    [ $(echo $(FAXE_AMQP_USER) | wc --chars) == "0" ] || echo "FAXE_AMQP_USER=$(FAXE_AMQP_USER)" >> /opt/faxe/docker_storage/devat.env
+    [ $(echo $(FAXE_AMQP_PASS) | wc --chars) == "0" ] || echo "FAXE_AMQP_PASS=$(FAXE_AMQP_PASS)" >> /opt/faxe/docker_storage/devat.env
     [ ${#FAXE_CRATE_HOST} == "0" ] || echo "FAXE_CRATE_HOST=$FAXE_CRATE_HOST" >> /opt/faxe/docker_storage/devat.env
     [ ${#FAXE_CRATE_HTTP_HOST} == "0" ] || echo "FAXE_CRATE_HTTP_HOST=$FAXE_CRATE_HTTP_HOST" >> /opt/faxe/docker_storage/devat.env
     [ ${#FAXE_CRATE_HTTP_PORT} == "0" ] || echo "FAXE_CRATE_HTTP_PORT=$FAXE_CRATE_HTTP_PORT" >> /opt/faxe/docker_storage/devat.env
-    echo "FAXE_CRATE_HTTP_USER=$(FAXE_CRATE_HTTP_USER)" >> /opt/faxe/docker_storage/devat.env
-    echo "FAXE_CRATE_USER=$(FAXE_CRATE_USER)" >> /opt/faxe/docker_storage/devat.env
-    echo "FAXE_CRATE_PASS=$(FAXE_CRATE_PASS)" >> /opt/faxe/docker_storage/devat.env
-    echo "FAXE_CRATE_HTTP_PASS=$(FAXE_CRATE_HTTP_PASS)" >> /opt/faxe/docker_storage/devat.env
+    [ $(echo $(FAXE_CRATE_HTTP_USER) | wc --chars) == "0" ] ||echo "FAXE_CRATE_HTTP_USER=$(FAXE_CRATE_HTTP_USER)" >> /opt/faxe/docker_storage/devat.env
+    [ $(echo $(FAXE_CRATE_USER) | wc --chars) == "0" ] ||echo "FAXE_CRATE_USER=$(FAXE_CRATE_USER)" >> /opt/faxe/docker_storage/devat.env
+    [ $(echo $(FAXE_CRATE_PASS) | wc --chars) == "0" ] ||echo "FAXE_CRATE_PASS=$(FAXE_CRATE_PASS)" >> /opt/faxe/docker_storage/devat.env
+    [ $(echo $(FAXE_CRATE_HTTP_PASS) | wc --chars) == "0" ] ||echo "FAXE_CRATE_HTTP_PASS=$(FAXE_CRATE_HTTP_PASS)" >> /opt/faxe/docker_storage/devat.env
     [ ${#FAXE_HTTP_API_SSL_KEYFILE} == "0" ] || echo "FAXE_HTTP_API_SSL_KEYFILE=$FAXE_HTTP_API_SSL_KEYFILE" >> /opt/faxe/docker_storage/devat.env
     [ ${#FAXE_HTTP_API_SSL_CERTFILE} == "0" ] || echo "FAXE_HTTP_API_SSL_CERTFILE=$FAXE_HTTP_API_SSL_CERTFILE" >> /opt/faxe/docker_storage/devat.env
     [ ${#FAXE_HTTP_API_SSL_CACERTFILE} == "0" ] || echo "FAXE_HTTP_API_SSL_CACERTFILE=$FAXE_HTTP_API_SSL_CACERTFILE" >> /opt/faxe/docker_storage/devat.env
@@ -76,9 +76,9 @@ steps:
     [ ${#FAXE_EMAIL_FROM} == "0" ] || echo "FAXE_EMAIL_FROM=$FAXE_EMAIL_FROM" >> /opt/faxe/docker_storage/devat.env
     [ ${#FAXE_EMAIL_PORT} == "0" ] || echo "FAXE_EMAIL_PORT=$FAXE_EMAIL_PORT" >> /opt/faxe/docker_storage/devat.env
     [ ${#FAXE_EMAIL_TLS} == "0" ] || echo "FAXE_EMAIL_TLS=$FAXE_EMAIL_TLS" >> /opt/faxe/docker_storage/devat.env
-    echo "FAXE_EMAIL_USER=$(FAXE_EMAIL_USER)" >> /opt/faxe/docker_storage/devat.env
+    [ $(echo $(FAXE_EMAIL_USER) | wc --chars) == "0" ] || echo "FAXE_EMAIL_USER=$(FAXE_EMAIL_USER)" >> /opt/faxe/docker_storage/devat.env
     [ ${#FAXE_EMAIL_TEMPLATE} == "0" ] || echo "FAXE_EMAIL_TEMPLATE=$FAXE_EMAIL_TEMPLATE" >> /opt/faxe/docker_storage/devat.env
-    echo "FAXE_EMAIL_PASS=$(FAXE_EMAIL_PASS)" >> /opt/faxe/docker_storage/devat.env
+    [ $(echo $(FAXE_EMAIL_PASS) | wc --chars) == "0" ] || echo "FAXE_EMAIL_PASS=$(FAXE_EMAIL_PASS)" >> /opt/faxe/docker_storage/devat.env
     [ ${#FAXE_CONN_STATUS_HANDLER_MQTT_ENABLE} == "0" ] || echo "FAXE_CONN_STATUS_HANDLER_MQTT_ENABLE=$FAXE_CONN_STATUS_HANDLER_MQTT_ENABLE" >> /opt/faxe/docker_storage/devat.env
     [ ${#FAXE_HTTP_API_CIPHERS} == "0" ] || echo "FAXE_HTTP_API_CIPHERS=$FAXE_HTTP_API_CIPHERS" >> /opt/faxe/docker_storage/devat.env
     #build container-image
