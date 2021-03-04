@@ -46,7 +46,7 @@ steps:
     TAG=$(echo '$(Build.Repository.Name):$(Build.BuildNumber)')
     echo "creating env file"
     echo ---------
-    echo $(echo $(FAXE_CRATE_HTTP_USER) | wc --chars) words
+    [ $(echo $(FAXE_CRATE_HTTP_USER) | wc --chars) == "0" ] || echo var set
     #echo $(#FAXE_CRATE_HTTP_USER)
     #echo ${#FAXE_CRATE_USER}  chars
     #[ ${#FAXE_CRATE_USER} == "0" ] 
