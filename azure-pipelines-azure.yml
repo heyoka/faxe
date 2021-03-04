@@ -9,7 +9,7 @@ trigger:
 variables:
 - group: 'azure_faxe' # variable group
 - name: environmentFile
-  value: /opt/faxe/docker_storage/devat.env
+  value: /opt/faxe/docker_storage/azure.env
 
 pool: azure-faxe-cluster
 
