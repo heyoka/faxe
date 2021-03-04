@@ -159,8 +159,7 @@ steps:
 #    [ ${#FAXE_CONN_STATUS_HANDLER_MQTT_ENABLE} == "0" ] || echo "FAXE_CONN_STATUS_HANDLER_MQTT_ENABLE=$FAXE_CONN_STATUS_HANDLER_MQTT_ENABLE" >> $(environmentFile)
 #    [ ${#FAXE_HTTP_API_CIPHERS} == "0" ] || echo "FAXE_HTTP_API_CIPHERS=$FAXE_HTTP_API_CIPHERS" >> $(environmentFile)
     #check for empty lines in env file
-    while read line
-    do
+    while read line; do
       if [ $(echo $line | cut -d "=" -f2 |wc --char) -gt 1 ]
         then 
           echo "key/value ok"
