@@ -49,7 +49,7 @@ steps:
     echo $(FAXE_CRATE_HTTP_USER)
     echo $(#FAXE_CRATE_HTTP_USER)
     echo ${#FAXE_CRATE_USER}  chars
-    [ ${#FAXE_CRATE_USER} == "0" ] || 
+    #[ ${#FAXE_CRATE_USER} == "0" ] 
     echo ---------
     [ ${#FAXE_FLOW_AUTO_START} == "0" ] || echo "FAXE_FLOW_AUTO_START=$FAXE_FLOW_AUTO_START" > /opt/faxe/docker_storage/devat.env
     [ ${#FAXE_HTTP_API_PORT} == "0" ] || echo "FAXE_HTTP_API_PORT=$FAXE_HTTP_API_PORT" >> /opt/faxe/docker_storage/devat.env
