@@ -151,7 +151,7 @@ steps:
     # change port binding dynamically to host, used for loadbalancing to prevent duplicate port binding (haproxy and keepalived are used for incoming traffic)
     sed "sL8080:8080L$(hostname -i):8080:8080Lg" -i docker-compose-devat.yml
     # inject env file into docker-compose file:
-    sed "sL/opt/faxe/docker_storage//devat.envL$(environmentFile)L" -i  docker-compose-devat.yml
+    sed "sL/opt/faxe/docker_storage/devat.envL$(environmentFile)L" -i  docker-compose-devat.yml
   displayName: 'build new image and tag it with azure pipeline build number'
 - script: |     
     # stop old version
