@@ -79,7 +79,7 @@ steps:
     echo "FAXE_CONN_STATUS_HANDLER_MQTT_ENABLE=$FAXE_CONN_STATUS_HANDLER_MQTT_ENABLE" >> /opt/faxe/docker_storage/devat.env
     echo "FAXE_HTTP_API_CIPHERS=$FAXE_HTTP_API_CIPHERS" >> /opt/faxe/docker_storage/devat.env
     #build container-image
-#    sudo -u $(FAXE_RUNTIME_USER) docker build -t $(Build.Repository.Name):$(Build.BuildNumber) -f Dockerfile_debian .
+    #sudo -u $(FAXE_RUNTIME_USER) docker build -t $(Build.Repository.Name):$(Build.BuildNumber) -f Dockerfile_debian .
     # inject current build number into compose-file
     sed "s!Dockerfile_debian!$TAG!g" -i docker-compose-devat.yml
     # change port binding dynamically to host, used for loadbalancing to prevent duplicate port binding
