@@ -8,6 +8,7 @@ trigger:
 
 variables:
 - group: 'devat_faxe' # variable group
+  environmentFile: /opt/faxe/docker_storage/devat.env2 # define env file for this stage
 
 pool: devat-faxe-cluster
 
@@ -19,17 +20,10 @@ steps:
     TAG=$(echo '$(Build.Repository.Name):$(Build.BuildNumber)')
     echo "creating env file"
     #echo ---------
-    #[ $(echo $(FAXE_CRATE_HTTP_USER) | wc --chars) == "0" ] || echo var set
-    set -x
-    echo $(FAXE_AMQP_USER)
-    echo $FAXE_AMQP_USER | wc --chars user
-    echo $(FAXE_AMQP_PASS) | wc --chars pass
-    set +x
-    #[ $(echo $(FAXE_AMQP_PASS) | wc == "0" ) == "0" ] || echo pass set
     #echo ---------
-    [ ${#FAXE_FLOW_AUTO_START} == "0" ] || echo "FAXE_FLOW_AUTO_START=$FAXE_FLOW_AUTO_START" > /opt/faxe/docker_storage/devat.env2
-    [ ${#FAXE_HTTP_API_PORT} == "0" ] || echo "FAXE_HTTP_API_PORT=$FAXE_HTTP_API_PORT" >> /opt/faxe/docker_storage/devat.env2
-    [ ${#FAXE_MNESIA_DIR} == "0" ] || echo "FAXE_MNESIA_DIR=$FAXE_MNESIA_DIR" >> /opt/faxe/docker_storage/devat.env2
+    [ ${#FAXE_FLOW_AUTO_START} == "0" ] || echo "FAXE_FLOW_AUTO_START=$FAXE_FLOW_AUTO_START" > $(environmentFile)
+    [ ${#FAXE_HTTP_API_PORT} == "0" ] || echo "FAXE_HTTP_API_PORT=$FAXE_HTTP_API_PORT" >> $(environmentFile)
+    [ ${#FAXE_MNESIA_DIR} == "0" ] || echo "FAXE_MNESIA_DIR=$FAXE_MNESIA_DIR" >> $(environmentFile)
     [ ${#FAXE_QUEUE_BASE_DIR} == "0" ] || echo "FAXE_QUEUE_BASE_DIR=$FAXE_QUEUE_BASE_DIR" >> /opt/faxe/docker_storage/devat.env2
     [ ${#FAXE_PYTHON_SCRIPT_PATH} == "0" ] || echo "FAXE_PYTHON_SCRIPT_PATH=$FAXE_PYTHON_SCRIPT_PATH" >> /opt/faxe/docker_storage/devat.env2
     [ ${#FAXE_MQTT_HOST} == "0" ] || echo "FAXE_MQTT_HOST=$FAXE_MQTT_HOST" >> /opt/faxe/docker_storage/devat.env2
@@ -57,6 +51,20 @@ steps:
     [ $(echo $(FAXE_EMAIL_PASS) | wc --chars) == "0" ] || echo "FAXE_EMAIL_PASS=$(FAXE_EMAIL_PASS)" >> /opt/faxe/docker_storage/devat.env2
     [ ${#FAXE_CONN_STATUS_HANDLER_MQTT_ENABLE} == "0" ] || echo "FAXE_CONN_STATUS_HANDLER_MQTT_ENABLE=$FAXE_CONN_STATUS_HANDLER_MQTT_ENABLE" >> /opt/faxe/docker_storage/devat.env2
     [ ${#FAXE_HTTP_API_CIPHERS} == "0" ] || echo "FAXE_HTTP_API_CIPHERS=$FAXE_HTTP_API_CIPHERS" >> /opt/faxe/docker_storage/devat.env2
+    #check for empty lines in env file
+    while read line; 
+    do
+      if [ $(echo $line | cut -d "=" -f2 |wc --char) -gt 1 ]
+        then :
+        else sed "s!$line!!" -i /$(environmentFile) ;
+      fi
+      echo
+    done < /opt/faxe/docker_storage/devat.env2
+    # remove empty lines in env file
+    sed -i '/^[[:blank:]]*$/d' $(environmentFile)
+    # sort env file
+    sort $(environmentFile) -o $(environmentFile)
+
     #build container-image
     #sudo -u $(FAXE_RUNTIME_USER) docker build -t $(Build.Repository.Name):$(Build.BuildNumber) -f Dockerfile_debian .
     # inject current build number into compose-file
