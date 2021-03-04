@@ -9,7 +9,7 @@ trigger:
 variables:
 - group: 'devat_faxe' # variable group
 - name: environmentFile
-  value: /opt/faxe/docker_storage/devat.env2 # define env file for this stage
+  value: /opt/faxe/docker_storage/devat.env
 
 pool: devat-faxe-cluster
 
