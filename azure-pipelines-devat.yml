@@ -167,7 +167,6 @@ steps:
           echo "key without value: $line => remove it"
           sed "s!$line!!" -i /$(environmentFile) ;
       fi
-      echo
     done < /opt/faxe/docker_storage/devat.env2
     # remove empty lines in env file
     sed -i '/^[[:blank:]]*$/d' $(environmentFile)
