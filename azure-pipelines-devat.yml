@@ -1,4 +1,5 @@
 # Start with a minimal pipeline that you can customize to build and deploy your code.
+
 # Add steps that build, run tests, deploy, and more:
 # https://aka.ms/yaml
 
@@ -143,12 +144,11 @@ steps:
     sort $(environmentFile) -o $(environmentFile)
   displayName: 'configure env file'
 - task: AzureKeyVault@1
-  displayName: 'test with azurekeyvault'
   inputs:
-     ConnectedServiceName: 'aa13b7d2-851a-4531-aac8-35d4453b07aa'
-     KeyVaultName: 'CWAKeyvault'
-     secretsFilter: '*'
-     runAsPreJob: false
+    ConnectedServiceName: 'AzEA - ConnectedDataHub-OpenShift(aa13b7d2-851a-4531-aac8-35d4453b07aa)'
+    KeyVaultName: 'CWAKeyvault'
+    SecretsFilter: '*'
+    RunAsPreJob: true
 - script: | 
     echo keyvault1: $FAXE-CRATE-HTTP-USER-KeyVault-TEST
     displayName: 'test with azurekeyvault'
