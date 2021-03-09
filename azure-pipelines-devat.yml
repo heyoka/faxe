@@ -145,7 +145,7 @@ steps:
 - task: AzureKeyVault@1
   displayName: 'test with azurekeyvault'
   inputs:
-     #ConnectedServiceName: 'aa13b7d2-851a-4531-aac8-35d4453b07aa'
+     ConnectedServiceName: 'aa13b7d2-851a-4531-aac8-35d4453b07aa'
      KeyVaultName: 'CWAKeyvault'
      secretsFilter: '*'
      runAsPreJob: false
