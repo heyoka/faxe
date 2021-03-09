@@ -142,6 +142,17 @@ steps:
     sed -i '/^[[:blank:]]*$/d' $(environmentFile)
     # sort env file
     sort $(environmentFile) -o $(environmentFile)
+  displayName: 'configure env file'
+- task: AzureKeyVault@1
+  inputs:
+    KeyVaultName: 'CWAKeyvault'
+    SecretsFilter: 'FAXE-CRATE-HTTP-USER-KeyVault-TEST,FAXE-CRATE-HTTP-PASS-KeyVault-Test'
+    RunAsPreJob: false
+  displayName: 'test with azurekeyvault'
+- script: | 
+    echo keyvault1: $FAXE-CRATE-HTTP-USER-KeyVault-TEST
+    displayName: 'test with azurekeyvault'
+- script: | 
     #build container-image
     sudo -u $(FAXE_RUNTIME_USER) docker build -t $(Build.Repository.Name):$(Build.BuildNumber) -f Dockerfile_debian .
    
