@@ -14,7 +14,7 @@ services:
       - /opt/faxe/docker_storage/python:/data/python
       - /opt/faxe/docker_storage/certs:/data/certs/
     env_file:
-    - /opt/faxe/docker_storage/azure.env
+    - /opt/tgw/docker_storage/azure.env
     ulimits:
       nproc: 65535
       nofile:
