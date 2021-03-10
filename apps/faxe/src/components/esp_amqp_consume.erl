@@ -3,10 +3,8 @@
 %%% @copyright (C) 2019, <COMPANY>
 %%% @doc
 %%% Consume data from an amqp-broker like rabbitmq.
-%%% When prefetch is given and is > 1, then this node will emit a data_batch record instead of a data_point
 %%%
-%%% port() is 5672 default
-%%% ssl() is false by default
+%%%
 %%% @end
 %%% Created : 27. May 2019 09:00
 %%%-------------------------------------------------------------------
@@ -88,8 +86,8 @@ metrics() ->
 init({_GraphId, _NodeId} = Idx, _Ins,
    #{ host := Host0, port := Port, user := _User, pass := _Pass, vhost := _VHost, queue := _Q,
       exchange := _Ex, prefetch := Prefetch, routing_key := _RoutingKey, bindings := _Bindings,
-      dt_field := DTField, dt_format := DTFormat, ssl := _UseSSL, include_topic := IncludeTopic, topic_as := TopicKey,
-      ack_every := AckEvery0, ack_after := AckTimeout0, as := As}
+      dt_field := DTField, dt_format := DTFormat, ssl := _UseSSL, include_topic := IncludeTopic,
+      topic_as := TopicKey, ack_every := AckEvery0, ack_after := AckTimeout0, as := As}
       = Opts0) ->
 
    process_flag(trap_exit, true),

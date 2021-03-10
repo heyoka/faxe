@@ -240,8 +240,8 @@ deliver({Exchange, Key, Payload, Args}, QReceipt, State = #state{channel = Chann
       end,
    NewState.
 
-start_deq_timer(State = #state{}) ->
-   TRef = erlang:send_after(?DEQ_INTERVAL, self(), deq),
+start_deq_timer(State = #state{deq_interval = Interval}) ->
+   TRef = erlang:send_after(Interval, self(), deq),
    State#state{deq_timer_ref = TRef}.
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
