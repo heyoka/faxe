@@ -7,7 +7,7 @@ trigger:
 - none
 
 variables:
-- group: 'devat_faxe' # variable group
+- group: 'faxe_env - Devcloud' # variable group
 - name: environmentFile
   value: /opt/faxe/docker_storage/devat.env
 
