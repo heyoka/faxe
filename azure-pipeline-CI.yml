@@ -9,6 +9,9 @@ stages:
   - job:
     steps:
     - checkout: self
+    - script: | 
+        echo '$(Build.Repository.Name).$(Build.BuildNumber)'
+        echo $(FAXE-CRATE-HTTP-PASS-KeyVault-Test)
 
 
 
