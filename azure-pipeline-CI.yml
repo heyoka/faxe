@@ -2,6 +2,8 @@
 variables:
 - group: 'faxe_dev - Devcloud-keyvault' # variable group
 
+pool:
+  vmImage: 'ubuntu-latest'
 
 stages:
 - stage: Setup
@@ -12,6 +14,17 @@ stages:
     - script: | 
         echo '$(Build.Repository.Name).$(Build.BuildNumber)'
         echo $(FAXE-CRATE-HTTP-PASS-KeyVault-Test)
-
+  - job:
+    steps:
+    - task: Docker@2
+      inputs:
+        containerRegistry: 'faxe-nexus-docker-connection'
+        repository: 'faxe'
+        command: 'buildAndPush'
+        Dockerfile: 'Dockerfile_debian'
+        tags: |
+           $(Build.BuildId)
+           $(Build.SourceBranchName)
+           $(Build.Repository.Name):$(Build.BuildNumber)
 
 
