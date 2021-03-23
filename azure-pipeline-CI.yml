@@ -1,0 +1,29 @@
+stages:
+- stage: Setup
+  jobs:
+  - job:
+    steps:
+    - checkout: self
+    - task: AzureKeyVault@1
+      inputs:
+          azureSubscription: 'cwa-pipeline-keyvault-service-connection'
+          KeyVaultName: 'CWAKeyvault'
+          SecretsFilter: '*'
+          RunAsPreJob: true
+    - task: Bash@3
+      inputs:
+          targetType: 'inline'
+          script: |
+          # Write your commands here
+          echo 'Hello world'
+    - task: Docker@2
+      inputs:
+          containerRegistry: 'faxe-nexus-docker-connection'
+          repository: 'faxe'
+          command: 'buildAndPush'
+          Dockerfile: '**/Dockerfile'
+
+
+
+
+
