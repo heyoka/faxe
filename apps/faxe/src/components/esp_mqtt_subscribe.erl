@@ -103,12 +103,13 @@ process(_In, _, State = #state{}) ->
 handle_info(connect, State) ->
    connect(State),
    {ok, State};
-handle_info({mqttc, C, connected}, State=#state{}) ->
+handle_info({mqttc, C, connected}, State=#state{host = Host}) ->
    connection_registry:connected(),
-   lager:notice("mqtt client connected!!"),
+   lager:notice("mqtt client connected to ~p",[Host]),
    NewState = State#state{client = C, connected = true},
    subscribe(NewState),
    {ok, NewState};
+%% @todo do we have to kill the client ?
 handle_info({mqttc, _C,  disconnected}, State=#state{client = Client}) ->
    catch exit(Client, kill),
    connection_registry:disconnected(),

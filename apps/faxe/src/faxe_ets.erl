@@ -58,6 +58,7 @@ init([]) ->
    ok = new_table(ls_mem, set),
    ok = new_table(ls_mem_set, set),
    ok = new_table(ls_mem_list, set),
+   ok = new_table(ls_mem_map, set),
    ok = new_table(field_paths, set),
    ok = new_table(temp_tasks, set),
    ok = new_table(s7_pools, set),

@@ -85,7 +85,7 @@ init([#{} = Opts, Queue]) ->
    init_all(Opts, #state{queue = Queue}).
 
 init_all(#{host := Host, port := Port} = Opts, State) ->
-%%   lager:info("MQTT_OPTS are: ~p",[Opts]),
+   lager:info("[~p] MQTT_OPTS are: ~p",[?MODULE, Opts]),
    NId =
    case maps:is_key(node_id, Opts) of
       true -> maps:get(node_id, Opts);
@@ -174,12 +174,12 @@ handle_cast(_Request, State) ->
 %% @end
 %%--------------------------------------------------------------------
 handle_info({mqttc, C, connected},
-    State=#state{queue = undefined, mem_queue = Q}) ->
+    State=#state{queue = undefined, mem_queue = Q, host = Host}) ->
    connection_registry:connected(),
    {PendingList, NewQ} = memory_queue:to_list_reset(Q),
    NewState = State#state{client = C, connected = true, mem_queue = NewQ},
    [publish(M, NewState) || M <- PendingList],
-   lager:info("mqtt client connected!!"),
+   lager:info("mqtt client connected to ~p",[Host]),
    {noreply, NewState};
 handle_info({mqttc, C, connected}, State=#state{}) ->
    connection_registry:connected(),

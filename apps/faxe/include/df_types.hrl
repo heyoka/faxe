@@ -3,7 +3,7 @@
 -author("Alexander Minichmair").
 
 
--export_type([graph_definition/0, option_name/0, option_value/0]).
+-export_type([graph_definition/0, option_name/0, option_value/0, option_config/0]).
 
 -type graph_definition() :: #{nodes => list(), edges => list()}.
 
@@ -46,7 +46,8 @@
 -type option_string_list()       :: list(option_binary()).
 -type option_binary_list()       :: option_string_list().
 -type option_atom_list()         :: list(option_atom()).
--type option_lambda_list()        :: list(option_lambda()).
+-type option_lambda_list()       :: list(option_lambda()).
+-type option_config()            :: {atom(), atom()}.
 
 
 

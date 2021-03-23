@@ -222,6 +222,7 @@ handle_cast(_Request, State) ->
    {noreply, State}.
 
 
+
 handle_info(start_trace, State = #state{nodes = Nodes, id = Id, debug_timeout_ref = TRef}) ->
    catch erlang:cancel_timer(TRef),
    lager_emit_backend:start_trace(Id),

@@ -268,7 +268,7 @@ has_user_with_pw(User, Pw) ->
    end.
 
 
-%%%%%%%%%%%%%%%%%%%%%%%%%%%% table managememt %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%%%%%%%%%%%%%%%%%%%%%%%%%%% table management %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 db_init() ->
    case lists:member(node(), mnesia:table_info(schema, disc_copies)) of

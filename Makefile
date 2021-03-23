@@ -19,7 +19,6 @@ dev1:
 	export FAXE_DEBUG_HANDLER_MQTT_ENABLE=off && \
 	rebar3 as dev1 release && _build/dev1/rel/faxe/bin/faxe console
 
-
 start:
 	export FAXE_DFS_SCRIPT_PATH=/home/heyoka/workspace/faxe/dfs/ && \
     	export FAXE_QUEUE_BASE_DIR=/home/heyoka/esq_data/ && \

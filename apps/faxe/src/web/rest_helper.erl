@@ -17,6 +17,7 @@
    get_task_or_template_id/2, is_authorized/1, is_authorized/2]).
 
 
+-spec is_authorized(term()) -> {true, Username::binary()} | false.
 is_authorized(Req) ->
    case cowboy_req:parse_header(<<"authorization">>, Req) of
       {basic, User , Pass} ->

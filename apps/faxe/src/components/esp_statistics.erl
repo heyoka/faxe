@@ -23,9 +23,11 @@
 
 options() -> [
    {field, binary},
+   {fields, string_list},
    {as, string_list, undefined},
    {modules, string_list}
 ].
+
 
 init(NodeId, _Ins, #{field := Field, as := As, modules := Funcs} = Args) ->
    Modules = [binary_to_existing_atom(<<"esp_", M/binary>>, latin1) || M <- Funcs],

@@ -84,3 +84,49 @@ bridge_test() ->
   ,
   ?assertEqual(Expected, compile_helper("mqtt_amqp_bridge_test.dfs")).
 
+
+bridge_expr_test() ->
+  Expected =  #{edges =>
+  [{<<"debug2">>,1,<<"amqp_publish5">>,1,[]},
+    {<<"debug2">>,1,<<"amqp_publish4">>,1,[]},
+    {<<"debug2">>,1,<<"amqp_publish3">>,1,[]},
+    {<<"mqtt_subscribe1">>,1,<<"debug2">>,1,[]}],
+    nodes =>
+    [{<<"amqp_publish5">>,esp_amqp_publish,
+      #{exchange => <<"x_root_fanout">>,
+        host => <<"15.45.48.1">>,
+        pass => <<"dfwefwef8ePI78we">>,port => undefined,
+        routing_key => <<"some.crazy.topic.this.is">>,
+        routing_key_lambda => undefined,safe => false,
+        ssl => false,user => <<"rabbitmq-cluster-user">>,
+        vhost => <<"/">>}},
+      {<<"amqp_publish4">>,esp_amqp_publish,
+        #{exchange => <<"x_root_fanout">>,
+          host => <<"some.other_amqp_host">>,
+          pass => <<"adfafdwewef3">>,port => undefined,
+          routing_key => <<"some.crazy.topic.this.is">>,
+          routing_key_lambda => undefined,safe => false,
+          ssl => false,user => <<"rabbitmq-cluster-user">>,
+          vhost => <<"/">>}},
+      {<<"amqp_publish3">>,esp_amqp_publish,
+        #{exchange => <<"x_root_fanout">>,
+          host => <<"some.amqp_host">>,
+          pass => <<"asdf323232">>,port => undefined,
+          routing_key => <<"some.crazy.topic.this.is">>,
+          routing_key_lambda => undefined,safe => false,
+          ssl => false,user => <<"rabbitmq-cluster-user">>,
+          vhost => <<"/">>}},
+      {<<"debug2">>,esp_debug,#{level => <<"notice">>}},
+      {<<"mqtt_subscribe1">>,esp_mqtt_subscribe,
+        #{as => undefined,dt_field => <<"ts">>,
+          dt_format => <<"millisecond">>,
+          host => <<"10.102.1.102">>,include_topic => true,
+          pass => undefined,port => 1883,qos => 1,
+          ssl => false,
+          topic => <<"some/crazy/topic/this/is">>,
+          topic_as => <<"topic">>,topics => undefined,
+          user => undefined}}]}
+
+  ,
+  ?assertEqual(Expected, compile_helper("script_expr_test.dfs")).
+

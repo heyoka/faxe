@@ -252,7 +252,7 @@ field(#data_point{fields = Fields}, F, Default) ->
 field(#data_batch{points = Points}, F, Default) ->
    [field(Point, F, Default) || Point <- Points].
 
--spec field(#data_point{}|#data_batch{}, jsonpath:path()) -> undefined | term() | list(term()|undefined).
+-spec field(#data_point{}|#data_batch{}, jsonpath:path()) -> undefined | term() | list(term()).
 field(#data_point{fields = Fields}, F) ->
    jsn_get(F, Fields)
 ;

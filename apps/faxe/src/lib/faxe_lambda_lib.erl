@@ -264,6 +264,9 @@ random_real(N) ->
 member(Ele, List) -> lists:member(Ele, List).
 not_member(Ele, List) -> lists:member(Ele, List) == false.
 
+%%% map
+map_get(Key, Map) -> maps:get(Key, Map, undefined).
+
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %%% lambda state functions
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%

@@ -6,6 +6,9 @@
 %% + 'single' holds a single value
 %% + 'list' holds a list of values, value order is preserved within the list
 %% + 'set' holds a list of values, where values have not duplicates
+%% %% + 'map' holds a map of key-value pairs
+%%
+%% Values a gathered normally within the flow of data, but can also be pre-set with values
 %% The values will be hold in an ets term storage
 %% @end
 -module(esp_mem).
@@ -30,20 +33,24 @@ options() -> [
    {field, string},
    {type, string, <<"single">>},
    {key, string, undefined},
-   {default, any, undefined}].
+   {default, any, undefined},
+   {default_json, is_set, false}
+].
 
 check_options() ->
    [
       {one_of, type, [<<"single">>, <<"set">>, <<"list">>]}
    ].
 
-init(_NodeId, _Ins, #{field := Field, key := As0, type := Type, default := Def}) ->
+init(_NodeId, _Ins, #{field := Field, key := As0, type := Type, default := Def, default_json := DefJson}) ->
    As =
    case As0 of
       undefined -> Field;
       _ -> As0
    end,
-   default(Type, As, Def),
+   Default =
+   case DefJson of true -> jiffy:decode(Def, [return_maps]); false -> Def end,
+   default(Type, As, Default),
    {ok, all, #state{field = Field, key = As, type = Type}}.
 
 process(_, Item, State = #state{}) ->

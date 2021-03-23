@@ -10,10 +10,10 @@ v1
 
 
 window
-    |agg()
-    .fields('val', 'val', 'val')
-    .modules('variance', 'sum', 'avg')
-    .as('variance', 'sum', 'avg')
+    |aggregate()
+    .fields('val', 'val', 'val', 'val')
+    .modules('variance', 'sum', 'avg', 'count_distinct')
+    .as('variance', 'sum', 'avg', 'count_distinct')
 
 |debug()
 

@@ -96,7 +96,7 @@
 %% @end
  -callback options() ->
  list(
-    {Name :: atom(), Type :: dataflow:option_value(), Default :: dataflow:option_value()} |
+    {Name :: atom(), Type :: dataflow:option_value(), Default :: dataflow:option_value()|dataflow:option_config()} |
     {Name :: atom(), Type :: atom()}
  ).
 %% @end
@@ -264,7 +264,6 @@ handle_cast(_Request, State) ->
 handle_info({start, Inputs, Subscriptions, FlowMode},
     State=#c_state{component = CB, cb_state = CBState, graph_id = GId, node_id = NId}) ->
 
-   %gen_event:notify(dfevent_component, {start, State#c_state.node_id, FlowMode}),
 %%   lager:info("component ~p starts with options; ~p and inputs: ~p", [CB, CBState, Inputs]),
    Opts = CBState,
    Inited = CB:init({GId, NId}, Inputs, Opts),

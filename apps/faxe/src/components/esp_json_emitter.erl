@@ -14,7 +14,8 @@
    jitter            :: non_neg_integer(),
    align             :: atom(),
    json_string       :: binary(),
-   ejson :: map()|list()
+   ejson             :: map()|list(),
+   as                :: binary()
 }).
 
 params() -> [].
@@ -24,7 +25,8 @@ options() ->
       {jitter, duration, <<"0ms">>},
       {align, is_set},
       {json, binary_list, undefined},
-      {rand_fields, binary_list, []}].
+      {rand_fields, binary_list, []},
+      {as, string, <<"data">>}].
 
 
 check_options() ->
@@ -39,7 +41,7 @@ check_json(Json) when is_binary(Json) ->
    end.
 
 init(NodeId, _Inputs,
-    #{every := Every, align := Unit, jitter := Jitter, json := JS}) ->
+    #{every := Every, align := Unit, jitter := Jitter, json := JS, as := As}) ->
    NUnit =
       case Unit of
          false -> false;
@@ -48,7 +50,7 @@ init(NodeId, _Inputs,
    JT = faxe_time:duration_to_ms(Jitter),
    EveryMs = faxe_time:duration_to_ms(Every),
    JSONs = [jiffy:decode(JsonString, [return_maps]) || JsonString <- JS],
-   State = #state{node_id = NodeId, every = EveryMs, ejson = JSONs,
+   State = #state{node_id = NodeId, every = EveryMs, ejson = JSONs, as = As,
       json_string = JS, align = NUnit, jitter = JT},
 
    erlang:send_after(JT, self(), emit),
@@ -59,12 +61,12 @@ init(NodeId, _Inputs,
 process(_Inport, _Value, State) ->
    {ok, State}.
 
-handle_info(emit, State=#state{every = Every, jitter = JT, ejson = JS}) ->
+handle_info(emit, State=#state{every = Every, jitter = JT, ejson = JS, as = As}) ->
    Jitter = round(rand:uniform()*JT),
    After = Every+(Jitter),
    erlang:send_after(After, self(), emit),
    JsonMap = lists:nth(rand:uniform(length(JS)), JS),
-   Msg = #data_point{ts = faxe_time:now(), fields = #{<<"data">> => JsonMap}},
+   Msg = flowdata:set_field(#data_point{ts = faxe_time:now()}, As, JsonMap),
    {emit,{1, Msg}, State};
 handle_info(_Request, State) ->
    {ok, State}.

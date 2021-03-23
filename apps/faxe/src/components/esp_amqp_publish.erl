@@ -99,7 +99,10 @@ handle_info({publisher_ack, Ref}, State) ->
 handle_info({'DOWN', _MonitorRef, process, Client, _Info}, #state{client = Client} = State) ->
    connection_registry:disconnected(),
    lager:notice("MQ-PubWorker ~p is 'DOWN' Info:~p", [Client, _Info]),
-   {ok, start_connection(State)}.
+   {ok, start_connection(State)};
+handle_info(Other, #state{client = Client} = State) ->
+   lager:warning("Process ~p is 'DOWN' Info:~p, client: ~p", [Client, Other]),
+   {ok, State}.
 
 shutdown(#state{client = C, queue = Q}) ->
    catch (bunny_esq_worker:stop(C)),

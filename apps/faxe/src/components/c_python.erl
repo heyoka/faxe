@@ -115,11 +115,7 @@ process(_Inp, #data_point{} = Point, State = #state{python_instance = Python, cb
 
 %% python sends us data
 handle_info({emit_data, Data0}, State) when is_map(Data0) ->
-%%   {T, Map} = timer:tc(?MODULE, decode_from_python, [Data0]),
-%%
-%%   lager:notice("conversion took: ~p ~ngot point data as map from python: ~p", [T,Map]),
    Point = flowdata:point_from_json_map(Data0),
-%%   lager:info("emit point: ~p " ,[Point]),
    {emit, {1, maybe_rename(Point, State)}, State};
 handle_info({emit_data, Data}, State) when is_list(Data) ->
    lager:notice("got batch data from python: ~p", [Data]),
@@ -133,8 +129,7 @@ handle_info({emit_data, {"Map", Data}}, State) when is_list(Data) ->
 handle_info({python_error, Error}, State) ->
    lager:error("error from python: ~p", [Error]),
    {ok, State};
-handle_info(Request, State) ->
-   io:format("~p request: ~p~n", [State, Request]),
+handle_info(_Request, State) ->
    {ok, State}.
 
 shutdown(#state{python_instance = Python}) ->

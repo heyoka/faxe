@@ -14,7 +14,12 @@
    get/1, get/2,
    q_file/1,
    get_mqtt_ssl_opts/0,
-   get_amqp_ssl_opts/0, get_ssl_opts/1, get_http_ssl_opts/0, get_http_tls/0, filter_empty_options/1, get_esq_opts/0]).
+   get_amqp_ssl_opts/0,
+   get_ssl_opts/1,
+   get_http_ssl_opts/0,
+   get_http_tls/0,
+   filter_empty_options/1,
+   get_esq_opts/0]).
 
 get(Key) ->
    application:get_env(faxe, Key, undefined).
@@ -23,6 +28,7 @@ get(Key, Default) ->
    application:get_env(faxe, Key, Default).
 
 %% @doc get the base dir for esq q-files
+-spec q_file(tuple()) -> list().
 q_file({GraphId, NodeId}) when is_binary(GraphId) andalso is_binary(NodeId) ->
    Esq = faxe_config:get(esq),
    EsqBaseDir = proplists:get_value(base_dir, Esq),

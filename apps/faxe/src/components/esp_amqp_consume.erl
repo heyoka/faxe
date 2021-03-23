@@ -130,6 +130,9 @@ handle_info({'DOWN', _MonitorRef, process, Consumer, _Info}, #state{consumer = C
 handle_info({'DOWN', _MonitorRef, process, Emitter, _Info}, #state{emitter = Emitter} = State) ->
    lager:notice("Q-Emitter ~p is 'DOWN'",[Emitter]),
    {ok, start_emitter(State)};
+handle_info(Other, #state{consumer = Client} = State) ->
+   lager:warning("Process ~p is 'DOWN' Info:~p, client: ~p", [Client, Other]),
+   {ok, State};
 handle_info(ack_timeout, State = #state{last_dtag = undefined}) ->
    {ok, State#state{ack_timer = undefined}};
 handle_info(ack_timeout, State = #state{collected = _Num}) ->

@@ -425,7 +425,7 @@ make_lambda_fun(LambdaString, FunParams, BinRefs) ->
       BinRefs
    ),
    F =  "fun(Point) -> " ++ Bindings ++ " fun() -> " ++ LambdaString ++ " end end.",
-%%   lager:notice("lambda: ~p",[F]),
+   lager:notice("lambda: ~p",[F]),
    Fun = parse_fun(F),
    Fun
 .
