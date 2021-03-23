@@ -21,8 +21,10 @@ stages:
           containerRegistry: 'faxe-nexus-docker-connection'
           repository: 'faxe'
           command: 'buildAndPush'
-          Dockerfile: '**/Dockerfile'
-
+          Dockerfile: 'Dockerfile_debian'
+          tags: |
+             $(Build.BuildId)
+             $(Build.SourceBranchName)
 
 
 
