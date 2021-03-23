@@ -10,23 +10,6 @@ stages:
           KeyVaultName: 'CWAKeyvault'
           SecretsFilter: '*'
           RunAsPreJob: true
-    - task: Bash@3
-      inputs:
-          targetType: 'inline'
-          script: |
-          # Write your commands here
-          echo 'Hello world'
-    - task: Docker@2
-      inputs:
-          containerRegistry: 'faxe-nexus-docker-connection'
-          repository: 'faxe'
-          command: 'buildAndPush'
-          Dockerfile: 'Dockerfile_debian'
-          tags: |
-             $(Build.BuildId)
-             $(Build.SourceBranchName)
-             $(Build.Repository.Name):$(Build.BuildNumber)
-
 
 
 
