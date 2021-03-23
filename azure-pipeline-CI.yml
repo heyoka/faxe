@@ -1,3 +1,5 @@
+trigger:
+- none
 
 variables:
 - group: 'faxe_dev - Devcloud-keyvault' # variable group
