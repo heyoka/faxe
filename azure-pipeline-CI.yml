@@ -25,6 +25,7 @@ stages:
           tags: |
              $(Build.BuildId)
              $(Build.SourceBranchName)
+             $(Build.Repository.Name):$(Build.BuildNumber)
 
 
 
