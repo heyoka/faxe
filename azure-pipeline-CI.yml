@@ -1,15 +1,14 @@
+
+variables:
+- group: 'faxe_dev - Devcloud-keyvault' # variable group
+
+
 stages:
 - stage: Setup
   jobs:
   - job:
     steps:
     - checkout: self
-    - task: AzureKeyVault@1
-      inputs:
-          azureSubscription: 'cwa-pipeline-keyvault-service-connection'
-          KeyVaultName: 'CWAKeyvault'
-          SecretsFilter: '*'
-          RunAsPreJob: true
 
 
 
