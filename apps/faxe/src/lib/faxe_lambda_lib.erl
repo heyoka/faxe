@@ -15,7 +15,7 @@
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %%% string functions
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-%% the module estr has several string manipulation function, that can be used:
+%% the module estr has several string manipulation functions, these can be used:
 
 %%    str_at/2
 %%,   str_capitalize/1
@@ -67,7 +67,7 @@ str_concat(Strings) when is_list(Strings) ->
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %%% Math functions
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-%% all function from the 'math' module can be used in lambda-expressions
+%% all function from erlang's 'math' module can be used in lambda-expressions
 %% these are:
 
 %% acos(X) -> float()
@@ -189,16 +189,20 @@ min(ValueList) when is_list(ValueList) ->
 %%% Time related functions
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %% get the current ms timestamp UTC
+-spec now() -> non_neg_integer().
 now() ->
    faxe_time:now().
 
 to_date(Ts) -> faxe_time:to_date(Ts).
 
+-spec to_date_string(non_neg_integer()) -> string().
 to_date_string(Ts) ->
    {D,{Hour, Minute, Second, _Ms}} = to_date(Ts),
    qdate:to_string("Y-m-d h:ia", {D,{Hour, Minute, Second}}).
 
+-spec to_iso8601(non_neg_integer()) -> binary().
 to_iso8601(Ts) -> faxe_time:to_iso8601(Ts).
+-spec to_rfc3339(non_neg_integer()) -> binary().
 to_rfc3339(Ts) -> time_format:to_rfc3339(Ts).
 
 time_convert(Ts, Format) ->
@@ -251,20 +255,27 @@ year(Ts) ->
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 %% @doc generate a random integer between 1 and N
+-spec random(non_neg_integer()) -> non_neg_integer().
 random(N) when is_integer(N), N > 0 ->
    rand:uniform(N).
 
 %% @doc generate a random float between 0.0 and 1.0, that gets multiplied by N
+-spec random_real(non_neg_integer()) -> float().
 random_real(N) ->
    rand:uniform_real() * N.
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-%%% list functions
+%%% list/map functions
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-member(Ele, List) -> lists:member(Ele, List).
-not_member(Ele, List) -> lists:member(Ele, List) == false.
+-spec member(binary()|number(), list()|map()) -> true|false.
+member(Ele, List) when is_list(List) -> lists:member(Ele, List);
+member(Ele, Map) when is_map(Map) andalso is_map_key(Ele, Map) -> true;
+member(_Ele, _) -> false.
+-spec not_member(binary()|number(), list()|map()) -> true|false.
+not_member(Ele, Coll) -> not member(Ele, Coll).
 
-%%% map
+%%% maps
+-spec map_get(binary(), map()) -> term().
 map_get(Key, Map) -> maps:get(Key, Map, undefined).
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%

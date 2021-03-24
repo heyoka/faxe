@@ -1,6 +1,7 @@
 %% Date: 23.03.21 - 18:02
 %% Ⓒ 2021 heyoka
--module(esp_count_nonconsecutive).
+%% counts value changes
+-module(esp_count_change).
 -author("Alexander Minichmair").
 
 -inherit(esp_stats).

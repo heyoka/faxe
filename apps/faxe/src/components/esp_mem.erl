@@ -30,7 +30,7 @@
 }).
 
 options() -> [
-   {field, string},
+   {field, string, undefined},
    {type, string, <<"single">>},
    {key, string, undefined},
    {default, any, undefined},
@@ -39,7 +39,8 @@ options() -> [
 
 check_options() ->
    [
-      {one_of, type, [<<"single">>, <<"set">>, <<"list">>]}
+      {one_of, type, [<<"single">>, <<"set">>, <<"list">>]},
+      {oneplus_of_params, [field, default]}
    ].
 
 init(_NodeId, _Ins, #{field := Field, key := As0, type := Type, default := Def, default_json := DefJson}) ->
@@ -53,6 +54,10 @@ init(_NodeId, _Ins, #{field := Field, key := As0, type := Type, default := Def, 
    default(Type, As, Default),
    {ok, all, #state{field = Field, key = As, type = Type}}.
 
+%% if field is undefined the node is used as a lookup with initial data in it which should not be overwritten, we assume
+process(_, _Item, State = #state{field = undefined}) ->
+   % do nothing
+   {ok, State};
 process(_, Item, State = #state{}) ->
    mem(Item, State),
    {emit, Item, State}.

@@ -25,19 +25,19 @@
 options() -> [
    {fields, binary_list},
    {as, binary_list},
-   {modules, binary_list}
+   {functions, binary_list}
 ].
 
 check_options() ->
    [
-      {same_length, [fields, as, modules]},
-      {one_of, modules,
+      {same_length, [fields, as, functions]},
+      {one_of, functions,
          [<<"variance">>, <<"sum">>, <<"min">>, <<"max">>, <<"stddev">>,
             <<"first">>, <<"last">>, <<"avg">>, <<"count">>, <<"count_distinct">>,
-            <<"mean">>, <<"median">>, <<"range">>, <<"skew">>]}
+            <<"count_change">>, <<"mean">>, <<"median">>, <<"range">>, <<"skew">>]}
    ].
 
-init(NodeId, Ins, #{fields := Fields, as := As, modules := Mods} = Args) ->
+init(NodeId, Ins, #{fields := Fields, as := As, functions := Mods} = Args) ->
    RowLength = length(Ins),
    Modules = [binary_to_atom(<<"esp_", Mod/binary>>, latin1) || Mod <- Mods],
    State = #state{fields = Fields, node_id = NodeId, as = As, row_length = RowLength, modules = Modules},
