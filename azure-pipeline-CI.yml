@@ -24,7 +24,6 @@ stages:
         Dockerfile: 'Dockerfile_debian'
         tags: |
            $(Build.BuildNumber)
-           $(Build.SourceBranchName)
 
 
 
