@@ -23,7 +23,7 @@ stages:
         command: 'buildAndPush'
         Dockerfile: 'Dockerfile_debian'
         tags: |
-           $(Build.BuildId)
+           $(Build.BuildNumber)
            $(Build.SourceBranchName)
 
 
