@@ -18,7 +18,7 @@ stages:
         echo $(FAXE-CRATE-HTTP-PASS-KeyVault-Test)
     - task: Docker@2
       inputs:
-        containerRegistry: 'faxe-nexus-docker-connection'
+        containerRegistry: 'nexus-docker-connection'
         repository: 'faxe'
         command: 'buildAndPush'
         Dockerfile: 'Dockerfile_debian'
