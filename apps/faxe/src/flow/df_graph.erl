@@ -26,7 +26,7 @@
    get_stats/1,
    ping/1, export/1,
    start_trace/1,
-   stop_trace/1]).
+   stop_trace/1, clone_and_start_subgraph/2]).
 
 %% gen_server callbacks
 -export([init/1,
@@ -85,6 +85,38 @@ add_edge(Graph, SourceNode, SourcePort, TargetNode, TargetPort) ->
    add_edge(Graph, SourceNode, SourcePort, TargetNode, TargetPort, []).
 add_edge(Graph, SourceNode, SourcePort, TargetNode, TargetPort, Metadata) ->
    gen_server:call(Graph, {add_edge, SourceNode, SourcePort, TargetNode, TargetPort, Metadata}).
+
+clone_and_start_subgraph(G, FromVertex) ->
+   ReachableVertices = digraph_utils:reachable_neighbours([FromVertex], G),
+   Subgraph = digraph_utils:subgraph(G, ReachableVertices,[{type, inherit}, {keep_labels, true}]),
+   CurrentPort = 1,%digraph:out_degree(G, FromVertex),
+   %% copy these
+   VerticesMapFun =
+   fun(V) ->
+      {NodeId, Label} = digraph:vertex(G, V),
+      NewNodeId = <<NodeId/binary, "_s", integer_to_binary(CurrentPort)>>,
+      digraph:add_vertex(G, NewNodeId, Label),
+      {NodeId, NewNodeId}
+   end,
+   CopiedVertices = lists:map(VerticesMapFun, ReachableVertices),
+   CurrentEdges = digraph:edges(Subgraph),
+%%   {CopiedVertices, CurrentEdges},
+   EdgesFun =
+   fun(Edge) ->
+      {_E, V1, V2, Label} = digraph:edge(G, Edge),
+      digraph:add_edge(G, proplists:get_value(V1, CopiedVertices), proplists:get_value(V2, CopiedVertices), Label)
+   end,
+   lists:foreach(EdgesFun, CurrentEdges),
+
+   %% would only work on first run,
+   FromOutEdges = digraph:out_edges(G, FromVertex),
+   FromEdgesFun =
+   fun(Edge) ->
+      {_E, FromVertex, V2, Label} = digraph:edge(G, Edge),
+      digraph:add_edge(G, FromVertex, proplists:get_value(V2, CopiedVertices), Label#{src_port => CurrentPort+1})
+   end,
+   lists:foreach(FromEdgesFun, FromOutEdges).
+
 
 nodes(Graph) ->
    call(Graph, nodes).
@@ -296,6 +328,7 @@ build_edge(Graph, {SourceNode, SourcePort, TargetNode, TargetPort, Metadata}) ->
 
 build_subscriptions(Graph, Node, Nodes, FlowMode) ->
    OutEdges = digraph:out_edges(Graph, Node),
+   lager:notice("build subscriptions for node: ~p :: out-edges: ~p",[Node, OutEdges]),
    Subscriptions = lists:foldl(
       fun(E, Acc) ->
          {_E, V1, V2, Label} = digraph:edge(Graph, E),
@@ -312,8 +345,9 @@ build_subscriptions(Graph, Node, Nodes, FlowMode) ->
       end,
       [],
       OutEdges),
-
+   lager:info("Subscriptions for node: ~p::~p",[Node, Subscriptions]),
    InEdges = digraph:in_edges(Graph, Node),
+   lager:notice("in-edges: ~p",[InEdges]),
    Inports = lists:map(
       fun(E) ->
          {_E, V1, _V2, _Label = #{tgt_port := TargetPort}} = digraph:edge(Graph, E),
@@ -332,7 +366,7 @@ start(ModeOpts=#task_modes{run_mode = RunMode, temporary = Temp, temp_ttl = TTL}
    erlang:send_after(?METRICS_INTERVAL, self(), collect_metrics),
    Nodes0 = digraph:vertices(G),
 
-%% build : [{NodeId, Pid}]
+%% build : [{NodeId, Component, Pid}]
    Nodes = lists:map(
       fun(NodeId) ->
          {NodeId, Label} = digraph:vertex(G, NodeId),
@@ -342,11 +376,12 @@ start(ModeOpts=#task_modes{run_mode = RunMode, temporary = Temp, temp_ttl = TTL}
          {ok, Pid} = df_component:start_link(Component, Id, NodeId, Inports, OutPorts, Metadata),
          {NodeId, Component, Pid}
       end, lists:reverse(Nodes0)),
+   lager:info("graph nodes: ~p",[Nodes]),
    %% Inports and Subscriptions
    Subscriptions = lists:foldl(fun({NId, _C, _Pid}, Acc) ->
       [{NId, build_subscriptions(G, NId, Nodes, RunMode)}|Acc]
                                end, [], Nodes),
-
+   lager:notice("all subscriptions:~p",[[lager:pr(Sub, ?MODULE) || Sub <- Subscriptions]]),
    %% register our pid along with all node(component)-pids for graph ets table handling
    NodePids = [NPid || {_NodeId, _Comp, NPid} <- Nodes],
    graph_node_registry:register_graph(self(), NodePids),
@@ -378,3 +413,4 @@ start(ModeOpts=#task_modes{run_mode = RunMode, temporary = Temp, temp_ttl = TTL}
    lager:warning("run_mode is :~p",[RunMode]),
    State#state{running = true, started = true, nodes = Nodes,
       timeout_ref = TimerRef, start_mode = ModeOpts}.
+

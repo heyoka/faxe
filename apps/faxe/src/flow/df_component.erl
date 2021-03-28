@@ -265,6 +265,7 @@ handle_info({start, Inputs, Subscriptions, FlowMode},
     State=#c_state{component = CB, cb_state = CBState, graph_id = GId, node_id = NId}) ->
 
 %%   lager:info("component ~p starts with options; ~p and inputs: ~p", [CB, CBState, Inputs]),
+   lager:info("component ~p starts with subscriptions; ~p ", [CB, Subscriptions]),
    Opts = CBState,
    Inited = CB:init({GId, NId}, Inputs, Opts),
    {AReq, NewCBState} =
