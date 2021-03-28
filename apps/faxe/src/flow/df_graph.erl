@@ -26,7 +26,8 @@
    get_stats/1,
    ping/1, export/1,
    start_trace/1,
-   stop_trace/1, clone_and_start_subgraph/2]).
+   stop_trace/1,
+   start_subgraph/1]).
 
 %% gen_server callbacks
 -export([init/1,
@@ -86,37 +87,8 @@ add_edge(Graph, SourceNode, SourcePort, TargetNode, TargetPort) ->
 add_edge(Graph, SourceNode, SourcePort, TargetNode, TargetPort, Metadata) ->
    gen_server:call(Graph, {add_edge, SourceNode, SourcePort, TargetNode, TargetPort, Metadata}).
 
-clone_and_start_subgraph(G, FromVertex) ->
-   ReachableVertices = digraph_utils:reachable_neighbours([FromVertex], G),
-   Subgraph = digraph_utils:subgraph(G, ReachableVertices,[{type, inherit}, {keep_labels, true}]),
-   CurrentPort = 1,%digraph:out_degree(G, FromVertex),
-   %% copy these
-   VerticesMapFun =
-   fun(V) ->
-      {NodeId, Label} = digraph:vertex(G, V),
-      NewNodeId = <<NodeId/binary, "_s", integer_to_binary(CurrentPort)>>,
-      digraph:add_vertex(G, NewNodeId, Label),
-      {NodeId, NewNodeId}
-   end,
-   CopiedVertices = lists:map(VerticesMapFun, ReachableVertices),
-   CurrentEdges = digraph:edges(Subgraph),
-%%   {CopiedVertices, CurrentEdges},
-   EdgesFun =
-   fun(Edge) ->
-      {_E, V1, V2, Label} = digraph:edge(G, Edge),
-      digraph:add_edge(G, proplists:get_value(V1, CopiedVertices), proplists:get_value(V2, CopiedVertices), Label)
-   end,
-   lists:foreach(EdgesFun, CurrentEdges),
-
-   %% would only work on first run,
-   FromOutEdges = digraph:out_edges(G, FromVertex),
-   FromEdgesFun =
-   fun(Edge) ->
-      {_E, FromVertex, V2, Label} = digraph:edge(G, Edge),
-      digraph:add_edge(G, FromVertex, proplists:get_value(V2, CopiedVertices), Label#{src_port => CurrentPort+1})
-   end,
-   lists:foreach(FromEdgesFun, FromOutEdges).
-
+start_subgraph(FromVertex) ->
+   call(graph_node_registry:get_graph(self()), {make_subgraph, FromVertex}).
 
 nodes(Graph) ->
    call(Graph, nodes).
@@ -196,13 +168,6 @@ handle_call({add_edge, SourceNode, SourcePort, TargetNode, TargetPort, Metadata}
    {reply, ok, State};
 handle_call({nodes}, _From, State=#state{nodes = Nodes}) ->
    {reply, Nodes, State};
-%%handle_call({flownodes}, _From, State = #state{graph = G}) ->
-%%   Vs = [digraph:vertex(G, V) || V <- digraph:vertices(G)],
-%%   F = fun({NId, #{component := Comp}) ->
-%%      {NId, Comp},
-%%      end,
-%%   Out = [{NId, maps:get(component, DataMap)} || {NId, DataMap} <- Vs],
-%%   {reply, Out, State};
 handle_call({vertices}, _From, State = #state{graph = G}) ->
    All = digraph:vertices(G),
    Out = [digraph:vertex(G, V) || V <- All],
@@ -216,6 +181,9 @@ handle_call({source_nodes}, _From, State = #state{graph = G}) ->
 handle_call({edges}, _From, State) ->
    All = digraph:vertices(State#state.graph),
    {reply, All, State};
+handle_call({make_subgraph, FromVertex}, _From, State=#state{graph = Graph}) ->
+   {OutPort, NewState} = clone_and_start_subgraph(FromVertex, State),
+   {reply, {ok, OutPort}, NewState};
 %% start the computation
 handle_call({start, Modes}, _From, State) ->
    NewState = start(Modes, State),
@@ -363,10 +331,27 @@ build_subscriptions(Graph, Node, Nodes, FlowMode) ->
 -spec start(#task_modes{}, #state{}) -> #state{}.
 start(ModeOpts=#task_modes{run_mode = RunMode, temporary = Temp, temp_ttl = TTL},
     State=#state{graph = G, id = Id}) ->
+
    erlang:send_after(?METRICS_INTERVAL, self(), collect_metrics),
    Nodes0 = digraph:vertices(G),
 
 %% build : [{NodeId, Component, Pid}]
+   NewState = make_start_nodes(Nodes0, ModeOpts, State),
+
+   %% are we starting temporary ? if yes, start a timer
+   TimerRef =
+   case Temp of
+      false -> undefined;
+      true -> erlang:send_after(TTL, self(), timeout)
+   end,
+   lager:warning("run_mode is :~p, LINKS: ~p",[RunMode, erlang:process_info(self(), links)]),
+   NewState#state{running = true, started = true,
+      timeout_ref = TimerRef, start_mode = ModeOpts}.
+
+make_start_nodes(NodeIds, #task_modes{run_mode = RunMode},
+    State = #state{graph = G, id = Id, nodes = Nodes0}) when is_list(NodeIds) ->
+
+   %% build : [{NodeId, Component, Pid}]
    Nodes = lists:map(
       fun(NodeId) ->
          {NodeId, Label} = digraph:vertex(G, NodeId),
@@ -375,7 +360,7 @@ start(ModeOpts=#task_modes{run_mode = RunMode, temporary = Temp, temp_ttl = TTL}
             = Label,
          {ok, Pid} = df_component:start_link(Component, Id, NodeId, Inports, OutPorts, Metadata),
          {NodeId, Component, Pid}
-      end, lists:reverse(Nodes0)),
+      end, lists:reverse(NodeIds)),
    lager:info("graph nodes: ~p",[Nodes]),
    %% Inports and Subscriptions
    Subscriptions = lists:foldl(fun({NId, _C, _Pid}, Acc) ->
@@ -384,7 +369,7 @@ start(ModeOpts=#task_modes{run_mode = RunMode, temporary = Temp, temp_ttl = TTL}
    lager:notice("all subscriptions:~p",[[lager:pr(Sub, ?MODULE) || Sub <- Subscriptions]]),
    %% register our pid along with all node(component)-pids for graph ets table handling
    NodePids = [NPid || {_NodeId, _Comp, NPid} <- Nodes],
-   graph_node_registry:register_graph(self(), NodePids),
+   graph_node_registry:register_graph_nodes(self(), NodePids),
 
    %% start the nodes with subscriptions
    lists:foreach(
@@ -392,25 +377,48 @@ start(ModeOpts=#task_modes{run_mode = RunMode, temporary = Temp, temp_ttl = TTL}
          {Inputs, Subs} = proplists:get_value(NodeId, Subscriptions),
          node_metrics:setup(Id, NodeId, Comp),
          df_component:start_async(NPid, Inputs, Subs, RunMode)
-%%         ,
-%%         NPid ! start_debug
-%%         NodeStart = df_component:start_node(NPid, Inputs, Subs, FlowMode),
-%%         lager:debug("NodeStart for ~p gives: ~p",[NodeId, NodeStart] )
       end,
       Nodes),
-
    %% if in pull mode initially let all components send requests to their producers
    case RunMode of
       push -> ok;
       pull -> lists:foreach(fun({_NodeId, _C, NPid}) -> NPid ! pull end, Nodes)
    end,
-   %% are we starting temporary
-   TimerRef =
-   case Temp of
-      false -> undefined;
-      true -> erlang:send_after(TTL, self(), timeout)
-   end,
-   lager:warning("run_mode is :~p",[RunMode]),
-   State#state{running = true, started = true, nodes = Nodes,
-      timeout_ref = TimerRef, start_mode = ModeOpts}.
+   State#state{nodes = Nodes0++Nodes}.
+
+%% @todo determine the new port number for the FromVertex to route messages to the new subgraph and return it
+%% @todo handle multiple clones for group_by nodes, maybe store the subgraph in state ?
+clone_and_start_subgraph(FromVertex, State = #state{graph = G, start_mode = RunModes}) ->
+   ReachableVertices = digraph_utils:reachable_neighbours([FromVertex], G),
+   Subgraph = digraph_utils:subgraph(G, ReachableVertices,[{type, inherit}, {keep_labels, true}]),
+   %% in a first attempt, we say the port-number is equivalent to the number of out-going edges form the FromVertex (out_degree)
+   NewOutPort = digraph:out_degree(G, FromVertex) + 1,
+   %% copy these
+   VerticesMapFun =
+      fun(V) ->
+         {NodeId, Label} = digraph:vertex(G, V),
+         NewNodeId = <<NodeId/binary, "_s", integer_to_binary(NewOutPort)>>,
+         digraph:add_vertex(G, NewNodeId, Label),
+         {NodeId, NewNodeId}
+      end,
+   CopiedVertices = lists:map(VerticesMapFun, ReachableVertices),
+   CurrentEdges = digraph:edges(Subgraph),
+%%   {CopiedVertices, CurrentEdges},
+   EdgesFun =
+      fun(Edge) ->
+         {_E, V1, V2, Label} = digraph:edge(G, Edge),
+         digraph:add_edge(G, proplists:get_value(V1, CopiedVertices), proplists:get_value(V2, CopiedVertices), Label)
+      end,
+   lists:foreach(EdgesFun, CurrentEdges),
+
+   %% @todo would only work on first run,
+   FromOutEdges = digraph:out_edges(G, FromVertex),
+   FromEdgesFun =
+      fun(Edge) ->
+         {_E, FromVertex, V2, Label} = digraph:edge(G, Edge),
+         digraph:add_edge(G, FromVertex, proplists:get_value(V2, CopiedVertices), Label#{src_port => NewOutPort})
+      end,
+   lists:foreach(FromEdgesFun, FromOutEdges),
+   {NewOutPort, make_start_nodes(CopiedVertices, RunModes, State)}.
+
 

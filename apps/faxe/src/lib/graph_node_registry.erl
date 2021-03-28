@@ -8,7 +8,7 @@
 
 -behaviour(gen_server).
 
--export([start_link/0, register_graph/2, get_graph/1, get_graph_table/0]).
+-export([start_link/0, register_graph_nodes/2, get_graph/1, get_graph_table/0]).
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2, terminate/2,
   code_change/3]).
 
@@ -20,11 +20,17 @@
 %%%===================================================================
 %%% Spawning and gen_server implementation
 %%%===================================================================
-register_graph(GraphPid, ComponentPids) when is_pid(GraphPid), is_list(ComponentPids) ->
-  lager:notice("~p, ~p (~p)",[?FUNCTION_NAME, GraphPid, ComponentPids]),
-  ets:insert(graph_to_nodes, {GraphPid, ComponentPids}),
-  [ets:insert(?NODE_TO_GRAPH_ETS, {CPid, GraphPid}) || CPid <- ComponentPids],
-  ?SERVER ! {monitor_graph, GraphPid}.
+register_graph_nodes(GraphPid, ComponentPids) when is_pid(GraphPid), is_list(ComponentPids) ->
+  AllNodes =
+  case ets:lookup(graph_to_nodes, GraphPid) of
+    [] ->
+      %% first register
+      ?SERVER ! {monitor_graph, GraphPid},
+      ComponentPids;
+    [{GraphPid, Nodes}] -> Nodes ++ ComponentPids
+  end,
+  ets:insert(graph_to_nodes, {GraphPid, AllNodes}),
+  [ets:insert(?NODE_TO_GRAPH_ETS, {CPid, GraphPid}) || CPid <- ComponentPids].
 
 get_graph_table() ->
   % get graph pid

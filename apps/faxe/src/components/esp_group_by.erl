@@ -21,23 +21,23 @@ options() -> [
    {field, string}
 ].
 
-init(NodeId, _Inputs, #{field := Field}) ->
+init({_GId, NodeId}, _Inputs, #{field := Field}) ->
    {ok, all, #state{field = Field, nodeid = NodeId}}.
 
-process(_In, P = #data_point{}, State = #state{field = FieldName, groups = Groups}) ->
+process(_In, P = #data_point{}, State = #state{field = FieldName, groups = Groups, nodeid = NId}) ->
    Value = flowdata:field(P, FieldName),
-   NewGroups = ensure_route(Value, Groups),
+   NewGroups = ensure_route(Value, Groups, NId),
    OutPort = maps:get(Value, NewGroups),
    {emit, {OutPort, P}, State#state{groups = NewGroups}}.
 
-ensure_route(Val, Groups) when map_size(Groups) == 0 ->
+ensure_route(Val, Groups, _NId) when map_size(Groups) == 0 ->
    Groups#{Val => 1};
-ensure_route(Val, Groups) when is_map_key(Val, Groups) ->
+ensure_route(Val, Groups, _NId) when is_map_key(Val, Groups) ->
    Groups;
-ensure_route(Val, Groups) ->
-   NewPort = start_branch(),
+ensure_route(Val, Groups, NodeId) ->
+   NewPort = start_branch(NodeId),
    Groups#{Val => NewPort}.
 
-start_branch() ->
-   NewOutPort = df_graph:clone_and_start_subgraph(self()),
+start_branch(NodeId) ->
+   {ok, NewOutPort} = df_graph:start_subgraph(NodeId),
    NewOutPort.
