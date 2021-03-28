@@ -8,8 +8,8 @@
 %% + 'set' holds a list of values, where values have not duplicates
 %% %% + 'map' holds a map of key-value pairs
 %%
-%% Values a gathered normally within the flow of data, but can also be pre-set with values
-%% The values will be hold in an ets term storage
+%% Values a gathered normally within the flow of data, but the mem node can also be pre-populated with values.
+%% The values will be hold in an ets term storage.
 %% @end
 -module(esp_mem).
 -author("Alexander Minichmair").
@@ -21,12 +21,11 @@
 %% API
 -export([init/3, process/3, options/0, check_options/0]).
 
--define(TABLE, ls_mem).
-
 -record(state, {
    field,
    key,
-   type
+   type,
+   table_id
 }).
 
 options() -> [
@@ -44,6 +43,8 @@ check_options() ->
    ].
 
 init(_NodeId, _Ins, #{field := Field, key := As0, type := Type, default := Def, default_json := DefJson}) ->
+   %% setup table
+   Tab = graph_node_registry:get_graph_table(),
    As =
    case As0 of
       undefined -> Field;
@@ -51,8 +52,8 @@ init(_NodeId, _Ins, #{field := Field, key := As0, type := Type, default := Def, 
    end,
    Default =
    case DefJson of true -> jiffy:decode(Def, [return_maps]); false -> Def end,
-   default(Type, As, Default),
-   {ok, all, #state{field = Field, key = As, type = Type}}.
+   default(Type, As, Default, Tab),
+   {ok, all, #state{field = Field, key = As, type = Type, table_id = Tab}}.
 
 %% if field is undefined the node is used as a lookup with initial data in it which should not be overwritten, we assume
 process(_, _Item, State = #state{field = undefined}) ->
@@ -72,25 +73,25 @@ mem(Item, State = #state{type = <<"set">>}) ->
 
 ls_mem_single(#data_batch{points = Points}, State=#state{}) ->
    ls_mem_single(lists:last(Points), State);
-ls_mem_single(P = #data_point{}, #state{key = MemKey, field = MemField}) ->
+ls_mem_single(P = #data_point{}, #state{key = MemKey, field = MemField, table_id = Tab}) ->
 %%   lager:notice("handle_ls_mem: key: ~p field: ~p :: ~p", [MemKey, MemField, flowdata:value(P, MemField)]),
-   ets:insert(ls_mem, {MemKey, flowdata:value(P, MemField)}).
+   ets:insert(Tab, {MemKey, flowdata:value(P, MemField)}).
 %%   lager:warning("ls_mem: ~p is now: ~p", [MemKey, faxe_lambda_lib:ls_mem(MemKey)]).
 
 ls_mem_set(#data_batch{points = Points}, State=#state{}) ->
    [ls_mem_set(P, State) || P <- Points];
-ls_mem_set(P = #data_point{}, #state{key = MemKey, field = MemField}) ->
+ls_mem_set(P = #data_point{}, #state{key = MemKey, field = MemField, table_id = Tab}) ->
 %%   lager:notice("handle_ls_mem_set"),
    Set0 = sets:from_list(ets_set_or_list(MemKey, ls_mem_set)),
    Set = sets:add_element(flowdata:value(P, MemField), Set0),
-   ets:insert(ls_mem_set, {MemKey, sets:to_list(Set)}).
+   ets:insert(Tab, {MemKey, sets:to_list(Set)}).
 
 ls_mem_list(#data_batch{points = Points}, State=#state{}) ->
    [ls_mem_list(P, State) || P <- Points];
-ls_mem_list(P = #data_point{}, #state{key = MemKey, field = MemField}) ->
-   L0 = ets_set_or_list(MemKey, ls_mem_list),
+ls_mem_list(P = #data_point{}, #state{key = MemKey, field = MemField, table_id = Tab}) ->
+   L0 = ets_set_or_list(MemKey, Tab),
    List = [flowdata:value(P, MemField)] ++ L0,
-   ets:insert(ls_mem_list, {MemKey, List}).
+   ets:insert(Tab, {MemKey, List}).
 
 ets_set_or_list(MemKey, Table) ->
    case ets:lookup(Table, MemKey) of
@@ -98,12 +99,12 @@ ets_set_or_list(MemKey, Table) ->
       [{MemKey, List0}] -> List0
    end.
 
-default(<<"single">>, Key, Def) ->
-   ets:insert(ls_mem, {Key, def(<<"single">>, Def)});
-default(<<"set">>, Key, Def) ->
-   ets:insert(ls_mem_set, {Key, def(<<"set">>, Def)});
-default(<<"list">>, Key, Def) ->
-   ets:insert(ls_mem_list, {Key, def(<<"list">>, Def)}).
+default(<<"single">>, Key, Def, Tab) ->
+   ets:insert(Tab, {Key, def(<<"single">>, Def)});
+default(<<"set">>, Key, Def, Tab) ->
+   ets:insert(Tab, {Key, def(<<"set">>, Def)});
+default(<<"list">>, Key, Def, Tab) ->
+   ets:insert(Tab, {Key, def(<<"list">>, Def)}).
 
 
 def(<<"single">>, undefined) -> 0;

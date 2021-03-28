@@ -18,44 +18,57 @@
 -record(state, {
    node_id,
    fields,
+   as,
+   default,
    field_states = []
 }).
 
-options() -> [{fields, binary_list}].
+options() -> [
+   {fields, string_list},
+   {as, string_list, undefined},
+   {default, number, undefined}
+].
 
-init(NodeId, _Ins, #{fields := Fields}) ->
-   {ok, all, #state{node_id = NodeId, fields = Fields}}.
+init(NodeId, _Ins, #{fields := Fields, as := As0, default := Default}) ->
+   As1 = case As0 of undefined -> Fields; _ -> As0 end,
+   As = lists:zip(Fields, As1),
+   {ok, all, #state{node_id = NodeId, fields = Fields, as = As, default = Default}}.
 
-%%process(_In, #data_batch{points = Points} = Batch, State = #state{fields = Offset}) ->
-%%%%   lager:info("~p Ts before: ~p",[?MODULE, [faxe_time:to_date(T0) || T0 <- flowdata:ts(Batch)]]),
-%%%%   NewPoints = [execute(Point,Offset) || Point <- Points],
-%%%%   NewBatch = flowdata:set_bounds(Batch#data_batch{points = NewPoints}),
-%%%%   lager:info("~p Ts after: ~p",[?MODULE, [faxe_time:to_date(T1) || T1 <- flowdata:ts(NewBatch)]]),
-%%%%   {emit, NewBatch, State}
-%%ok
-%%;
-process(_Inport, P = #data_point{} = Point, State = #state{fields = FieldList, field_states = FS}) ->
+process(_Inport, P = #data_point{} = Point, State = #state{fields = FieldList}) ->
    FieldVals = flowdata:fields(P, FieldList),
    Fields = lists:zip(FieldList, FieldVals),
-   NewPoint = execute(Point, Fields, FieldList, FS),
-%%   lager:notice("~p emitting: ~p when previous: ~p",[?MODULE, NewPoint, FS]),
+   NewPoint = execute(Point, Fields, State),
    {emit, NewPoint, State#state{field_states = Fields}}.
 
 %% @doc maps current datapoint fields to new values, depending on previous values and
 %% fieldlist configuration
--spec execute(#data_point{}, list(binary()), list({binary(), number()}), list({binary(), number()}))
+-spec execute(#data_point{}, list(binary()), #state{})
        -> #data_point{}.
-execute(P =#data_point{}, FieldVals, FieldList, FieldStates) ->
-   MapFn = fun({K, V}=Current) ->
-      case {lists:member(K, FieldList), proplists:get_value(K, FieldStates)} of
-         {_, undefined} -> Current;
-         {false, _} -> Current;
-         {true, PrevVal} -> {K, diff(V, PrevVal)}
-      end
-           end,
-   Eval = lists:map(MapFn, FieldVals),
+execute(P =#data_point{}, FieldVals, #state{fields = FieldList, field_states = FieldStates, default = Def, as = As}) ->
+   FoldFn =
+   fun
+      ({_K, undefined}, NewFields) ->
+         %% this means there is no such field in the data-point, ignore it
+         NewFields;
+      ({K, V}, NewFields) ->
+         case lists:member(K, FieldList) of
+            true ->
+               NewValue =
+                  case proplists:get_value(K, FieldStates) of
+                     %% we do not have any previous value yet, use default value
+                     undefined -> default(V, Def);
+                     PrevVal -> diff(V, PrevVal)
+                  end,
+               [{proplists:get_value(K, As), NewValue}|NewFields];
+            false -> NewFields
+         end
+   end,
+   Eval = lists:foldl(FoldFn, [], FieldVals),
    flowdata:set_fields(P, Eval).
 
+
+default(Val, undefined) -> Val;
+default(_Val, Default) -> Default.
 
 diff(V1, V2) when is_number(V1), is_number(V2) ->
    abs(V1-V2);
@@ -65,12 +78,50 @@ diff(_, _) -> erlang:error(cannot_diff_non_numeric_values).
 %%%%%%%%%%%%
 -ifdef(TEST).
 basic_test() ->
-   P = #data_point{fields = #{<<"energy_used">> => 13.4563, <<"current_max">> => 3453.34534, <<"t1">> => 12}},
+   P = test_point(),
    LastValues = [{<<"current_max">>, 3753.34534}, {<<"t1">>, 12}],
    FieldList = [<<"current_max">>, <<"energy_used">>],
    FieldVals = flowdata:fields(P, FieldList),
    Fields = lists:zip(FieldList, FieldVals),
    ?assertEqual(#data_point{fields = #{<<"energy_used">> => 13.4563, <<"current_max">> => 300.0, <<"t1">> => 12}},
-      execute(P, Fields, FieldList, LastValues)).
+      execute(P, Fields,
+         #state{fields = FieldList, field_states = LastValues, as = lists:zip(FieldList, FieldList), default = undefined})).
+
+default_test() ->
+   P = test_point(),
+   LastValues = [{<<"current_max">>, 3753.34534}, {<<"t1">>, 12}],
+   FieldList = [<<"current_max">>, <<"energy_used">>],
+   FieldVals = flowdata:fields(P, FieldList),
+   Fields = lists:zip(FieldList, FieldVals),
+   ?assertEqual(#data_point{fields = #{<<"energy_used">> => 0, <<"current_max">> => 300.0, <<"t1">> => 12}},
+      execute(P, Fields,
+         #state{fields = FieldList, field_states = LastValues, as = lists:zip(FieldList, FieldList), default = 0})).
+
+fields_not_present_test() ->
+   P = test_point(),
+   LastValues = [{<<"current_max">>, 3753.34534}, {<<"t1">>, 12}],
+   FieldList = [<<"current_max">>, <<"energy_used">>, <<"somefieldname">>],
+   FieldVals = flowdata:fields(P, FieldList),
+   Fields = lists:zip(FieldList, FieldVals),
+   ?assertEqual(#data_point{fields = #{<<"energy_used">> => 0, <<"current_max">> => 300.0, <<"t1">> => 12}},
+      execute(P, Fields,
+         #state{fields = FieldList, field_states = LastValues, as = lists:zip(FieldList, FieldList), default = 0})).
+
+as_test() ->
+   P = test_point(),
+   LastValues = [{<<"current_max">>, 3753.34534}, {<<"t1">>, 12}],
+   FieldList = [<<"current_max">>, <<"energy_used">>],
+   AsList = [<<"current_max_diff">>, <<"energy_used_diff">>],
+   FieldVals = flowdata:fields(P, FieldList),
+   Fields = lists:zip(FieldList, FieldVals),
+   ?assertEqual(#data_point{fields = #{<<"current_max">> => 3453.34534,
+      <<"current_max_diff">> => 300.0,
+      <<"energy_used">> => 13.4563,
+      <<"energy_used_diff">> => 99,<<"t1">> => 12}},
+      execute(P, Fields,
+         #state{fields = FieldList, field_states = LastValues, as = lists:zip(FieldList, AsList), default = 99})).
+
+test_point() ->
+   #data_point{fields = #{<<"energy_used">> => 13.4563, <<"current_max">> => 3453.34534, <<"t1">> => 12}}.
 
 -endif.

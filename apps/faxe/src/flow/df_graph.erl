@@ -347,6 +347,10 @@ start(ModeOpts=#task_modes{run_mode = RunMode, temporary = Temp, temp_ttl = TTL}
       [{NId, build_subscriptions(G, NId, Nodes, RunMode)}|Acc]
                                end, [], Nodes),
 
+   %% register our pid along with all node(component)-pids for graph ets table handling
+   NodePids = [NPid || {_NodeId, _Comp, NPid} <- Nodes],
+   graph_node_registry:register_graph(self(), NodePids),
+
    %% start the nodes with subscriptions
    lists:foreach(
       fun({NodeId, Comp, NPid}) ->
@@ -359,6 +363,7 @@ start(ModeOpts=#task_modes{run_mode = RunMode, temporary = Temp, temp_ttl = TTL}
 %%         lager:debug("NodeStart for ~p gives: ~p",[NodeId, NodeStart] )
       end,
       Nodes),
+
    %% if in pull mode initially let all components send requests to their producers
    case RunMode of
       push -> ok;

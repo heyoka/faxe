@@ -15,17 +15,17 @@
 -record(state, {
    node_id,
    fields,
-   factor,
    modules :: list(),
    module_state,
    as,
-   row_length
+   keep
 }).
 
 options() -> [
-   {fields, binary_list},
-   {as, binary_list},
-   {functions, binary_list}
+   {fields, string_list},
+   {as, string_list},
+   {functions, string_list},
+   {keep, string_list, []}
 ].
 
 check_options() ->
@@ -37,21 +37,24 @@ check_options() ->
             <<"count_change">>, <<"mean">>, <<"median">>, <<"range">>, <<"skew">>]}
    ].
 
-init(NodeId, Ins, #{fields := Fields, as := As, functions := Mods} = Args) ->
-   RowLength = length(Ins),
+init(NodeId, _Ins, #{fields := Fields, as := As, functions := Mods, keep := Keep} = Args) ->
    Modules = [binary_to_atom(<<"esp_", Mod/binary>>, latin1) || Mod <- Mods],
-   State = #state{fields = Fields, node_id = NodeId, as = As, row_length = RowLength, modules = Modules},
+   State = #state{fields = Fields, node_id = NodeId, as = As, keep = Keep, modules = Modules},
    {ok, all, State#state{module_state = Args}}.
 
 
 %%% databatch only
-process(_Inport, #data_batch{} = Batch, State = #state{modules = Mods, module_state = MState, fields = Fields, as = As}) ->
+process(_Inport, #data_batch{points = Points} = Batch,
+    State = #state{modules = Mods, module_state = MState, fields = Fields, as = As, keep = KeepFields}) ->
 
    Ps = [prepare(Batch, F) || F <- Fields],
    MStates = [MState || _F <- Fields],
 
    {Ts, Results} = call(Ps, Mods, MStates, As, {0, []}),
-   NewPoint = flowdata:set_fields(#data_point{ts = Ts}, Results),
+   KeepPoint = lists:last(Points),
+   KeepKV = lists:zip(KeepFields, flowdata:fields(KeepPoint, KeepFields)),
+   NewPoint = flowdata:set_fields(#data_point{ts = Ts}, Results++KeepKV),
+
    {emit, NewPoint, State};
 process(_, #data_point{}, _State) ->
    {error, datapoint_not_supported}.
@@ -59,7 +62,6 @@ process(_, #data_point{}, _State) ->
 handle_info(Request, State) ->
    lager:warning("~p request: ~p~n", [State, Request]),
    {ok, State}.
-
 
 %%%%%%%%%%%%%%%%%%%% internal %%%%%%%%%%%%
 

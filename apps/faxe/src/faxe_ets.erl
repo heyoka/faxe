@@ -54,17 +54,22 @@ start_link() ->
    {ok, State :: #state{}} | {ok, State :: #state{}, timeout() | hibernate} |
    {stop, Reason :: term()} | ignore).
 init([]) ->
-   ok = new_table(up_nodes, ordered_set),
-   ok = new_table(ls_mem, set),
-   ok = new_table(ls_mem_set, set),
-   ok = new_table(ls_mem_list, set),
-   ok = new_table(ls_mem_map, set),
+
    ok = new_table(field_paths, set),
    ok = new_table(temp_tasks, set),
    ok = new_table(s7_pools, set),
    ok = new_table(node_connections, set),
    ok = new_table(log_emit_flows, set),
    ok = new_table(esq_queues, set),
+   %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+   %%%%% mem-node ets tables
+   %% stores graph ets table_ids: 1 per graph, if needed
+   ok = new_table(graph_ets, set),
+   %% stores component-pid to graph pid
+   ok = new_table(node_to_graph, set),
+   %% stores graph pid to component-pid list
+   ok = new_table(graph_to_nodes, set),
+
    {ok, #state{}}.
 
 

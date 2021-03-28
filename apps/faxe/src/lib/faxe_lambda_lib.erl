@@ -176,6 +176,8 @@ undefined(Val) ->
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %% additional
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+round_float(Int, _Precision) when is_integer(Int) ->
+   Int;
 round_float(Float, Precision) when is_float(Float), is_integer(Precision) ->
    faxe_util:round_float(Float, Precision).
 
@@ -282,14 +284,14 @@ map_get(Key, Map) -> maps:get(Key, Map, undefined).
 %%% lambda state functions
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 ls_mem_list(Key) ->
-   mem_lookup(ls_mem_list, Key).
+   mem_lookup(Key).
 ls_mem_set(Key) ->
-   mem_lookup(ls_mem_set, Key).
+   mem_lookup(Key).
 ls_mem(Key) ->
-   mem_lookup(ls_mem, Key).
-mem_lookup(Table, Key) ->
+   mem_lookup(Key).
+mem_lookup(Key) ->
    Res =
-   case ets:lookup(Table, Key) of
+   case ets:lookup(graph_node_registry:get_graph_table(), Key) of
       [{Key, Val}] -> Val;
       Other -> Other
    end,

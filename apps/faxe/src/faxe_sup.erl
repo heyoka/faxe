@@ -36,6 +36,10 @@ init([]) ->
             {faxe_ets, start_link, []},
             permanent, 5000, worker, []},
 
+        {graph_node_registry,
+            {graph_node_registry, start_link, []},
+            permanent, 5000, worker, []},
+
         {faxe_metrics_sup,
             {faxe_metrics_sup, start_link, []},
             permanent, infinity, supervisor, [faxe_metrics_sup]}
