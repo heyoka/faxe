@@ -296,9 +296,73 @@ build_edge(Graph, {SourceNode, SourcePort, TargetNode, TargetPort, Metadata}) ->
    _NewEdge = digraph:add_edge(Graph, SourceNode, TargetNode, Label).
 
 
+%% @doc
+%% creates the graph processes and starts the computation
+%%
+-spec start(#task_modes{}, #state{}) -> #state{}.
+start(ModeOpts=#task_modes{run_mode = RunMode, temporary = Temp, temp_ttl = TTL}, State=#state{graph = G}) ->
+
+   erlang:send_after(?METRICS_INTERVAL, self(), collect_metrics),
+   Nodes0 = digraph:vertices(G),
+   %% make nodes and subscriptions, start df_component-processes and start computing async
+   NewState = make_start_nodes(Nodes0, ModeOpts, State),
+
+   %% are we starting temporary ? if yes, start a timer
+   TimerRef =
+   case Temp of
+      false -> undefined;
+      true -> erlang:send_after(TTL, self(), timeout)
+   end,
+   lager:warning("run_mode is :~p, LINKS: ~p",[RunMode, erlang:process_info(self(), links)]),
+
+   NewState#state{running = true, started = true,
+      timeout_ref = TimerRef, start_mode = ModeOpts}.
+
+make_start_nodes(NodeIds, #task_modes{run_mode = RunMode},
+    State = #state{graph = G, id = Id, nodes = Nodes0}) when is_list(NodeIds) ->
+
+   %% builds : [{NodeId, Component, Pid}]
+   Nodes = build_nodes(NodeIds, G, Id),
+   %% Inports and Subscriptions, builds : [{NId, {Ins, list(#subscriptions{})}}]
+   Subscriptions = build_subscriptions(Nodes, G, RunMode),
+   lager:notice("all subscriptions:~p",[[lager:pr(Sub, ?MODULE) || Sub <- Subscriptions]]),
+
+   %% register our pid along with all node(component)-pids for graph ets table handling
+   NodePids = [NPid || {_NodeId, _Comp, NPid} <- Nodes],
+   graph_node_registry:register_graph_nodes(self(), NodePids),
+
+   %% start the nodes with subscriptions
+   start_async(Nodes, Subscriptions, RunMode, Id),
+
+   State#state{nodes = Nodes0++Nodes}.
+
+-spec build_nodes(list(binary()), digraph:graph(), binary()) -> [{NodeId :: binary(), Component :: atom(), pid()}].
+build_nodes(NodeIds, Graph, Id) ->
+   Nodes = lists:map(
+      fun(NodeId) ->
+         {NodeId, Label} = digraph:vertex(Graph, NodeId),
+%%         lager:notice("vertex: ~p", [{NodeId, Label}]),
+         #{component := Component, inports := Inports, outports := OutPorts, metadata := Metadata}
+            = Label,
+         {ok, Pid} = df_component:start_link(Component, Id, NodeId, Inports, OutPorts, Metadata),
+         {NodeId, Component, Pid}
+      end, lists:reverse(NodeIds)),
+   lager:info("graph nodes: ~p",[Nodes]),
+   Nodes.
+
+-spec build_subscriptions(list({binary(), atom(), pid()}), digraph:graph(), pull|push) ->
+   [{NodeId :: binary(), {Ins :: list(), list(#subscription{})}}].
+build_subscriptions(Nodes, Graph, RunMode) ->
+   Subscriptions =
+      lists:foldl(
+         fun({NId, _C, _Pid}, Acc) ->
+            [{NId, build_node_subscriptions(Graph, NId, Nodes, RunMode)}|Acc]
+         end, [], Nodes),
+   Subscriptions.
+
 %% @doc build subscriptions for one node in the graph
--spec build_subscriptions(digraph(), binary(), tuple(), atom()) -> {list(),list()}.
-build_subscriptions(Graph, Node, Nodes, FlowMode) ->
+-spec build_node_subscriptions(digraph:graph(), NodeId :: binary(), tuple(), atom()) -> {list(),list()}.
+build_node_subscriptions(Graph, Node, Nodes, FlowMode) ->
    OutEdges = digraph:out_edges(Graph, Node),
    lager:notice("build subscriptions for node: ~p :: out-edges: ~p",[Node, OutEdges]),
    Subscriptions = lists:foldl(
@@ -322,59 +386,16 @@ build_subscriptions(Graph, Node, Nodes, FlowMode) ->
    lager:notice("in-edges: ~p for node: ~p",[InEdges, Node]),
    Inports = lists:map(
       fun(E) ->
-         {_E, V1, _V2, _Label = #{tgt_port := TargetPort}} = digraph:edge(Graph, E),
-         {_, _, PubPid} = lists:keyfind(V1, 1, Nodes),
+         {_E, V1, _V2, _Label = #{tgt_port := TargetPort}} = Edge = digraph:edge(Graph, E),
+         lager:warning("Inports edge: ~p", [Edge]),
+         {_, _, PubPid} = lists:keyfind(V1, 1, Nodes), %% @todo fix problem here, this gives false ?
          {TargetPort, PubPid}
       end,
       InEdges),
    {Inports, Subscriptions}.
 
-%% @doc
-%% creates the graph processes and starts the computation
-%%
--spec start(#task_modes{}, #state{}) -> #state{}.
-start(ModeOpts=#task_modes{run_mode = RunMode, temporary = Temp, temp_ttl = TTL},
-    State=#state{graph = G, id = Id}) ->
-
-   erlang:send_after(?METRICS_INTERVAL, self(), collect_metrics),
-   Nodes0 = digraph:vertices(G),
-
-%% build : [{NodeId, Component, Pid}]
-   NewState = make_start_nodes(Nodes0, ModeOpts, State),
-
-   %% are we starting temporary ? if yes, start a timer
-   TimerRef =
-   case Temp of
-      false -> undefined;
-      true -> erlang:send_after(TTL, self(), timeout)
-   end,
-   lager:warning("run_mode is :~p, LINKS: ~p",[RunMode, erlang:process_info(self(), links)]),
-   NewState#state{running = true, started = true,
-      timeout_ref = TimerRef, start_mode = ModeOpts}.
-
-make_start_nodes(NodeIds, #task_modes{run_mode = RunMode},
-    State = #state{graph = G, id = Id, nodes = Nodes0}) when is_list(NodeIds) ->
-
-   %% builds : [{NodeId, Component, Pid}]
-   Nodes = lists:map(
-      fun(NodeId) ->
-         {NodeId, Label} = digraph:vertex(G, NodeId),
-%%         lager:notice("vertex: ~p", [{NodeId, Label}]),
-         #{component := Component, inports := Inports, outports := OutPorts, metadata := Metadata}
-            = Label,
-         {ok, Pid} = df_component:start_link(Component, Id, NodeId, Inports, OutPorts, Metadata),
-         {NodeId, Component, Pid}
-      end, lists:reverse(NodeIds)),
-   lager:info("graph nodes: ~p",[Nodes]),
-   %% Inports and Subscriptions
-   Subscriptions = lists:foldl(fun({NId, _C, _Pid}, Acc) ->
-      [{NId, build_subscriptions(G, NId, Nodes, RunMode)}|Acc]
-                               end, [], Nodes),
-   lager:notice("all subscriptions:~p",[[lager:pr(Sub, ?MODULE) || Sub <- Subscriptions]]),
-   %% register our pid along with all node(component)-pids for graph ets table handling
-   NodePids = [NPid || {_NodeId, _Comp, NPid} <- Nodes],
-   graph_node_registry:register_graph_nodes(self(), NodePids),
-
+-spec start_async(list({binary(), atom(), pid()}), list(), push|pull, binary()) -> ok.
+start_async(Nodes, Subscriptions, RunMode, Id) ->
    %% start the nodes with subscriptions
    lists:foreach(
       fun({NodeId, Comp, NPid}) ->
@@ -383,12 +404,11 @@ make_start_nodes(NodeIds, #task_modes{run_mode = RunMode},
          df_component:start_async(NPid, Inputs, Subs, RunMode)
       end,
       Nodes),
-   %% if in pull mode initially let all components send requests to their producers
+   %% if in pull mode, initially let all components send requests to their producers
    case RunMode of
       push -> ok;
       pull -> lists:foreach(fun({_NodeId, _C, NPid}) -> NPid ! pull end, Nodes)
-   end,
-   State#state{nodes = Nodes0++Nodes}.
+   end.
 
 %% @todo determine the new port number for the FromVertex to route messages to the new subgraph and return it
 %% @todo handle multiple clones for group_by nodes, maybe store the subgraph in state ?

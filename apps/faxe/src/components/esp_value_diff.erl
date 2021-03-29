@@ -13,26 +13,36 @@
 
 -include("faxe.hrl").
 %% API
--export([init/3, process/3, options/0]).
+-export([init/3, process/3, options/0, check_options/0]).
+
+-define(MODE_DELTA, <<"delta">>).
+-define(MODE_CP, <<"c-p">>).
+-define(MODE_PC, <<"p-c">>).
 
 -record(state, {
    node_id,
    fields,
    as,
    default,
-   field_states = []
+   field_states = [],
+   diff_fun
 }).
 
 options() -> [
    {fields, string_list},
    {as, string_list, undefined},
-   {default, number, undefined}
+   {default, number, undefined},
+   {mode, string, ?MODE_DELTA}
 ].
 
-init(NodeId, _Ins, #{fields := Fields, as := As0, default := Default}) ->
+check_options() ->
+   [one_of, {mode, [?MODE_DELTA, ?MODE_CP, ?MODE_PC]}].
+
+init(NodeId, _Ins, #{fields := Fields, as := As0, default := Default, mode := Mode}) ->
    As1 = case As0 of undefined -> Fields; _ -> As0 end,
    As = lists:zip(Fields, As1),
-   {ok, all, #state{node_id = NodeId, fields = Fields, as = As, default = Default}}.
+   DiffFun = diff_fun(Mode),
+   {ok, all, #state{node_id = NodeId, fields = Fields, as = As, default = Default, diff_fun = DiffFun}}.
 
 process(_Inport, P = #data_point{} = Point, State = #state{fields = FieldList}) ->
    FieldVals = flowdata:fields(P, FieldList),
@@ -44,7 +54,8 @@ process(_Inport, P = #data_point{} = Point, State = #state{fields = FieldList}) 
 %% fieldlist configuration
 -spec execute(#data_point{}, list(binary()), #state{})
        -> #data_point{}.
-execute(P =#data_point{}, FieldVals, #state{fields = FieldList, field_states = FieldStates, default = Def, as = As}) ->
+execute(P =#data_point{}, FieldVals,
+    #state{fields = FieldList, field_states = FieldStates, default = Def, as = As, diff_fun = Fun}) ->
    FoldFn =
    fun
       ({_K, undefined}, NewFields) ->
@@ -57,7 +68,8 @@ execute(P =#data_point{}, FieldVals, #state{fields = FieldList, field_states = F
                   case proplists:get_value(K, FieldStates) of
                      %% we do not have any previous value yet, use default value
                      undefined -> default(V, Def);
-                     PrevVal -> diff(V, PrevVal)
+                     PrevVal when is_number(V), is_number(PrevVal) -> Fun(V, PrevVal);
+                     Other -> erlang:error({cannot_diff_values, V, Other})
                   end,
                [{proplists:get_value(K, As), NewValue}|NewFields];
             false -> NewFields
@@ -70,10 +82,9 @@ execute(P =#data_point{}, FieldVals, #state{fields = FieldList, field_states = F
 default(Val, undefined) -> Val;
 default(_Val, Default) -> Default.
 
-diff(V1, V2) when is_number(V1), is_number(V2) ->
-   abs(V1-V2);
-diff(_, _) -> erlang:error(cannot_diff_non_numeric_values).
-
+diff_fun(?MODE_DELTA)   -> fun(Curr, Prev) -> abs(Curr-Prev) end;
+diff_fun(?MODE_CP)      -> fun(Curr, Prev) -> Curr-Prev end;
+diff_fun(?MODE_PC)      -> fun(Curr, Prev) -> Prev-Curr end.
 
 %%%%%%%%%%%%
 -ifdef(TEST).
@@ -85,7 +96,8 @@ basic_test() ->
    Fields = lists:zip(FieldList, FieldVals),
    ?assertEqual(#data_point{fields = #{<<"energy_used">> => 13.4563, <<"current_max">> => 300.0, <<"t1">> => 12}},
       execute(P, Fields,
-         #state{fields = FieldList, field_states = LastValues, as = lists:zip(FieldList, FieldList), default = undefined})).
+         #state{fields = FieldList, field_states = LastValues,
+            as = lists:zip(FieldList, FieldList), default = undefined, diff_fun = diff()})).
 
 default_test() ->
    P = test_point(),
@@ -95,7 +107,8 @@ default_test() ->
    Fields = lists:zip(FieldList, FieldVals),
    ?assertEqual(#data_point{fields = #{<<"energy_used">> => 0, <<"current_max">> => 300.0, <<"t1">> => 12}},
       execute(P, Fields,
-         #state{fields = FieldList, field_states = LastValues, as = lists:zip(FieldList, FieldList), default = 0})).
+         #state{fields = FieldList, field_states = LastValues,
+            as = lists:zip(FieldList, FieldList), default = 0, diff_fun = diff()})).
 
 fields_not_present_test() ->
    P = test_point(),
@@ -105,7 +118,8 @@ fields_not_present_test() ->
    Fields = lists:zip(FieldList, FieldVals),
    ?assertEqual(#data_point{fields = #{<<"energy_used">> => 0, <<"current_max">> => 300.0, <<"t1">> => 12}},
       execute(P, Fields,
-         #state{fields = FieldList, field_states = LastValues, as = lists:zip(FieldList, FieldList), default = 0})).
+         #state{fields = FieldList, field_states = LastValues,
+            as = lists:zip(FieldList, FieldList), default = 0, diff_fun = diff()})).
 
 as_test() ->
    P = test_point(),
@@ -119,9 +133,11 @@ as_test() ->
       <<"energy_used">> => 13.4563,
       <<"energy_used_diff">> => 99,<<"t1">> => 12}},
       execute(P, Fields,
-         #state{fields = FieldList, field_states = LastValues, as = lists:zip(FieldList, AsList), default = 99})).
+         #state{fields = FieldList, field_states = LastValues,
+            as = lists:zip(FieldList, AsList), default = 99, diff_fun = diff()})).
 
 test_point() ->
    #data_point{fields = #{<<"energy_used">> => 13.4563, <<"current_max">> => 3453.34534, <<"t1">> => 12}}.
+diff() -> diff_fun(?MODE_DELTA).
 
 -endif.
