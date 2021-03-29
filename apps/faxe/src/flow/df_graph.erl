@@ -88,7 +88,8 @@ add_edge(Graph, SourceNode, SourcePort, TargetNode, TargetPort, Metadata) ->
    gen_server:call(Graph, {add_edge, SourceNode, SourcePort, TargetNode, TargetPort, Metadata}).
 
 start_subgraph(FromVertex) ->
-   call(graph_node_registry:get_graph(self()), {make_subgraph, FromVertex}).
+   {ok, GraphPid} = graph_node_registry:get_graph(self()),
+   gen_server:call(GraphPid, {make_subgraph, FromVertex}).
 
 nodes(Graph) ->
    call(Graph, nodes).
@@ -182,7 +183,9 @@ handle_call({edges}, _From, State) ->
    All = digraph:vertices(State#state.graph),
    {reply, All, State};
 handle_call({make_subgraph, FromVertex}, _From, State=#state{graph = Graph}) ->
+   lager:notice("make_subgraph from Vertex: ~p",[FromVertex]),
    {OutPort, NewState} = clone_and_start_subgraph(FromVertex, State),
+%%   {reply, {ok, 2}, State};
    {reply, {ok, OutPort}, NewState};
 %% start the computation
 handle_call({start, Modes}, _From, State) ->
@@ -293,7 +296,8 @@ build_edge(Graph, {SourceNode, SourcePort, TargetNode, TargetPort, Metadata}) ->
    _NewEdge = digraph:add_edge(Graph, SourceNode, TargetNode, Label).
 
 
-
+%% @doc build subscriptions for one node in the graph
+-spec build_subscriptions(digraph(), binary(), tuple(), atom()) -> {list(),list()}.
 build_subscriptions(Graph, Node, Nodes, FlowMode) ->
    OutEdges = digraph:out_edges(Graph, Node),
    lager:notice("build subscriptions for node: ~p :: out-edges: ~p",[Node, OutEdges]),
@@ -315,7 +319,7 @@ build_subscriptions(Graph, Node, Nodes, FlowMode) ->
       OutEdges),
    lager:info("Subscriptions for node: ~p::~p",[Node, Subscriptions]),
    InEdges = digraph:in_edges(Graph, Node),
-   lager:notice("in-edges: ~p",[InEdges]),
+   lager:notice("in-edges: ~p for node: ~p",[InEdges, Node]),
    Inports = lists:map(
       fun(E) ->
          {_E, V1, _V2, _Label = #{tgt_port := TargetPort}} = digraph:edge(Graph, E),
@@ -351,7 +355,7 @@ start(ModeOpts=#task_modes{run_mode = RunMode, temporary = Temp, temp_ttl = TTL}
 make_start_nodes(NodeIds, #task_modes{run_mode = RunMode},
     State = #state{graph = G, id = Id, nodes = Nodes0}) when is_list(NodeIds) ->
 
-   %% build : [{NodeId, Component, Pid}]
+   %% builds : [{NodeId, Component, Pid}]
    Nodes = lists:map(
       fun(NodeId) ->
          {NodeId, Label} = digraph:vertex(G, NodeId),
@@ -390,15 +394,19 @@ make_start_nodes(NodeIds, #task_modes{run_mode = RunMode},
 %% @todo handle multiple clones for group_by nodes, maybe store the subgraph in state ?
 clone_and_start_subgraph(FromVertex, State = #state{graph = G, start_mode = RunModes}) ->
    ReachableVertices = digraph_utils:reachable_neighbours([FromVertex], G),
+   lager:notice("vertices to clone are: ~p",[ReachableVertices]),
    Subgraph = digraph_utils:subgraph(G, ReachableVertices,[{type, inherit}, {keep_labels, true}]),
    %% in a first attempt, we say the port-number is equivalent to the number of out-going edges form the FromVertex (out_degree)
    NewOutPort = digraph:out_degree(G, FromVertex) + 1,
+   PortBinary = integer_to_binary(NewOutPort),
+   lager:info("NEW PORT will be ~s",[PortBinary]),
    %% copy these
    VerticesMapFun =
       fun(V) ->
          {NodeId, Label} = digraph:vertex(G, V),
-         NewNodeId = <<NodeId/binary, "_s", integer_to_binary(NewOutPort)>>,
+         NewNodeId = <<NodeId/binary, "_s", PortBinary/binary>>,
          digraph:add_vertex(G, NewNodeId, Label),
+         lager:info("add vertex with id:~s",[NewNodeId]),
          {NodeId, NewNodeId}
       end,
    CopiedVertices = lists:map(VerticesMapFun, ReachableVertices),
@@ -407,7 +415,9 @@ clone_and_start_subgraph(FromVertex, State = #state{graph = G, start_mode = RunM
    EdgesFun =
       fun(Edge) ->
          {_E, V1, V2, Label} = digraph:edge(G, Edge),
-         digraph:add_edge(G, proplists:get_value(V1, CopiedVertices), proplists:get_value(V2, CopiedVertices), Label)
+         digraph:add_edge(G, proplists:get_value(V1, CopiedVertices), proplists:get_value(V2, CopiedVertices), Label),
+         lager:notice("add edge: ~p ",
+            [[proplists:get_value(V1, CopiedVertices), proplists:get_value(V2, CopiedVertices), Label]])
       end,
    lists:foreach(EdgesFun, CurrentEdges),
 
@@ -419,6 +429,7 @@ clone_and_start_subgraph(FromVertex, State = #state{graph = G, start_mode = RunM
          digraph:add_edge(G, FromVertex, proplists:get_value(V2, CopiedVertices), Label#{src_port => NewOutPort})
       end,
    lists:foreach(FromEdgesFun, FromOutEdges),
-   {NewOutPort, make_start_nodes(CopiedVertices, RunModes, State)}.
+   {_OldVNames, NewVertices} = lists:unzip(CopiedVertices),
+   {NewOutPort, make_start_nodes(NewVertices, RunModes, State)}.
 
 

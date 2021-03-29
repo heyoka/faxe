@@ -82,7 +82,7 @@ ls_mem_set(#data_batch{points = Points}, State=#state{}) ->
    [ls_mem_set(P, State) || P <- Points];
 ls_mem_set(P = #data_point{}, #state{key = MemKey, field = MemField, table_id = Tab}) ->
 %%   lager:notice("handle_ls_mem_set"),
-   Set0 = sets:from_list(ets_set_or_list(MemKey, ls_mem_set)),
+   Set0 = sets:from_list(ets_set_or_list(MemKey, Tab)),
    Set = sets:add_element(flowdata:value(P, MemField), Set0),
    ets:insert(Tab, {MemKey, sets:to_list(Set)}).
 

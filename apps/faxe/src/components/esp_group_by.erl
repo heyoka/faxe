@@ -22,6 +22,7 @@ options() -> [
 ].
 
 init({_GId, NodeId}, _Inputs, #{field := Field}) ->
+   lager:info("~p starting group_by: ~p",[NodeId, Field]),
    {ok, all, #state{field = Field, nodeid = NodeId}}.
 
 process(_In, P = #data_point{}, State = #state{field = FieldName, groups = Groups, nodeid = NId}) ->
@@ -31,10 +32,12 @@ process(_In, P = #data_point{}, State = #state{field = FieldName, groups = Group
    {emit, {OutPort, P}, State#state{groups = NewGroups}}.
 
 ensure_route(Val, Groups, _NId) when map_size(Groups) == 0 ->
+   lager:notice("first call to ensure_route with: ~p",[Val]),
    Groups#{Val => 1};
 ensure_route(Val, Groups, _NId) when is_map_key(Val, Groups) ->
    Groups;
 ensure_route(Val, Groups, NodeId) ->
+   lager:warning("will have to start subgraph for grouping value: ~p",[Val]),
    NewPort = start_branch(NodeId),
    Groups#{Val => NewPort}.
 
