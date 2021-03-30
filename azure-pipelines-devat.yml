@@ -178,53 +178,81 @@ steps:
       else
         echo "no running faxe found - skip"
     fi
-  displayName: 'stop old container via docker-compose'    
+  displayName: 'stop old container via docker-compose'
+
 - script: |     
     cd /opt/faxe/faxe_repo
     sudo -u $(FAXE_RUNTIME_USER) /usr/local/bin/docker-compose -f docker-compose-devat.yml up -d
   displayName: 'start container via docker-compose'
 - script: |
-    service=$(Build.Repository.Name)
+    service=$(echo $(Build.Repository.Name)| tr '[:upper:]' '[:lower:]' )
     #check if we start householding
     HOUSEKEEPING=false
-    IMAGE_KEEP=5
-    DIFF=$(docker images | grep $service | wc -l)
-     if [[ "$DIFF" -lt 0 ]] ;
-        then
-          echo "skipping housekeeping - no local images found"
-          HOUSEKEEPING=false
-     fi
-     if  [[ "$DIFF" -gt $IMAGE_KEEP ]];
-        then
-          echo "too many images for $service present - starting housekeeping"
-          HOUSEKEEPING=true
-        else
-          echo "skipping housekeeping - limit not reached"
-          HOUSEKEEPING=false
-          echo $(( $(echo $(docker images | grep $service | wc -l)) - $IMAGE_KEEP )) images left, before housekeeping deletes old images
-     fi
-    # clear arrays:
-    unset arr_all  arr_keep
-    if [ $HOUSEKEEPING = "true" ];
+    IMAGE_KEEP=3
+    CUR=$(docker images | grep "^$service " | wc -l)
+
+    # define output, depending on setting '$IMAGE_KEEP'
+    DIFF=$(($CUR - $IMAGE_KEEP))
+
+    if [ $DIFF -lt 0 ]
       then
-      	echo "starting housekeeping"
-        #arr_all=$(docker images | grep $service | sort -k2 -r | awk '{print $3}')
-        arr_all=$(docker images | grep $service |  awk '{print $3}')
-        #echo all ${arr_all[*]}
-        arr_keep=$(docker images | grep $service  | awk '{print $3}' | head -n $IMAGE_KEEP)
-        #arr_keep=$(docker images | grep $service | sort -k2 -r | awk '{print $3}' | head -n $IMAGE_KEEP)
-        #echo keep ${arr_keep[*]}
-    	  for del in ${arr_keep[@]}
-    	  do
-    	    arr_all=("${arr_all[@]/$del}") 
-    	  done   
-    fi  
-    echo delete images: ${arr_all[*]}
-    echo keep images: ${arr_keep[*]}
-    # delete old images:
-    for del_image in ${arr_all[*]} ;
-    do
-      echo "sudo -u faxe /usr/bin/docker rmi $del_image"
-    done
+        echo "skipping housekeeping - limit not reached"
+        HOUSEKEEPING=false
+    fi
+    if [ $DIFF -eq 0 ]
+      then
+        echo "skipping housekeeping - keeplimit reached"
+        HOUSEKEEPING=false
+    fi
+
+    if [ $DIFF -gt 0 ]
+      then
+        echo "too many images for $service present - starting housekeeping"
+        HOUSEKEEPING=true
+    fi
+
+
+    if [ $HOUSEKEEPING == "true" ] ;
+      then
+        # clear arrays:
+        unset arr_all arr_del arr_sorted
+
+        # write all images filted by $service into arr_all
+        arr_all=$(while read docker_image;
+        do 
+          docker inspect $docker_image |grep Created | sed "s/^.*: /${docker_image}_/g;s/,$// " | sed 's!"!!g';
+        done <<<$(docker images | grep -i $service |awk '{print $1":"$2}'))
+
+        # create new sorted array
+        arr_sorted=$(printf '%s\n' "${arr_all[*]}" | sort -t "_" -k2 -r | cut -d "_" -f1 )
+        # write oldest images in new array, used to delete images
+        arr_del=$(printf '%s\n' "${arr_sorted[*]}" | tail -n $DIFF)
+
+        # echo
+        # echo
+        # echo test before:
+        # printf '%s\n' "${arr_all[*]}"
+        for del in ${arr_del[@]}
+        do
+          # remove all del entries from arr_all
+         arr_all=("${arr_sorted[@]/$del}") 
+        done
+        
+        # echo test after:
+        # printf '%s\n' "${arr_all[*]}"
+        
+        echo sorted:
+        printf '%s\n' "${arr_sorted[*]}"
+        echo del:
+        printf '%s\n' "${arr_del[*]}"
+        
+        echo
+        for del_image in ${arr_del[*]} ;
+        do
+           echo "sudo -u $(FAXE_RUNTIME_USER) /usr/bin/docker rmi $del_image"
+           sudo -u $(FAXE_RUNTIME_USER) /usr/bin/docker rmi $del_image
+        done
+        
+    fi
   displayName: 'housekeeping - keep only latest 5 images'    
   
