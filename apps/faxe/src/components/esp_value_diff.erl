@@ -15,7 +15,7 @@
 %% API
 -export([init/3, process/3, options/0, check_options/0]).
 
--define(MODE_DELTA, <<"delta">>).
+-define(MODE_ABS, <<"abs">>).
 -define(MODE_CP, <<"c-p">>).
 -define(MODE_PC, <<"p-c">>).
 
@@ -32,11 +32,11 @@ options() -> [
    {fields, string_list},
    {as, string_list, undefined},
    {default, number, undefined},
-   {mode, string, ?MODE_DELTA}
+   {mode, string, ?MODE_ABS}
 ].
 
 check_options() ->
-   [one_of, {mode, [?MODE_DELTA, ?MODE_CP, ?MODE_PC]}].
+   [{one_of, mode, [?MODE_ABS, ?MODE_CP, ?MODE_PC]}].
 
 init(NodeId, _Ins, #{fields := Fields, as := As0, default := Default, mode := Mode}) ->
    As1 = case As0 of undefined -> Fields; _ -> As0 end,
@@ -82,9 +82,9 @@ execute(P =#data_point{}, FieldVals,
 default(Val, undefined) -> Val;
 default(_Val, Default) -> Default.
 
-diff_fun(?MODE_DELTA)   -> fun(Curr, Prev) -> abs(Curr-Prev) end;
-diff_fun(?MODE_CP)      -> fun(Curr, Prev) -> Curr-Prev end;
-diff_fun(?MODE_PC)      -> fun(Curr, Prev) -> Prev-Curr end.
+diff_fun(?MODE_ABS)  -> fun(Curr, Prev) -> abs(Curr-Prev) end;
+diff_fun(?MODE_CP)   -> fun(Curr, Prev) -> Curr-Prev end;
+diff_fun(?MODE_PC)   -> fun(Curr, Prev) -> Prev-Curr end.
 
 %%%%%%%%%%%%
 -ifdef(TEST).
@@ -138,6 +138,6 @@ as_test() ->
 
 test_point() ->
    #data_point{fields = #{<<"energy_used">> => 13.4563, <<"current_max">> => 3453.34534, <<"t1">> => 12}}.
-diff() -> diff_fun(?MODE_DELTA).
+diff() -> diff_fun(?MODE_ABS).
 
 -endif.

@@ -9,7 +9,7 @@
 
 %% API
 -export([start_link/6]).
--export([start_node/4, inports/1, outports/1, start_async/4]).
+-export([start_node/4, inports/1, outports/1, start_async/4, update_subscriptions/2]).
 
 %% Callback API
 
@@ -188,6 +188,8 @@ outports(Module) ->
       false -> outports()
    end.
 
+update_subscriptions(Pid, NewSubscriptions) ->
+   Pid ! {update_subscriptions, NewSubscriptions}.
 
 %%%===================================================================
 %%% gen_server callbacks
@@ -363,6 +365,11 @@ handle_info(stop, State=#c_state{node_id = _N, component = Mod, cb_state = CBSta
    end,
    {stop, normal, State}
 ;
+handle_info({update_subscriptions, NewSubs}, State=#c_state{component = C, subscriptions = Ss}) ->
+   lager:notice("update subscriptions for :~p",[C]),
+   lager:notice("old subscriptions: ~p~n new subscriptions: ~p",[Ss, NewSubs]),
+   {noreply, State#c_state{subscriptions = NewSubs}};
+
 %% Callback Module handle_info
 handle_info(Req, State=#c_state{component = Module, cb_state = CB, cb_handle_info = true}) ->
    case Module:handle_info(Req, CB) of

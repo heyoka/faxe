@@ -32,6 +32,7 @@ process(_In, #data_batch{points = Points} = Batch, State = #state{fields = Fs, t
    ),
    {emit, Batch#data_batch{points = NewPoints}, State};
 process(_Inport, #data_point{} = Point, State = #state{fields = Fs, tags = Ts, as_fields = As}) ->
+   lager:info("+++ KEEP got: ~p",[lager:pr(Point, ?MODULE)]),
    {emit, rewrite(Point, Fs, Ts, As), State}.
 
 rewrite(#data_point{} = Point, FieldNames, TagNames, []) ->

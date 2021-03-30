@@ -27,6 +27,7 @@ new(FlowMode, Publisher, PublisherPort, Subscriber, SubscriberPort) ->
 
 %% outputting a value on a specific out-port
 output(Subscriptions, Value, Port) when is_list(Subscriptions) ->
+%%   lager:info("SUBSCRIPTION OUTPUT: ~p",[{Port, lager:pr(Value,?MODULE)}]),
    Subs = proplists:get_value(Port, Subscriptions, []),
    NewSubs = lists:map(fun(X) -> output(X, Value) end, Subs),
    OSubs = proplists:delete(Port, Subscriptions),
