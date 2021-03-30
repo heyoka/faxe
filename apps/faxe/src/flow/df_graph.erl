@@ -495,7 +495,7 @@ insert_edges(G, CopiedVertices, CurrentEdges) ->
       end,
    lists:foreach(EdgesFun, CurrentEdges).
 
-%% @todo stop the graph nodes properly
+%% @todo stop the graph nodes properly and remove them from the registry
 delete_subgraph(FromVertex, _OutPort, State = #state{subgraphs = Subgraphs})
       when not is_map_key(FromVertex, Subgraphs) ->
    State;
