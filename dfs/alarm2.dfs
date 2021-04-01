@@ -24,8 +24,6 @@ point
     .as('avg')
 
     |debug()
-    .ls_mem('avg10')
-    .ls_mem_field('avg')
 
 point
     |where()

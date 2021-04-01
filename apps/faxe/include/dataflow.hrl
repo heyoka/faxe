@@ -28,13 +28,13 @@
    flow_mode = push     :: push | pull,
    graph_id             :: binary(), %% the id of the graph this node belongs to
    node_id              :: binary(), %% this nodes id
+   node_index           :: {binary(), binary()}, %% index for subscriptions
    flow_node_id         :: binary(), %% combination of graph_id and node_id
    component            :: atom(), %% callbacks module name
    cb_state             :: cbstate(), %% state for callback
    cb_handle_info       :: true | false,
    cb_inited = false    :: true | false,
    inports              :: list(), %% list of inputs {port, pid}
-   subscriptions        :: list(#subscription{}),
    auto_request         :: none | all | emit,
    emitted = 0          :: non_neg_integer(),
    emit_debug = false   :: true | false

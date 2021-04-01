@@ -102,7 +102,10 @@ start_subgraph(FromVertex) ->
 
 stop_subgraph(FromVertex, Port) ->
    {ok, GraphPid} = graph_node_registry:get_graph(self()),
-   gen_server:call(GraphPid, {delete_subgraph, FromVertex, Port}).
+%%   gen_server:call(GraphPid, {delete_subgraph, FromVertex, Port}).
+   {Time, Res} = timer:tc(gen_server, call, [GraphPid, {delete_subgraph, FromVertex, Port}]),
+   lager:alert("Time to stop subgraph: ~p",[Time]),
+   Res.
 
 nodes(Graph) ->
    call(Graph, nodes).
@@ -408,8 +411,9 @@ start_async(Nodes, Subscriptions, RunMode, Id) ->
    lists:foreach(
       fun({NodeId, Comp, NPid}) ->
          {Inputs, Subs} = proplists:get_value(NodeId, Subscriptions),
+         df_subscription:save_subscriptions({Id, NodeId}, Subs),
          node_metrics:setup(Id, NodeId, Comp),
-         df_component:start_async(NPid, Inputs, Subs, RunMode)
+         df_component:start_async(NPid, Inputs, RunMode)
       end,
       Nodes),
    %% if in pull mode, initially let all components send requests to their producers
@@ -428,7 +432,7 @@ clone_and_start_subgraph(FromVertex,
       maps:get(FromVertex, Subgraphs),
 
    %% in a first attempt, we say the port-number is equivalent to the number of out-going edges form the FromVertex (out_degree)
-   NewOutPort = digraph:out_degree(G, FromVertex) + 1,
+   NewOutPort = get_available_outport(G, FromVertex),
    PortBinary = integer_to_binary(NewOutPort),
    lager:info("NEW PORT will be ~s",[PortBinary]),
    %% copy these
@@ -452,7 +456,9 @@ clone_and_start_subgraph(FromVertex,
    Subscriptions = build_subscriptions(AllNodes, G, RunModes#task_modes.run_mode),
    %% tell the root-node (FromVertex) about it's new subscriptions
    {_Inputs, Subs} = proplists:get_value(FromVertex, Subscriptions),
-   df_component:update_subscriptions(get_node_pid(FromVertex, ExistingNodes), Subs),
+%%   ets:insert(flow_subscriptions, {{State#state.id, FromVertex}, Subs}),
+   df_subscription:save_subscriptions({State#state.id, FromVertex}, Subs),
+%%   df_component:update_subscriptions(get_node_pid(FromVertex, ExistingNodes), Subs),
 
    %% register our pid along with all node(component)-pids for graph ets table handling
    register_nodes(NodesNew),
@@ -463,6 +469,7 @@ clone_and_start_subgraph(FromVertex,
    {NewOutPort, State#state{nodes = AllNodes}}.
 
 
+-spec clone_subgraph(binary(), digraph:graph()) -> #subgraph{}.
 clone_subgraph(FromVertex, G) when is_binary(FromVertex) ->
    SubgraphVertices = digraph_utils:reachable_neighbours([FromVertex], G),
    Subgraph = digraph_utils:subgraph(G, SubgraphVertices,[{type, inherit}, {keep_labels, true}]),
@@ -472,6 +479,7 @@ clone_subgraph(FromVertex, G) when is_binary(FromVertex) ->
       root_outedges = digraph:out_edges(G, FromVertex)
    }.
 
+-spec insert_vertices(digraph:graph(), list(binary()), binary()) -> list({binary(), binary()}).
 insert_vertices(G, Vertices, PortBinary) ->
    VerticesMapFun =
       fun(V) ->
@@ -495,38 +503,62 @@ insert_edges(G, CopiedVertices, CurrentEdges) ->
       end,
    lists:foreach(EdgesFun, CurrentEdges).
 
-%% @todo stop the graph nodes properly and remove them from the registry
+
+-spec delete_subgraph(binary(), non_neg_integer(), #state{}) -> #state{}.
 delete_subgraph(FromVertex, _OutPort, State = #state{subgraphs = Subgraphs})
       when not is_map_key(FromVertex, Subgraphs) ->
    State;
 delete_subgraph(FromVertex, OutPort, State = #state{graph = G, subgraphs = Subgraphs, nodes = Nodes, start_mode = Modes}) ->
    #subgraph{vertices = Vertices} = maps:get(FromVertex, Subgraphs),
    OutPortBin = integer_to_binary(OutPort),
+   %% delete digraph vertices
    VNames = [<<NodeId/binary, "_s", OutPortBin/binary>> || NodeId <- Vertices],
-   lager:notice("delete vertices: ~p", [VNames]),
+%%   lager:notice("delete vertices: ~p", [VNames]),
+%%   lager:info("node_list all: ~p",[Nodes]),
    digraph:del_vertices(G, VNames),
-   DropFn = fun({NodeName, _, _NodePid}) -> lists:member(NodeName, VNames) end,
-   NewNodes = lists:dropwhile(DropFn, Nodes),
-   lager:notice("new node list: ~p",[NewNodes]),
+   %% get old node tuples
+   OldNodes = [N || {NodeName, _, _NodePid} = N <- Nodes, lists:member(NodeName, VNames)],
+%%   lager:notice("nodes to delete are: ~p",[OldNodes]),
+   NewNodes = Nodes--OldNodes,
+   OldNodePids = get_node_pids(OldNodes),
+   %% unregister nodes
+%%   lager:notice("unregister node_pids: ~p",[OldNodePids]),
+   graph_node_registry:unregister_graph_nodes(self(), OldNodePids),
+%%   lager:notice("stop old nodes: ~p",[OldNodePids]),
+   [NodePid ! stop || NodePid <- OldNodePids],
+%%   lager:notice("new node list: ~p",[NewNodes]),
    %% now for the subscriptions of the root-vertex
-%%   Subscriptions = build_subscriptions(G, FromVertex, NewNodes, Modes#task_modes.run_mode),
    Subscriptions = build_subscriptions(NewNodes, G, Modes#task_modes.run_mode),
    {_Inputs, Subs} = proplists:get_value(FromVertex, Subscriptions),
+   %% update subscriptions for the root node
    df_component:update_subscriptions(get_node_pid(FromVertex, NewNodes), Subs),
    State#state{nodes = NewNodes}.
 
+get_available_outport(G, VertexName) ->
+   OutEdges = [digraph:edge(G, E) || E <- digraph:out_edges(G, VertexName)],
+   Outports = [P || {_E, _V1, _V2, #{src_port := P}} <- OutEdges],
+%%   lager:info("existing outports: ~p",[Outports]),
+   Degree = length(Outports),
+%%   lager:info("~p--~p=~p",[lists:seq(1, Degree), Outports, lists:seq(1, Degree)--Outports]),
+   next_port(lists:seq(1, Degree)--Outports, Degree).
 
+next_port([P|_], _Degree) -> P;
+next_port([], Degree) -> Degree+1.
+
+-spec register_nodes(list(tuple)) -> list(true).
 register_nodes(Nodes) when is_list(Nodes) ->
-   NodePids = [NPid || {_NodeId, _Comp, NPid} <- Nodes],
-   graph_node_registry:register_graph_nodes(self(), NodePids).
-
+   graph_node_registry:register_graph_nodes(self(), get_node_pids(Nodes)).
 
 maybe_initial_pull(push, _Nodes) -> ok;
 maybe_initial_pull(pull, Nodes) -> lists:foreach(fun({_NodeId, _C, NPid}) -> NPid ! pull end, Nodes).
 
+-spec get_node_pid(binary(), list(tuple())) -> pid()|false.
 get_node_pid(NodeId, Nodes) when is_list(Nodes) ->
    {_, _, NodePid} = lists:keyfind(NodeId, 1, Nodes),
    NodePid.
+-spec get_node_pids(list(tuple())) -> list(pid()).
+get_node_pids(Nodes) when is_list(Nodes) ->
+   [NPid || {_NodeId, _Comp, NPid} <- Nodes].
 
 
 

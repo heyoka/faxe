@@ -8,29 +8,41 @@
 
 -behaviour(gen_server).
 
--export([start_link/0, register_graph_nodes/2, get_graph/1, get_graph_table/0]).
+-export([start_link/0, register_graph_nodes/2, get_graph/1, get_graph_table/0, unregister_graph_nodes/2]).
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2, terminate/2,
   code_change/3]).
 
 -define(SERVER, ?MODULE).
 -define(NODE_TO_GRAPH_ETS, node_to_graph).
+-define(GRAPH_TO_NODES_ETS, graph_to_nodes).
 
 -record(state, {}).
 
 %%%===================================================================
 %%% Spawning and gen_server implementation
 %%%===================================================================
+-spec register_graph_nodes(pid(), list(pid())) -> list(true).
 register_graph_nodes(GraphPid, ComponentPids) when is_pid(GraphPid), is_list(ComponentPids) ->
   AllNodes =
-  case ets:lookup(graph_to_nodes, GraphPid) of
+  case ets:lookup(?GRAPH_TO_NODES_ETS, GraphPid) of
     [] ->
       %% first register
       ?SERVER ! {monitor_graph, GraphPid},
       ComponentPids;
     [{GraphPid, Nodes}] -> Nodes ++ ComponentPids
   end,
-  ets:insert(graph_to_nodes, {GraphPid, AllNodes}),
+  ets:insert(?GRAPH_TO_NODES_ETS, {GraphPid, AllNodes}),
   [ets:insert(?NODE_TO_GRAPH_ETS, {CPid, GraphPid}) || CPid <- ComponentPids].
+
+-spec unregister_graph_nodes(pid(), list(pid)) -> list(true).
+unregister_graph_nodes(GraphPid, ComponentPids) when is_pid(GraphPid), is_list(ComponentPids) ->
+  case ets:lookup(?GRAPH_TO_NODES_ETS, GraphPid) of
+    [] ->
+      ok;
+    [{GraphPid, NodePids}] ->
+      ets:insert(?GRAPH_TO_NODES_ETS, {GraphPid, NodePids--ComponentPids})
+  end,
+  [ets:delete(?NODE_TO_GRAPH_ETS, CPid) || CPid <- ComponentPids].
 
 get_graph_table() ->
   % get graph pid
@@ -81,11 +93,11 @@ handle_info({'DOWN', _MonitorRef, process, Pid, _Info}, State=#state{}) ->
   lager:info("Graph is down: ~p",[Pid]),
   %% graph is down, delete ets table and from lookup table
   catch delete_graph_table(Pid),
-  case ets:lookup(graph_to_nodes, Pid) of
+  case ets:lookup(?GRAPH_TO_NODES_ETS, Pid) of
     [{Pid, Nodes}] -> [ets:delete(?NODE_TO_GRAPH_ETS, NPid) || NPid <- Nodes];
     _ -> ok
   end,
-  ets:delete(graph_to_nodes, Pid),
+  ets:delete(?GRAPH_TO_NODES_ETS, Pid),
   {noreply, State};
 handle_info(_Req, State = #state{}) ->
   {noreply, State}.

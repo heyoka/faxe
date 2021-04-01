@@ -12,7 +12,7 @@ v1
 window
     |aggregate()
     .fields('val', 'val', 'val', 'val')
-    .modules('variance', 'sum', 'avg', 'count_distinct')
+    .functions('variance', 'sum', 'avg', 'count_distinct')
     .as('variance', 'sum', 'avg', 'count_distinct')
 
 |debug()
