@@ -187,6 +187,12 @@ max(ValueList) when is_list(ValueList) ->
 min([]) -> 0;
 min(ValueList) when is_list(ValueList) ->
    lists:min(ValueList).
+
+%% modulo function
+modulo(X, Y) ->
+   mod(X, Y).
+mod(X, Y) ->
+   faxe_time:mod(X, Y).
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %%% Time related functions
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%

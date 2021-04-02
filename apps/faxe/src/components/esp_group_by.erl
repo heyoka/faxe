@@ -9,10 +9,12 @@
 
 -behavior(df_component).
 %% API
--export([init/3, process/3, options/0, handle_info/2]).
+-export([init/3, process/3, options/0, handle_info/2, check_options/0]).
 
 -record(state, {
-   field,
+   groupval_fun,
+   fields,
+   lambda_fun,
    groups = #{},
    nodeid,
 
@@ -22,25 +24,32 @@
 }).
 
 options() -> [
-   {field, string},
+   {fields, string_list, undefined},
+   {lambda, lambda, undefined},
    %% not used yet:
    {reset_timeout, duration, <<"2m">>}
 ].
 
-init({_GId, NodeId}, _Inputs, #{field := Field, reset_timeout := RTimeout}) ->
+check_options() ->
+   [{one_of_params, [fields, lambda]}].
+
+init({_GId, NodeId}, _Ins, #{reset_timeout := RTimeout} = Opts) ->
    ResetTimeout = faxe_time:duration_to_ms(RTimeout),
-   State = #state{field = Field, nodeid = NodeId, reset_timeout = ResetTimeout},
+   State = #state{nodeid = NodeId, reset_timeout = ResetTimeout, groupval_fun = init_groupfun(Opts)},
    %% start reset interval
 %%   erlang:send_after(State#state.reset_check_interval, self(), check_reset),
    {ok, all, State}.
 
+init_groupfun(#{fields := undefined, lambda := Lambda}) ->
+   fun(Point) -> PreparedFun = Lambda(Point), PreparedFun() end;
+init_groupfun(#{fields := Fields}) ->
+   fun(Point) -> flowdata:fields(Point, Fields) end.
+
 process(_In, P = #data_point{},
-    State = #state{field = FieldName, groups = Groups, nodeid = NId, group_last_seen = Last}) ->
-%%   lager:info("##### groups are: ~p",[Groups]),
-   Value = flowdata:field(P, FieldName),
+    State = #state{groups = Groups, nodeid = NId, group_last_seen = Last, groupval_fun = Fun}) ->
+   Value = Fun(P),
    NewGroups = ensure_route(Value, Groups, NId),
    OutPort = maps:get(Value, NewGroups),
-
    {emit, {OutPort, P}, State#state{groups = NewGroups, group_last_seen = Last#{Value => faxe_time:now()}}}.
 
 handle_info(check_reset, State=#state{reset_check_interval = Interval}) ->
@@ -54,7 +63,7 @@ ensure_route(Val, Groups, _NId) when map_size(Groups) == 0 ->
 ensure_route(Val, Groups, _NId) when is_map_key(Val, Groups) ->
    Groups;
 ensure_route(Val, Groups, NodeId) ->
-   NewPort = df_graph:start_subgraph(NodeId),
+   {ok, NewPort} = df_graph:start_subgraph(NodeId),
    Groups#{Val => NewPort}.
 
 

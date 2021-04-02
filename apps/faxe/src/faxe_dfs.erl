@@ -338,7 +338,7 @@ convert_options(NodeName, NodeOptions, Params) ->
 %%               lager:info("~nconvert_list(~p, ~p, ~p)",[Name, Type, PVals]),
                Acc;
             {Name, Type} ->
-%%               lager:info("~nconvert(~p, ~p, ~p)",[Name, Type, PVals]),
+               lager:info("~nconvert(~p, ~p, ~p)",[Name, Type, PVals]),
                [convert(Name, Type, PVals) | Acc]
 
          end
