@@ -1,0 +1,82 @@
+def raw_map = <<<{"S:FpFrontal1-SS:1-LP:1-PC:1":"topic/1/new",
+                        "S:FpFrontal1-SS:1-LP:1-PC:2":"topic/2/new",
+                            "S:FpFrontal1-SS:1-LP:1-PC:3":"topic/3/new"}>>>
+
+def computed_map = <<<{"S:FpFrontal1-SS:1-LP:1-PC:1":"topic/comp/1/new",
+                                           "S:FpFrontal1-SS:1-LP:1-PC:2":"topic/comp/2/new",
+                                               "S:FpFrontal1-SS:1-LP:1-PC:3":"topic/comp/3/new"}>>>
+
+|mem()
+.key('stream_raw_lookup')
+.default(raw_map)
+.default_json()
+
+|mem()
+.key('stream_comp_lookup')
+.default(computed_map)
+.default_json()
+
+
+|json_emitter()
+.every(3s)
+.json(<<<"S:FpFrontal1-SS:1-LP:1-PC:1">>>, <<<"S:FpFrontal1-SS:1-LP:1-PC:2">>>, <<<"S:FpFrontal1-SS:1-LP:1-PC:3">>>)
+.as('Workstation')
+|debug('info')
+
+|eval(
+    %% rewrite/split streams
+    lambda: map_get("Workstation", ls_mem('stream_raw_lookup')),
+    %% build some names
+    lambda: str_concat("OrderName", "OrderLineName"),
+    lambda: str_concat("SourceLoadCarrierName", "Sku")
+    )
+    .as(
+    'topic',
+    'UniqueOrderLineName',
+    'SourceLoadCarrierSku'
+    )
+
+|win_time()
+.every(5m)
+
+|aggregate()
+.fields(
+% ######### load carrier count
+    'SourceLoadCarrierName',
+% ######### order count
+    'OrderName',
+% ######### sku count all
+    'Sku',
+% ######### inventory line count
+    'UniqueOrderLineName',
+% ######### quantity
+    'Quantity'
+)
+.functions(
+% ######### load carrier count
+    'count_change',
+% ######### order count
+    'count_distinct',
+% ######### sku count all
+    'count',
+% ######### inventory line count
+    'count_distinct',
+% ######### quantity
+    'sum'
+)
+.as(
+% ######### load carrier count
+    'SourceLoadCarrierCount',
+% ######### order count
+    'OrderCount',
+% ######### sku count all
+    'PickInstructionCount',
+% ######### inventory line count
+    'InventoryLineCount',
+% ######### quantity
+    'TotalQuantity'
+
+)
+.keep('Workstation')
+
+% #### keep raw data, but splitted by "Workstation"
