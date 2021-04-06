@@ -463,8 +463,10 @@ node_name(Name) when is_binary(Name) ->
                C;
             _ ->
                %% check for similar nodes
+               AllNodes = get_all_nodes(),
                SimilarOptions = lists:filter(fun({Dist, _}) -> Dist < 6 end,
-                  lev_dist(binary_to_list(Name), get_all_nodes())),
+                  lev_dist(binary_to_list(Name), AllNodes)),
+
                Add = case SimilarOptions of
                         [] -> "";
                         _ -> ", did you mean: " ++ lists:flatten(
@@ -479,11 +481,13 @@ node_name(Name) when is_binary(Name) ->
 -spec get_all_nodes() -> list(string()).
 get_all_nodes() ->
    AllNodePaths = filelib:wildcard("lib/faxe-*/ebin/esp_*.beam"),
+   Conv =
    [begin
        B0 = string:replace(FileName, "esp_", ""),
        lists:flatten(string:replace(lists:last(B0), ".beam", ""))
     end
-      || FileName <- AllNodePaths].
+      || FileName <- AllNodePaths],
+   sets:to_list(sets:from_list(Conv)).
 
 
 lev_dist(VarName, Opts) ->
@@ -491,7 +495,8 @@ lev_dist(VarName, Opts) ->
                         {faxe_util:levenshtein(VarName, OptName), OptName}
                      end || OptName <- Opts],
    Sorted = lists:sort(Possibilities),
-   lists:sublist(Sorted, 3).
+   Ret = lists:sublist(Sorted, 3),
+   Ret.
 
 
 stat_node(<<"avg">>) -> esp_avg;
