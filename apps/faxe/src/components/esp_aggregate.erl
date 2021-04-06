@@ -53,7 +53,10 @@ process(_Inport, #data_batch{points = Points} = Batch,
    {Ts, Results} = call(Ps, Mods, MStates, As, {0, []}),
    KeepPoint = lists:last(Points),
    KeepKV = lists:zip(KeepFields, flowdata:fields(KeepPoint, KeepFields)),
-   NewPoint = flowdata:set_fields(#data_point{ts = Ts}, Results++KeepKV),
+%%   lager:warning("Results: ~p",[Results]),
+%%   lager:warning("keep KV: ~p",[KeepKV]),
+   NewPoint0 = flowdata:set_fields(#data_point{ts = Ts}, KeepKV),
+   NewPoint = flowdata:set_fields(NewPoint0, Results),
 
    {emit, NewPoint, State};
 process(_, #data_point{}, _State) ->

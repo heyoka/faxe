@@ -9,7 +9,7 @@
 
 %% API
 -export([start_link/6]).
--export([start_node/4, inports/1, outports/1, start_async/4]).
+-export([start_node/3, inports/1, outports/1, start_async/3]).
 
 %% Callback API
 
@@ -170,11 +170,11 @@
 start_link(Component, GraphId, NodeId, Inports, Outports, Args) ->
    gen_server:start_link(?MODULE, [Component, GraphId, NodeId, Inports, Outports, Args], []).
 
-start_node(Server, Inputs, Subscriptions, FlowMode) ->
-   gen_server:call(Server, {start, Inputs, Subscriptions, FlowMode}).
+start_node(Server, Inputs, FlowMode) ->
+   gen_server:call(Server, {start, Inputs, FlowMode}).
 
-start_async(Server, Inputs, Subscriptions, FlowMode) ->
-   Server ! {start, Inputs, Subscriptions, FlowMode}.
+start_async(Server, Inputs, FlowMode) ->
+   Server ! {start, Inputs, FlowMode}.
 
 inports(Module) ->
    case erlang:function_exported(Module, inports, 0) of
@@ -204,19 +204,18 @@ init([Component, GraphId, NodeId, Inports, _Outports, Args]) ->
    NId = <<GraphId/binary, "==", NodeId/binary>>,
    {ok, #c_state{
       component = Component, graph_id = GraphId, node_id = NodeId, flow_node_id = NId,
-      subscriptions = [], inports = InputPorts, cb_state = Args}
+      node_index = {GraphId, NodeId}, inports = InputPorts, cb_state = Args}
    };
 init(#c_state{} = PersistedState) ->
    {ok, PersistedState}.
 
 
-handle_call({start, Inputs, Subscriptions, FlowMode}, _From,
-    State=#c_state{component = CB, cb_state = CBState, graph_id = GId, node_id = NId}) ->
+handle_call({start, Inputs, FlowMode}, _From,
+    State=#c_state{component = CB, cb_state = CBState, node_index = NodeIndex}) ->
 
-   %gen_event:notify(dfevent_component, {start, State#c_state.node_id, FlowMode}),
    lager:debug("component ~p starts with options; ~p", [CB, CBState]),
    Opts = CBState,
-   Inited = CB:init({GId, NId}, Inputs, Opts),
+   Inited = CB:init(NodeIndex, Inputs, Opts),
    {AReq, NewCBState} =
    case Inited of
 
@@ -233,7 +232,6 @@ handle_call({start, Inputs, Subscriptions, FlowMode}, _From,
 %%   folsom_metrics:new_history(<< NId/binary, ?FOLSOM_ERROR_HISTORY >>, 24),
    {reply, ok,
       State#c_state{
-         subscriptions = Subscriptions,
          inports = Inputs,
          auto_request = AR,
          cb_state = NewCBState,
@@ -241,8 +239,8 @@ handle_call({start, Inputs, Subscriptions, FlowMode}, _From,
          flow_mode = FlowMode,
          cb_handle_info = CallbackHandlesInfo}
    };
-handle_call(get_subscribers, _From, State=#c_state{subscriptions = Subs}) ->
-   {reply, {ok, Subs}, State}
+handle_call(get_subscribers, _From, State=#c_state{node_index = NodeIndex}) ->
+   {reply, {ok, df_subscription:subscriptions(NodeIndex)}, State}
 ;
 handle_call(_What, _From, State) ->
    lager:info("~p: unexpected handle_call with ~p",[?MODULE, _What]),
@@ -261,12 +259,12 @@ handle_cast(_Request, State) ->
 %% you will not receive the info message in the callback with these
 %%
 %% @end
-handle_info({start, Inputs, Subscriptions, FlowMode},
-    State=#c_state{component = CB, cb_state = CBState, graph_id = GId, node_id = NId}) ->
+handle_info({start, Inputs, FlowMode},
+    State=#c_state{component = CB, cb_state = CBState, node_index = NodeIndex}) ->
 
 %%   lager:info("component ~p starts with options; ~p and inputs: ~p", [CB, CBState, Inputs]),
    Opts = CBState,
-   Inited = CB:init({GId, NId}, Inputs, Opts),
+   Inited = CB:init(NodeIndex, Inputs, Opts),
    {AReq, NewCBState} =
       case Inited of
 
@@ -281,7 +279,6 @@ handle_info({start, Inputs, Subscriptions, FlowMode},
 
    {noreply,
       State#c_state{
-         subscriptions = Subscriptions,
          inports = Inputs,
          auto_request = AR,
          cb_state = NewCBState,
@@ -298,9 +295,9 @@ handle_info(stop_debug, State = #c_state{}) ->
    NewState = cb_handle_info(stop_debug, State),
    {noreply, NewState#c_state{emit_debug = false}};
 
-handle_info({request, ReqPid, ReqPort}, State=#c_state{subscriptions = Ss}) ->
-   NewSubs = df_subscription:request(Ss, ReqPid, ReqPort),
-   {noreply, State#c_state{subscriptions =  NewSubs}};
+handle_info({request, ReqPid, ReqPort}, State=#c_state{node_index = NodeIndex}) ->
+   true = df_subscription:request(NodeIndex, ReqPid, ReqPort),
+   {noreply, State};
 
 %% RECEIVING ITEM
 handle_info({item, _}, State=#c_state{cb_inited = false}) ->
@@ -343,13 +340,12 @@ handle_info({item, {Inport, Value}},
 handle_info({emit, {Outport, Value}}, State=#c_state{node_id = _NId,
       flow_mode = FMode, auto_request = AR, emitted = EmitCount}) ->
    lager:debug("Component: ~p emitting: ~p on port ~p", [State#c_state.node_id, Value, Outport]),
-   NewSubs = emit(Outport, Value, State),
-   NewState = State#c_state{subscriptions = NewSubs},
+   emit(Outport, Value, State),
    case AR of
       none  -> ok;
       _     -> request_all(State#c_state.inports, FMode)
    end,
-   {noreply, NewState#c_state{emitted = EmitCount+1}};
+   {noreply, State#c_state{emitted = EmitCount+1}};
 
 handle_info(pull, State=#c_state{inports = Ins}) ->
    lists:foreach(fun({Port, Pid}) -> dataflow:request_items(Port, [Pid]) end, Ins),
@@ -362,6 +358,7 @@ handle_info(stop, State=#c_state{node_id = _N, component = Mod, cb_state = CBSta
    end,
    {stop, normal, State}
 ;
+
 %% Callback Module handle_info
 handle_info(Req, State=#c_state{component = Module, cb_state = CB, cb_handle_info = true}) ->
    case Module:handle_info(Req, CB) of
@@ -406,25 +403,25 @@ code_change(_OldVsn, State, _Extra) ->
 
 -spec handle_process_result(tuple(), #c_state{}) -> {NewState::#c_state{}, boolean(), boolean()}.
 handle_process_result({emit, {Port, Emitted}, NState}, State=#c_state{}) when is_integer(Port) ->
-   NewSubs = emit(Port, Emitted, State),
-   {State#c_state{subscriptions = NewSubs, cb_state = NState},false, true};
+   emit(Port, Emitted, State),
+   {State#c_state{cb_state = NState},false, true};
 handle_process_result({emit, Emitted, NState}, State=#c_state{}) ->
-   NewSubs = emit(1, Emitted, State),
-   {State#c_state{subscriptions = NewSubs, cb_state = NState},false, true};
+   emit(1, Emitted, State),
+   {State#c_state{cb_state = NState},false, true};
 handle_process_result({request, {Port, PPids}, NState}, State=#c_state{flow_mode = FMode}) when is_list(PPids) ->
    maybe_request_items(Port, PPids, FMode),
    {State#c_state{cb_state = NState},
       true, false};
 handle_process_result({emit_request, {Port, Emitted}, {ReqPort, PPids}, NState},
     State=#c_state{flow_mode = FMode}) when is_list(PPids) ->
-   NewSubs = emit(Port, Emitted, State),
+   emit(Port, Emitted, State),
    maybe_request_items(ReqPort, PPids, FMode),
-   {State#c_state{subscriptions = NewSubs, cb_state = NState}, true, false};
+   {State#c_state{cb_state = NState}, true, false};
 handle_process_result({emit_request, Emitted, {ReqPort, PPids}, NState},
     State=#c_state{flow_mode = FMode}) when is_list(PPids) ->
-   NewSubs = emit(1, Emitted, State),
+   emit(1, Emitted, State),
    maybe_request_items(ReqPort, PPids, FMode),
-   {State#c_state{subscriptions = NewSubs, cb_state = NState}, true, false};
+   {State#c_state{cb_state = NState}, true, false};
 handle_process_result({ok, NewCBState}, State=#c_state{}) ->
    {State#c_state{cb_state = NewCBState}, false, false};
 handle_process_result({error, _What}, State=#c_state{}) ->
@@ -432,17 +429,16 @@ handle_process_result({error, _What}, State=#c_state{}) ->
    exit(_What).
 
 %%% @doc emits a value on a defined port
-emit(Port, Value, State = #c_state{subscriptions = Subscriptions}) ->
-   NewSubs = df_subscription:output(Subscriptions, Value, Port),
+emit(Port, Value, State = #c_state{node_index = NodeIndex}) ->
+   true = df_subscription:output(NodeIndex, Value, Port),
    metric(?METRIC_ITEMS_OUT, 1, State),
-   maybe_debug(item_out, Port, Value, State),
-   NewSubs.
+   maybe_debug(item_out, Port, Value, State).
 
 %% @doc emit debug events
 maybe_debug(_Key, _Port, _Value, #c_state{emit_debug = false}) ->
    ok;
-maybe_debug(Key, Port, Value, #c_state{emit_debug = true, node_id = NId, graph_id = GId}) ->
-   gen_event:notify(faxe_debug, {Key, {GId, NId}, Port, Value}).
+maybe_debug(Key, Port, Value, #c_state{emit_debug = true, node_index = NodeIndex}) ->
+   gen_event:notify(faxe_debug, {Key, NodeIndex, Port, Value}).
 
 
 request_all(_Inports, push) ->

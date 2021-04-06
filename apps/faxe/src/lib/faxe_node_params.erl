@@ -1,5 +1,5 @@
 %% Date: 15.04.17 - 10:52
-%% Ⓒ 2017 LineMetrics GmbH
+%% Ⓒ 2017 heyoka
 %% mappings for dfs params on node statements
 %%
 -module(faxe_node_params).
@@ -35,6 +35,7 @@ options(<<"debug">>) -> [{1, <<"level">>, string}];
 options(<<"case">>) -> [{all, <<"lambdas">>, lambda_list}];
 options(<<"change_detect">>) -> [{all, <<"fields">>, string_list}];
 options(<<"collect_unique">>) -> [{1, <<"field">>, string}];
+options(<<"group_by">>) -> [{all, <<"fields">>, string_list}];
 options(_) -> undefined.
 
 %% helper functions

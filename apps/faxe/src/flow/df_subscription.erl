@@ -13,7 +13,7 @@
 -include("dataflow.hrl").
 
 %% API
--export([new/5, output/3, request/3]).
+-export([new/5, output/3, request/3, save_subscriptions/2, subscriptions/1]).
 
 new(FlowMode, Publisher, PublisherPort, Subscriber, SubscriberPort) ->
    #subscription{
@@ -25,9 +25,28 @@ new(FlowMode, Publisher, PublisherPort, Subscriber, SubscriberPort) ->
       out_buffer = queue:new()
    }.
 
+-spec save_subscriptions({binary(), binary()}, list({non_neg_integer(), list(#subscription{})})) -> true.
+save_subscriptions({_GraphId, _NodeId} = Index, Subscriptions) when is_list(Subscriptions) ->
+   ets:insert(flow_subscriptions, {Index, Subscriptions}).
+
+-spec subscriptions({binary(), binary()}) -> list({non_neg_integer(), list(#subscription{})}).
+subscriptions({_GraphId, _NodeId} = Index) ->
+   case ets:lookup(flow_subscriptions, Index) of
+      [] -> [];
+      [{Index, Subs}] -> Subs
+   end.
+
+-spec output({binary(), binary()}, #data_point{}|#data_batch{}, non_neg_integer()) -> true.
+output({_GraphId, _NodeId} = Index, Value, Port) ->
+   NewSubscriptions = output(subscriptions(Index), Value, Port),
+   save_subscriptions(Index, NewSubscriptions);
 %% outputting a value on a specific out-port
+output([], _Value, _Port) ->
+   [];
 output(Subscriptions, Value, Port) when is_list(Subscriptions) ->
+%%   lager:info("SUBSCRIPTION OUTPUT: ~p",[{Port, lager:pr(Value,?MODULE)}]),
    Subs = proplists:get_value(Port, Subscriptions, []),
+%%   lager:info("found subscriptions: ~p", [Subs]),
    NewSubs = lists:map(fun(X) -> output(X, Value) end, Subs),
    OSubs = proplists:delete(Port, Subscriptions),
    [{Port, NewSubs}| OSubs].
@@ -47,6 +66,9 @@ output(S = #subscription{flow_mode = pull, pending = true, subscriber_pid = SPid
 .
 
 %% a value is requested from a subscriber node
+request({_GraphId, _NodeId} = Index, Pid, Port) ->
+   NewSubs = request(subscriptions(Index), Pid, Port),
+   save_subscriptions(Index, NewSubs);
 request(Subscriptions, Pid, Port) when is_list(Subscriptions) ->
    Subs = lists:map(fun({K, E}) -> {K, req_do(E, Pid, Port, [])} end, Subscriptions),
    Subs

@@ -11,14 +11,14 @@
 %%
 %% Cowboy callbacks
 -export([
-   init/2, allowed_methods/2, config_json/2, content_types_provided/2, is_authorized/2]).
+   init/2, allowed_methods/2, config_json/2, content_types_provided/2, is_authorized/2, content_types_accepted/2, from_validate_dfs/2, malformed_request/2]).
 
 %%
 %% Additional callbacks
 -export([
 ]).
 
--record(state, {mode}).
+-record(state, {mode, dfs}).
 
 init(Req, [{op, Mode}]) ->
    {cowboy_rest, Req, #state{mode = Mode}}.
@@ -26,15 +26,42 @@ init(Req, [{op, Mode}]) ->
 is_authorized(Req, State) ->
    rest_helper:is_authorized(Req, State).
 
+allowed_methods(Req, S=#state{mode = validate_dfs}) ->
+   {[<<"POST">>], Req, S};
 allowed_methods(Req, State) ->
     Value = [<<"GET">>, <<"OPTIONS">>],
     {Value, Req, State}.
+
+content_types_accepted(Req = #{method := <<"POST">>}, State = #state{mode = validate_dfs}) ->
+   Value = [{{ <<"application">>, <<"x-www-form-urlencoded">>, []}, from_validate_dfs}],
+   {Value, Req, State}.
+
 
 content_types_provided(Req, State) ->
     {[
        {{<<"application">>, <<"json">>, []}, config_json}
     ], Req, State}.
 
+malformed_request(Req, State=#state{mode = validate_dfs}) ->
+   {ok, Result, Req1} = cowboy_req:read_urlencoded_body(Req),
+   Dfs = proplists:get_value(<<"dfs">>, Result, undefined),
+   Malformed = Dfs == undefined,
+   {Malformed, rest_helper:report_malformed(Malformed, Req1, [<<"dfs">>]),
+      State#state{dfs = Dfs}};
+malformed_request(Req, State) ->
+   {false, Req, State}.
+
+from_validate_dfs(Req, State = #state{dfs = DfsScript}) ->
+   case faxe:eval_dfs(DfsScript, data) of
+      {_DFS, Def} = _Res when is_map(Def) ->
+         Out = #{<<"success">> => true},
+         Req2 = cowboy_req:set_resp_body(jiffy:encode(Out), Req),
+         {true, Req2, State};
+      {error, What} ->
+         OutE = #{<<"success">> => false, <<"error">> => faxe_util:to_bin(What)},
+         Req2 = cowboy_req:set_resp_body(jiffy:encode(OutE), Req),
+         {false, Req2, State}
+   end.
 
 %% faxe's config hand picked
 config_json(Req, State=#state{mode = config}) ->

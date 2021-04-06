@@ -2,7 +2,7 @@
 |value_emitter()
 .every(5s)
 
-%% get stats from this faxe's http endpoint
+%% get stats from this faxe s http endpoint
 |http_get()
 .host('localhost')
 .port(8081)

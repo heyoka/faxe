@@ -55,6 +55,9 @@ start_link() ->
    {stop, Reason :: term()} | ignore).
 init([]) ->
 
+   %% where node to node subscriptions are stored
+   ok = new_table(flow_subscriptions, set),
+
    ok = new_table(field_paths, set),
    ok = new_table(temp_tasks, set),
    ok = new_table(s7_pools, set),
