@@ -340,7 +340,7 @@ make_start_nodes(NodeIds, #task_modes{run_mode = RunMode},
    Nodes = build_nodes(NodeIds, G, Id),
    %% Inports and Subscriptions, builds : [{NId, {Ins, list(#subscriptions{})}}]
    Subscriptions = build_subscriptions(Nodes, G, RunMode),
-   lager:notice("all subscriptions:~p",[[lager:pr(Sub, ?MODULE) || Sub <- Subscriptions]]),
+%%   lager:notice("all subscriptions:~p",[[lager:pr(Sub, ?MODULE) || Sub <- Subscriptions]]),
    %% register our pid along with all node(component)-pids for graph ets table handling
    register_nodes(Nodes),
    %% start the nodes with subscriptions
@@ -358,7 +358,7 @@ build_nodes(NodeIds, Graph, Id) ->
          {ok, Pid} = df_component:start_link(Component, Id, NodeId, Inports, OutPorts, Metadata),
          {NodeId, Component, Pid}
       end, lists:reverse(NodeIds)),
-   lager:info("graph nodes: ~p",[Nodes]),
+%%   lager:info("graph nodes: ~p",[Nodes]),
    Nodes.
 
 -spec build_subscriptions(list({binary(), atom(), pid()}), digraph:graph(), pull|push) ->
@@ -433,7 +433,7 @@ clone_and_start_subgraph(FromVertex,
    %% in a first attempt, we say the port-number is equivalent to the number of out-going edges form the FromVertex (out_degree)
    NewOutPort = get_available_outport(G, FromVertex),
    PortBinary = integer_to_binary(NewOutPort),
-   lager:info("NEW PORT will be ~s",[PortBinary]),
+%%   lager:info("NEW PORT will be ~s",[PortBinary]),
    %% copy these
    CopiedVertices = insert_vertices(G, ReachableVertices, PortBinary),
 %%   {CopiedVertices, CurrentEdges},

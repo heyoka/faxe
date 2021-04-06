@@ -260,6 +260,8 @@ field(#data_batch{points = Points}, F) ->
    [field(Point, F) || Point <- Points].
 
 %% @doc get a list of field-values with a list of keys/paths
+fields(#data_point{fields = _Fields}, []) ->
+   [];
 fields(#data_point{fields = Fields}, PathList) when is_list(PathList) ->
    jsn_getlist(PathList, Fields).
 

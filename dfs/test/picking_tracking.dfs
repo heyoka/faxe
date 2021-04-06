@@ -1,34 +1,68 @@
+def win_size = 10s
 def raw_map = <<<{"S:FpFrontal1-SS:1-LP:1-PC:1":"topic/1/new",
                         "S:FpFrontal1-SS:1-LP:1-PC:2":"topic/2/new",
                             "S:FpFrontal1-SS:1-LP:1-PC:3":"topic/3/new"}>>>
-
-def computed_map = <<<{"S:FpFrontal1-SS:1-LP:1-PC:1":"topic/comp/1/new",
-                                           "S:FpFrontal1-SS:1-LP:1-PC:2":"topic/comp/2/new",
-                                               "S:FpFrontal1-SS:1-LP:1-PC:3":"topic/comp/3/new"}>>>
 
 |mem()
 .key('stream_raw_lookup')
 .default(raw_map)
 .default_json()
 
-|mem()
-.key('stream_comp_lookup')
-.default(computed_map)
-.default_json()
-
 
 |json_emitter()
-.every(3s)
-.json(<<<"S:FpFrontal1-SS:1-LP:1-PC:1">>>, <<<"S:FpFrontal1-SS:1-LP:1-PC:2">>>, <<<"S:FpFrontal1-SS:1-LP:1-PC:3">>>)
-.as('Workstation')
-|debug('info')
+.every(200ms)
+.json(
+<<<
+{
+"Workstation" : "S:FpFrontal1-SS:1-LP:1-PC:1",
+"Operator" : "Sim",
+"OrderName" : "Order_1000419",
+"Action" : "Pick",
+"Quantity" : 1,
+"OrderLineName" : "OrderLine_1",
+"SourceSectionName" : "full",
+"Sku" : "6013300",
+"SourceLoadCarrierName" : "68832"
+}
+>>>,
+<<<
+{
+"Workstation" : "S:FpFrontal1-SS:1-LP:1-PC:2",
+"Operator" : "Sim",
+"OrderName" : "Order_1000419",
+"Action" : "Pick",
+"Quantity" : 1,
+"OrderLineName" : "OrderLine_1",
+"SourceSectionName" : "full",
+"Sku" : "3013294",
+"SourceLoadCarrierName" : "68832"
+}
+>>>,
+<<<
+{
+"Workstation" : "S:FpFrontal1-SS:1-LP:1-PC:3",
+"Operator" : "Sim",
+"OrderName" : "Order_1000419",
+"Action" : "Pick",
+"Quantity" : 1,
+"OrderLineName" : "OrderLine_1",
+"SourceSectionName" : "full",
+"Sku" : "6013294",
+"SourceLoadCarrierName" : "68831"
+}
+>>> )
+.as('data')
+
+%|debug('info')
+
+|group_by('data.Workstation')
 
 |eval(
     %% rewrite/split streams
-    lambda: map_get("Workstation", ls_mem('stream_raw_lookup')),
+    lambda: map_get("data.Workstation", ls_mem('stream_raw_lookup')),
     %% build some names
-    lambda: str_concat("OrderName", "OrderLineName"),
-    lambda: str_concat("SourceLoadCarrierName", "Sku")
+    lambda: str_concat("data.OrderName", "data.OrderLineName"),
+    lambda: str_concat("data.SourceLoadCarrierName", "data.Sku")
     )
     .as(
     'topic',
@@ -37,20 +71,20 @@ def computed_map = <<<{"S:FpFrontal1-SS:1-LP:1-PC:1":"topic/comp/1/new",
     )
 
 |win_time()
-.every(5m)
+.every(win_size)
 
 |aggregate()
 .fields(
 % ######### load carrier count
     'SourceLoadCarrierName',
 % ######### order count
-    'OrderName',
+    'data.OrderName',
 % ######### sku count all
-    'Sku',
+    'data.Sku',
 % ######### inventory line count
     'UniqueOrderLineName',
 % ######### quantity
-    'Quantity'
+    'data.Quantity'
 )
 .functions(
 % ######### load carrier count
@@ -66,17 +100,19 @@ def computed_map = <<<{"S:FpFrontal1-SS:1-LP:1-PC:1":"topic/comp/1/new",
 )
 .as(
 % ######### load carrier count
-    'SourceLoadCarrierCount',
+    'data.SourceLoadCarrierCount',
 % ######### order count
-    'OrderCount',
+    'data.OrderCount',
 % ######### sku count all
-    'PickInstructionCount',
+    'data.PickInstructionCount',
 % ######### inventory line count
-    'InventoryLineCount',
+    'data.InventoryLineCount',
 % ######### quantity
-    'TotalQuantity'
+    'data.TotalQuantity'
 
 )
-.keep('Workstation')
+.keep('data.Workstation', 'topic')
 
 % #### keep raw data, but splitted by "Workstation"
+
+|debug()

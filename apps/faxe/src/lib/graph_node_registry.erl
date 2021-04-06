@@ -46,16 +46,13 @@ unregister_graph_nodes(GraphPid, ComponentPids) when is_pid(GraphPid), is_list(C
 
 get_graph_table() ->
   % get graph pid
-  lager:notice("~p from ~p",[?FUNCTION_NAME, self()]),
   {ok, GraphPid} = get_graph(self()),
   case ets:lookup(graph_ets, GraphPid) of
     [] ->
       TableId = ets:new(graph_ets_table, [set, public,{read_concurrency,true},{write_concurrency,true}]),
-      lager:info("table for graph: ~p has id: ~p",[GraphPid, TableId]),
       ets:insert(graph_ets, {GraphPid, TableId}),
       TableId;
     [{GraphPid, Table}] ->
-      lager:info("table already setup for graph: ~p : ~p",[GraphPid, Table]),
       Table
   end.
 
@@ -66,7 +63,6 @@ get_graph(ComponentPid) when is_pid(ComponentPid) ->
   end.
 
 delete_graph_table(GraphPid) ->
-  lager:info("delete_graph_table(~p)",[GraphPid]),
   case ets:lookup(graph_ets, GraphPid) of
     [] -> ok;
     [{GraphPid, Table}] ->
@@ -90,7 +86,7 @@ handle_info({monitor_graph, GraphPid}, State = #state{}) ->
   erlang:monitor(process, GraphPid),
   {noreply, State};
 handle_info({'DOWN', _MonitorRef, process, Pid, _Info}, State=#state{}) ->
-  lager:info("Graph is down: ~p",[Pid]),
+%%  lager:info("Graph is down: ~p",[Pid]),
   %% graph is down, delete ets table and from lookup table
   catch delete_graph_table(Pid),
   case ets:lookup(?GRAPH_TO_NODES_ETS, Pid) of

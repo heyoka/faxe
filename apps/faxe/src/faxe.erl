@@ -57,7 +57,8 @@
    list_tasks_by_group/1,
    set_group_size/2,
    update_by_tags/1,
-   update_by_template/1]).
+   update_by_template/1,
+   eval_dfs/2]).
 
 start_permanent_tasks() ->
    Tasks = faxe_db:get_permanent_tasks(),
