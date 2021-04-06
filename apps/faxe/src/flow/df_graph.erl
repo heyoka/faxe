@@ -397,8 +397,7 @@ build_node_subscriptions(Graph, Node, Nodes, FlowMode) ->
 %%   lager:notice("in-edges: ~p for node: ~p",[InEdges, Node]),
    Inports = lists:map(
       fun(E) ->
-         {_E, V1, _V2, _Label = #{tgt_port := TargetPort}} = Edge = digraph:edge(Graph, E),
-%%         lager:warning("Inports edge: ~p", [Edge]),
+         {_E, V1, _V2, _Label = #{tgt_port := TargetPort}} = digraph:edge(Graph, E),
          PubPid = get_node_pid(V1, Nodes),
          {TargetPort, PubPid}
       end,

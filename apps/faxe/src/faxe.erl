@@ -188,27 +188,83 @@ register_file_task(DfsScript, Name) ->
 register_string_task(DfsScript, Name) ->
    register_task(DfsScript, Name, data).
 
--spec register_task(list()|binary(), binary(), atom()) -> ok|{error, task_exists}| {error, term()}.
+-spec register_task(list()|binary(), binary(), atom()) -> ok | {error, task_exists} | {error, term()}.
 register_task(DfsScript, Name, Type) ->
+   case check_task(DfsScript, Name, Type) of
+      {error, _What} = Err -> Err;
+      {DFS, Def} ->
+         Task = #task{
+            date = faxe_time:now_date(),
+            dfs = DFS,
+            definition = Def,
+            name = Name,
+            group = Name,
+            group_leader = true
+         },
+         faxe_db:save_task(Task)
+   end.
+
+-spec check_task(list()|binary(), binary(), atom()) -> {error, Reason :: term()} | {DFS :: binary(), map()}.
+check_task(DfsScript, Name, Type) ->
    case faxe_db:get_task(Name) of
       {error, not_found} ->
          case eval_dfs(DfsScript, Type) of
-            {DFS, Def} when is_map(Def) ->
-               Task = #task{
-                  date = faxe_time:now_date(),
-                  dfs = DFS,
-                  definition = Def,
-                  name = Name,
-                  group = Name,
-                  group_leader = true
-               },
-               faxe_db:save_task(Task);
-
+            {_DFS, Def} = Res when is_map(Def) ->
+               Res;
             {error, What} -> {error, What}
          end;
       _T ->
          {error, task_exists}
    end.
+
+
+-spec register_template_file(list(), binary()) ->
+   'ok'|{error, template_exists}|{error, not_found}|{error, Reason::term()}.
+register_template_file(DfsFile, TemplateName) ->
+   StringData = binary_to_list(get_file_dfs(DfsFile)),
+   register_template_string(StringData, TemplateName).
+
+-spec register_template_string(list(), binary()) ->
+   'ok'|{error, template_exists}|{error, not_found}|{error, Reason::term()}.
+register_template_string(DfsString, TemplateName) ->
+   register_template(DfsString, TemplateName, data).
+
+
+-spec register_template(list(), term(), atom()) ->
+   'ok'|{error, template_exists}|{error, not_found}|{error, Reason::term()}.
+register_template(DfsScript, Name, Type) ->
+
+   case faxe_db:get_template(Name) of
+      {error, not_found} ->
+
+         case eval_dfs(DfsScript, Type) of
+            {DFS, Def} when is_map(Def) ->
+               Template = #template{
+                  date = faxe_time:now_date(),
+                  definition = Def,
+                  name = Name,
+                  dfs = DFS
+               },
+               faxe_db:save_template(Template);
+
+            {error, What} -> {error, What}
+         end;
+
+      _T ->
+         {error, template_exists}
+   end.
+
+task_from_template(TemplateId, TaskName) ->
+   task_from_template(TemplateId, TaskName, #{}).
+task_from_template(TemplateId, TaskName, Vars) when is_map(Vars) ->
+   case faxe_db:get_task(TaskName) of
+      {error, not_found} -> case faxe_db:get_template(TemplateId) of
+                               {error, not_found} -> {error, template_not_found};
+                               Template = #template{} -> template_to_task(Template, TaskName, Vars), ok
+                            end;
+      #task{} -> {error, task_exists}
+   end.
+
 
 %% @doc update all tasks that exist, use with care
 -spec update_all() -> [ok|{error, term()}].
@@ -226,14 +282,6 @@ update_by_template(TemplateId) ->
 update_list(TaskList) when is_list(TaskList) ->
    [update_task(DfsScript, Id, data) || #task{id = Id, dfs = DfsScript} <- TaskList].
 
-%%set_all_offline() ->
-%%   [
-%%      begin
-%%         [T] = mnesia:dirty_read(task, Id),
-%%         mnesia:dirty_write(T#task{is_running = false})
-%%      end
-%%      || Id <- mnesia:dirty_all_keys(task)
-%%   ].
 
 -spec update_file_task(list(), integer()|binary()) -> ok|{error, term()}.
 update_file_task(DfsFile, TaskId) ->
@@ -330,52 +378,6 @@ get_file_dfs(DfsFile) ->
    Path = proplists:get_value(script_path, DfsParams),
    {ok, Data} = file:read_file(Path++DfsFile),
    binary:replace(Data, <<"\\">>, <<>>, [global]).
-
--spec register_template_file(list(), binary()) ->
-   'ok'|{error, template_exists}|{error, not_found}|{error, Reason::term()}.
-register_template_file(DfsFile, TemplateName) ->
-   StringData = binary_to_list(get_file_dfs(DfsFile)),
-   register_template_string(StringData, TemplateName).
-
--spec register_template_string(list(), binary()) ->
-   'ok'|{error, template_exists}|{error, not_found}|{error, Reason::term()}.
-register_template_string(DfsString, TemplateName) ->
-   register_template(DfsString, TemplateName, data).
-
-
--spec register_template(list(), term(), atom()) ->
-   'ok'|{error, template_exists}|{error, not_found}|{error, Reason::term()}.
-register_template(DfsScript, Name, Type) ->
-   case faxe_db:get_template(Name) of
-      {error, not_found} ->
-
-         case eval_dfs(DfsScript, Type) of
-            {DFS, Def} when is_map(Def) ->
-               Template = #template{
-                  date = faxe_time:now_date(),
-                  definition = Def,
-                  name = Name,
-                  dfs = DFS
-               },
-               faxe_db:save_template(Template);
-
-            {error, What} -> {error, What}
-         end;
-
-      _T ->
-         {error, template_exists}
-   end.
-
-task_from_template(TemplateId, TaskName) ->
-   task_from_template(TemplateId, TaskName, #{}).
-task_from_template(TemplateId, TaskName, Vars) when is_map(Vars) ->
-   case faxe_db:get_task(TaskName) of
-      {error, not_found} -> case faxe_db:get_template(TemplateId) of
-                               {error, not_found} -> {error, template_not_found};
-                               Template = #template{} -> template_to_task(Template, TaskName, Vars), ok
-                            end;
-      #task{} -> {error, task_exists}
-   end.
 
 
 start_file_temp(DfsScript, TTL) ->
