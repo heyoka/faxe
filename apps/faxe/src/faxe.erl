@@ -297,7 +297,7 @@ update_task(DfsScript, TaskId, ScriptType) ->
    Res =
    case get_running(TaskId) of
       {true, T=#task{}} -> {update_running(DfsScript, T, ScriptType), T};
-      {false, T=#task{}} -> {update(DfsScript, T, ScriptType), T};
+      {false, T=#task{}} -> {maybe_update(DfsScript, T, ScriptType), T};
 %%      {_, T=#task{group_leader = false}} -> {error, group_leader_update_only};
       Err -> {Err, nil}
    end,
@@ -312,10 +312,15 @@ update_task(DfsScript, TaskId, ScriptType) ->
                   || #task{id = Id, group_leader = Lead} <- L, Lead == false],
                ok
          end;
-      {ok, _Task} -> ok;
-      {Error, nil} -> Error
+      {{ok, _}, _} -> ok;
+      {Error, _} -> Error
    end.
 
+maybe_update(DfsScript, T = #task{dfs = DFS}, ScriptType) ->
+   case erlang:crc32(DfsScript) =:= erlang:crc32(DFS) of
+      true -> {ok, no_update};
+      false -> update(DfsScript, T, ScriptType)
+   end.
 
 -spec update(list()|binary(), #task{}, atom()) -> ok|{error, term()}.
 update(DfsScript, Task, ScriptType) ->
@@ -331,11 +336,13 @@ update(DfsScript, Task, ScriptType) ->
 
 -spec update_running(list()|binary(), #task{}, atom()) -> ok|{error, term()}.
 update_running(DfsScript, Task = #task{id = TId, pid = TPid}, ScriptType) ->
-   erlang:monitor(process, TPid),
-   stop_task(Task, false),
-   case update(DfsScript, Task, ScriptType) of
+   case maybe_update(DfsScript, Task, ScriptType) of
+      {ok, no_update} -> {ok, no_update};
       {error, Err} -> {error, Err};
       ok ->
+         %% we use just the task-id to stop and restart the task, otherwise the just updated task would be overwritten
+         erlang:monitor(process, TPid),
+         stop_task(Task#task.id, false),
          receive
             {'DOWN', _MonitorRef, process, TPid, _Info} ->
                start_task(TId, Task#task.permanent), ok
