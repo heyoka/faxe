@@ -203,21 +203,12 @@ steps:
         TAG=$(echo  $(Build.Repository.Name):$(Build.BuildNumber) | tr '[:upper:]' '[:lower:]')
         # manipulate docker-compose file:
         # inject current build number into compose-file
-        set -x
         sed "s!Dockerfile_debian!$TAG!g" -i $(composeymlFile)
         # change port binding dynamically to host, used for loadbalancing to prevent multiple port binding (haproxy and keepalived are used for incoming traffic)
         sed "sL8080:8080L$(hostname -i):8080:8080Lg" -i $(composeymlFile)
         # inject env file into docker-compose file:
         sed "sL/opt/faxe/docker_storage/devat.envL$(environmentFile)L" -i  $(composeymlFile)
-        set +x
   displayName: 'prepare docker-compose file'
-- task: Bash@3
-  inputs:
-    targetType: 'inline'
-    script: |
-        # stop old version
-
-  displayName: 'stop old container via docker-compose'
 - task: Bash@3
   inputs:
     targetType: 'inline'
@@ -321,5 +312,5 @@ steps:
                sudo -u $(FAXE_RUNTIME_USER) /usr/bin/docker rmi $del_image
             done
         fi
-  displayName: 'housekeeping - keep only latest 5 images'    
+  displayName: 'housekeeping - keep only latest $IMAGE_KEEP image(s)'
   
