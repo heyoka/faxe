@@ -191,11 +191,11 @@ steps:
     # inject current build number into compose-file
     set -x
     sed "s!Dockerfile_debian!$TAG!g" -i docker-compose-devat.yml
-    set +x
     # change port binding dynamically to host, used for loadbalancing to prevent multiple port binding (haproxy and keepalived are used for incoming traffic)
     sed "sL8080:8080L$(hostname -i):8080:8080Lg" -i docker-compose-devat.yml
     # inject env file into docker-compose file:
     sed "sL/opt/faxe/docker_storage/devat.envL$(environmentFile)L" -i  docker-compose-devat.yml
+    set +x
   displayName: 'prepare docker-compose file'
 - script: | 
     #build container-image
