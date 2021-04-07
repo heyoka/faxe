@@ -48,9 +48,10 @@ steps:
     # gather azure build information:
     echo '$(Build.Repository.Name):$(Build.BuildNumber)'
     echo "creating env file from keyvault"
+    rm -r $(environmentFile)
     touch $(environmentFile)
     echo "FAXE_CRATE_HTTP_PASS=$(FAXE_CRATE_HTTP_PASS)" >> $(environmentFile)
-    echo "FAXE_CRATE_HTTP_USER=$(FAXE-CRATE-HTTP-PASS)" >> $(environmentFile)
+    echo "FAXE_CRATE_HTTP_USER=$(FAXE-CRATE-HTTP-USER)" >> $(environmentFile)
     echo "FAXE_CRATE_PASS=$(FAXE-CRATE-USER)" >> $(environmentFile)
     echo "FAXE_CRATE_USER=$(FAXE-CRATE-PASS)" >> $(environmentFile)
     echo "FAXE_AMQP_PASS=$(FAXE-AMQP-PASS)" >> $(environmentFile)
