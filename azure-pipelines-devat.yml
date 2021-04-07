@@ -12,7 +12,7 @@ variables:
 - name: environmentFile
   value: /opt/faxe/docker_storage/devat.env
 - name: composeymlFile
-  value: /opt/faxe/faxe_repo/docker-compose-devcloud.yml
+  value: /opt/faxe/faxe_repo/docker-compose-devat.yml
 pool: devat-faxe-cluster
 
 steps:
