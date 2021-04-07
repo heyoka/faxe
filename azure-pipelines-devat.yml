@@ -11,7 +11,8 @@ variables:
 - group: 'faxe_dev - Devcloud - secret' # variable group for keyvault entries (user+pw)
 - name: environmentFile
   value: /opt/faxe/docker_storage/devat.env
-
+- name: composeymlFile
+  value: build/docker-compose-devcloud.yml
 pool: devat-faxe-cluster
 
 steps:
@@ -203,11 +204,11 @@ steps:
         # manipulate docker-compose file:
         # inject current build number into compose-file
         set -x
-        sed "s!Dockerfile_debian!$TAG!g" -i docker-compose-devat.yml
+        sed "s!Dockerfile_debian!$TAG!g" -i $(composeymlFile)
         # change port binding dynamically to host, used for loadbalancing to prevent multiple port binding (haproxy and keepalived are used for incoming traffic)
-        sed "sL8080:8080L$(hostname -i):8080:8080Lg" -i docker-compose-devat.yml
+        sed "sL8080:8080L$(hostname -i):8080:8080Lg" -i $(composeymlFile)
         # inject env file into docker-compose file:
-        sed "sL/opt/faxe/docker_storage/devat.envL$(environmentFile)L" -i  docker-compose-devat.yml
+        sed "sL/opt/faxe/docker_storage/devat.envL$(environmentFile)L" -i  $(composeymlFile)
         set +x
   displayName: 'prepare docker-compose file'
 - task: Bash@3
@@ -231,7 +232,7 @@ steps:
     script: |
         # stop old version
         cd /opt/faxe/faxe_repo
-        sudo -u $(FAXE_RUNTIME_USER) /usr/local/bin/docker-compose -f docker-compose-devat.yml down
+        sudo -u $(FAXE_RUNTIME_USER) /usr/local/bin/docker-compose -f $(composeymlFile) down
         # kill/remove old data
         if [[ $(sudo -u $(FAXE_RUNTIME_USER) docker ps -a | grep faxe ) ]]; 
           then
@@ -248,7 +249,7 @@ steps:
     targetType: 'inline'
     script: | 
         cd /opt/faxe/faxe_repo
-        sudo -u $(FAXE_RUNTIME_USER) /usr/local/bin/docker-compose -f docker-compose-devat.yml up -d
+        sudo -u $(FAXE_RUNTIME_USER) /usr/local/bin/docker-compose -f $(composeymlFile) up -d
   displayName: 'start container via docker-compose'
 - task: Bash@3
   inputs:
