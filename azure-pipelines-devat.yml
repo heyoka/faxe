@@ -50,7 +50,7 @@ steps:
     echo "creating env file from keyvault"
     rm -r $(environmentFile)
     touch $(environmentFile)
-    echo "FAXE_CRATE_HTTP_PASS=$(FAXE_CRATE_HTTP_PASS)" >> $(environmentFile)
+    echo "FAXE_CRATE_HTTP_PASS=$(FAXE-CRATE-HTTP-PASS)" >> $(environmentFile)
     echo "FAXE_CRATE_HTTP_USER=$(FAXE-CRATE-HTTP-USER)" >> $(environmentFile)
     echo "FAXE_CRATE_PASS=$(FAXE-CRATE-USER)" >> $(environmentFile)
     echo "FAXE_CRATE_USER=$(FAXE-CRATE-PASS)" >> $(environmentFile)
@@ -183,9 +183,7 @@ steps:
     sort $(environmentFile) -o $(environmentFile)
   displayName: 'configure env file from pipeline library'
 - script: | 
-    #build container-image
-    sudo -u $(FAXE_RUNTIME_USER) docker build -t $(Build.Repository.Name):$(Build.BuildNumber) -f Dockerfile_debian .
-   
+    TAG=$(echo '$(Build.Repository.Name):$(Build.BuildNumber)')
     # manipulate docker-compose file:
     # inject current build number into compose-file
     sed "s!Dockerfile_debian!$TAG!g" -i docker-compose-devat.yml
@@ -193,6 +191,11 @@ steps:
     sed "sL8080:8080L$(hostname -i):8080:8080Lg" -i docker-compose-devat.yml
     # inject env file into docker-compose file:
     sed "sL/opt/faxe/docker_storage/devat.envL$(environmentFile)L" -i  docker-compose-devat.yml
+  displayName: 'prepare docker-compose file'
+- script: | 
+    #build container-image
+    TAG=$(echo '$(Build.Repository.Name):$(Build.BuildNumber)')
+    sudo -u $(FAXE_RUNTIME_USER) docker build -t $(Build.Repository.Name):$(Build.BuildNumber) -f Dockerfile_debian .
   displayName: 'build new image and tag it with azure pipeline build number'
 - script: |     
     # stop old version
