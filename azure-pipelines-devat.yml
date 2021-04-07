@@ -8,6 +8,7 @@ trigger:
 
 variables:
 - group: 'faxe_dev - Devcloud' # variable group
+- group: 'faxe_dev - Devcloud - secret' # variable group for keyvault entries (user+pw)
 - name: environmentFile
   value: /opt/faxe/docker_storage/devat.env
 
@@ -43,11 +44,34 @@ steps:
     overWrite: true
 - script: | 
     cd /opt/faxe/faxe_repo
+    TAG=$(echo $(Build.Repository.Name):$(Build.BuildNumber) | tr '[:upper:]' '[:lower:]' )
+    # gather azure build information:
+    echo '$(Build.Repository.Name):$(Build.BuildNumber)'
+    echo "creating env file from keyvault"
+    touch $(environmentFile)
+    echo "FAXE_CRATE_HTTP_PASS=$(FAXE_CRATE_HTTP_PASS)" >> $(environmentFile)
+    echo "FAXE_CRATE_HTTP_USER=$(FAXE-CRATE-HTTP-PASS)" >> $(environmentFile)
+    echo "FAXE_CRATE_PASS=$(FAXE-CRATE-USER)" >> $(environmentFile)
+    echo "FAXE_CRATE_USER=$(FAXE-CRATE-PASS)" >> $(environmentFile)
+
+    # filter all ENVs with value "unset"
+    echo "removing ENV Values:"
+    grep unset $(environmentFile)
+    sed 's!^.*unset$!!g' -i $(environmentFile)
+
+    # sort env file
+    sort $(environmentFile) -o $(environmentFile)
+    # remove empty lines
+    sed -i '/^[[:blank:]]*$/d' $(environmentFile)
+  displayName: 'configure env file from keyvault values'
+- script: | 
+    cd /opt/faxe/faxe_repo
     # gather azure build information:
     echo '$(Build.Repository.Name).$(Build.BuildNumber)'
     TAG=$(echo '$(Build.Repository.Name):$(Build.BuildNumber)')
     echo "creating env file"
-    [ ${#FAXE_ALLOW_ANONYMOUS} == "0" ] || echo "FAXE_ALLOW_ANONYMOUS=$FAXE_ALLOW_ANONYMOUS" > $(environmentFile)
+    touch $(environmentFile)
+    [ ${#FAXE_ALLOW_ANONYMOUS} == "0" ] || echo "FAXE_ALLOW_ANONYMOUS=$FAXE_ALLOW_ANONYMOUS" >> $(environmentFile)
     [ ${#FAXE_AMQP_HEARTBEAT} == "0" ] || echo "FAXE_AMQP_HEARTBEAT=$FAXE_AMQP_HEARTBEAT" >> $(environmentFile)
     [ ${#FAXE_AMQP_HOST} == "0" ] || echo "FAXE_AMQP_HOST=$FAXE_AMQP_HOST" >> $(environmentFile)
     [ $(echo $(FAXE_AMQP_PASS) | wc --chars) == "0" ] || echo "FAXE_AMQP_PASS=$(FAXE_AMQP_PASS)" >> $(environmentFile)
@@ -65,13 +89,9 @@ steps:
     [ ${#FAXE_CRATE_DATABASE} == "0" ] || echo "FAXE_CRATE_DATABASE=$FAXE_CRATE_DATABASE" >> $(environmentFile)
     [ ${#FAXE_CRATE_HOST} == "0" ] || echo "FAXE_CRATE_HOST=$FAXE_CRATE_HOST" >> $(environmentFile)
     [ ${#FAXE_CRATE_HTTP_DATABASE} == "0" ] || echo "FAXE_CRATE_HTTP_DATABASE=$FAXE_CRATE_HTTP_DATABASE" >> $(environmentFile)
-    [ ${#FAXE_CRATE_HTTP_HOST} == "0" ] || echo "FAXE_CRATE_HTTP_HOST=$FAXE_CRATE_HTTP_HOST" >> $(environmentFile)
-    [ $(echo $(FAXE_CRATE_HTTP_PASS) | wc --chars) == "0" ] || echo "FAXE_CRATE_HTTP_PASS=$(FAXE_CRATE_HTTP_PASS)" >> $(environmentFile)
+    [ ${#FAXE_CRATE_HTTP_HOST} == "0" ] || echo "FAXE_CRATE_HTTP_HOST=$FAXE_CRATE_HTTP_HOST" >> $(environmentFile)   
     [ ${#FAXE_CRATE_HTTP_PORT} == "0" ] || echo "FAXE_CRATE_HTTP_PORT=$FAXE_CRATE_HTTP_PORT" >> $(environmentFile)
-    [ $(echo $(FAXE_CRATE_HTTP_USER) | wc --chars) == "0" ] || echo "FAXE_CRATE_HTTP_USER=$(FAXE_CRATE_HTTP_USER)" >> $(environmentFile)
-    [ $(echo $(FAXE_CRATE_PASS) | wc --chars) == "0" ] || echo "FAXE_CRATE_PASS=$(FAXE_CRATE_PASS)" >> $(environmentFile)
     [ ${#FAXE_CRATE_PORT} == "0" ] || echo "FAXE_CRATE_PORT=$FAXE_CRATE_PORT" >> $(environmentFile)
-    [ $(echo $(FAXE_CRATE_USER) | wc --chars) == "0" ] || echo "FAXE_CRATE_USER=$(FAXE_CRATE_USER)" >> $(environmentFile)
     [ ${#FAXE_DEBUG_HANDLER_MQTT_BASE_TOPIC} == "0" ] || echo "FAXE_DEBUG_HANDLER_MQTT_BASE_TOPIC=$FAXE_DEBUG_HANDLER_MQTT_BASE_TOPIC" >> $(environmentFile)
     [ ${#FAXE_DEBUG_HANDLER_MQTT_ENABLE} == "0" ] || echo "FAXE_DEBUG_HANDLER_MQTT_ENABLE=$FAXE_DEBUG_HANDLER_MQTT_ENABLE" >> $(environmentFile)
     [ ${#FAXE_DEBUG_HANDLER_MQTT_HOST} == "0" ] || echo "FAXE_DEBUG_HANDLER_MQTT_HOST=$FAXE_DEBUG_HANDLER_MQTT_HOST" >> $(environmentFile)
@@ -128,6 +148,13 @@ steps:
     [ ${#FAXE_RABBITMQ_ROOT_EXCHANGE} == "0" ] || echo "FAXE_RABBITMQ_ROOT_EXCHANGE=$FAXE_RABBITMQ_ROOT_EXCHANGE" >> $(environmentFile)
     [ ${#FAXE_S7POOL_MAX_SIZE} == "0" ] || echo "FAXE_S7POOL_MAX_SIZE=$FAXE_S7POOL_MAX_SIZE" >> $(environmentFile)
     [ ${#FAXE_S7POOL_MIN_SIZE} == "0" ] || echo "FAXE_S7POOL_MIN_SIZE=$FAXE_S7POOL_MIN_SIZE" >> $(environmentFile)   
+
+    # comes from keyvault
+    #[ $(echo $(FAXE_CRATE_HTTP_PASS) | wc --chars) == "0" ] || echo "FAXE_CRATE_HTTP_PASS=$(FAXE_CRATE_HTTP_PASS)" >> $(environmentFile)
+    #[ $(echo $(FAXE_CRATE_HTTP_USER) | wc --chars) == "0" ] || echo "FAXE_CRATE_HTTP_USER=$(FAXE_CRATE_HTTP_USER)" >> $(environmentFile)
+    #[ $(echo $(FAXE_CRATE_PASS) | wc --chars) == "0" ] || echo "FAXE_CRATE_PASS=$(FAXE_CRATE_PASS)" >> $(environmentFile)
+    #[ $(echo $(FAXE_CRATE_USER) | wc --chars) == "0" ] || echo "FAXE_CRATE_USER=$(FAXE_CRATE_USER)" >> $(environmentFile)
+
     #check for empty lines in env file
     while read line; do
       if [ $(echo $line | cut -d "=" -f2 |wc --char) -gt 1 ]
@@ -142,16 +169,7 @@ steps:
     sed -i '/^[[:blank:]]*$/d' $(environmentFile)
     # sort env file
     sort $(environmentFile) -o $(environmentFile)
-  displayName: 'configure env file'
-- task: AzureKeyVault@1
-  inputs:
-    ConnectedServiceName: 'AzEA - ConnectedDataHub-OpenShift(aa13b7d2-851a-4531-aac8-35d4453b07aa)'
-    KeyVaultName: 'CWAKeyvault'
-    SecretsFilter: '*'
-    RunAsPreJob: true
-- script: | 
-    echo keyvault1: $FAXE-CRATE-HTTP-USER-KeyVault-TEST
-    displayName: 'test with azurekeyvault'
+  displayName: 'configure env file from pipeline library'
 - script: | 
     #build container-image
     sudo -u $(FAXE_RUNTIME_USER) docker build -t $(Build.Repository.Name):$(Build.BuildNumber) -f Dockerfile_debian .
