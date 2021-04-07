@@ -2,7 +2,7 @@ trigger:
 - none
 
 variables:
-- group: 'faxe_dev - Devcloud-keyvault' # variable group
+- group: 'faxe_dev - Devcloud - secret' # variable group
 
 pool:
   vmImage: 'ubuntu-latest'
