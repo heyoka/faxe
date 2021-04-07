@@ -7,7 +7,7 @@ trigger:
 - none
 
 variables:
-- group: 'azure_faxe' # variable group
+- group: 'faxe_prod - Azure' # variable group
 - name: environmentFile
   value: /opt/tgw/docker_storage/azure.env
 

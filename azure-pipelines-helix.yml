@@ -8,7 +8,7 @@ trigger:
 
 
 variables:
-- group: 'helix_faxe' # variable group
+- group: 'faxe_prod - Helix' # variable group
 - name: environmentFile
   value: /opt/faxe/docker_storage/helix.env
 
