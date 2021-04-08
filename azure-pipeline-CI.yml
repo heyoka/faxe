@@ -2,7 +2,9 @@ trigger:
 - none
 
 variables:
-- group: 'faxe_dev - Devcloud - secret' # variable group
+#- group: 'faxe_dev - Devcloud - secret' # variable group
+- name: trivyVersion
+  value: '0.9.1'
 
 pool:
   vmImage: 'ubuntu-latest'
@@ -13,17 +15,45 @@ stages:
   - job:
     steps:
     - checkout: self
-    - script: | 
-        echo '$(Build.Repository.Name).$(Build.BuildNumber)'
-        echo $(FAXE-CRATE-HTTP-PASS-KeyVault-Test)
+    - task: Docker@2
+      inputs:
+        containerRegistry: 'nexus-docker-connection'
+        command: 'login'
+      displayName: registry log in 
+    - task: Docker@2
+      inputs:
+        repository: 'faxe'
+        command: 'build'
+        Dockerfile: 'Dockerfile_debian'
+        tags: |
+           
+      displayName: build container image
+    - script: |    
+        docker run --rm -v /var/run/docker.sock:/var/run/docker.sock -v $HOME/Library/Caches:/root/.cache/ aquasec/trivy faxe:$(Build.BuildNumber)
+      displayName: Scan
     - task: Docker@2
       inputs:
         containerRegistry: 'nexus-docker-connection'
         repository: 'faxe'
-        command: 'buildAndPush'
-        Dockerfile: 'Dockerfile_debian'
-        tags: |
-           $(Build.BuildNumber)
-
-
-
+        command: 'push'
+        tags: '$(Build.BuildNumber)'
+#  - job:
+#    steps:
+#    - checkout: self
+#    - script: | 
+#        echo '$(Build.Repository.Name).$(Build.BuildNumber)'
+#        echo $(FAXE-CRATE-HTTP-PASS-KeyVault-Test)
+#    - task: Docker@2
+#      inputs:
+#        containerRegistry: 'nexus-docker-connection'
+#        repository: 'faxe'
+#        command: 'buildAndPush'
+#        Dockerfile: 'Dockerfile_debian'
+#        tags: |
+#           $(Build.BuildNumber)
+#    - script: |
+#        sudo apt-get install rpm
+#        wget https://github.com/aquasecurity/trivy/releases/download/v$(trivyVersion)/trivy_$(trivyVersion)_Linux-64bit.deb
+#        sudo dpkg -i trivy_$(trivyVersion)_Linux-64bit.deb
+#        trivy -v
+#  displayName: 'Download and install Trivy'
