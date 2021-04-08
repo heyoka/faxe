@@ -2,7 +2,7 @@ trigger:
 - none
 
 variables:
-- group: 'faxe_dev - Devcloud - secret' # variable group
+#- group: 'faxe_dev - Devcloud - secret' # variable group
 - name: trivyVersion
   value: '0.9.1'
 
