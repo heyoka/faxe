@@ -27,8 +27,8 @@ stages:
         Dockerfile: 'Dockerfile_debian'
         tags: |
           latest
-          '$(Build.BuildNumber)'
-          '$(Build.BuildNumber)-dev'
+          $(Build.BuildNumber)
+          $(Build.BuildNumber)-dev
 
       displayName: build container image
     - script: |    
