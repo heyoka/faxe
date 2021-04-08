@@ -51,7 +51,8 @@ options() -> [
    {routing_key_lambda, lambda, undefined},
    {exchange, string},
    {ssl, is_set, false},
-   {safe, is_set, false}].
+   {safe, is_set, false},
+   {persistent, bool, false}].
 
 check_options() ->
    [{one_of_params, [routing_key, routing_key_lambda]}].
@@ -63,7 +64,8 @@ metrics() ->
 
 init({_GraphId, _NodeId} = Idx, _Ins,
    #{ host := Host0, port := Port, user := _User, pass := _Pass, vhost := _VHost, exchange := Ex,
-      routing_key := RoutingKey, routing_key_lambda := RkLambda, ssl := _UseSSL, safe := Safe} = Opts0) ->
+      routing_key := RoutingKey, routing_key_lambda := RkLambda, ssl := _UseSSL,
+      safe := Safe, persistent := Persist} = Opts0) ->
 
    process_flag(trap_exit, true),
    Host = binary_to_list(Host0),

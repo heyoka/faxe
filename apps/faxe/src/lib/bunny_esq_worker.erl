@@ -8,7 +8,7 @@
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 -include_lib("amqp_client/include/amqp_client.hrl").
 
--define(DELIVERY_MODE, 1).
+-define(DELIVERY_MODE_NON_PERSISTENT, 1).
 -define(DEQ_INTERVAL, 15).
 
 -record(state, {
@@ -22,6 +22,7 @@
    queue,
    deq_interval         = ?DEQ_INTERVAL,
    deq_timer_ref,
+   delivery_mode        = ?DELIVERY_MODE_NON_PERSISTENT,
    safe_mode            = false %% whether to work with ondisc queue acks
 }).
 
@@ -63,7 +64,14 @@ init([Queue, Config]) ->
    AmqpParams = amqp_options:parse(Config),
    DeqInterval = proplists:get_value(deq_interval, faxe_config:get_esq_opts(), ?DEQ_INTERVAL),
    SafeMode = maps:get(safe_mode, Config, false),
-   {ok, #state{queue = Queue, config = AmqpParams, deq_interval = DeqInterval, safe_mode = SafeMode}}.
+   DeliveryMode = case maps:get(persistent, Config, false) of true -> 2; false -> 1 end,
+   lager:notice("Delivery-Mode: ~p",[DeliveryMode]),
+   {ok, #state{
+      queue = Queue,
+      config = AmqpParams,
+      deq_interval = DeqInterval,
+      delivery_mode = DeliveryMode,
+      safe_mode = SafeMode}}.
 
 -spec handle_cast(term(), state()) -> {noreply, state()}.
 handle_cast(Msg, State) ->
@@ -220,13 +228,13 @@ next(#state{queue = Q} = State) ->
 deliver({_Exchange, _Key, _Payload, _Args}, _QReceipt, State = #state{available = false}) ->
    lager:warning("channel is not available"),
    State;
-deliver({Exchange, Key, Payload, Args}, QReceipt, State = #state{channel = Channel}) ->
+deliver({Exchange, Key, Payload, Args}, QReceipt, State = #state{channel = Channel, delivery_mode = DeliveryMode}) ->
 %%   lager:notice("Channel is: ~p",[Channel]),
    NextSeqNo = amqp_channel:next_publish_seqno(Channel),
 
    Publish = #'basic.publish'{mandatory = false, exchange = Exchange, routing_key = Key},
    Message = #amqp_msg{payload = Payload,
-      props = #'P_basic'{delivery_mode = ?DELIVERY_MODE, headers = Args}
+      props = #'P_basic'{delivery_mode = DeliveryMode, headers = Args}
    },
    NewState =
       case amqp_channel:call(Channel, Publish, Message) of
