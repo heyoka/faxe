@@ -65,7 +65,6 @@ init([Queue, Config]) ->
    DeqInterval = proplists:get_value(deq_interval, faxe_config:get_esq_opts(), ?DEQ_INTERVAL),
    SafeMode = maps:get(safe_mode, Config, false),
    DeliveryMode = case maps:get(persistent, Config, false) of true -> 2; false -> 1 end,
-   lager:notice("Delivery-Mode: ~p",[DeliveryMode]),
    {ok, #state{
       queue = Queue,
       config = AmqpParams,

@@ -81,6 +81,7 @@ options() -> [
    {amqp_vhost, string, <<"/">>},
    {amqp_exchange, string, <<"x">>},
    {amqp_ssl, is_set, false},
+   {persistent, bool, false},
    %% OTHER
    {reset_timeout, duration, <<"5m">>},
    {max_publishers, integer, 3},
@@ -105,7 +106,7 @@ init(NodeId, _Ins,
       ssl := UseSSL, qos := Qos,
       %% AMQP
       amqp_host := AMQPHost0, amqp_port := AMQPPort, amqp_user := AMQPUser, amqp_pass := AMQPPass,
-      amqp_vhost := AMQPVHost, amqp_exchange := AMQPEx, amqp_ssl := AMQPUseSSL,
+      amqp_vhost := AMQPVHost, amqp_exchange := AMQPEx, amqp_ssl := AMQPUseSSL, persistent := Persistent,
       %% OTHER
       reset_timeout := RTimeout, max_publishers := MaxPublishers, safe := Safe
       } = _Opts) ->
@@ -114,7 +115,7 @@ init(NodeId, _Ins,
    AMQPOpts = #{
       host => binary_to_list(AMQPHost0), port => AMQPPort, user => AMQPUser,
       pass => AMQPPass, vhost => AMQPVHost, exchange => AMQPEx,
-      ssl => AMQPUseSSL, safe_mode => Safe
+      ssl => AMQPUseSSL, safe_mode => Safe, persistent := Persistent
    },
 
    %% MQTT
