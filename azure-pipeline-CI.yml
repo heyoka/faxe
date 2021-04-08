@@ -33,7 +33,9 @@ stages:
       displayName: build container image
     - script: |
         echo ---------------------
+        whoami
         ls -l /var/run/docker.sock
+        docker images
         echo ---------------------
         docker run --rm -v /var/run/docker.sock:/var/run/docker.sock  aquasec/trivy:0.16.0 --severity HIGH,CRITICAL faxe:$(Build.BuildNumber)
       displayName: Scan
