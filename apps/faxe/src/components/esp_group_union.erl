@@ -18,6 +18,7 @@
 options() -> [].
 
 init(NodeId, _Inputs, #{}) ->
+   lager:notice("PID group_union: ~p",[self()]),
    {ok, all, NodeId}.
 
 process(_In, Item, NodeId) ->

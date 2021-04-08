@@ -38,5 +38,5 @@ def group_field = 'data.code'
 
 %% |> end group
 
-|debug('alert')
-|log('text.txt')
+%|debug('alert')
+%|log('text.txt')

@@ -463,7 +463,8 @@ clone_and_start_subgraph(FromVertex,
             fun(Edge) ->
                {_E, V1, UnionNode, Label} = Ed = digraph:edge(G, Edge),
                lager:notice("Edge: ~p~n~p",[Ed, proplists:get_value(V1, CopiedVertices)]),
-               digraph:add_edge(G, proplists:get_value(V1, CopiedVertices), UnionNode, Label)
+               Res = digraph:add_edge(G, proplists:get_value(V1, CopiedVertices), UnionNode, Label),
+               lager:critical("RES: ~p",[Res])
             end,
          lists:foreach(Fun, UnionInEdges)
    end,
@@ -487,8 +488,8 @@ clone_and_start_subgraph(FromVertex,
    %% tell the union-node about it's new subscriptions
    case UnionNode of
       undefined -> ok;
-      _ -> {_Ins, SubsUnion} = proplists:get_value(UnionNode, Subscriptions),
-         [lager:notice("SubUnion: ~p",[Su]) || Su <- SubsUnion],
+      _ -> {Ins, SubsUnion} = proplists:get_value(UnionNode, Subscriptions),
+         [lager:notice("SubUnion: ~p~n ------------- INS: ~p",[Su, Ins]) || Su <- SubsUnion],
          df_subscription:save_subscriptions({State#state.id, UnionNode}, SubsUnion)
    end,
 
