@@ -8,8 +8,11 @@ trigger:
 
 variables:
 - group: 'faxe_prod - Azure' # variable group
+- group: 'faxe_prod - Azure - secret' # variable group for keyvault entries (user+pw)
 - name: environmentFile
   value: /opt/tgw/docker_storage/azure.env
+- name: composeymlFile
+  value: /opt/tgw/faxe_repo/docker-compose-azure.yml
 
 pool: azure-faxe-cluster
 
@@ -41,166 +44,267 @@ steps:
     TargetFolder: '/opt/tgw/faxe_repo'
     CleanTargetFolder: true
     overWrite: true
-- script: | 
-    cd /opt/tgw/faxe_repo
-    # gather azure build information:
-    echo '$(Build.Repository.Name).$(Build.BuildNumber)'
-    TAG=$(echo '$(Build.Repository.Name):$(Build.BuildNumber)')
-    echo "creating env file"
-    [ ${#FAXE_ALLOW_ANONYMOUS} == "0" ] || echo "FAXE_ALLOW_ANONYMOUS=$FAXE_ALLOW_ANONYMOUS" > $(environmentFile)
-    [ ${#FAXE_AMQP_HEARTBEAT} == "0" ] || echo "FAXE_AMQP_HEARTBEAT=$FAXE_AMQP_HEARTBEAT" >> $(environmentFile)
-    [ ${#FAXE_AMQP_HOST} == "0" ] || echo "FAXE_AMQP_HOST=$FAXE_AMQP_HOST" >> $(environmentFile)
-    [ $(echo $(FAXE_AMQP_PASS) | wc --chars) == "0" ] || echo "FAXE_AMQP_PASS=$(FAXE_AMQP_PASS)" >> $(environmentFile)
-    [ ${#FAXE_AMQP_PORT} == "0" ] || echo "FAXE_AMQP_PORT=$FAXE_AMQP_PORT" >> $(environmentFile)
-    [ ${#FAXE_AMQP_SSL_CACERTFILE} == "0" ] || echo "FAXE_AMQP_SSL_CACERTFILE=$FAXE_AMQP_SSL_CACERTFILE" >> $(environmentFile)
-    [ ${#FAXE_AMQP_SSL_CERTFILE} == "0" ] || echo "FAXE_AMQP_SSL_CERTFILE=$FAXE_AMQP_SSL_CERTFILE" >> $(environmentFile)
-    [ ${#FAXE_AMQP_SSL_ENABLE} == "0" ] || echo "FAXE_AMQP_SSL_ENABLE=$FAXE_AMQP_SSL_ENABLE" >> $(environmentFile)
-    [ ${#FAXE_AMQP_SSL_KEYFILE} == "0" ] || echo "FAXE_AMQP_SSL_KEYFILE=$FAXE_AMQP_SSL_KEYFILE" >> $(environmentFile)
-    [ ${#FAXE_AMQP_SSL_VERIFY} == "0" ] || echo "FAXE_AMQP_SSL_VERIFY=$FAXE_AMQP_SSL_VERIFY" >> $(environmentFile)
-    [ $(echo $(FAXE_AMQP_USER) | wc --chars) == "0" ] || echo "FAXE_AMQP_USER=$(FAXE_AMQP_USER)" >> $(environmentFile)
-    [ ${#FAXE_CONN_STATUS_HANDLER_MQTT_BASE_TOPIC} == "0" ] || echo "FAXE_CONN_STATUS_HANDLER_MQTT_BASE_TOPIC=$FAXE_CONN_STATUS_HANDLER_MQTT_BASE_TOPIC" >> $(environmentFile)
-    [ ${#FAXE_CONN_STATUS_HANDLER_MQTT_ENABLE} == "0" ] || echo "FAXE_CONN_STATUS_HANDLER_MQTT_ENABLE=$FAXE_CONN_STATUS_HANDLER_MQTT_ENABLE" >> $(environmentFile)
-    [ ${#FAXE_CONN_STATUS_HANDLER_MQTT_HOST} == "0" ] || echo "FAXE_CONN_STATUS_HANDLER_MQTT_HOST=$FAXE_CONN_STATUS_HANDLER_MQTT_HOST" >> $(environmentFile)
-    [ ${#FAXE_CONN_STATUS_HANDLER_MQTT_PORT} == "0" ] || echo "FAXE_CONN_STATUS_HANDLER_MQTT_PORT=$FAXE_CONN_STATUS_HANDLER_MQTT_PORT" >> $(environmentFile)
-    [ ${#FAXE_CRATE_DATABASE} == "0" ] || echo "FAXE_CRATE_DATABASE=$FAXE_CRATE_DATABASE" >> $(environmentFile)
-    [ ${#FAXE_CRATE_HOST} == "0" ] || echo "FAXE_CRATE_HOST=$FAXE_CRATE_HOST" >> $(environmentFile)
-    [ ${#FAXE_CRATE_HTTP_DATABASE} == "0" ] || echo "FAXE_CRATE_HTTP_DATABASE=$FAXE_CRATE_HTTP_DATABASE" >> $(environmentFile)
-    [ ${#FAXE_CRATE_HTTP_HOST} == "0" ] || echo "FAXE_CRATE_HTTP_HOST=$FAXE_CRATE_HTTP_HOST" >> $(environmentFile)
-    [ $(echo $(FAXE_CRATE_HTTP_PASS) | wc --chars) == "0" ] || echo "FAXE_CRATE_HTTP_PASS=$(FAXE_CRATE_HTTP_PASS)" >> $(environmentFile)
-    [ ${#FAXE_CRATE_HTTP_PORT} == "0" ] || echo "FAXE_CRATE_HTTP_PORT=$FAXE_CRATE_HTTP_PORT" >> $(environmentFile)
-    [ $(echo $(FAXE_CRATE_HTTP_USER) | wc --chars) == "0" ] || echo "FAXE_CRATE_HTTP_USER=$(FAXE_CRATE_HTTP_USER)" >> $(environmentFile)
-    [ $(echo $(FAXE_CRATE_PASS) | wc --chars) == "0" ] || echo "FAXE_CRATE_PASS=$(FAXE_CRATE_PASS)" >> $(environmentFile)
-    [ ${#FAXE_CRATE_PORT} == "0" ] || echo "FAXE_CRATE_PORT=$FAXE_CRATE_PORT" >> $(environmentFile)
-    [ $(echo $(FAXE_CRATE_USER) | wc --chars) == "0" ] || echo "FAXE_CRATE_USER=$(FAXE_CRATE_USER)" >> $(environmentFile)
-    [ ${#FAXE_DEBUG_HANDLER_MQTT_BASE_TOPIC} == "0" ] || echo "FAXE_DEBUG_HANDLER_MQTT_BASE_TOPIC=$FAXE_DEBUG_HANDLER_MQTT_BASE_TOPIC" >> $(environmentFile)
-    [ ${#FAXE_DEBUG_HANDLER_MQTT_ENABLE} == "0" ] || echo "FAXE_DEBUG_HANDLER_MQTT_ENABLE=$FAXE_DEBUG_HANDLER_MQTT_ENABLE" >> $(environmentFile)
-    [ ${#FAXE_DEBUG_HANDLER_MQTT_HOST} == "0" ] || echo "FAXE_DEBUG_HANDLER_MQTT_HOST=$FAXE_DEBUG_HANDLER_MQTT_HOST" >> $(environmentFile)
-    [ ${#FAXE_DEBUG_HANDLER_MQTT_PORT} == "0" ] || echo "FAXE_DEBUG_HANDLER_MQTT_PORT=$FAXE_DEBUG_HANDLER_MQTT_PORT" >> $(environmentFile)
-    [ ${#FAXE_DEBUG_TIME} == "0" ] || echo "FAXE_DEBUG_TIME=$FAXE_DEBUG_TIME" >> $(environmentFile)
-    [ $(echo $(FAXE_DEFAULT_PASSWORD) | wc --chars) == "0" ] || echo "FAXE_DEFAULT_PASSWORD=$(FAXE_DEFAULT_PASSWORD)" >> $(environmentFile)
-    [ $(echo $(FAXE_DEFAULT_USERNAME) | wc --chars) == "0" ] || echo "FAXE_DEFAULT_USERNAME=$(FAXE_DEFAULT_USERNAME)" >> $(environmentFile)
-    [ ${#FAXE_DEQUEUE_INTERVAL} == "0" ] || echo "FAXE_DEQUEUE_INTERVAL=$FAXE_DEQUEUE_INTERVAL" >> $(environmentFile)
-    [ ${#FAXE_DFS_SCRIPT_PATH} == "0" ] || echo "FAXE_DFS_SCRIPT_PATH=$FAXE_DFS_SCRIPT_PATH" >> $(environmentFile)
-    [ $(echo $(FAXE_DISTRIBUTED_COOKIE) | wc --chars) == "0" ] || echo "FAXE_DISTRIBUTED_COOKIE=$(FAXE_DISTRIBUTED_COOKIE)" >> $(environmentFile)
-    [ ${#FAXE_EMAIL_FROM} == "0" ] || echo "FAXE_EMAIL_FROM=$FAXE_EMAIL_FROM" >> $(environmentFile)
-    [ $(echo $(FAXE_EMAIL_PASS) | wc --chars) == "0" ] || echo "FAXE_EMAIL_PASS=$(FAXE_EMAIL_PASS)" >> $(environmentFile)
-    [ ${#FAXE_EMAIL_PORT} == "0" ] || echo "FAXE_EMAIL_PORT=$FAXE_EMAIL_PORT" >> $(environmentFile)
-    [ ${#FAXE_EMAIL_SMTP} == "0" ] || echo "FAXE_EMAIL_SMTP=$FAXE_EMAIL_SMTP" >> $(environmentFile)
-    [ ${#FAXE_EMAIL_TEMPLATE} == "0" ] || echo "FAXE_EMAIL_TEMPLATE=$FAXE_EMAIL_TEMPLATE" >> $(environmentFile)
-    [ ${#FAXE_EMAIL_TLS} == "0" ] || echo "FAXE_EMAIL_TLS=$FAXE_EMAIL_TLS" >> $(environmentFile)
-    [ $(echo $(FAXE_EMAIL_USER) | wc --chars) == "0" ] || echo "FAXE_EMAIL_USER=$(FAXE_EMAIL_USER)" >> $(environmentFile)
-    [ ${#FAXE_ERLANG_ASYNC_THREADS} == "0" ] || echo "FAXE_ERLANG_ASYNC_THREADS=$FAXE_ERLANG_ASYNC_THREADS" >> $(environmentFile)
-    [ ${#FAXE_ERLANG_MAX_PORTS} == "0" ] || echo "FAXE_ERLANG_MAX_PORTS=$FAXE_ERLANG_MAX_PORTS" >> $(environmentFile)
-    [ ${#FAXE_FLOW_AUTO_START} == "0" ] || echo "FAXE_FLOW_AUTO_START=$FAXE_FLOW_AUTO_START" >> $(environmentFile)
-    [ ${#FAXE_HTTP_API_CIPHERS} == "0" ] || echo "FAXE_HTTP_API_CIPHERS=$FAXE_HTTP_API_CIPHERS" >> $(environmentFile)
-    [ ${#FAXE_HTTP_API_PORT} == "0" ] || echo "FAXE_HTTP_API_PORT=$FAXE_HTTP_API_PORT" >> $(environmentFile)
-    [ ${#FAXE_HTTP_API_SSL_CACERTFILE} == "0" ] || echo "FAXE_HTTP_API_SSL_CACERTFILE=$FAXE_HTTP_API_SSL_CACERTFILE" >> $(environmentFile)
-    [ ${#FAXE_HTTP_API_SSL_CERTFILE} == "0" ] || echo "FAXE_HTTP_API_SSL_CERTFILE=$FAXE_HTTP_API_SSL_CERTFILE" >> $(environmentFile)
-    [ ${#FAXE_HTTP_API_SSL_KEYFILE} == "0" ] || echo "FAXE_HTTP_API_SSL_KEYFILE=$FAXE_HTTP_API_SSL_KEYFILE" >> $(environmentFile)
-    [ ${#FAXE_HTTP_API_TLS_ENABLE} == "0" ] || echo "FAXE_HTTP_API_TLS_ENABLE=$FAXE_HTTP_API_TLS_ENABLE" >> $(environmentFile)
-    [ ${#FAXE_INFLUX_HTTP_HOST} == "0" ] || echo "FAXE_INFLUX_HTTP_HOST=$FAXE_INFLUX_HTTP_HOST" >> $(environmentFile)
-    [ $(echo $(FAXE_INFLUX_HTTP_PASS) | wc --chars) == "0" ] || echo "FAXE_INFLUX_HTTP_PASS=$(FAXE_INFLUX_HTTP_PASS)" >> $(environmentFile)
-    [ ${#FAXE_INFLUX_HTTP_PORT} == "0" ] || echo "FAXE_INFLUX_HTTP_PORT=$FAXE_INFLUX_HTTP_PORT" >> $(environmentFile)
-    [ $(echo $(FAXE_INFLUX_HTTP_USER) | wc --chars) == "0" ] || echo "FAXE_INFLUX_HTTP_USER=$(FAXE_INFLUX_HTTP_USER)" >> $(environmentFile)
-    [ ${#FAXE_LOG_CONSOLE_LEVEL} == "0" ] || echo "FAXE_LOG_CONSOLE_LEVEL=$FAXE_LOG_CONSOLE_LEVEL" >> $(environmentFile)
-    [ ${#FAXE_LOG_EMIT_LEVEL} == "0" ] || echo "FAXE_LOG_EMIT_LEVEL=$FAXE_LOG_EMIT_LEVEL" >> $(environmentFile)
-    [ ${#FAXE_METRICS_HANDLER_MQTT_BASE_TOPIC} == "0" ] || echo "FAXE_METRICS_HANDLER_MQTT_BASE_TOPIC=$FAXE_METRICS_HANDLER_MQTT_BASE_TOPIC" >> $(environmentFile)
-    [ ${#FAXE_METRICS_HANDLER_MQTT_ENABLE} == "0" ] || echo "FAXE_METRICS_HANDLER_MQTT_ENABLE=$FAXE_METRICS_HANDLER_MQTT_ENABLE" >> $(environmentFile)
-    [ ${#FAXE_METRICS_HANDLER_MQTT_HOST} == "0" ] || echo "FAXE_METRICS_HANDLER_MQTT_HOST=$FAXE_METRICS_HANDLER_MQTT_HOST" >> $(environmentFile)
-    [ ${#FAXE_METRICS_HANDLER_MQTT_PORT} == "0" ] || echo "FAXE_METRICS_HANDLER_MQTT_PORT=$FAXE_METRICS_HANDLER_MQTT_PORT" >> $(environmentFile)
-    [ ${#FAXE_MNESIA_DIR} == "0" ] || echo "FAXE_MNESIA_DIR=$FAXE_MNESIA_DIR" >> $(environmentFile)
-    [ ${#FAXE_MQTT_HOST} == "0" ] || echo "FAXE_MQTT_HOST=$FAXE_MQTT_HOST" >> $(environmentFile)
-    [ $(echo $(FAXE_MQTT_PASS) | wc --chars) == "0" ] || echo "FAXE_MQTT_PASS=$(FAXE_MQTT_PASS)" >> $(environmentFile)
-    [ ${#FAXE_MQTT_PORT} == "0" ] || echo "FAXE_MQTT_PORT=$FAXE_MQTT_PORT" >> $(environmentFile)
-    [ ${#FAXE_MQTT_SSL_CACERTFILE} == "0" ] || echo "FAXE_MQTT_SSL_CACERTFILE=$FAXE_MQTT_SSL_CACERTFILE" >> $(environmentFile)
-    [ ${#FAXE_MQTT_SSL_CERTFILE} == "0" ] || echo "FAXE_MQTT_SSL_CERTFILE=$FAXE_MQTT_SSL_CERTFILE" >> $(environmentFile)
-    [ ${#FAXE_MQTT_SSL_ENABLE} == "0" ] || echo "FAXE_MQTT_SSL_ENABLE=$FAXE_MQTT_SSL_ENABLE" >> $(environmentFile)
-    [ ${#FAXE_MQTT_SSL_KEYFILE} == "0" ] || echo "FAXE_MQTT_SSL_KEYFILE=$FAXE_MQTT_SSL_KEYFILE" >> $(environmentFile)
-    [ $(echo $(FAXE_MQTT_USER) | wc --chars) == "0" ] || echo "FAXE_MQTT_USER=$(FAXE_MQTT_USER)" >> $(environmentFile)
-    [ ${#FAXE_NODENAME} == "0" ] || echo "FAXE_NODENAME=$FAXE_NODENAME" >> $(environmentFile)
-    [ ${#FAXE_PYTHON_SCRIPT_PATH} == "0" ] || echo "FAXE_PYTHON_SCRIPT_PATH=$FAXE_PYTHON_SCRIPT_PATH" >> $(environmentFile)
-    [ ${#FAXE_PYTHON_VERSION} == "0" ] || echo "FAXE_PYTHON_VERSION=$FAXE_PYTHON_VERSION" >> $(environmentFile)
-    [ ${#FAXE_QUEUE_BASE_DIR} == "0" ] || echo "FAXE_QUEUE_BASE_DIR=$FAXE_QUEUE_BASE_DIR" >> $(environmentFile)
-    [ ${#FAXE_QUEUE_CAPACITY} == "0" ] || echo "FAXE_QUEUE_CAPACITY=$FAXE_QUEUE_CAPACITY" >> $(environmentFile)
-    [ ${#FAXE_QUEUE_TTF} == "0" ] || echo "FAXE_QUEUE_TTF=$FAXE_QUEUE_TTF" >> $(environmentFile)
-    [ ${#FAXE_QUEUE_TTL} == "0" ] || echo "FAXE_QUEUE_TTL=$FAXE_QUEUE_TTL" >> $(environmentFile)
-    [ ${#FAXE_QUEUE_TTS} == "0" ] || echo "FAXE_QUEUE_TTS=$FAXE_QUEUE_TTS" >> $(environmentFile)
-    [ ${#FAXE_RABBITMQ_ROOT_EXCHANGE} == "0" ] || echo "FAXE_RABBITMQ_ROOT_EXCHANGE=$FAXE_RABBITMQ_ROOT_EXCHANGE" >> $(environmentFile)
-    [ ${#FAXE_S7POOL_MAX_SIZE} == "0" ] || echo "FAXE_S7POOL_MAX_SIZE=$FAXE_S7POOL_MAX_SIZE" >> $(environmentFile)
-    [ ${#FAXE_S7POOL_MIN_SIZE} == "0" ] || echo "FAXE_S7POOL_MIN_SIZE=$FAXE_S7POOL_MIN_SIZE" >> $(environmentFile)   
-    #check for empty lines in env file
-    while read line; do
-      if [ $(echo $line | cut -d "=" -f2 |wc --char) -gt 1 ]
-        then 
-          echo "key/value ok"
-        else 
-          echo "key without value: $line => remove it"
-          sed "s!$line!!" -i $(environmentFile) ;
-      fi
-    done < $(environmentFile)
-    # remove empty lines in env file
-    sed -i '/^[[:blank:]]*$/d' $(environmentFile)
-    # sort env file
-    sort $(environmentFile) -o $(environmentFile)
-    #build container-image
-    sudo -u $(FAXE_RUNTIME_USER) docker build -t $(Build.Repository.Name):$(Build.BuildNumber) -f Dockerfile_debian .
+- task: Bash@3
+  inputs:
+    workingDirectory: /opt/tgw
+    targetType: 'inline'
+    script: |
+        cd /opt/tgw/faxe_repo
+        TAG=$(echo $(Build.Repository.Name):$(Build.BuildNumber) | tr '[:upper:]' '[:lower:]' )
+        # gather azure build information:
+        echo '$(Build.Repository.Name):$(Build.BuildNumber)'
+        echo "creating env file from keyvault"
+        rm -r $(environmentFile)
+        touch $(environmentFile)
+        echo "FAXE_AMQP_PASS=$(P-FAXE-AMQP-PASS)" >> $(environmentFile)
+        echo "FAXE_AMQP_USER=$(P-FAXE-AMQP-USER)" >> $(environmentFile)
+        echo "FAXE_CRATE_HTTP_PASS=$(P-FAXE-CRATE-HTTP-PASS)" >> $(environmentFile)
+        echo "FAXE_CRATE_HTTP_USER=$(P-FAXE-CRATE-HTTP-USER)" >> $(environmentFile)
+        echo "FAXE_CRATE_PASS=$(P-FAXE-CRATE-PASS)" >> $(environmentFile)
+        echo "FAXE_CRATE_USER=$(P-FAXE-CRATE-USER)" >> $(environmentFile)
+        echo "FAXE_EMAIL_PASS=$(P-FAXE-EMAIL-PASS)" >> $(environmentFile)
+        echo "FAXE_EMAIL_USER=$(P-FAXE-EMAIL-USER)" >> $(environmentFile)
+        echo "FAXE_DEFAULT_PASSWORD=$(P-FAXE-DEFAULT-PASSWORD)" >> $(environmentFile)
+        echo "FAXE_DEFAULT_PASSWORD=$(P-FAXE-DEFAULT-USERNAME)" >> $(environmentFile)
+        echo "FAXE_DEFAULT_USERNAME=$(P-FAXE-INFLUX-HTTP-USER)" >> $(environmentFile)
+        echo "FAXE_INFLUX_HTTP_PASS=$(P-FAXE-INFLUX-HTTP-PASS)" >> $(environmentFile)
+        echo "FAXE_MQTT_PASS=$(P-FAXE-MQTT-PASS)" >> $(environmentFile)
+        echo "FAXE_MQTT_USER=$(P-FAXE-MQTT-USER)" >> $(environmentFile)
+        echo "FAXE_DISTRIBUTED_COOKIE=$(P-FAXE-DISTRIBUTED-COOKIE)" >> $(environmentFile)
 
-    # manipulate docker-compose file:
-    # inject current build number into compose-file
-    sed "s!Dockerfile_debian!$TAG!g" -i docker-compose-azure.yml
-    # inject env file into docker-compose file:
-    sed "sL/opt/tgw/docker_storage/azure.envL$(environmentFile)L" -i  docker-compose-azure.yml
 
+        # filter all ENVs with value "unset"
+        echo "removing ENV Values:"
+        grep unset $(environmentFile)
+        sed 's!^.*unset$!!g' -i $(environmentFile)
+
+        # sort env file
+        sort $(environmentFile) -o $(environmentFile)
+        # remove empty lines
+        sed -i '/^[[:blank:]]*$/d' $(environmentFile)
+  displayName: 'configure env file from keyvault values'
+- task: Bash@3
+  inputs:
+    workingDirectory: /opt/tgw
+    targetType: 'inline'
+    script: |
+        cd /opt/tgw/faxe_repo
+        # gather azure build information:
+        echo '$(Build.Repository.Name).$(Build.BuildNumber)'
+        TAG=$(echo '$(Build.Repository.Name):$(Build.BuildNumber)')
+        echo "creating env file"
+        touch $(environmentFile)
+        [ ${#FAXE_ALLOW_ANONYMOUS} == "0" ] || echo "FAXE_ALLOW_ANONYMOUS=$FAXE_ALLOW_ANONYMOUS" >> $(environmentFile)
+        [ ${#FAXE_AMQP_HEARTBEAT} == "0" ] || echo "FAXE_AMQP_HEARTBEAT=$FAXE_AMQP_HEARTBEAT" >> $(environmentFile)
+        [ ${#FAXE_AMQP_HOST} == "0" ] || echo "FAXE_AMQP_HOST=$FAXE_AMQP_HOST" >> $(environmentFile)
+        [ ${#FAXE_AMQP_PORT} == "0" ] || echo "FAXE_AMQP_PORT=$FAXE_AMQP_PORT" >> $(environmentFile)
+        [ ${#FAXE_AMQP_SSL_CACERTFILE} == "0" ] || echo "FAXE_AMQP_SSL_CACERTFILE=$FAXE_AMQP_SSL_CACERTFILE" >> $(environmentFile)
+        [ ${#FAXE_AMQP_SSL_CERTFILE} == "0" ] || echo "FAXE_AMQP_SSL_CERTFILE=$FAXE_AMQP_SSL_CERTFILE" >> $(environmentFile)
+        [ ${#FAXE_AMQP_SSL_ENABLE} == "0" ] || echo "FAXE_AMQP_SSL_ENABLE=$FAXE_AMQP_SSL_ENABLE" >> $(environmentFile)
+        [ ${#FAXE_AMQP_SSL_KEYFILE} == "0" ] || echo "FAXE_AMQP_SSL_KEYFILE=$FAXE_AMQP_SSL_KEYFILE" >> $(environmentFile)
+        [ ${#FAXE_AMQP_SSL_VERIFY} == "0" ] || echo "FAXE_AMQP_SSL_VERIFY=$FAXE_AMQP_SSL_VERIFY" >> $(environmentFile)      
+        [ ${#FAXE_CONN_STATUS_HANDLER_MQTT_BASE_TOPIC} == "0" ] || echo "FAXE_CONN_STATUS_HANDLER_MQTT_BASE_TOPIC=$FAXE_CONN_STATUS_HANDLER_MQTT_BASE_TOPIC" >> $(environmentFile)
+        [ ${#FAXE_CONN_STATUS_HANDLER_MQTT_ENABLE} == "0" ] || echo "FAXE_CONN_STATUS_HANDLER_MQTT_ENABLE=$FAXE_CONN_STATUS_HANDLER_MQTT_ENABLE" >> $(environmentFile)
+        [ ${#FAXE_CONN_STATUS_HANDLER_MQTT_HOST} == "0" ] || echo "FAXE_CONN_STATUS_HANDLER_MQTT_HOST=$FAXE_CONN_STATUS_HANDLER_MQTT_HOST" >> $(environmentFile)
+        [ ${#FAXE_CONN_STATUS_HANDLER_MQTT_PORT} == "0" ] || echo "FAXE_CONN_STATUS_HANDLER_MQTT_PORT=$FAXE_CONN_STATUS_HANDLER_MQTT_PORT" >> $(environmentFile)
+        [ ${#FAXE_CRATE_DATABASE} == "0" ] || echo "FAXE_CRATE_DATABASE=$FAXE_CRATE_DATABASE" >> $(environmentFile)
+        [ ${#FAXE_CRATE_HOST} == "0" ] || echo "FAXE_CRATE_HOST=$FAXE_CRATE_HOST" >> $(environmentFile)
+        [ ${#FAXE_CRATE_HTTP_DATABASE} == "0" ] || echo "FAXE_CRATE_HTTP_DATABASE=$FAXE_CRATE_HTTP_DATABASE" >> $(environmentFile)
+        [ ${#FAXE_CRATE_HTTP_HOST} == "0" ] || echo "FAXE_CRATE_HTTP_HOST=$FAXE_CRATE_HTTP_HOST" >> $(environmentFile)
+        [ ${#FAXE_CRATE_HTTP_PORT} == "0" ] || echo "FAXE_CRATE_HTTP_PORT=$FAXE_CRATE_HTTP_PORT" >> $(environmentFile)
+        [ ${#FAXE_CRATE_PORT} == "0" ] || echo "FAXE_CRATE_PORT=$FAXE_CRATE_PORT" >> $(environmentFile)
+        [ ${#FAXE_DEBUG_HANDLER_MQTT_BASE_TOPIC} == "0" ] || echo "FAXE_DEBUG_HANDLER_MQTT_BASE_TOPIC=$FAXE_DEBUG_HANDLER_MQTT_BASE_TOPIC" >> $(environmentFile)
+        [ ${#FAXE_DEBUG_HANDLER_MQTT_ENABLE} == "0" ] || echo "FAXE_DEBUG_HANDLER_MQTT_ENABLE=$FAXE_DEBUG_HANDLER_MQTT_ENABLE" >> $(environmentFile)
+        [ ${#FAXE_DEBUG_HANDLER_MQTT_HOST} == "0" ] || echo "FAXE_DEBUG_HANDLER_MQTT_HOST=$FAXE_DEBUG_HANDLER_MQTT_HOST" >> $(environmentFile)
+        [ ${#FAXE_DEBUG_HANDLER_MQTT_PORT} == "0" ] || echo "FAXE_DEBUG_HANDLER_MQTT_PORT=$FAXE_DEBUG_HANDLER_MQTT_PORT" >> $(environmentFile)
+        [ ${#FAXE_DEBUG_TIME} == "0" ] || echo "FAXE_DEBUG_TIME=$FAXE_DEBUG_TIME" >> $(environmentFile)
+        [ ${#FAXE_DEQUEUE_INTERVAL} == "0" ] || echo "FAXE_DEQUEUE_INTERVAL=$FAXE_DEQUEUE_INTERVAL" >> $(environmentFile)
+        [ ${#FAXE_DFS_SCRIPT_PATH} == "0" ] || echo "FAXE_DFS_SCRIPT_PATH=$FAXE_DFS_SCRIPT_PATH" >> $(environmentFile)
+        [ ${#FAXE_EMAIL_FROM} == "0" ] || echo "FAXE_EMAIL_FROM=$FAXE_EMAIL_FROM" >> $(environmentFile)
+        [ ${#FAXE_EMAIL_PORT} == "0" ] || echo "FAXE_EMAIL_PORT=$FAXE_EMAIL_PORT" >> $(environmentFile)
+        [ ${#FAXE_EMAIL_SMTP} == "0" ] || echo "FAXE_EMAIL_SMTP=$FAXE_EMAIL_SMTP" >> $(environmentFile)
+        [ ${#FAXE_EMAIL_TEMPLATE} == "0" ] || echo "FAXE_EMAIL_TEMPLATE=$FAXE_EMAIL_TEMPLATE" >> $(environmentFile)
+        [ ${#FAXE_EMAIL_TLS} == "0" ] || echo "FAXE_EMAIL_TLS=$FAXE_EMAIL_TLS" >> $(environmentFile)
+        [ ${#FAXE_ERLANG_ASYNC_THREADS} == "0" ] || echo "FAXE_ERLANG_ASYNC_THREADS=$FAXE_ERLANG_ASYNC_THREADS" >> $(environmentFile)
+        [ ${#FAXE_ERLANG_MAX_PORTS} == "0" ] || echo "FAXE_ERLANG_MAX_PORTS=$FAXE_ERLANG_MAX_PORTS" >> $(environmentFile)
+        [ ${#FAXE_FLOW_AUTO_START} == "0" ] || echo "FAXE_FLOW_AUTO_START=$FAXE_FLOW_AUTO_START" >> $(environmentFile)
+        [ ${#FAXE_HTTP_API_CIPHERS} == "0" ] || echo "FAXE_HTTP_API_CIPHERS=$FAXE_HTTP_API_CIPHERS" >> $(environmentFile)
+        [ ${#FAXE_HTTP_API_PORT} == "0" ] || echo "FAXE_HTTP_API_PORT=$FAXE_HTTP_API_PORT" >> $(environmentFile)
+        [ ${#FAXE_HTTP_API_SSL_CACERTFILE} == "0" ] || echo "FAXE_HTTP_API_SSL_CACERTFILE=$FAXE_HTTP_API_SSL_CACERTFILE" >> $(environmentFile)
+        [ ${#FAXE_HTTP_API_SSL_CERTFILE} == "0" ] || echo "FAXE_HTTP_API_SSL_CERTFILE=$FAXE_HTTP_API_SSL_CERTFILE" >> $(environmentFile)
+        [ ${#FAXE_HTTP_API_SSL_KEYFILE} == "0" ] || echo "FAXE_HTTP_API_SSL_KEYFILE=$FAXE_HTTP_API_SSL_KEYFILE" >> $(environmentFile)
+        [ ${#FAXE_HTTP_API_TLS_ENABLE} == "0" ] || echo "FAXE_HTTP_API_TLS_ENABLE=$FAXE_HTTP_API_TLS_ENABLE" >> $(environmentFile)
+        [ ${#FAXE_INFLUX_HTTP_HOST} == "0" ] || echo "FAXE_INFLUX_HTTP_HOST=$FAXE_INFLUX_HTTP_HOST" >> $(environmentFile)
+        [ ${#FAXE_INFLUX_HTTP_PORT} == "0" ] || echo "FAXE_INFLUX_HTTP_PORT=$FAXE_INFLUX_HTTP_PORT" >> $(environmentFile)
+        [ ${#FAXE_LOG_CONSOLE_LEVEL} == "0" ] || echo "FAXE_LOG_CONSOLE_LEVEL=$FAXE_LOG_CONSOLE_LEVEL" >> $(environmentFile)
+        [ ${#FAXE_LOG_EMIT_LEVEL} == "0" ] || echo "FAXE_LOG_EMIT_LEVEL=$FAXE_LOG_EMIT_LEVEL" >> $(environmentFile)
+        [ ${#FAXE_METRICS_HANDLER_MQTT_BASE_TOPIC} == "0" ] || echo "FAXE_METRICS_HANDLER_MQTT_BASE_TOPIC=$FAXE_METRICS_HANDLER_MQTT_BASE_TOPIC" >> $(environmentFile)
+        [ ${#FAXE_METRICS_HANDLER_MQTT_ENABLE} == "0" ] || echo "FAXE_METRICS_HANDLER_MQTT_ENABLE=$FAXE_METRICS_HANDLER_MQTT_ENABLE" >> $(environmentFile)
+        [ ${#FAXE_METRICS_HANDLER_MQTT_HOST} == "0" ] || echo "FAXE_METRICS_HANDLER_MQTT_HOST=$FAXE_METRICS_HANDLER_MQTT_HOST" >> $(environmentFile)
+        [ ${#FAXE_METRICS_HANDLER_MQTT_PORT} == "0" ] || echo "FAXE_METRICS_HANDLER_MQTT_PORT=$FAXE_METRICS_HANDLER_MQTT_PORT" >> $(environmentFile)
+        [ ${#FAXE_MNESIA_DIR} == "0" ] || echo "FAXE_MNESIA_DIR=$FAXE_MNESIA_DIR" >> $(environmentFile)
+        [ ${#FAXE_MQTT_HOST} == "0" ] || echo "FAXE_MQTT_HOST=$FAXE_MQTT_HOST" >> $(environmentFile)
+        [ ${#FAXE_MQTT_PORT} == "0" ] || echo "FAXE_MQTT_PORT=$FAXE_MQTT_PORT" >> $(environmentFile)
+        [ ${#FAXE_MQTT_SSL_CACERTFILE} == "0" ] || echo "FAXE_MQTT_SSL_CACERTFILE=$FAXE_MQTT_SSL_CACERTFILE" >> $(environmentFile)
+        [ ${#FAXE_MQTT_SSL_CERTFILE} == "0" ] || echo "FAXE_MQTT_SSL_CERTFILE=$FAXE_MQTT_SSL_CERTFILE" >> $(environmentFile)
+        [ ${#FAXE_MQTT_SSL_ENABLE} == "0" ] || echo "FAXE_MQTT_SSL_ENABLE=$FAXE_MQTT_SSL_ENABLE" >> $(environmentFile)
+        [ ${#FAXE_MQTT_SSL_KEYFILE} == "0" ] || echo "FAXE_MQTT_SSL_KEYFILE=$FAXE_MQTT_SSL_KEYFILE" >> $(environmentFile)
+        [ ${#FAXE_NODENAME} == "0" ] || echo "FAXE_NODENAME=$FAXE_NODENAME" >> $(environmentFile)
+        [ ${#FAXE_PYTHON_SCRIPT_PATH} == "0" ] || echo "FAXE_PYTHON_SCRIPT_PATH=$FAXE_PYTHON_SCRIPT_PATH" >> $(environmentFile)
+        [ ${#FAXE_PYTHON_VERSION} == "0" ] || echo "FAXE_PYTHON_VERSION=$FAXE_PYTHON_VERSION" >> $(environmentFile)
+        [ ${#FAXE_QUEUE_BASE_DIR} == "0" ] || echo "FAXE_QUEUE_BASE_DIR=$FAXE_QUEUE_BASE_DIR" >> $(environmentFile)
+        [ ${#FAXE_QUEUE_CAPACITY} == "0" ] || echo "FAXE_QUEUE_CAPACITY=$FAXE_QUEUE_CAPACITY" >> $(environmentFile)
+        [ ${#FAXE_QUEUE_TTF} == "0" ] || echo "FAXE_QUEUE_TTF=$FAXE_QUEUE_TTF" >> $(environmentFile)
+        [ ${#FAXE_QUEUE_TTL} == "0" ] || echo "FAXE_QUEUE_TTL=$FAXE_QUEUE_TTL" >> $(environmentFile)
+        [ ${#FAXE_QUEUE_TTS} == "0" ] || echo "FAXE_QUEUE_TTS=$FAXE_QUEUE_TTS" >> $(environmentFile)
+        [ ${#FAXE_RABBITMQ_ROOT_EXCHANGE} == "0" ] || echo "FAXE_RABBITMQ_ROOT_EXCHANGE=$FAXE_RABBITMQ_ROOT_EXCHANGE" >> $(environmentFile)
+        [ ${#FAXE_S7POOL_MAX_SIZE} == "0" ] || echo "FAXE_S7POOL_MAX_SIZE=$FAXE_S7POOL_MAX_SIZE" >> $(environmentFile)
+        [ ${#FAXE_S7POOL_MIN_SIZE} == "0" ] || echo "FAXE_S7POOL_MIN_SIZE=$FAXE_S7POOL_MIN_SIZE" >> $(environmentFile)   
+        
+        # deactivated, comes from keyvault
+        #[ $(echo $(FAXE_AMQP_PASS) | wc --chars) == "0" ] || echo "FAXE_AMQP_PASS=$(FAXE_AMQP_PASS)" >> $(environmentFile)
+        #[ $(echo $(FAXE_AMQP_USER) | wc --chars) == "0" ] || echo "FAXE_AMQP_USER=$(FAXE_AMQP_USER)" >> $(environmentFile)
+        #[ $(echo $(FAXE_CRATE_HTTP_PASS) | wc --chars) == "0" ] || echo "FAXE_CRATE_HTTP_PASS=$(FAXE_CRATE_HTTP_PASS)" >> $(environmentFile)
+        #[ $(echo $(FAXE_CRATE_HTTP_USER) | wc --chars) == "0" ] || echo "FAXE_CRATE_HTTP_USER=$(FAXE_CRATE_HTTP_USER)" >> $(environmentFile)
+        #[ $(echo $(FAXE_CRATE_USER) | wc --chars) == "0" ] || echo "FAXE_CRATE_USER=$(FAXE_CRATE_USER)" >> $(environmentFile)
+        #[ $(echo $(FAXE_CRATE_PASS) | wc --chars) == "0" ] || echo "FAXE_CRATE_PASS=$(FAXE_CRATE_PASS)" >> $(environmentFile)
+        #[ $(echo $(FAXE_EMAIL_PASS) | wc --chars) == "0" ] || echo "FAXE_EMAIL_PASS=$(FAXE_EMAIL_PASS)" >> $(environmentFile)
+        #[ $(echo $(FAXE_EMAIL_USER) | wc --chars) == "0" ] || echo "FAXE_EMAIL_USER=$(FAXE_EMAIL_USER)" >> $(environmentFile)
+        #[ $(echo $(FAXE_DEFAULT_PASSWORD) | wc --chars) == "0" ] || echo "FAXE_DEFAULT_PASSWORD=$(FAXE_DEFAULT_PASSWORD)" >> $(environmentFile)
+        #[ $(echo $(FAXE_DEFAULT_USERNAME) | wc --chars) == "0" ] || echo "FAXE_DEFAULT_USERNAME=$(FAXE_DEFAULT_USERNAME)" >> $(environmentFile)
+        #[ $(echo $(FAXE_MQTT_PASS) | wc --chars) == "0" ] || echo "FAXE_MQTT_PASS=$(FAXE_MQTT_PASS)" >> $(environmentFile)
+        #[ $(echo $(FAXE_MQTT_USER) | wc --chars) == "0" ] || echo "FAXE_MQTT_USER=$(FAXE_MQTT_USER)" >> $(environmentFile)
+        #[ $(echo $(FAXE_INFLUX_HTTP_PASS) | wc --chars) == "0" ] || echo "FAXE_INFLUX_HTTP_PASS=$(FAXE_INFLUX_HTTP_PASS)" >> $(environmentFile)
+        #[ $(echo $(FAXE_INFLUX_HTTP_USER) | wc --chars) == "0" ] || echo "FAXE_INFLUX_HTTP_USER=$(FAXE_INFLUX_HTTP_USER)" >> $(environmentFile)
+        [ $(echo $(FAXE_DISTRIBUTED_COOKIE) | wc --chars) == "0" ] || echo "FAXE_DISTRIBUTED_COOKIE=$(FAXE_DISTRIBUTED_COOKIE)" >> $(environmentFile)
+
+        #check for empty lines in env file
+        while read line; do
+          if [ $(echo $line | cut -d "=" -f2 |wc --char) -gt 1 ]
+            then 
+              echo "key/value ok"
+            else 
+              echo "key without value: $line => remove it"
+              sed "s!$line!!" -i $(environmentFile) ;
+          fi
+        done < $(environmentFile)
+        # remove empty lines in env file
+        sed -i '/^[[:blank:]]*$/d' $(environmentFile)
+        # sort env file
+        sort $(environmentFile) -o $(environmentFile)
+  displayName: 'configure env file from pipeline library'
+- task: Bash@3
+  inputs:
+    targetType: 'inline'
+    script: |
+        TAG=$(echo '$(Build.Repository.Name):$(Build.BuildNumber)')
+        # manipulate docker-compose file:
+        # inject current build number into compose-file
+        sed "s!Dockerfile_debian!$TAG!g" -i $(composeymlFile)
+        # inject env file into docker-compose file:
+        sed "sL/opt/tgw/docker_storage/azure.envL$(environmentFile)L" -i $(composeymlFile)
+  displayName: 'prepare docker-compose file'
+- task: Bash@3
+  inputs:
+    targetType: 'inline'
+    script: |
+        #build container-image
+        TAG=$(echo '$(Build.Repository.Name):$(Build.BuildNumber)')
+        sudo -u $(FAXE_RUNTIME_USER) docker build -t $(Build.Repository.Name):$(Build.BuildNumber) -f Dockerfile_debian .
   displayName: 'build new image and tag it with azure pipeline build number'
-- script: |     
-    # stop old version
-    cd /opt/tgw/faxe_repo
-    sudo -u $(FAXE_RUNTIME_USER) /usr/local/bin/docker-compose -f docker-compose-azure.yml down
-    # kill/remove old data
-    if [[ $(sudo -u $(FAXE_RUNTIME_USER) docker ps -a | grep faxe ) ]]; 
-      then
-        sudo -u $(FAXE_RUNTIME_USER) /usr/bin/docker kill faxe; 
-        sudo -u $(FAXE_RUNTIME_USER) /usr/bin/docker container rm faxe;
-        #sudo -u $(FAXE_RUNTIME_USER) /usr/bin/docker rmi faxe_repo_faxe;
-        echo "running faxe found - kill+remove it"
-      else
-        echo "no running faxe found - skip"
-    fi
-  displayName: 'stop old container via docker-compose'    
-- script: |     
-    cd /opt/tgw/faxe_repo
-    sudo -u $(FAXE_RUNTIME_USER) /usr/local/bin/docker-compose -f docker-compose-azure.yml up -d
+- task: Bash@3
+  inputs:
+    targetType: 'inline'
+    script: |
+        # stop old version
+        cd /opt/tgw/faxe_repo
+        sudo -u $(FAXE_RUNTIME_USER) /usr/local/bin/docker-compose -f $(composeymlFile) down
+        # kill/remove old data
+        if [[ $(sudo -u $(FAXE_RUNTIME_USER) docker ps -a | grep faxe ) ]]; 
+          then
+            sudo -u $(FAXE_RUNTIME_USER) /usr/bin/docker kill faxe; 
+            sudo -u $(FAXE_RUNTIME_USER) /usr/bin/docker container rm faxe;
+            #sudo -u $(FAXE_RUNTIME_USER) /usr/bin/docker rmi faxe_repo_faxe;
+            echo "running faxe found - kill+remove it"
+          else
+            echo "no running faxe found - skip"
+        fi
+  displayName: 'stop old container via docker-compose'
+- task: Bash@3
+  inputs:
+    targetType: 'inline'
+    script: | 
+        cd /opt/tgw/faxe_repo
+        sudo -u $(FAXE_RUNTIME_USER) /usr/local/bin/docker-compose -f $(composeymlFile) up -d
   displayName: 'start container via docker-compose'
+- task: Bash@3
+  inputs:
+    targetType: 'inline'
+    script: | 
+        service=$(echo $(Build.Repository.Name)| tr '[:upper:]' '[:lower:]' )
+        #check if we start householding
+        HOUSEKEEPING=false
+        IMAGE_KEEP=3
+        CUR=$(docker images | grep "^$service " | wc -l)
 
-- script: |
-    #check if we start householding
-    HOUSEKEEPING=false
-    IMAGE_KEEP=5
-    if [ $(docker images | grep faxe | wc -l) -gt $IMAGE_KEEP ]
-      then
-    	  echo "too many images for faxe present - starting housekeeping"
-    	  HOUSEKEEPING=true
-      else
-    	  echo "skipping housekeeping"
-    	  HOUSEKEEPING=false
-        echo $(( $(echo $(docker images | grep faxe | wc -l)) - $IMAGE_KEEP )) images left, before housekeeping deletes old images
-    fi
-    # clear arrays:
-    unset arr_all  arr_keep
-    if [ $HOUSEKEEPING = "true" ];
-      then
-      	echo "starting housekeeping"
-    	  arr_all=$(docker images | grep faxe | sort -k2 -r | awk '{print $3}')
-    	  #echo all ${arr_all[*]}
-    	  arr_keep=$(docker images | grep faxe | sort -k2 -r | awk '{print $3}' | head -n $IMAGE_KEEP)
-    	  #echo keep ${arr_keep[*]}
-    	  for del in ${arr_keep[@]}
-    	  do
-    	    arr_all=("${arr_all[@]/$del}") 
-    	  done   
-    fi  
-    echo delete images: ${arr_all[*]}
-    echo keep images: ${arr_keep[*]}
-    # delete old images:
-    sudo -u $(FAXE_RUNTIME_USER) /usr/bin/docker rmi ${arr_all[*]}
-  displayName: 'housekeeping - keep only latest 5 images'    
+        # define output, depending on setting '$IMAGE_KEEP'
+        DIFF=$(($CUR - $IMAGE_KEEP))
+
+        if [ $DIFF -lt 0 ]
+          then
+            echo "skipping housekeeping - limit not reached"
+            HOUSEKEEPING=false
+        fi
+        if [ $DIFF -eq 0 ]
+          then
+            echo "skipping housekeeping - keeplimit reached"
+            HOUSEKEEPING=false
+        fi
+
+        if [ $DIFF -gt 0 ]
+          then
+            echo "too many images for $service present - starting housekeeping"
+            HOUSEKEEPING=true
+        fi
+        if [ $HOUSEKEEPING == "true" ] ;
+          then
+            # clear arrays:
+            unset arr_all arr_del arr_sorted
+
+            # write all images filted by $service into arr_all
+            arr_all=$(while read docker_image;
+            do 
+               docker inspect $docker_image |grep Created | sed "s/^.*: /${docker_image}_/g;s/,$// " | sed 's!"!!g';
+            done <<<$(docker images | grep -i $service |awk '{print $1":"$2}'))
+
+            # create new sorted array
+            arr_sorted=$(printf '%s\n' "${arr_all[*]}" | sort -t "_" -k2 -r | cut -d "_" -f1 )
+            # write oldest images in new array, used to delete images
+            arr_del=$(printf '%s\n' "${arr_sorted[*]}" | tail -n $DIFF)
+
+            # echo
+            # echo
+            # echo test before:
+            # printf '%s\n' "${arr_all[*]}"
+            for del in ${arr_del[@]}
+            do
+               # remove all del entries from arr_all
+               arr_all=("${arr_sorted[@]/$del}") 
+            done
+        
+            # echo test after:
+            # printf '%s\n' "${arr_all[*]}"
+        
+            echo sorted:
+            printf '%s\n' "${arr_sorted[*]}"
+            echo del:
+            printf '%s\n' "${arr_del[*]}"
+        
+            echo
+            for del_image in ${arr_del[*]} ;
+            do
+               echo "sudo -u $(FAXE_RUNTIME_USER) /usr/bin/docker rmi $del_image"
+               sudo -u $(FAXE_RUNTIME_USER) /usr/bin/docker rmi $del_image
+            done
+        fi
+  displayName: 'housekeeping - keep only latest $IMAGE_KEEP image(s)'
