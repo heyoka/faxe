@@ -12,9 +12,31 @@ def group_field = 'data.code'
  )
  .as('data')
 
+%% |> group
+
 |group_by(group_field)
+
 |eval(
+    lambda: string("data.code"),
     lambda: str_replace("data.message", 'test', string("data.code"))
     )
-    .as('data.message')
-|debug()
+    .as(
+    'data.group',
+    'data.message')
+|value_diff()
+.fields('data.mode')
+.as('data.mode_diff')
+.mode('p-c')
+|batch(3)
+.timeout(12s)
+|aggregate()
+.fields('data.code')
+.functions('sum')
+.as('data.code_sum')
+.keep('data')
+|group_union()
+
+%% |> end group
+
+|debug('alert')
+|log('text.txt')
