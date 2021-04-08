@@ -26,7 +26,10 @@ stages:
         command: 'build'
         Dockerfile: 'Dockerfile_debian'
         tags: |
-           tags: '$(Build.BuildNumber)'
+          latest
+          '$(Build.BuildNumber)'
+          '$(Build.BuildNumber)-dev'
+
       displayName: build container image
     - script: |    
         docker run --rm -v /var/run/docker.sock:/var/run/docker.sock -v $HOME/Library/Caches:/root/.cache/ aquasec/trivy faxe:$(Build.BuildNumber)
