@@ -36,6 +36,8 @@ stages:
         whoami
         ls -l /var/run/docker.sock
         docker images
+        wget https://github.com/aquasecurity/trivy/releases/download/v$(trivyVersion)/trivy_$(trivyVersion)_Linux-64bit.deb
+        sudo dpkg -i trivy_$(trivyVersion)_Linux-64bit.deb
         echo ---------------------
         docker run --rm -v /var/run/docker.sock:/var/run/docker.sock  aquasec/trivy:0.16.0 --severity HIGH,CRITICAL faxe:$(Build.BuildNumber)
       displayName: Scan
