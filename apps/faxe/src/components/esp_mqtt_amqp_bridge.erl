@@ -115,7 +115,7 @@ init(NodeId, _Ins,
    AMQPOpts = #{
       host => binary_to_list(AMQPHost0), port => AMQPPort, user => AMQPUser,
       pass => AMQPPass, vhost => AMQPVHost, exchange => AMQPEx,
-      ssl => AMQPUseSSL, safe_mode => Safe, persistent := Persistent
+      ssl => AMQPUseSSL, safe_mode => Safe, persistent => Persistent
    },
 
    %% MQTT
