@@ -1,5 +1,5 @@
-%% Date: 09.01.20 - 10:48
-%% Ⓒ 2020 TGW-Group
+%% Date: 09.01.21 - 10:02
+%% Ⓒ 2021 TGW-Group
 -module(esp_aggregate).
 -author("Alexander Minichmair").
 
@@ -9,6 +9,26 @@
 -behavior(df_component).
 %% API
 -export([init/3, process/3, handle_info/2, options/0, check_options/0]).
+
+-define(FUNCTIONS,
+   [
+      <<"variance">>,
+      <<"sum">>,
+      <<"min">>,
+      <<"max">>,
+      <<"stddev">>,
+      <<"first">>,
+      <<"last">>,
+      <<"avg">>,
+      <<"count">>,
+      <<"count_distinct">>,
+      <<"count_change">>,
+      <<"mean">>,
+      <<"median">>,
+      <<"range">>,
+      <<"skew">>
+   ]
+).
 
 -callback execute(tuple(), term()) -> tuple().
 
@@ -23,7 +43,7 @@
 
 options() -> [
    {fields, string_list},
-   {as, string_list},
+   {as, string_list, undefined},
    {functions, string_list},
    {keep, string_list, []}
 ].
@@ -31,19 +51,24 @@ options() -> [
 check_options() ->
    [
       {same_length, [fields, as, functions]},
-      {one_of, functions,
-         [<<"variance">>, <<"sum">>, <<"min">>, <<"max">>, <<"stddev">>,
-            <<"first">>, <<"last">>, <<"avg">>, <<"count">>, <<"count_distinct">>,
-            <<"count_change">>, <<"mean">>, <<"median">>, <<"range">>, <<"skew">>]}
+      {one_of, functions, ?FUNCTIONS}
    ].
 
-init(NodeId, _Ins, #{fields := Fields, as := As, functions := Mods, keep := Keep} = Args) ->
+init(NodeId, _Ins, #{fields := Fields, functions := Mods, keep := Keep} = Args) ->
    Modules = [binary_to_atom(<<"esp_", Mod/binary>>, latin1) || Mod <- Mods],
+   As = init_as(Args),
    State = #state{fields = Fields, node_id = NodeId, as = As, keep = Keep, modules = Modules},
    {ok, all, State#state{module_state = Args}}.
 
+init_as(#{as := undefined, fields := Fields, functions := Funs}) ->
+   [<<Field/binary, "_", Fun/binary>> || {Field, Fun} <- lists:zip(Fields, Funs)];
+init_as(#{as := As}) ->
+   As.
 
 %%% databatch only
+process(_Inport, #data_batch{points = []}, S) ->
+   lager:warning("no point in batch"),
+   {ok, S};
 process(_Inport, #data_batch{points = Points} = Batch,
     State = #state{modules = Mods, module_state = MState, fields = Fields, as = As, keep = KeepFields}) ->
 

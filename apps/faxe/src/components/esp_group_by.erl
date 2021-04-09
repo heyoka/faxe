@@ -1,7 +1,7 @@
 %% Date: 27.03.2021 - 19:41
 %% Ⓒ 2021 heyoka
 %%
-%%
+%% @todo implement for data_batches
 -module(esp_group_by).
 -author("Alexander Minichmair").
 
@@ -36,7 +36,7 @@ check_options() ->
 init({_GId, NodeId}, _Ins, #{reset_timeout := RTimeout} = Opts) ->
    ResetTimeout = faxe_time:duration_to_ms(RTimeout),
    State = #state{nodeid = NodeId, reset_timeout = ResetTimeout, groupval_fun = init_groupfun(Opts)},
-   %% start reset interval
+   %% start reset interval (not used/properly implemented at the moment)
 %%   erlang:send_after(State#state.reset_check_interval, self(), check_reset),
    {ok, all, State}.
 
@@ -66,6 +66,7 @@ ensure_route(Val, Groups, NodeId) ->
    {ok, NewPort} = df_graph:start_subgraph(NodeId),
    Groups#{Val => NewPort}.
 
+%% not used
 
 check_reset(State = #state{group_last_seen = LastSeen}) when map_size(LastSeen) == 0 ->
    lager:notice("check reset, nothing to do"),

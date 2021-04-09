@@ -2,8 +2,7 @@
 %% Ⓒ 2017 heyoka
 %%
 %% @doc
-%% Instead of the current value outputs the difference to a previous value for multiple fields
-%% if no previous value is found for a specific field, the current field-value is used
+%%
 %% @end
 -module(esp_value_diff).
 -author("Alexander Minichmair").

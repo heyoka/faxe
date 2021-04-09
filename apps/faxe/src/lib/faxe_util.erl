@@ -24,7 +24,7 @@
 
 -define(HTTP_PROTOCOL, <<"http://">>).
 
-%% @doc returns a new map where the keys are the input map's values and vice versa
+%% @doc returns a new map where the keys became the values and vice versa
 -spec flip_map(map()) -> map().
 flip_map(Map) when map_size(Map) == 0 ->
    #{};
@@ -133,7 +133,6 @@ device_name() ->
 
 proplists_merge(L, T) ->
    lists:ukeymerge(1, lists:keysort(1,L), lists:keysort(1,T)).
-
 
 -spec build_topic(list(list()|binary())) -> binary().
 build_topic(Parts) when is_list(Parts) ->
