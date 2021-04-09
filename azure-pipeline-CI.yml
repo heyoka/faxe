@@ -53,7 +53,7 @@ stages:
         docker images
         #trivy --debug -severity HIGH,CRITICAL faxe:20210409.3
         #trivy --debug -severity HIGH,CRITICAL faxe:$(Build.BuildNumber)
-        trivy image -debug -severity HIGH,CRITICAL docker.datahub.tgw-group.cloud:443/faxe:20210409.3
+        trivy image -severity HIGH,CRITICAL docker.datahub.tgw-group.cloud:443/faxe:20210409.3
         echo --------------
         #echo $(pwd)
         #trivy filesystem  -severity HIGH,CRITICAL /home/vsts/work/1/s
