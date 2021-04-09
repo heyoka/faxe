@@ -15,21 +15,29 @@ stages:
   - job:
     steps:
     - checkout: self
+#    - task: Docker@2
+#      inputs:
+#        containerRegistry: 'nexus-docker-connection'
+#        command: 'login'
+#      displayName: registry log in 
+#    - task: Docker@2
+#      inputs:
+#        repository: 'faxe'
+#        command: 'build'
+#        Dockerfile: 'Dockerfile_debian'
+#        tags: |
+#          latest
+#          $(Build.BuildNumber)
+#          -dev-$(Build.BuildNumber)
     - task: Docker@2
       inputs:
         containerRegistry: 'nexus-docker-connection'
-        command: 'login'
-      displayName: registry log in 
-    - task: Docker@2
-      inputs:
         repository: 'faxe'
-        command: 'build'
+        command: 'buildAndPush'
         Dockerfile: 'Dockerfile_debian'
         tags: |
-          latest
-          $(Build.BuildNumber)
-          $(Build.BuildNumber)-dev
-
+           $(Build.BuildNumber)
+           dev-$(Build.BuildNumber)
       displayName: build container image
     - script: |
         echo ---------------------
@@ -39,14 +47,14 @@ stages:
         wget https://github.com/aquasecurity/trivy/releases/download/v$(trivyVersion)/trivy_$(trivyVersion)_Linux-64bit.deb
         sudo dpkg -i trivy_$(trivyVersion)_Linux-64bit.deb
         echo ---------------------
-        docker run --rm -v /var/run/docker.sock:/var/run/docker.sock  aquasec/trivy:0.16.0 --severity HIGH,CRITICAL faxe:$(Build.BuildNumber)
+        docker run --rm -v /var/run/docker.sock:/var/run/docker.sock  aquasec/trivy:0.16.0 --severity HIGH,CRITICAL docker.datahub.tgw-group.cloud:443/faxe::$(Build.BuildNumber)
       displayName: Scan
-    - task: Docker@2
-      inputs:
-        containerRegistry: 'nexus-docker-connection'
-        repository: 'faxe'
-        command: 'push'
-        tags: '$(Build.BuildNumber)'
+    #- task: Docker@2
+    #  inputs:
+    #    containerRegistry: 'nexus-docker-connection'
+    #    repository: 'faxe'
+    #    command: 'push'
+    #    tags: '$(Build.BuildNumber)'
 #  - job:
 #    steps:
 #    - checkout: self
