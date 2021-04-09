@@ -39,12 +39,16 @@ stages:
            $(Build.BuildNumber)
            dev-$(Build.BuildNumber)
       displayName: build container image
+    - task: Docker@2
+      inputs:
+        containerRegistry: 'nexus-docker-connection'
+        command: 'login'
     - script: |
         echo ---------------------
         docker images
         wget https://github.com/aquasecurity/trivy/releases/download/v$(trivyVersion)/trivy_$(trivyVersion)_Linux-64bit.deb
         sudo dpkg -i trivy_$(trivyVersion)_Linux-64bit.deb
-        trivy image -severity HIGH,CRITICAL faxe:$(Build.BuildNumber)
+        trivy image -severity HIGH,CRITICAL docker.datahub.tgw-group.cloud:443/faxe:$(Build.BuildNumber)
         echo ---------------------
       displayName: install trivy on build server
     - script: |
