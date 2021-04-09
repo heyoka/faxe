@@ -2,16 +2,20 @@ trigger:
 - none
 
 variables:
+  trivyVersion: '0.9.1'
+  dockerRegistryServiceConnection: 'nexus-docker-connection'
+  imageRepository: 'docker'
+  containerRegistry: 'docker.datahub.tgw-group.cloud:443'
+  imageName: 'cwa/faxe'
+  TAG: '$(Build.BuildNumber)'
 #- group: 'faxe_dev - Devcloud - secret' # variable group
-- group: 'nexux_connection - ALL - secret' # variable group for keyvault (user/pw/api keys,...)
-- name: trivyVersion
-  value: '0.9.1'
+  group: 'nexux_connection - ALL - secret' # variable group for keyvault (user/pw/api keys,...)
 
 pool:
   vmImage: 'ubuntu-latest'
 
 stages:
-- stage: Setup
+- stage: Build
   jobs:
   - job:
     steps:
@@ -23,13 +27,18 @@ stages:
 #      displayName: registry log in 
     - task: Docker@2
       inputs:
-        repository: 'faxe'
+        repository: $(imageName)
         command: 'build'
         Dockerfile: 'Dockerfile_debian'
         tags: |
           latest
           $(Build.BuildNumber)
       displayName: build container image
+    - task: CmdLine@2
+      inputs:
+        script: |
+          docker run --rm -v /var/run/docker.sock:/var/run/docker.sock  aquasec/trivy --exit-code 0 --ignore-unfixed --severity HIGH,CRITICAL $(imageName):$TAG
+
 #    - task: Docker@2
 #      inputs:
 #        containerRegistry: 'nexus-docker-connection'
@@ -40,10 +49,10 @@ stages:
 #           $(Build.BuildNumber)
 #           dev-$(Build.BuildNumber)
 #      displayName: build container image
-    - task: Docker@2
-      inputs:
-        containerRegistry: 'nexus-docker-connection'
-        command: 'login'
+#    - task: Docker@2
+#      inputs:
+#        containerRegistry: 'nexus-docker-connection'
+#        command: 'login'
       displayName: docker login
     - script: |
         echo ---------------------
