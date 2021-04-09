@@ -3,6 +3,7 @@ trigger:
 
 variables:
 #- group: 'faxe_dev - Devcloud - secret' # variable group
+- group: 'nexux_connection - ALL - secret' # variable group for keyvault (user/pw/api keys,...)
 - name: trivyVersion
   value: '0.9.1'
 
@@ -60,7 +61,8 @@ stages:
         #echo ---------------------
       displayName: install trivy on build server
     - script: |
-        docker run --rm -v /var/run/docker.sock:/var/run/docker.sock  aquasec/trivy:0.16.0 --severity HIGH,CRITICAL docker.datahub.tgw-group.cloud:443/faxe:20210409.3
+        docker login docker.datahub.tgw-group.cloud:443 -u $(P-NEXUS-USER) --password-stdin $(P-NEXUS-PASS)
+        docker run --rm -v /var/run/docker.sock:/var/run/docker.sock  aquasec/trivy:0.16.0 --debug --severity HIGH,CRITICAL docker.datahub.tgw-group.cloud:443/faxe:20210409.3
       displayName: use trivy via docker
     #- task: Docker@2
     #  inputs:
