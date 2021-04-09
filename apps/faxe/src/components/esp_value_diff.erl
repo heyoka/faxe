@@ -42,7 +42,8 @@ init(NodeId, _Ins, #{fields := Fields, as := As0, default := Default, mode := Mo
    As1 = case As0 of undefined -> Fields; _ -> As0 end,
    As = lists:zip(Fields, As1),
    DiffFun = diff_fun(Mode),
-   {ok, all, #state{node_id = NodeId, fields = Fields, as = As, default = Default, diff_fun = DiffFun}}.
+   S = #state{node_id = NodeId, fields = Fields, as = As, default = Default, diff_fun = DiffFun},
+   {ok, all, S}.
 
 process(_Inport, P = #data_point{} = Point, State = #state{fields = FieldList}) ->
    FieldVals = flowdata:fields(P, FieldList),
@@ -55,7 +56,7 @@ process(_Inport, P = #data_point{} = Point, State = #state{fields = FieldList}) 
 -spec execute(#data_point{}, list(binary()), #state{})
        -> #data_point{}.
 execute(P =#data_point{}, FieldVals,
-    #state{fields = FieldList, field_states = FieldStates, default = Def, as = As, diff_fun = Fun}) ->
+    S = #state{fields = FieldList, field_states = FieldStates, default = Def, as = As, diff_fun = Fun}) ->
    FoldFn =
    fun
       ({_K, undefined}, NewFields) ->
@@ -125,16 +126,36 @@ as_test() ->
    P = test_point(),
    LastValues = [{<<"current_max">>, 3753.34534}, {<<"t1">>, 12}],
    FieldList = [<<"current_max">>, <<"energy_used">>],
-   AsList = [<<"current_max_diff">>, <<"energy_used_diff">>],
+   AsList = [<<"data.current_max_diff">>, <<"energy_used_diff">>],
    FieldVals = flowdata:fields(P, FieldList),
    Fields = lists:zip(FieldList, FieldVals),
-   ?assertEqual(#data_point{fields = #{<<"current_max">> => 3453.34534,
-      <<"current_max_diff">> => 300.0,
+   ?assertEqual(#data_point{fields = #{
+      <<"current_max">> => 3453.34534,
+      <<"data">> => #{<<"current_max_diff">> => 300.0},
       <<"energy_used">> => 13.4563,
-      <<"energy_used_diff">> => 99,<<"t1">> => 12}},
+      <<"energy_used_diff">> => 99,
+      <<"t1">> => 12}},
       execute(P, Fields,
          #state{fields = FieldList, field_states = LastValues,
             as = lists:zip(FieldList, AsList), default = 99, diff_fun = diff()})).
+
+%%as_2_test() ->
+%%   P = #data_point{fields = #{<<"data">> => #{<<"energy_used">> => 13.4563, <<"current_max">> => 3453.34534, <<"t1">> => 12}}},
+%%   LastValues = [{<<"current_max">>, 3753.34534}, {<<"t1">>, 12}],
+%%   FieldList = [<<"current_max">>, <<"energy_used">>],
+%%   AsList = [<<"data.current_max_diff">>, <<"energy_used_diff">>],
+%%   FieldVals = flowdata:fields(P, FieldList),
+%%   Fields = lists:zip(FieldList, FieldVals),
+%%   ?assertEqual(#data_point{fields = #{
+%%      <<"current_max">> => 3453.34534,
+%%      <<"data">> => #{<<"current_max_diff">> => 300.0},
+%%      <<"energy_used">> => 13.4563,
+%%      <<"energy_used_diff">> => 99,
+%%      <<"t1">> => 12}},
+%%      execute(P, Fields,
+%%         #state{fields = FieldList, field_states = LastValues,
+%%            as = lists:zip(FieldList, AsList), default = 99, diff_fun = diff()})).
+
 
 test_point() ->
    #data_point{fields = #{<<"energy_used">> => 13.4563, <<"current_max">> => 3453.34534, <<"t1">> => 12}}.
