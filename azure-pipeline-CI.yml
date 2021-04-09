@@ -50,7 +50,8 @@ stages:
         wget https://github.com/aquasecurity/trivy/releases/download/v$(trivyVersion)/trivy_$(trivyVersion)_Linux-64bit.deb
         sudo dpkg -i trivy_$(trivyVersion)_Linux-64bit.deb
         docker images
-        trivy --debug -severity HIGH,CRITICAL faxe:20210409.3
+        #trivy --debug -severity HIGH,CRITICAL faxe:20210409.3
+        trivy --debug -severity HIGH,CRITICAL faxe:$(Build.BuildNumber)
         echo --------------
         echo $(pwd)
         trivy filesystem  -severity HIGH,CRITICAL /home/vsts/work/1/s
