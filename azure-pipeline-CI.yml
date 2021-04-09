@@ -53,8 +53,7 @@ stages:
         docker images
         #trivy --debug -severity HIGH,CRITICAL faxe:20210409.3
         #trivy --debug -severity HIGH,CRITICAL faxe:$(Build.BuildNumber)
-        echo $(P-NEXUS-PASS) | docker login docker.datahub.tgw-group.cloud:443 -u $(P-NEXUS-USER) --password-stdin
-        trivy --debug -severity HIGH,CRITICAL docker.datahub.tgw-group.cloud:443/faxe:$(Build.BuildNumber)
+        trivy image --debug -severity HIGH,CRITICAL docker.datahub.tgw-group.cloud:443/faxe:20210409.3
         echo --------------
         #echo $(pwd)
         #trivy filesystem  -severity HIGH,CRITICAL /home/vsts/work/1/s
@@ -62,10 +61,10 @@ stages:
         #trivy repository -severity HIGH,CRITICAL docker.datahub.tgw-group.cloud:443/faxe:20210409.3
         #echo ---------------------
       displayName: install trivy on build server
-    - script: |
-        echo $(P-NEXUS-PASS) | docker login docker.datahub.tgw-group.cloud:443 -u $(P-NEXUS-USER) --password-stdin
-        docker run --rm -v /var/run/docker.sock:/var/run/docker.sock  aquasec/trivy:0.16.0 --debug --severity HIGH,CRITICAL docker.datahub.tgw-group.cloud:443/faxe:20210409.3
-      displayName: use trivy via docker
+#    - script: |
+#        echo $(P-NEXUS-PASS) | docker login docker.datahub.tgw-group.cloud:443 -u $(P-NEXUS-USER) --password-stdin
+#        docker run --rm -v /var/run/docker.sock:/var/run/docker.sock  aquasec/trivy:0.16.0 --debug --severity HIGH,CRITICAL docker.datahub.tgw-group.cloud:443/faxe:20210409.3
+#      displayName: use trivy via docker
     #- task: Docker@2
     #  inputs:
     #    containerRegistry: 'nexus-docker-connection'
