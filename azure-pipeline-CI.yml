@@ -29,7 +29,6 @@ stages:
         tags: |
           latest
           $(Build.BuildNumber)
-          CWA/faxe:$(Build.BuildNumber)
       displayName: build container image
 #    - task: Docker@2
 #      inputs:
@@ -52,7 +51,8 @@ stages:
         wget https://github.com/aquasecurity/trivy/releases/download/v$(trivyVersion)/trivy_$(trivyVersion)_Linux-64bit.deb
         sudo dpkg -i trivy_$(trivyVersion)_Linux-64bit.deb
         BUILD=$(docker images  |grep faxe -m1 | awk '{print $3}')
-
+        export TRIVY_USERNAME=$(P-NEXUS-USER)
+        export TRIVY_PASSWORD=$(P-NEXUS-PASS)
         #trivy --debug -severity HIGH,CRITICAL faxe:20210409.3
         #trivy --debug -severity HIGH,CRITICAL faxe:$(Build.BuildNumber)
         
@@ -65,7 +65,8 @@ stages:
         #echo ---------------------
       displayName: install trivy on build server
 #    - script: |
-#        echo $(P-NEXUS-PASS) | docker login docker.datahub.tgw-group.cloud:443 -u $(P-NEXUS-USER) --password-stdin
+#        export TRIVY_USERNAME=$(P-NEXUS-USER)
+#        export TRIVY_PASSWORD=$(P-NEXUS-PASS)
 #        docker run --rm -v /var/run/docker.sock:/var/run/docker.sock  aquasec/trivy:0.16.0 --debug --severity HIGH,CRITICAL docker.datahub.tgw-group.cloud:443/faxe:20210409.3
 #      displayName: use trivy via docker
     #- task: Docker@2
