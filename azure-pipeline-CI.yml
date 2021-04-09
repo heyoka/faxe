@@ -52,7 +52,9 @@ stages:
         sudo dpkg -i trivy_$(trivyVersion)_Linux-64bit.deb
         docker images
         #trivy --debug -severity HIGH,CRITICAL faxe:20210409.3
-        trivy --debug -severity HIGH,CRITICAL faxe:$(Build.BuildNumber)
+        #trivy --debug -severity HIGH,CRITICAL faxe:$(Build.BuildNumber)
+        echo $(P-NEXUS-PASS) | docker login docker.datahub.tgw-group.cloud:443 -u $(P-NEXUS-USER) --password-stdin
+        trivy --debug -severity HIGH,CRITICAL docker.datahub.tgw-group.cloud:443/faxe:$(Build.BuildNumber)
         echo --------------
         #echo $(pwd)
         #trivy filesystem  -severity HIGH,CRITICAL /home/vsts/work/1/s
@@ -61,7 +63,7 @@ stages:
         #echo ---------------------
       displayName: install trivy on build server
     - script: |
-        docker login docker.datahub.tgw-group.cloud:443 -u $(P-NEXUS-USER) --password-stdin $(P-NEXUS-PASS)
+        echo $(P-NEXUS-PASS) | docker login docker.datahub.tgw-group.cloud:443 -u $(P-NEXUS-USER) --password-stdin
         docker run --rm -v /var/run/docker.sock:/var/run/docker.sock  aquasec/trivy:0.16.0 --debug --severity HIGH,CRITICAL docker.datahub.tgw-group.cloud:443/faxe:20210409.3
       displayName: use trivy via docker
     #- task: Docker@2
