@@ -270,7 +270,7 @@ start_connection(State = #state{config = Config}) ->
                State#state{available = false}
          end;
       E ->
-         lager:warning("Error starting connection: ~p",[E]),
+         lager:warning("Error starting connection: ~p :: ~p",[Config, E]),
          erlang:send_after(100, self(), connect),
          State#state{available = false}
    end,

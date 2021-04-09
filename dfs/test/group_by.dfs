@@ -33,10 +33,10 @@ def group_field = 'data.code'
 .fields('data.code')
 .functions('sum')
 .as('data.code_sum')
-.keep('data')
+.keep('data.group')
 |group_union()
 
 %% |> end group
 
-%|debug('alert')
+|debug('notice')
 %|log('text.txt')

@@ -173,6 +173,17 @@ defined(Val) ->
    Val /= undefined.
 undefined(Val) ->
    Val == undefined.
+
+topic_part(Topic, Index) when is_binary(Topic), is_integer(Index) ->
+   topic_part(Topic, Index, <<"/">>).
+topic_part(Topic, Index, Separator) when is_binary(Topic), is_binary(Separator), is_integer(Index) ->
+   Parts = binary:split(Topic, Separator, [global, trim_all]),
+   case (catch lists:nth(Index, Parts)) of
+      Result when is_binary(Result) -> Result;
+      _E ->
+         erlang:error("faxe_lambda_lib, topic_part", [Topic, Index, Separator])
+   end.
+
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %% additional
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
