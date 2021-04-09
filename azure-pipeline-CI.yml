@@ -41,7 +41,7 @@ stages:
           docker run --rm -v /var/run/docker.sock:/var/run/docker.sock  aquasec/trivy --exit-code 0 --ignore-unfixed --severity MEDIUM,HIGH $(imageName):$TAG
           docker run --rm -v /var/run/docker.sock:/var/run/docker.sock  aquasec/trivy --exit-code 1 --ignore-unfixed --severity CRITICAL $(imageName):$TAG
     - task: Docker@2
-      displayName: 'Security Scan'
+      #displayName: 'Security Scan'
       inputs:
         containerRegistry: 'nexus-docker-connection'
         repository: 'faxe'
