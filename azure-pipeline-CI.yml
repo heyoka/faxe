@@ -29,34 +29,35 @@ stages:
 #          latest
 #          $(Build.BuildNumber)
 #          -dev-$(Build.BuildNumber)
-    - task: Docker@2
-      inputs:
-        containerRegistry: 'nexus-docker-connection'
-        repository: 'faxe'
-        command: 'buildAndPush'
-        Dockerfile: 'Dockerfile_debian'
-        tags: |
-           $(Build.BuildNumber)
-           dev-$(Build.BuildNumber)
-      displayName: build container image
+#    - task: Docker@2
+#      inputs:
+#        containerRegistry: 'nexus-docker-connection'
+#        repository: 'faxe'
+#        command: 'buildAndPush'
+#        Dockerfile: 'Dockerfile_debian'
+#        tags: |
+#           $(Build.BuildNumber)
+#           dev-$(Build.BuildNumber)
+#      displayName: build container image
     - task: Docker@2
       inputs:
         containerRegistry: 'nexus-docker-connection'
         command: 'login'
+      displayName: docker login
     - script: |
         echo ---------------------
         docker images
         wget https://github.com/aquasecurity/trivy/releases/download/v$(trivyVersion)/trivy_$(trivyVersion)_Linux-64bit.deb
         sudo dpkg -i trivy_$(trivyVersion)_Linux-64bit.deb
-        trivy image -severity HIGH,CRITICAL docker.datahub.tgw-group.cloud:443/faxe:$(Build.BuildNumber)
+        docker images
+        trivy image -severity HIGH,CRITICAL faxe:20210409.3
+        echo $(pwd)
+        trivy filesystem  -severity HIGH,CRITICAL .
+        trivy repository -severity HIGH,CRITICAL docker.datahub.tgw-group.cloud:443/faxe:20210409.3
         echo ---------------------
       displayName: install trivy on build server
     - script: |
-        echo ---------------------
-        usermod -aG docker $(whoami)
-        #ls -l /var/run/docker.sock
-        echo ---------------------
-        docker run --rm -v /var/run/docker.sock:/var/run/docker.sock  aquasec/trivy:0.16.0 --severity HIGH,CRITICAL docker.datahub.tgw-group.cloud:443/faxe:$(Build.BuildNumber)
+        docker run --rm -v /var/run/docker.sock:/var/run/docker.sock  aquasec/trivy:0.16.0 --severity HIGH,CRITICAL docker.datahub.tgw-group.cloud:443/faxe:20210409.3
       displayName: use trivy via docker
     #- task: Docker@2
     #  inputs:
