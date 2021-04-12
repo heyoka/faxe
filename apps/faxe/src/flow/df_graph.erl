@@ -460,7 +460,7 @@ clone_and_start_subgraph(FromVertex,
          %% foreach edge going in to the union-node, we must add an edge from the last node(s) before the union node to it
          Fun =
             fun(Edge) ->
-               {_E, V1, UnionNode, Label} = Ed = digraph:edge(G, Edge),
+               {_E, V1, UnionNode, Label} = digraph:edge(G, Edge),
 %%               lager:notice("Edge: ~p~n~p",[Ed, proplists:get_value(V1, CopiedVertices)]),
                _Res = digraph:add_edge(G, proplists:get_value(V1, CopiedVertices), UnionNode, Label)
 %%               lager:critical("RES: ~p",[Res])
@@ -498,7 +498,6 @@ clone_subgraph(FromVertex, G, Nodes) when is_binary(FromVertex) ->
    SubgraphVertices = digraph_utils:reachable_neighbours([FromVertex], G),
    Subgraph = digraph_utils:subgraph(G, SubgraphVertices, [{type, inherit}, {keep_labels, true}]),
    Sorted = digraph_utils:topsort(Subgraph),
-   lager:warning("subgraph SORTED: ~p",[Sorted]),
    SubUnionFun =
    fun(NodeName, {UnionNode, SortedList} = Acc) ->
       case get_node_component(NodeName, Nodes) of
@@ -514,10 +513,9 @@ clone_subgraph(FromVertex, G, Nodes) when is_binary(FromVertex) ->
    case UnionNode of
       undefined -> [];
       _ -> InEdges = digraph:in_edges(G, UnionNode),
-         lager:notice("Union In-Edges: ~p", [lists:map(fun(E) -> digraph:edge(Subgraph, E) end, InEdges)]),
+%%         lager:notice("Union In-Edges: ~p", [lists:map(fun(E) -> digraph:edge(Subgraph, E) end, InEdges)]),
          InEdges
    end,
-   lager:warning("SUBNODES: ~p",[SubNodes]),
    S = #subgraph{
       vertices = SubNodes,
       edges = digraph:edges(Subgraph)--UnionInEdges,
@@ -525,7 +523,6 @@ clone_subgraph(FromVertex, G, Nodes) when is_binary(FromVertex) ->
       union_node = UnionNode,
       union_inedges = UnionInEdges
    },
-   lager:notice("SUBGRAPH record: ~p", [lager:pr(S, ?MODULE)]),
    S.
 
 -spec insert_vertices(digraph:graph(), list(binary()), binary()) -> list({binary(), binary()}).

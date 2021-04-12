@@ -67,7 +67,6 @@ init_as(#{as := As}) ->
 
 %%% databatch only
 process(_Inport, #data_batch{points = []}, S) ->
-   lager:warning("no point in batch"),
    {ok, S};
 process(_Inport, #data_batch{points = Points} = Batch,
     State = #state{modules = Mods, module_state = MState, fields = Fields, as = As, keep = KeepFields}) ->

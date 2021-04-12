@@ -339,7 +339,6 @@ handle_info({item, {Inport, Value}},
 %% EMITTING ITEM
 handle_info({emit, {Outport, Value}}, State=#c_state{node_id = _NId,
       flow_mode = FMode, auto_request = AR, emitted = EmitCount}) ->
-   lager:debug("Component: ~p emitting: ~p on port ~p", [State#c_state.node_id, Value, Outport]),
    emit(Outport, Value, State),
    case AR of
       none  -> ok;

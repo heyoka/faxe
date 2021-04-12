@@ -1,7 +1,7 @@
 def group_field = 'data.code'
 def data =
  |json_emitter()
- .every(300ms)
+ .every(100ms)
  .json(
      <<<{"code" : 224, "message": "this is a test", "mode": 1}>>>,
      <<<{"code" : 334, "message": "this is another test", "mode": 1}>>>,
@@ -56,7 +56,8 @@ agg1
 |join(agg2)
 .merge_field('data')
 .tolerance(0s)
-.missing_timeout(10ms)
+.missing_timeout(5ms)
+.fill(0.00000)
 
 |group_union()
 %agg1

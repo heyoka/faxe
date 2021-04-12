@@ -159,7 +159,7 @@ maybe_ack(State = #state{collected = 1}) ->
 maybe_ack(State) ->
    State.
 
-do_ack(State = #state{last_dtag = DTag, consumer = From, ack_timer = Timer, collected = Num}) ->
+do_ack(State = #state{last_dtag = DTag, consumer = From, ack_timer = Timer, collected = _Num}) ->
    catch erlang:cancel_timer(Timer),
    carrot:ack_multiple(From, DTag),
    State#state{collected = 0, last_dtag = undefined, ack_timer = undefined}.

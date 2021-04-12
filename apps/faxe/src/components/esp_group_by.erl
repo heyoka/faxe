@@ -63,7 +63,8 @@ ensure_route(Val, Groups, _NId) when map_size(Groups) == 0 ->
 ensure_route(Val, Groups, _NId) when is_map_key(Val, Groups) ->
    Groups;
 ensure_route(Val, Groups, NodeId) ->
-   {ok, NewPort} = df_graph:start_subgraph(NodeId),
+   {T, {ok, NewPort}} = timer:tc(df_graph, start_subgraph, [NodeId]),
+   lager:alert("time to start subgraph: ~p",[T]),
    Groups#{Val => NewPort}.
 
 %% not used
