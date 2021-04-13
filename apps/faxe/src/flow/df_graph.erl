@@ -43,7 +43,8 @@
    vertices,
    edges,
    root_outedges,
-   last_port_number = 0
+   union_node,
+   union_inedges
 }).
 
 -record(state, {
@@ -419,26 +420,32 @@ start_async(Nodes, Subscriptions, RunMode, Id) ->
    maybe_initial_pull(RunMode, Nodes).
 
 %% @todo determine the new port number for the FromVertex to route messages to the new subgraph and return it
-clone_and_start_subgraph(FromVertex, State = #state{subgraphs = Subgraphs, graph = G})
+clone_and_start_subgraph(FromVertex, State = #state{subgraphs = Subgraphs, graph = G, nodes = Nodes})
       when not is_map_key(FromVertex, Subgraphs) ->
-   Subgraph = clone_subgraph(FromVertex, G),
+   Subgraph = clone_subgraph(FromVertex, G, Nodes),
 
    clone_and_start_subgraph(FromVertex, State#state{subgraphs = Subgraphs#{FromVertex => Subgraph}});
 clone_and_start_subgraph(FromVertex,
     State = #state{graph = G, start_mode = RunModes, nodes = ExistingNodes, subgraphs = Subgraphs}) ->
 
-   _S = #subgraph{vertices = ReachableVertices, edges = CurrentEdges, root_outedges = FromOutEdges} =
+   _S = #subgraph{
+      vertices = ReachableVertices,
+      edges = CurrentEdges,
+      root_outedges = FromOutEdges,
+      union_node = UnionNode,
+      union_inedges = UnionInEdges
+   } =
       maps:get(FromVertex, Subgraphs),
 
-   %% in a first attempt, we say the port-number is equivalent to the number of out-going edges form the FromVertex (out_degree)
+   %% in a first attempt, we say the port-number is equivalent to the number of out-going edges from the FromVertex (out_degree)
    NewOutPort = get_available_outport(G, FromVertex),
    PortBinary = integer_to_binary(NewOutPort),
 %%   lager:info("NEW PORT will be ~s",[PortBinary]),
    %% copy these
    CopiedVertices = insert_vertices(G, ReachableVertices, PortBinary),
-%%   {CopiedVertices, CurrentEdges},
    insert_edges(G, CopiedVertices, CurrentEdges),
 
+   %% handling the single FromVertex (new edges)
    FromEdgesFun =
       fun(Edge) ->
          {_E, FromVertex, V2, Label} = digraph:edge(G, Edge),
@@ -446,18 +453,36 @@ clone_and_start_subgraph(FromVertex,
       end,
    lists:foreach(FromEdgesFun, FromOutEdges),
 
+   %% connect to the union-node if there is one
+   case UnionNode of
+      undefined -> ok;
+      _ ->
+         %% foreach edge going in to the union-node, we must add an edge from the last node(s) before the union node to it
+         Fun =
+            fun(Edge) ->
+               {_E, V1, UnionNode, Label} = digraph:edge(G, Edge),
+%%               lager:notice("Edge: ~p~n~p",[Ed, proplists:get_value(V1, CopiedVertices)]),
+               _Res = digraph:add_edge(G, proplists:get_value(V1, CopiedVertices), UnionNode, Label)
+%%               lager:critical("RES: ~p",[Res])
+            end,
+         lists:foreach(Fun, UnionInEdges)
+   end,
+
+   %% build and start the new node processes
    {_OldVNames, NewVertices} = lists:unzip(CopiedVertices),
    %%%
    NodesNew = build_nodes(NewVertices, G, State#state.id),
-   %% not quite
+
+   %% not quite elegant here (the next two statements)
    AllNodes = NodesNew++ExistingNodes,
    %% rebuild subscriptions for all nodes ?
    Subscriptions = build_subscriptions(AllNodes, G, RunModes#task_modes.run_mode),
+
    %% tell the root-node (FromVertex) about it's new subscriptions
    {_Inputs, Subs} = proplists:get_value(FromVertex, Subscriptions),
-%%   ets:insert(flow_subscriptions, {{State#state.id, FromVertex}, Subs}),
    df_subscription:save_subscriptions({State#state.id, FromVertex}, Subs),
-%%   df_component:update_subscriptions(get_node_pid(FromVertex, ExistingNodes), Subs),
+
+   %% tell the union-node about it's new inputs (rather than subscriptions)
 
    %% register our pid along with all node(component)-pids for graph ets table handling
    register_nodes(NodesNew),
@@ -468,15 +493,37 @@ clone_and_start_subgraph(FromVertex,
    {NewOutPort, State#state{nodes = AllNodes}}.
 
 
--spec clone_subgraph(binary(), digraph:graph()) -> #subgraph{}.
-clone_subgraph(FromVertex, G) when is_binary(FromVertex) ->
+-spec clone_subgraph(binary(), digraph:graph(), list()) -> #subgraph{}.
+clone_subgraph(FromVertex, G, Nodes) when is_binary(FromVertex) ->
    SubgraphVertices = digraph_utils:reachable_neighbours([FromVertex], G),
-   Subgraph = digraph_utils:subgraph(G, SubgraphVertices,[{type, inherit}, {keep_labels, true}]),
-   #subgraph{
-      vertices = SubgraphVertices,
-      edges = digraph:edges(Subgraph),
-      root_outedges = digraph:out_edges(G, FromVertex)
-   }.
+   Subgraph = digraph_utils:subgraph(G, SubgraphVertices, [{type, inherit}, {keep_labels, true}]),
+   Sorted = digraph_utils:topsort(Subgraph),
+   SubUnionFun =
+   fun(NodeName, {UnionNode, SortedList} = Acc) ->
+      case get_node_component(NodeName, Nodes) of
+         esp_group_union -> {NodeName, lists:delete(NodeName, SortedList)};
+         _ -> case UnionNode of
+                 undefined -> Acc;
+                 _ -> {UnionNode, lists:delete(NodeName, SortedList)}
+              end
+      end
+   end,
+   {UnionNode, SubNodes} = lists:foldl(SubUnionFun, {undefined, Sorted}, Sorted),
+   UnionInEdges =
+   case UnionNode of
+      undefined -> [];
+      _ -> InEdges = digraph:in_edges(G, UnionNode),
+%%         lager:notice("Union In-Edges: ~p", [lists:map(fun(E) -> digraph:edge(Subgraph, E) end, InEdges)]),
+         InEdges
+   end,
+   S = #subgraph{
+      vertices = SubNodes,
+      edges = digraph:edges(Subgraph)--UnionInEdges,
+      root_outedges = digraph:out_edges(G, FromVertex),
+      union_node = UnionNode,
+      union_inedges = UnionInEdges
+   },
+   S.
 
 -spec insert_vertices(digraph:graph(), list(binary()), binary()) -> list({binary(), binary()}).
 insert_vertices(G, Vertices, PortBinary) ->
@@ -496,9 +543,6 @@ insert_edges(G, CopiedVertices, CurrentEdges) ->
       fun(Edge) ->
          {_E, V1, V2, Label} = digraph:edge(G, Edge),
          digraph:add_edge(G, proplists:get_value(V1, CopiedVertices), proplists:get_value(V2, CopiedVertices), Label)
-%%         ,
-%%         lager:notice("add edge: ~p ",
-%%            [[proplists:get_value(V1, CopiedVertices), proplists:get_value(V2, CopiedVertices), Label]])
       end,
    lists:foreach(EdgesFun, CurrentEdges).
 
@@ -530,7 +574,7 @@ delete_subgraph(FromVertex, OutPort, State = #state{graph = G, subgraphs = Subgr
    Subscriptions = build_subscriptions(NewNodes, G, Modes#task_modes.run_mode),
    {_Inputs, Subs} = proplists:get_value(FromVertex, Subscriptions),
    %% update subscriptions for the root node
-   df_component:update_subscriptions(get_node_pid(FromVertex, NewNodes), Subs),
+   df_subscription:save_subscriptions({State#state.id, FromVertex}, Subs),
    State#state{nodes = NewNodes}.
 
 get_available_outport(G, VertexName) ->
@@ -558,6 +602,10 @@ get_node_pid(NodeId, Nodes) when is_list(Nodes) ->
 -spec get_node_pids(list(tuple())) -> list(pid()).
 get_node_pids(Nodes) when is_list(Nodes) ->
    [NPid || {_NodeId, _Comp, NPid} <- Nodes].
+
+get_node_component(NodeId, Nodes) when is_list(Nodes) ->
+   {_, Component, _} = lists:keyfind(NodeId, 1, Nodes),
+   Component.
 
 
 

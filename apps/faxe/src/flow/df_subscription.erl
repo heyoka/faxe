@@ -13,7 +13,7 @@
 -include("dataflow.hrl").
 
 %% API
--export([new/5, output/3, request/3, save_subscriptions/2, subscriptions/1]).
+-export([new/5, output/3, request/3, save_subscriptions/2, subscriptions/1, list/1]).
 
 new(FlowMode, Publisher, PublisherPort, Subscriber, SubscriberPort) ->
    #subscription{
@@ -28,6 +28,9 @@ new(FlowMode, Publisher, PublisherPort, Subscriber, SubscriberPort) ->
 -spec save_subscriptions({binary(), binary()}, list({non_neg_integer(), list(#subscription{})})) -> true.
 save_subscriptions({_GraphId, _NodeId} = Index, Subscriptions) when is_list(Subscriptions) ->
    ets:insert(flow_subscriptions, {Index, Subscriptions}).
+
+list({_GraphId, _NodeId} = Index) ->
+   subscriptions(Index).
 
 -spec subscriptions({binary(), binary()}) -> list({non_neg_integer(), list(#subscription{})}).
 subscriptions({_GraphId, _NodeId} = Index) ->

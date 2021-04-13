@@ -65,7 +65,7 @@ metrics() ->
 init({_GraphId, _NodeId} = Idx, _Ins,
    #{ host := Host0, port := Port, user := _User, pass := _Pass, vhost := _VHost, exchange := Ex,
       routing_key := RoutingKey, routing_key_lambda := RkLambda, ssl := _UseSSL,
-      safe := Safe, persistent := Persist} = Opts0) ->
+      safe := Safe, persistent := _Persist} = Opts0) ->
 
    process_flag(trap_exit, true),
    Host = binary_to_list(Host0),

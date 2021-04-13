@@ -114,5 +114,6 @@ def raw_map = <<<{"S:FpFrontal1-SS:1-LP:1-PC:1":"topic/1/new",
 .keep('data.Workstation', 'topic')
 
 % #### keep raw data, but splitted by "Workstation"
+|group_union()
 
 |debug()

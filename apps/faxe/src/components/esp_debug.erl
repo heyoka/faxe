@@ -34,7 +34,7 @@ init(_NodeId, _Inputs, #{level := Lev}) ->
    {ok, all, #state{level = Level}}.
 
 process(_Inport, Value, State=#state{level = Level}) ->
-   Format = "process [at ~p] , ~p~n", Args = [faxe_time:now(),  {_Inport, lager:pr(Value, ?MODULE)}],
+   Format = "[at ~p], ~p~n", Args = [faxe_time:now(),  {_Inport, lager:pr(Value, ?MODULE)}],
    do_log(Level, Format, Args),
    {emit, Value, State}.
 

@@ -174,23 +174,23 @@ terminate(Reason, #state{channel = Channel, connection = Conn} = State) ->
    catch(close(Channel, Conn, State))
    .
 
-collect_ack(_Q, _LastTag, Pending) when map_size(Pending) == 0 -> lager:info("no more pending acks"),ok;
-collect_ack(Q, LastTag, Pending) ->
-   receive
-      #'basic.ack'{delivery_tag = DTag, multiple = Multiple} ->
-         Tags =
-            case Multiple of
-               true -> lager:warning("RabbitMQ confirmed MULTIPLE Tags till ~p",[DTag]),
-                  lists:seq(LastTag + 1, DTag);
-               false -> lager:notice("RabbitMQ confirmed Tag ~p",[DTag]),
-                  [DTag]
-            end,
-   lager:notice("bunny_worker ~p has pending_acks: ~p~n acks: ~p",[self(), Pending, Tags]),
-         [esq:ack(Ack, Q) || {_T, Ack} <- maps:to_list(maps:with(Tags, Pending))],
-         collect_ack(Q, DTag, maps:without(Tags, Pending))
-
-   after 1000 -> lager:info("after 1000 ms"), ok
-   end.
+%%collect_ack(_Q, _LastTag, Pending) when map_size(Pending) == 0 -> lager:info("no more pending acks"),ok;
+%%collect_ack(Q, LastTag, Pending) ->
+%%   receive
+%%      #'basic.ack'{delivery_tag = DTag, multiple = Multiple} ->
+%%         Tags =
+%%            case Multiple of
+%%               true -> lager:warning("RabbitMQ confirmed MULTIPLE Tags till ~p",[DTag]),
+%%                  lists:seq(LastTag + 1, DTag);
+%%               false -> lager:notice("RabbitMQ confirmed Tag ~p",[DTag]),
+%%                  [DTag]
+%%            end,
+%%   lager:notice("bunny_worker ~p has pending_acks: ~p~n acks: ~p",[self(), Pending, Tags]),
+%%         [esq:ack(Ack, Q) || {_T, Ack} <- maps:to_list(maps:with(Tags, Pending))],
+%%         collect_ack(Q, DTag, maps:without(Tags, Pending))
+%%
+%%   after 1000 -> lager:info("after 1000 ms"), ok
+%%   end.
 
 
 close(Channel, Conn, #state{queue = _Q, last_confirmed_dtag = _LastTag, pending_acks = _Pending, deq_timer_ref = T}) ->
@@ -270,7 +270,7 @@ start_connection(State = #state{config = Config}) ->
                State#state{available = false}
          end;
       E ->
-         lager:warning("Error starting connection: ~p",[E]),
+         lager:warning("Error starting connection: ~p :: ~p",[Config, E]),
          erlang:send_after(100, self(), connect),
          State#state{available = false}
    end,

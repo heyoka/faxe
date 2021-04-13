@@ -239,17 +239,12 @@ handle_queue_exit(Q, State = #state{queue_to_topics = QueueTopics,
    {ok, State#state{queue_to_topics = NewQTopics, topic_to_queue = NewTopicQs,
       publisher_to_queue = maps:without([Publisher], Pubs)}}.
 
-m_data_received(Topic, Payload, State) ->
-   {TimeMy, Res} = timer:tc(?MODULE, data_received, [Topic, Payload, State]),
-   lager:info("Time to process Payload: ~p",[TimeMy]),
-   Res.
-
 data_received(Topic, Payload, S = #state{topic_to_queue = Queues, amqp_exchange = Exchange, topic_last_seen = Last})
       when is_map_key(Topic, Queues) ->
    Q = maps:get(Topic, Queues),
-   RK = topic_to_key(Topic),
+   RoutingKey = topic_to_key(Topic),
 %%   lager:notice("got data with topic: ~p and enqueue with routingkey :~p",[Topic, RK]),
-   ok = esq:enq({Exchange, RK, Payload, []}, Q),
+   ok = esq:enq({Exchange, RoutingKey, Payload, []}, Q),
    {ok, S#state{topic_last_seen = Last#{Topic => faxe_time:now()}}};
 data_received(Topic, Payload, S = #state{}) ->
    lager:warning("get new queue and publisher: ~p",[Topic]),
