@@ -58,7 +58,7 @@
    set_group_size/2,
    update_by_tags/1,
    update_by_template/1,
-   eval_dfs/2]).
+   eval_dfs/2, task_to_graph2/1]).
 
 start_permanent_tasks() ->
    Tasks = faxe_db:get_permanent_tasks(),
@@ -100,10 +100,21 @@ get_task(TaskId) ->
 get_graph(TaskId) ->
    case get_task(TaskId) of
       #task{} = T ->
-         task_to_graph(T);
+         task_to_graph2(T);
       O -> O
    end.
 
+task_to_graph2(#task{pid = GraphPid} = _T) ->
+   AllNodes = df_graph:nodes(GraphPid),
+   NodesOut = [
+      #{<<"name">> => NName, <<"type">> => NType} || {NName, NType, _Pid} <- AllNodes
+   ],
+   Edges0 = df_graph:edges(GraphPid),
+   Edges = [
+      #{<<"src">> => Source, <<"src_port">> => PortOut, <<"dest">> => Dest, <<"dest_port">> => PortIn}
+      || {_E, Source, Dest, #{src_port := PortOut, tgt_port := PortIn}} <- Edges0
+   ],
+   #{nodes => NodesOut, edges => Edges}.
 
 task_to_graph(#task{definition = #{edges := Edges, nodes := Nodes} } = _T) ->
    EdgesOut = [

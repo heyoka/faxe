@@ -37,6 +37,11 @@ subscriptions({_GraphId, _NodeId} = Index) ->
    case ets:lookup(flow_subscriptions, Index) of
       [] -> [];
       [{Index, Subs}] -> Subs
+   end;
+subscriptions(GraphId) when is_binary(GraphId) ->
+   case ets:match_object(flow_subscriptions, {{GraphId, '_'}, '$1'}) of
+      '$end_of_table' -> [];
+      Res -> Res
    end.
 
 -spec output({binary(), binary()}, #data_point{}|#data_batch{}, non_neg_integer()) -> true.

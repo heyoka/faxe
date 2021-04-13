@@ -83,8 +83,8 @@ process(_Inport, #data_batch{points = Points} = Batch,
 process(_, #data_point{}, _State) ->
    {error, datapoint_not_supported}.
 
-handle_info(Request, State) ->
-   lager:warning("~p request: ~p~n", [State, Request]),
+handle_info(_Request, State) ->
+%%   lager:warning("~p request: ~p~n", [State, Request]),
    {ok, State}.
 
 %%%%%%%%%%%%%%%%%%%% internal %%%%%%%%%%%%

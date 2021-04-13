@@ -196,13 +196,13 @@ handle_call({sink_nodes}, _From, State = #state{graph = G}) ->
 handle_call({source_nodes}, _From, State = #state{graph = G}) ->
    InNodes = digraph:source_vertices(G),
    {reply, InNodes, State};
-handle_call({edges}, _From, State) ->
-   All = digraph:vertices(State#state.graph),
-   {reply, All, State};
+handle_call({edges}, _From, State = #state{graph = G}) ->
+   All = digraph:edges(G),
+   Out = [digraph:edge(G, E) || E <- All],
+   {reply, Out, State};
 handle_call({make_subgraph, FromVertex}, _From, State=#state{}) ->
 %%   lager:notice("make_subgraph from Vertex: ~p",[FromVertex]),
    {OutPort, NewState} = clone_and_start_subgraph(FromVertex, State),
-%%   {reply, {ok, 2}, State};
    {reply, {ok, OutPort}, NewState};
 handle_call({delete_subgraph, FromVertex, Port}, _From, State=#state{}) ->
 %%   lager:notice("make_subgraph from Vertex: ~p",[FromVertex]),
@@ -419,7 +419,6 @@ start_async(Nodes, Subscriptions, RunMode, Id) ->
    %% if in pull mode, initially let all components send requests to their producers
    maybe_initial_pull(RunMode, Nodes).
 
-%% @todo determine the new port number for the FromVertex to route messages to the new subgraph and return it
 clone_and_start_subgraph(FromVertex, State = #state{subgraphs = Subgraphs, graph = G, nodes = Nodes})
       when not is_map_key(FromVertex, Subgraphs) ->
    Subgraph = clone_subgraph(FromVertex, G, Nodes),
