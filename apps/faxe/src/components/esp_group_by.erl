@@ -56,7 +56,9 @@ handle_info(check_reset, State=#state{reset_check_interval = Interval}) ->
    lager:info("check_reset timeout"),
    NewState = check_reset(State),
    erlang:send_after(Interval, self(), check_reset),
-   {ok, NewState}.
+   {ok, NewState};
+handle_info(_Req, State) ->
+   {ok, State}.
 
 ensure_route(Val, Groups, _NId) when map_size(Groups) == 0 ->
    Groups#{Val => 1};
