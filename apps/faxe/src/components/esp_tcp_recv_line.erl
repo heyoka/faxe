@@ -79,7 +79,7 @@ process(_In, #data_batch{points = _Points} = _Batch, State = #state{}) ->
 process(_Inport, #data_point{} = _Point, State = #state{}) ->
   {ok, State}.
 
-%% ignore lines that are less than 60 bytes long
+%% ignore lines that are less than min_length bytes long
 handle_info({tcp, Socket, Data}, State=#state{min_length = Min}) when byte_size(Data) < Min ->
   inet:setopts(Socket, [{active, once}]),
   lager:notice("message dropped: ~p :: ~p",[byte_size(Data), Data]),

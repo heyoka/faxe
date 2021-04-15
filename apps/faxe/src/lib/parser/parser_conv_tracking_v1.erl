@@ -12,7 +12,7 @@
 -behavior(binary_msg_parser).
 
 %% API
--export([parse/1, test_bitmask/1, parse_datetime/1, maybe_disambiguate/1]).
+-export([parse/1, test_bitmask/1, parse_datetime/1]).
 
 -ifdef(TEST).
 -include_lib("eunit/include/eunit.hrl").
@@ -59,22 +59,9 @@
 
 parse(BinData) ->
    Timestamp = faxe_time:now(),
-   ets:insert(parser_prev_table(), ets:tab2list(parser_table())),
-   ets:delete_all_objects(parser_table()),
    %% split lines
    LinesAll = to_lines(BinData),
 
-
-   %% can be used, if the message's datetime is valid and synced
-%%   {Ts, DataLines} =
-%%   case LinesAll of
-%%      [<<DateTime:?PLC_DATETIME_LENGTH/binary, FirstLine/binary>>|RLines] ->
-%%         Ts = parse_datetime(DateTime),
-%%         {Ts, [FirstLine|RLines]};
-%%      [DateTime | RLines] ->
-%%         Ts = parse_datetime_new(DateTime),
-%%         {Ts, RLines}
-%%   end,
    DataLines =
    case LinesAll of
       [<<_DateTime:?PLC_DATETIME_LENGTH/binary, FirstLine/binary>>|RLines] ->
@@ -83,81 +70,40 @@ parse(BinData) ->
          RLines
    end,
    %% parse the lines
-   Res = parse_lines(DataLines),
-   %% no check for inconsistencies
-   DisambRes = maybe_disambiguate(Res),
+   Res0 = parse_lines(DataLines),
+   Res = remove_double_tracs(Res0),
+   {Timestamp, ?TGW_DATAFORMAT, ?PARSER_VERSION, Res}.
 
-   {Timestamp, ?TGW_DATAFORMAT, ?PARSER_VERSION, DisambRes}.
-%% test version, were we use the time in the plc message (but the time is not valid at the moment)
-%%   {Ts, ?TGW_DATAFORMAT, ?PARSER_VERSION, DisambRes}.
-
-
-%% if there is no previous parser data OR if there are obviously no duplicate values for "trac" ->
-%% do nothing at all !
-maybe_disambiguate(Result) ->
-   case ets:tab2list(parser_prev_table()) of
-      [] -> Result;
-      _L ->
-         TList = lists:filter(fun({_P, T}) -> T /= <<>> end, ets:tab2list(parser_table())),
-         {_Positions, Tracs} = lists:unzip(TList),
-         %% check if there are duplicates
-         case length(Tracs) == length(lists:usort(Tracs)) of
-            true -> Result;
-            false -> disambiguate(Result, TList)
-         end
-   end.
-
-disambiguate(ResMap, TList) ->
-   %% log from last parser run
-   LastTime = ets:tab2list(parser_prev_table()),
-   %% lets filter out double "trac" values, that is what we are interested in
-   F =
-   fun({_Pos, Trac}, {Seen, Doubles}) ->
-      NewDoubles =
-      case lists:member(Trac, Seen) of
-         true -> %% we have a second entry here
-            [Trac|Doubles];
-         false -> Doubles
-      end,
-      {[Trac|Seen], NewDoubles}
-   end,
-   {_Seen, Doubles} = lists:foldl(F, {[], []}, TList),
-   %% use doubles list to reduce the parser data
-   TheDoubles = lists:filter(fun({_Po, Tr}) -> lists:member(Tr, Doubles) end, TList),
-
-   %% check these with last parser values to get Actions list
-   FunEval =
-   fun({DPos, DTrac}, Acc) ->
-      case proplists:get_value(DPos, LastTime) of
-         DTrac -> %% we were here last time, and we know we are double, so set entry to <<>>
-            ets:delete_object(parser_table(), {DPos, DTrac}),
-            [DPos|Acc];
-         _Else -> %% undefined or other entry
-            Acc
-      end
-   end,
-   Actions = lists:foldl(FunEval, [], TheDoubles),
-%%   lager:notice("The Actions are: ~p",[Actions]),
-   %% execute the actions on the parsed list of maps
-   #{<<"sources">> := Sources, <<"targets">> := Targets} = ResMap,
+remove_double_tracs(ParserResult) ->
+%%   lager:notice("remove_double_tracs: ~p",[ParserResult]),
+   #{<<"sources">> := Sources, <<"targets">> := Targets} = ParserResult,
    %% run over every entry from the parsed data
    AllPos = lists:concat([Sources, Targets]),
    Disamb =
-   fun(#{<<"pos">> := Pos} = El, #{<<"sources">> := Srcs, <<"targets">> := Trgts} = Acc) ->
+   fun(#{<<"trac">> := Trac, <<"pos">> := _Pos} = El, {#{<<"sources">> := Srcs, <<"targets">> := Trgts}=ResAcc, Seen}) ->
+
       NewEntry =
-      case lists:member(Pos, Actions) of
+      case lists:member(Trac, Seen) of
          true  ->
-            El#{<<"trac">> => <<>>, <<"scan">> => <<>>};
+%%            lager:alert("have seen trac: ~p already, so we delete the second entry on pos: ~p",[Trac, Pos]),
+            El0 = El#{<<"trac">> => <<>>, <<"scan">> => <<>>},
+            %% reset targ entry, when Element is source
+            case maps:is_key(<<"targ">>, El0) of
+               true -> El0#{<<"targ">> => []};
+               false -> El0
+            end;
          false ->
             El
       end,
+      NewSeen = [Trac|lists:delete(Trac, Seen)],
       %% with the presence of the field "targ" we decide if the entry is source or target
       case maps:is_key(<<"targ">>, NewEntry) of
-         true -> Acc#{<<"sources">> => [NewEntry|Srcs]};
-         false -> Acc#{<<"targets">> => [NewEntry|Trgts]}
+         true -> {ResAcc#{<<"sources">> => [NewEntry|Srcs]}, NewSeen};
+         false -> {ResAcc#{<<"targets">> => [NewEntry|Trgts]}, NewSeen}
       end
    end,
-   lists:foldl(Disamb, #{<<"sources">> => [], <<"targets">> => []}, AllPos).
+   {Result, _} = lists:foldl(Disamb, {#{<<"sources">> => [], <<"targets">> => []}, []}, AllPos),
+   Result.
 
 
 to_lines(BinData) ->
@@ -225,14 +171,21 @@ line_src_e_pp(Pos, Fields0)  ->
       <<"TRG3:", Targ3/binary>>,
       <<"TRG4:", Targ4/binary>>,
       <<"TRG5:", Targ5/binary>>] = Fields,
-   ets:insert(parser_table(), {Pos, Trac}),
-   #{<<"pos">> => Pos,
+%%   lager:notice("insert line_src_e_pp: ~p",[{Pos, Trac}]),
+%%   ets:insert(parser_table(), {Pos, Trac}),
+   Targets = lists:filter(fun(E) -> E /= <<>> end, [Targ1, Targ2, Targ3, Targ4, Targ5]),
+   R = #{<<"pos">> => Pos,
       <<"trac">> => Trac,
       <<"scan">> => Scan, <<"seqn">> => int_or_null(SeqN),
       <<"attr">> => eval_bitarray(int_or_empty(Attr), ?SOURCE_BITMASK_VAL),
-      <<"targ">> => lists:filter(fun(E) -> E /= <<>> end, [Targ1, Targ2, Targ3, Targ4, Targ5])}.
+      <<"targ">> => Targets},
+   case {Trac, Targets} of
+      {<<>>, [_Ta|_]} -> lager:error("found Target but no Trac for position: ~p",[Pos]);
+      _ -> ok
+   end,
+   R.
 
-%% kick out "TARG" as it may not be there and is not used anyway
+%% kick out "TARG" (number of targets) as we do not need it
 src_match([
    <<"TRAC:", Trac/binary>>,
    <<"SCAN:", Scan/binary>>,
@@ -261,7 +214,8 @@ line_tgt_it_dp(Pos, Fields) ->
       <<"SEQN:", SeqN/binary>>, %% empty or int
       <<"CASE:", Case/binary>>, %% emtpy or int
       <<"ATTR:", Attr/binary>>] = Fields,
-   ets:insert(parser_table(), {Pos, Trac}),
+%%   lager:notice("insert line_tgt_it_dp: ~p",[{Pos, Trac}]),
+%%   ets:insert(parser_table(), {Pos, Trac}),
    #{<<"pos">> => Pos, <<"trac">> => Trac,
       <<"scan">> => Scan, <<"temp">> => Temp,
       <<"seqn">> => int_or_null(SeqN), <<"case">> => int_or_null(Case),
@@ -295,7 +249,6 @@ bitm(<<Bit:1, Rest/bitstring>>, [Item | Others], Gathered) ->
 
 -spec parse_datetime(binary()) -> faxe_time:timestamp().
 parse_datetime(DTBin) ->
-   lager:notice("datetime: ~p",[DTBin]),
    time_format:conv_dt_to_ms(DTBin).
 
 %%parse_datetime_new(DTBin) ->
@@ -305,21 +258,21 @@ parse_datetime(DTBin) ->
 
 %%%%%%%%%%%%%%%%%%% parser tables %%%%%%%%%%%%%%%%%%%%%%
 %% parser table handles stored in process dictionary
-parser_table() ->
-   case get(parser) of
-      undefined ->
-         Tab = ets:new(parser, [bag]),
-         put(parser, Tab), Tab;
-      Val -> Val
-   end.
-
-parser_prev_table() ->
-   case get(parser_prev) of
-      undefined ->
-         Tab = ets:new(parser_prev, [set]),
-         put(parser_prev, Tab), Tab;
-      Val -> Val
-   end.
+%%parser_table() ->
+%%   case get(parser) of
+%%      undefined ->
+%%         Tab = ets:new(parser, [bag]),
+%%         put(parser, Tab), Tab;
+%%      Val -> Val
+%%   end.
+%%
+%%parser_prev_table() ->
+%%   case get(parser_prev) of
+%%      undefined ->
+%%         Tab = ets:new(parser_prev, [set]),
+%%         put(parser_prev, Tab), Tab;
+%%      Val -> Val
+%%   end.
 
 %%%%%%%%%%%%%%%%%% end %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 -ifdef(TEST).
@@ -409,7 +362,7 @@ def1() -> iolist_to_binary([
 %%    S00,TRAC:,SCAN:,SEQN:0,ATTR:0,TRG1:,TRG2:,TRG3:,TRG4:,TRG5:
    <<"S00,TRAC:2001,SCAN:2001,SEQN:,ATTR:20,TRG1:3072,TRG2:,TRG3:,TRG4:,TRG5:;">>,
    <<"S10,TRAC:3064,SCAN:,SEQN:9,TARG:1,ATTR:16,TRG1:2057,TRG2:,TRG3:,TRG4:,TRG5:;">>,
-   <<"S11,TRAC:,SCAN:,SEQN:,TARG:,ATTR:0,TRG1:,TRG2:,TRG3:,TRG4:,TRG5:;">>,
+   <<"S11,TRAC:2058,SCAN:,SEQN:,TARG:,ATTR:0,TRG1:,TRG2:,TRG3:,TRG4:,TRG5:;">>,
    <<"E01,TRAC:,SCAN:,SEQN:,TARG:,ATTR:0,TRG1:,TRG2:0000000000E8,TRG3:,TRG4:,TRG5:;">>,
    <<"PP2,TRAC:2058,SCAN:2058,SEQN:2,TARG:1,ATTR:16,TRG1:2051,TRG2:,TRG3:,TRG4:,TRG5:;">>]
 ).
@@ -459,7 +412,7 @@ res_new() ->
          #{<<"attr">> => [],<<"case">> => null,
             <<"pos">> => <<"IT1">>,<<"scan">> => <<>>,
             <<"seqn">> => null,<<"temp">> => <<>>,
-            <<"trac">> => <<>>},
+            <<"trac">> => <<"3062">>},
          #{<<"attr">> => [],<<"case">> => 3100,
             <<"pos">> => <<"DP1">>,<<"scan">> => <<"3068">>,
             <<"seqn">> => 1,<<"temp">> => <<>>,
@@ -468,7 +421,6 @@ res_new() ->
             <<"pos">> => <<"DP2">>,<<"scan">> => <<"2051">>,
             <<"seqn">> => 2,<<"temp">> => <<>>,
             <<"trac">> => <<"2051">>}]}
-
 .
 
 
@@ -560,13 +512,13 @@ res2() ->
             <<"seqn">> => null,<<"temp">> => <<>>,
             <<"trac">> => <<>>},
          #{<<"attr">> => [],<<"case">> => 9999,
-            <<"pos">> => <<"T06">>,<<"scan">> => <<"2022">>,
+            <<"pos">> => <<"T06">>,<<"scan">> => <<>>,
             <<"seqn">> => 5,<<"temp">> => <<>>,
-            <<"trac">> => <<"2022">>},
-         #{<<"attr">> => [],<<"case">> => 6,
-            <<"pos">> => <<"T07">>,<<"scan">> => <<>>,
-            <<"seqn">> => null,<<"temp">> => <<>>,
             <<"trac">> => <<>>},
+         #{<<"attr">> => [],<<"case">> => 6,
+            <<"pos">> => <<"T07">>,<<"scan">> => <<"2022">>,
+            <<"seqn">> => null,<<"temp">> => <<>>,
+            <<"trac">> => <<"2022">>},
          #{<<"attr">> => [],<<"case">> => 9999,
             <<"pos">> => <<"T08">>,<<"scan">> => <<"2064">>,
             <<"seqn">> => 6,<<"temp">> => <<>>,
@@ -611,6 +563,7 @@ res2() ->
             <<"pos">> => <<"DP2">>,<<"scan">> => <<"2051">>,
             <<"seqn">> => 2,<<"temp">> => <<>>,
             <<"trac">> => <<"2051">>}]}
+
 .
 
 
@@ -618,9 +571,9 @@ res2() ->
 
 i_test() ->
    {T, Res} = timer:tc(?MODULE, parse, [def()]),
-   lager:info("Time (micros) needed: ~p~nJSON: ~s",[T, binary_to_list(Res)]),
+   lager:info("Time (micros) needed: ~p~nJSON: ~s",[T, Res]),
    {T1, Res1} = timer:tc(?MODULE, parse, [def1()]),
-   lager:info("Time (micros) needed: ~p~nJSON: ~s",[T1, Res1]).
+   lager:info("Time (micros) needed: ~p~nJSON: ~p",[T1, Res1]).
 
 parse_test() ->
    {Ts, _Df, _Vs, _Data} = Res = parse(def1()),

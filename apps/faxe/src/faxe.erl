@@ -58,7 +58,7 @@
    set_group_size/2,
    update_by_tags/1,
    update_by_template/1,
-   eval_dfs/2, task_to_graph2/1]).
+   eval_dfs/2, task_to_graph_running/1]).
 
 start_permanent_tasks() ->
    Tasks = faxe_db:get_permanent_tasks(),
@@ -96,15 +96,16 @@ get_task(TaskId) ->
    end.
 
 %% @doc get the graph definition (nodes and edges) as a map
--spec get_graph(non_neg_integer()|binary()) -> map() | {error, term()}.
+-spec get_graph(non_neg_integer()|binary()|#task{}) -> map() | {error, term()}.
+get_graph(#task{is_running = true} = T) -> task_to_graph_running(T);
+get_graph(#task{} = T) -> task_to_graph(T);
 get_graph(TaskId) ->
    case get_task(TaskId) of
-      #task{} = T ->
-         task_to_graph2(T);
+      #task{} = T1 -> get_graph(T1);
       O -> O
    end.
 
-task_to_graph2(#task{pid = GraphPid} = _T) ->
+task_to_graph_running(#task{pid = GraphPid} = _T) ->
    AllNodes = df_graph:nodes(GraphPid),
    NodesOut = [
       #{<<"name">> => NName, <<"type">> => NType} || {NName, NType, _Pid} <- AllNodes
