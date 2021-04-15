@@ -271,7 +271,7 @@ get_to_json(Req, State=#state{task = Task}) ->
    {jiffy:encode(Map), Req, State}.
 
 get_graph_to_json(Req, State=#state{task = Task}) ->
-   {jiffy:encode(faxe:task_to_graph_running(Task)), Req, State}.
+   {jiffy:encode(faxe:get_graph(Task)), Req, State}.
 
 from_register_task(Req, State = #state{name = TaskName, dfs = Dfs, tags = Tags}) ->
    rest_helper:do_register(Req, TaskName, Dfs, Tags, State, task).
