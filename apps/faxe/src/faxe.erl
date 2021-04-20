@@ -337,8 +337,10 @@ update_task(DfsScript, TaskId, Force, ScriptType) ->
       {Error, _} -> Error
    end.
 
-maybe_update(DfsScript, T = #task{dfs = DFS}, Force, ScriptType) ->
-   case Force orelse (erlang:crc32(DfsScript) =:= erlang:crc32(DFS)) of
+maybe_update(DfsScript, T = #task{}, true, ScriptType) ->
+   update(DfsScript, T, ScriptType);
+maybe_update(DfsScript, T = #task{dfs = DFS}, false, ScriptType) ->
+   case erlang:crc32(DfsScript) =:= erlang:crc32(DFS) of
       true -> {ok, no_update};
       false -> update(DfsScript, T, ScriptType)
    end.
