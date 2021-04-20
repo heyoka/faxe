@@ -282,18 +282,25 @@ task_from_template(TemplateId, TaskName, Vars) when is_map(Vars) ->
 %% @doc update all tasks that exist, use with care
 -spec update_all() -> [ok|{error, term()}].
 update_all() ->
-   update_list(list_tasks()).
+   update_all(false).
+update_all(Force) ->
+   update_list(list_tasks(), Force).
+
 
 update_by_tags(Tags) when is_list(Tags) ->
+   update_by_tags(Tags, false).
+update_by_tags(Tags, Force) when is_list(Tags) ->
    Tasks = list_tasks_by_tags(Tags),
-   update_list(Tasks).
+   update_list(Tasks, Force).
 
 update_by_template(TemplateId) ->
+   update_by_template(TemplateId, false).
+update_by_template(TemplateId, Force) ->
    Tasks = list_tasks_by_template(TemplateId),
-   update_list(Tasks).
+   update_list(Tasks, Force).
 
-update_list(TaskList) when is_list(TaskList) ->
-   [update_task(DfsScript, Id, data) || #task{id = Id, dfs = DfsScript} <- TaskList].
+update_list(TaskList, Force) when is_list(TaskList) ->
+   [update_task(DfsScript, Id, Force, data) || #task{id = Id, dfs = DfsScript} <- TaskList].
 
 
 -spec update_file_task(list(), integer()|binary()) -> ok|{error, term()}.
@@ -304,12 +311,14 @@ update_file_task(DfsFile, TaskId) ->
 update_string_task(DfsScript, TaskId) ->
    update_task(DfsScript, TaskId, data).
 
--spec update_task(list()|binary(), integer()|binary(), atom()) -> ok|{error, term()}.
 update_task(DfsScript, TaskId, ScriptType) ->
+   update_task(DfsScript, TaskId, false, ScriptType).
+-spec update_task(list()|binary(), integer()|binary(), true|false, atom()) -> ok|{error, term()}.
+update_task(DfsScript, TaskId, Force, ScriptType) ->
    Res =
    case get_running(TaskId) of
-      {true, T=#task{}} -> {update_running(DfsScript, T, ScriptType), T};
-      {false, T=#task{}} -> {maybe_update(DfsScript, T, ScriptType), T};
+      {true, T=#task{}} -> {update_running(DfsScript, T, Force, ScriptType), T};
+      {false, T=#task{}} -> {maybe_update(DfsScript, T, Force, ScriptType), T};
 %%      {_, T=#task{group_leader = false}} -> {error, group_leader_update_only};
       Err -> {Err, nil}
    end,
@@ -320,7 +329,7 @@ update_task(DfsScript, TaskId, ScriptType) ->
             {error, not_found} -> ok;
             L when is_list(L) ->
                %% update group-members
-               [update_task(DfsScript, Id, ScriptType)
+               [update_task(DfsScript, Id, Force, ScriptType)
                   || #task{id = Id, group_leader = Lead} <- L, Lead == false],
                ok
          end;
@@ -328,8 +337,8 @@ update_task(DfsScript, TaskId, ScriptType) ->
       {Error, _} -> Error
    end.
 
-maybe_update(DfsScript, T = #task{dfs = DFS}, ScriptType) ->
-   case erlang:crc32(DfsScript) =:= erlang:crc32(DFS) of
+maybe_update(DfsScript, T = #task{dfs = DFS}, Force, ScriptType) ->
+   case Force orelse (erlang:crc32(DfsScript) =:= erlang:crc32(DFS)) of
       true -> {ok, no_update};
       false -> update(DfsScript, T, ScriptType)
    end.
@@ -346,9 +355,9 @@ update(DfsScript, Task, ScriptType) ->
       Err -> Err
    end.
 
--spec update_running(list()|binary(), #task{}, atom()) -> ok|{error, term()}.
-update_running(DfsScript, Task = #task{id = TId, pid = TPid}, ScriptType) ->
-   case maybe_update(DfsScript, Task, ScriptType) of
+-spec update_running(list()|binary(), #task{}, true|false, atom()) -> ok|{error, term()}.
+update_running(DfsScript, Task = #task{id = TId, pid = TPid}, Force, ScriptType) ->
+   case maybe_update(DfsScript, Task, Force, ScriptType) of
       {ok, no_update} -> {ok, no_update};
       {error, Err} -> {error, Err};
       ok ->
