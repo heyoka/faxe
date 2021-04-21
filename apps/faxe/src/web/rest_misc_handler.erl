@@ -55,9 +55,9 @@ from_validate_dfs(Req, State = #state{dfs = DfsScript}) ->
    Response =
    case faxe:eval_dfs(DfsScript, data) of
       {_DFS, Def} = _Res when is_map(Def) ->
-         #{<<"success">> => true};
+         #{<<"success">> => true, <<"message">> => <<"Dfs is valid.">>};
       {error, What} ->
-         #{<<"success">> => false, <<"error">> => faxe_util:to_bin(What)}
+         #{<<"success">> => false, <<"message">> => faxe_util:to_bin(What)}
    end,
    Req2 = cowboy_req:set_resp_body(jiffy:encode(Response), Req),
    {true, Req2, State}.

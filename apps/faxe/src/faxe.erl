@@ -58,7 +58,11 @@
    set_group_size/2,
    update_by_tags/1,
    update_by_template/1,
-   eval_dfs/2, task_to_graph_running/1]).
+   eval_dfs/2,
+   task_to_graph_running/1,
+   update_all/1,
+   update_by_tags/2,
+   update_by_template/2]).
 
 start_permanent_tasks() ->
    Tasks = faxe_db:get_permanent_tasks(),

@@ -205,14 +205,14 @@ list_json(Req, State=#state{mode = Mode}) ->
 update_json(Req, State = #state{mode = Mode}) ->
    Result =
       case Mode of
-         update -> faxe:update_all();
+         update -> faxe:update_all(true);
          update_by_template ->
             TemplateId = cowboy_req:binding(template, Req),
-            faxe:update_by_template(TemplateId);
+            faxe:update_by_template(TemplateId, true);
          update_by_tags ->
             Tags0 = cowboy_req:binding(tags, Req),
             Tags = binary:split(Tags0,[<<",">>, <<" ">>],[global, trim_all]),
-            faxe:update_by_tags(Tags)
+            faxe:update_by_tags(Tags, true)
       end,
    Resp =
    case Result of
