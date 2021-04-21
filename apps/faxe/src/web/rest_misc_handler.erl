@@ -52,16 +52,16 @@ malformed_request(Req, State) ->
    {false, Req, State}.
 
 from_validate_dfs(Req, State = #state{dfs = DfsScript}) ->
+   Response =
    case faxe:eval_dfs(DfsScript, data) of
       {_DFS, Def} = _Res when is_map(Def) ->
-         Out = #{<<"success">> => true},
-         Req2 = cowboy_req:set_resp_body(jiffy:encode(Out), Req),
-         {true, Req2, State};
+         #{<<"success">> => true};
       {error, What} ->
-         OutE = #{<<"success">> => false, <<"error">> => faxe_util:to_bin(What)},
-         Req2 = cowboy_req:set_resp_body(jiffy:encode(OutE), Req),
-         {false, Req2, State}
-   end.
+         #{<<"success">> => false, <<"error">> => faxe_util:to_bin(What)}
+   end,
+   Req2 = cowboy_req:set_resp_body(jiffy:encode(Response), Req),
+   {true, Req2, State}.
+
 
 %% faxe's config hand picked
 config_json(Req, State=#state{mode = config}) ->
