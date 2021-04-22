@@ -54,7 +54,7 @@ stages:
 #      inputs:
 #        containerRegistry: 'nexus-docker-connection'
 #        command: 'login'
-      displayName: docker login
+      #displayName: docker login
 #    - script: |
 #        echo ---------------------
 #        docker images
