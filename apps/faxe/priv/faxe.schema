@@ -20,25 +20,63 @@
     ]
 }.
 
+%% @doc whether to send logs to logstash
+{mapping, "log.logstash_backend_enable", "lager.handlers",
+    [{default, off}, {datatype, flag}, {commented, off}]
+}.
+
+%% @doc logstash host name or address
+{mapping, "log.logstash_host", "lager.handlers",
+    [{default, "127.0.0.1"}, {datatype, string}, {commented, "127.0.0.1"}]
+}.
+
+%% @doc logstash port
+{mapping, "log.logstash_port", "lager.handlers",
+    [{default, 9125}, {datatype, integer}, {commented, 9125}]
+}.
+
+%% @doc whether to send logs to logstash
+%% logs will be sent via a udp socket to the configured logstash host
+{mapping, "log.logstash_backend_enable", "lager.handlers",
+    [{default, off}, {datatype, flag}, {commented, off}]
+}.
+
+%% @doc set the log level for the logstash backend
+{mapping, "log.logstash_level", "lager.handlers",
+    [
+    {default, info},
+    {datatype, {enum,[debug, info, notice, warning, error, alert]}},
+    {commented, info}
+    ]
+}.
+
 {translation, "lager.handlers",
     fun(Conf) ->
     ConsoleLevel = cuttlefish:conf_get("log.console_level", Conf),
     EmitLevel = cuttlefish:conf_get("log.emit_level", Conf),
+    LogstashEnable = cuttlefish:conf_get("log.logstash_backend_enable", Conf),
+    LogstashLevel = cuttlefish:conf_get("log.logstash_level", Conf),
+    LogstashHost = cuttlefish:conf_get("log.logstash_host", Conf),
+    LogstashPort = cuttlefish:conf_get("log.logstash_port", Conf),
+    LogstashConf =
+    case LogstashEnable of
+        true ->
+            [{lager_logstash_backend,
+                  [
+                   {level,         LogstashLevel},
+                   {logstash_host, LogstashHost},
+                   {logstash_port, LogstashPort},
+                   {node_role,     "faxe"},
+                   {host, "my_ip"},
+                   {metadata, [
+                               {flow,  [{encoding, string}]},
+                               {comp,  [{encoding, string}]}
+                              ]}
+                  ]}];
+        false -> []
+    end,
     [
-    {lager_logstash_backend,
-          [
-           {level,         notice},
-           {logstash_host, "10.14.204.17"},
-           {logstash_port, 9125},
-           {node_role,     "erlang"},
-           {node_version,  "0.0.1"},
-           {metadata, [
-                       {account_token,  [{encoding, string}]},
-                       {client_os,      [{encoding, string}]},
-                       {client_version, [{encoding, string}]}
-                      ]}
-          ]},
-        {lager_console_backend, [
+       {lager_console_backend, [
         {level, ConsoleLevel},
           {formatter, lager_default_formatter},
           {formatter_config,
@@ -52,7 +90,7 @@
         ,
         {lager_emit_backend, [{level, EmitLevel}]} ,
         {lager_file_backend, [{file, "log/error.log"}, {level, error}]}
-      ]
+      ] ++ LogstashConf
     end}.
 
 

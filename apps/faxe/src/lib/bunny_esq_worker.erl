@@ -12,6 +12,7 @@
 -define(DEQ_INTERVAL, 15).
 
 -record(state, {
+   reconnector          = undefined,
    connection           = undefined :: undefined|pid(),
    channel              = undefined :: undefined|pid(),
    channel_ref          = undefined :: undefined|reference(),
@@ -60,12 +61,14 @@ stop(Server) ->
 init([Queue, Config]) ->
 
    process_flag(trap_exit, true),
-   erlang:send_after(0, self(), connect),
+   Reconnector = faxe_backoff:new({100, 4200}),
+   {ok, Reconnector1} = faxe_backoff:execute(Reconnector, connect),
    AmqpParams = amqp_options:parse(Config),
    DeqInterval = proplists:get_value(deq_interval, faxe_config:get_esq_opts(), ?DEQ_INTERVAL),
    SafeMode = maps:get(safe_mode, Config, false),
    DeliveryMode = case maps:get(persistent, Config, false) of true -> 2; false -> 1 end,
    {ok, #state{
+      reconnector = Reconnector1,
       queue = Queue,
       config = AmqpParams,
       deq_interval = DeqInterval,
@@ -87,10 +90,11 @@ handle_info(connect, State) ->
       false -> {noreply, NewState}
    end;
 
-handle_info({'EXIT', MQPid, Reason}, State=#state{channel = MQPid} ) ->
+handle_info({'EXIT', MQPid, Reason}, State=#state{channel = MQPid, reconnector = Recon} ) ->
    lager:warning("MQ channel DIED: ~p", [Reason]),
-   erlang:send_after(0, self(), connect),
+   {ok, Reconnector} = faxe_backoff:execute(Recon, connect),
    {noreply, State#state{
+      reconnector = Reconnector,
       channel = undefined,
       channel_ref = undefined,
       available = false
@@ -254,7 +258,7 @@ start_deq_timer(State = #state{deq_interval = Interval}) ->
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %%% MQ Connection functions.
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-start_connection(State = #state{config = Config}) ->
+start_connection(State = #state{config = Config, reconnector = Recon}) ->
 %%   lager:notice("amqp_params: ~p",[lager:pr(Config, ?MODULE)] ),
    Connection = amqp_connection:start(Config),
    NewState =
@@ -263,16 +267,17 @@ start_connection(State = #state{config = Config}) ->
          Channel = new_channel(Connection),
          case Channel of
             {ok, Chan} ->
-               State#state{connection = Conn, channel = Chan, available = true};
+               State#state{connection = Conn, channel = Chan, available = true,
+                  reconnector = faxe_backoff:reset(Recon)};
             Er ->
                lager:warning("Error starting channel: ~p",[Er]),
-               erlang:send_after(100, self(), connect),
-               State#state{available = false}
+               {ok, Reconnector} = faxe_backoff:execute(Recon, connect),
+               State#state{available = false, reconnector = Reconnector}
          end;
       E ->
          lager:warning("Error starting amqp connection: ~p :: ~p",[Config, E]),
-         erlang:send_after(100, self(), connect),
-         State#state{available = false}
+         {ok, Reconnector} = faxe_backoff:execute(Recon, connect),
+         State#state{available = false, reconnector = Reconnector}
    end,
    NewState.
 

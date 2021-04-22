@@ -38,7 +38,7 @@
    mem_queue,
    max_mem_queue_len = 100,
    deq_interval = 15,
-   reconnector,
+   reconnector :: faxe_backoff:backoff(),
    node_id,
    client_id
 }).
@@ -94,7 +94,7 @@ init_all(#{host := Host, port := Port} = Opts, State) ->
 
    process_flag(trap_exit, true),
    reconnect_watcher:new(10000, 5, io_lib:format("~s:~p ~p",[Host, Port, ?MODULE])),
-   Reconnector = faxe_backoff:new({10, 1200}),
+   Reconnector = faxe_backoff:new({100, 4200}),
    connection_registry:reg(NId, Host, Port, <<"mqtt">>),
    {ok, Reconnector1} = faxe_backoff:execute(Reconnector, reconnect),
    connection_registry:connecting(),

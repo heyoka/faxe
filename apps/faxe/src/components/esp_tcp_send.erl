@@ -69,7 +69,7 @@ init(NodeId, _Ins,
       _ -> faxe_time:duration_to_ms(Dur)
     end,
   ResponseTimeout = faxe_time:duration_to_ms(RTimeout),
-  Reconnector = faxe_backoff:new({200, 3200}),
+  Reconnector = faxe_backoff:new({200, 4200}),
   {ok, Recon} = faxe_backoff:execute(Reconnector, reconnect),
 
   {ok, all,
@@ -188,7 +188,7 @@ connect(#state{ip = Ip, port = Port, connector = Reconnector, packet = Packet} =
     gen_tcp:connect(binary_to_list(Ip), Port, ?SOCKOPTS++[{packet, Packet}]) of
     {ok, Socket} ->
       connection_registry:connected(),
-      State#state{socket = Socket, connected = true};
+      State#state{socket = Socket, connected = true, connector = faxe_backoff:reset(Reconnector)};
     {error, Reason} ->
       connection_registry:disconnected(),
       lager:warning("connection to ~p ~p failed with reason: ~p", [Ip, Port, Reason]),

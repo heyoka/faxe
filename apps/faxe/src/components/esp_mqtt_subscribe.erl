@@ -81,7 +81,7 @@ init(NodeId, _Ins,
    ClientId = list_to_binary(faxe_util:uuid_string()),
 
    reconnect_watcher:new(10000, 5, io_lib:format("~s:~p ~p",[Host, Port, ?MODULE])),
-   Reconnector = faxe_backoff:new({5,1200}),
+   Reconnector = faxe_backoff:new({100, 4200}),
    {ok, Reconnector1} = faxe_backoff:execute(Reconnector, connect),
 
    connection_registry:reg(NodeId, Host, Port, <<"mqtt">>),
@@ -103,10 +103,10 @@ process(_In, _, State = #state{}) ->
 handle_info(connect, State) ->
    connect(State),
    {ok, State};
-handle_info({mqttc, C, connected}, State=#state{host = Host}) ->
+handle_info({mqttc, C, connected}, State=#state{host = Host, reconnector = Recon}) ->
    connection_registry:connected(),
    lager:notice("mqtt client connected to ~p",[Host]),
-   NewState = State#state{client = C, connected = true},
+   NewState = State#state{client = C, connected = true, reconnector = faxe_backoff:reset(Recon)},
    subscribe(NewState),
    {ok, NewState};
 %% @todo do we have to kill the client ?

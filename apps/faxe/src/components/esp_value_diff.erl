@@ -55,7 +55,7 @@ process(_Inport, P = #data_point{} = Point, State = #state{fields = FieldList}) 
 -spec execute(#data_point{}, list(binary()), #state{})
        -> #data_point{}.
 execute(P =#data_point{}, FieldVals,
-    S = #state{fields = FieldList, field_states = FieldStates, default = Def, as = As, diff_fun = Fun}) ->
+    #state{fields = FieldList, field_states = FieldStates, default = Def, as = As, diff_fun = Fun}) ->
    FoldFn =
    fun
       ({_K, undefined}, NewFields) ->

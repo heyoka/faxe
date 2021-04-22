@@ -128,7 +128,7 @@ init(NodeId, _Ins,
    QOpts = case Safe of true -> QOpts0; false -> proplists:delete(ttf, QOpts0) end,
 
    reconnect_watcher:new(10000, 5, io_lib:format("~s:~p ~p",[Host, Port, ?MODULE])),
-   Reconnector = faxe_backoff:new({5,1200}),
+   Reconnector = faxe_backoff:new({30, 3200}),
    {ok, Reconnector1} = faxe_backoff:execute(Reconnector, connect_mqtt),
 
    connection_registry:reg(NodeId, Host, Port, <<"mqtt">>),
@@ -160,10 +160,10 @@ process(_In, _, State = #state{}) ->
 handle_info(connect_mqtt, State) ->
    connect_mqtt(State),
    {ok, State};
-handle_info({mqttc, C, connected}, State=#state{}) ->
+handle_info({mqttc, C, connected}, State=#state{host = Host, reconnector = Recon}) ->
    connection_registry:connected(),
-   lager:notice("mqtt client connected!!"),
-   NewState = State#state{client = C, connected = true},
+   lager:notice("mqtt client connected to: ~p !!", [Host]),
+   NewState = State#state{client = C, connected = true, reconnector = faxe_backoff:reset(Recon)},
    subscribe(NewState),
    {ok, NewState};
 handle_info({mqttc, _C,  disconnected}, State=#state{client = Client}) ->

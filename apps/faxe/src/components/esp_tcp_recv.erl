@@ -49,7 +49,7 @@
   ]).
 
 -define(RECON_MIN_INTERVAL, 100).
--define(RECON_MAX_INTERVAL, 1000).
+-define(RECON_MAX_INTERVAL, 10000).
 -define(RECON_MAX_RETRIES, infinity).
 
 options() -> [
@@ -102,13 +102,13 @@ handle_info({tcp_closed, _S}, S=#state{}) ->
 handle_info({tcp_error, Socket, _}, State) ->
   inet:setopts(Socket, [{active, once}]),
   {ok, State};
-handle_info(do_reconnect, State=#state{ip = Ip, port = Port, packet = Packet}) ->
+handle_info(do_reconnect, State=#state{ip = Ip, port = Port, packet = Packet, reconnector = Recon}) ->
   connection_registry:connecting(),
   case connect(Ip, Port, Packet) of
     {ok, Socket} ->
       connection_registry:connected(),
       inet:setopts(Socket, [{active, once}]),
-      {ok, State#state{socket = Socket}};
+      {ok, State#state{socket = Socket, reconnector = faxe_backoff:reset(Recon)}};
     {error, Error} -> lager:error("[~p] Error connecting to ~p: ~p",[?MODULE, {Ip, Port},Error]),
       try_reconnect(State)
   end;
