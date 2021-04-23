@@ -19,9 +19,7 @@ steps:
 - checkout: self
   displayName: 'checkout repo'
 - script: |
-    echo download balena cli
-    #git clone https://github.com/balena-io/balena-cli.git
-    
+    echo download balena cli   
     wget https://github.com/balena-io/balena-cli/releases/download/v12.44.11/balena-cli-v12.44.11-linux-x64-standalone.zip
     unzip balena-cli-v12.44.11-linux-x64-standalone.zip
     cd balena-cli
@@ -33,21 +31,8 @@ steps:
     ./balena-cli/balena login --token $(echo $(BALENA-API-KEY))
     ./balena-cli/balena apps
   displayName: 'log into balena'
-- task: DockerInstaller@0
-  inputs:
-    dockerVersion: '17.09.0-ce'
-  displayName: install docker cli
-
-
 
 - script: |
-    echo inject build number into docker-compose
-  displayName: 'inject build number'
-
-- script: |
-    echo log into balena
-  displayName: 'balena login'
-
-- script: |
-    echo push to balena
+    echo extract access token from keyvault
+    ./balena-cli/balena push $(BALENA_APPLICATION) --multi-dockerignore
   displayName: 'balena push'
