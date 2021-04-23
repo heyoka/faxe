@@ -9,7 +9,7 @@
 
 %% API
 -export([start_link/6]).
--export([start_node/3, inports/1, outports/1, start_async/3]).
+-export([start_node/3, inports/1, outports/1, start_async/3, wants/1, emits/1]).
 
 %% Callback API
 
@@ -111,6 +111,13 @@
    ).
 
 %% @doc
+%% info about possible types of input and output data
+%% optional
+%% @end
+-callback wants() -> nil | point | batch | both.
+-callback emits() -> nil | point | batch | both.
+
+%% @doc
 %% INPORTS/0
 %%
 %% optional
@@ -155,7 +162,7 @@
 
 %% these are optional (%% erlang 18+)
 -optional_callbacks([
-   options/0, check_options/0,
+   options/0, check_options/0, wants/0, emits/0,
    inports/0, outports/0,
    handle_info/2, shutdown/1]).
 
@@ -187,6 +194,19 @@ outports(Module) ->
       true -> Module:outports();
       false -> outports()
    end.
+
+wants(Module) when is_atom(Module) ->
+   case erlang:function_exported(Module, wants, 0) of
+      true -> Module:wants();
+      false -> both
+   end.
+
+emits(Module) when is_atom(Module) ->
+   case erlang:function_exported(Module, emits, 0) of
+      true -> Module:wants();
+      false -> both
+   end.
+
 
 
 %%%===================================================================
