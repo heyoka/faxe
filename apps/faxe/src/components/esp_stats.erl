@@ -8,7 +8,7 @@
 
 -behavior(df_component).
 %% API
--export([init/3, process/3, handle_info/2, get_options/0]).
+-export([init/3, process/3, handle_info/2, get_options/0, wants/0, emits/0]).
 
 -callback execute(tuple(), term()) -> tuple().
 
@@ -28,6 +28,8 @@
 
 get_options() -> [{field, binary}, {as, binary, undefined}, {func, atomlist, undefined}].
 
+wants() -> batch.
+emits() -> point.
 
 init(NodeId, Ins, #{field := Field, as := As, module := Mod, func := Func} = Args) ->
 %%   lager:notice("ARgs for ~p: ~p", [Mod, Args]),

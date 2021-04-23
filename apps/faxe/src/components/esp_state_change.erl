@@ -24,7 +24,7 @@
 -define(TOTAL_NAME, <<"_total">>).
 
 %% API
--export([init/3, process/3, options/0, check_options/0]).
+-export([init/3, process/3, options/0, check_options/0, wants/0, emits/0]).
 
 -record(state, {
    node_id,
@@ -56,6 +56,9 @@ check_options() ->
    [
       {oneplus_of_params, [enter, leave]}
    ].
+
+wants() -> point.
+emits() -> point.
 
 init(_NodeId, _Ins, #{lambda := Lambda, enter_as := EnteredAs, leave_as := LeftAs, enter := EmitEntered,
    leave := EmitLeft, enter_keep := KeepFieldsEntered, leave_keep := KeepFieldsLeft, prefix := Prefix}) ->

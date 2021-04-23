@@ -16,7 +16,7 @@
 
 -include("faxe.hrl").
 %% API
--export([init/3, process/3, options/0, handle_info/2]).
+-export([init/3, process/3, options/0, handle_info/2, emits/0, wants/0]).
 
 -record(state, {
   field,
@@ -32,6 +32,9 @@ options() -> [
   {parser, atom, undefined}, %% parser module to use
   {changed, is_set, false} %% only emit, when new data is different to previous
 ].
+
+wants() -> point.
+emits() -> point.
 
 
 init(_NodeId, _Ins,

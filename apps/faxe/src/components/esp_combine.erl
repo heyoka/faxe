@@ -31,7 +31,7 @@
 
 -include("faxe.hrl").
 %% API
--export([init/3, process/3, options/0, inports/0, check_options/0]).
+-export([init/3, process/3, options/0, inports/0, check_options/0, wants/0, emits/0]).
 
 -define(PREFIX_DEL, <<"_">>).
 
@@ -66,6 +66,9 @@ check_options() ->
    [
       {one_of_params, [fields, merge_field]}
    ].
+
+wants() -> point.
+emits() -> point.
 
 init(NodeId, _Ins, #{fields := undefined, merge_field := MergeField, nofill := NoFill}) ->
    {ok, all, #state{node_id = NodeId, merge_field = MergeField, no_fill = NoFill}};

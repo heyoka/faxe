@@ -25,6 +25,7 @@
 -define(MSG_Q_LENGTH_HIGH_WATERMARK, 15).
 
 -type auto_request()    :: 'all' | 'emit' | 'none'.
+-type item_type()       :: nil | batch | point | both.
 
 -type df_port()         :: non_neg_integer().
 
@@ -114,8 +115,8 @@
 %% info about possible types of input and output data
 %% optional
 %% @end
--callback wants() -> nil | point | batch | both.
--callback emits() -> nil | point | batch | both.
+-callback wants() -> item_type().
+-callback emits() -> item_type().
 
 %% @doc
 %% INPORTS/0
@@ -195,15 +196,17 @@ outports(Module) ->
       false -> outports()
    end.
 
+-spec wants(atom()) -> item_type().
 wants(Module) when is_atom(Module) ->
    case erlang:function_exported(Module, wants, 0) of
       true -> Module:wants();
       false -> both
    end.
 
+-spec emits(atom()) -> item_type().
 emits(Module) when is_atom(Module) ->
    case erlang:function_exported(Module, emits, 0) of
-      true -> Module:wants();
+      true -> Module:emits();
       false -> both
    end.
 

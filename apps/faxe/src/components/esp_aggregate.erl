@@ -8,7 +8,7 @@
 
 -behavior(df_component).
 %% API
--export([init/3, process/3, handle_info/2, options/0, check_options/0]).
+-export([init/3, process/3, handle_info/2, options/0, check_options/0, wants/0, emits/0]).
 
 -define(FUNCTIONS,
    [
@@ -53,6 +53,9 @@ check_options() ->
       {same_length, [fields, as, functions]},
       {one_of, functions, ?FUNCTIONS}
    ].
+
+wants() -> batch.
+emits() -> point.
 
 init(NodeId, _Ins, #{fields := Fields, functions := Mods, keep := Keep} = Args) ->
    Modules = [binary_to_atom(<<"esp_", Mod/binary>>, latin1) || Mod <- Mods],

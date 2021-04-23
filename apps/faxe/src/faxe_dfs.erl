@@ -140,18 +140,41 @@ eval({Nodes, Connections}) ->
          {Def, []},
          Nodes
       ),
-%%   lager:info("Got some new NodeConnections: ~p ~n Old : ~p",[NewConnections, Connections]),
+   lager:warning("Got some new NodeConnections: ~p ~n Old : ~p",[NewConnections, Connections]),
+%%   [{{<<"debug">>,4},{<<"amqp_consume">>,3}},{{<<"amqp_consume">>,3},{<<"amqp_publish">>,2}},{{<<"amqp_publish">>,2},{<<"value_emitter">>,1}}]
    %% connect all
    lists:foldl(
       fun
          ({Successor, Predecessor}, Def1) ->
+            check_connection(Predecessor, Successor),
             dataflow:add_edge({node_id(Predecessor), 1, node_id(Successor), 1, []}, Def1);
          ({Successor, Predecessor, Port}, Def2) ->
+            check_connection(Predecessor, Successor),
             dataflow:add_edge({node_id(Predecessor), 1, node_id(Successor), Port, []}, Def2)
       end,
       NewDef,
       Connections ++ NewConnections
    ).
+
+%% connect Successor to Predecessor
+check_connection({PredName, _}, {SuccName, _}) ->
+   lager:notice("Predecessor: ~p, Successor: ~p",[PredName, SuccName]),
+   P = node_name(PredName), S = node_name(SuccName),
+   lager:notice("connect: ~p to ~p", [{SuccName, wants, df_component:wants(S)}, {PredName, emits, df_component:emits(P)}]),
+   check_item_types({SuccName, df_component:wants(S)}, {PredName, df_component:emits(P)}).
+
+check_item_types({_, Type}, {_, Type}) ->
+   ok;
+check_item_types({_, both}, _) ->
+   ok;
+check_item_types(_, {_, both}) ->
+   ok;
+check_item_types({SuccName, SType}, {PredName, PType}) ->
+   PTbin = atom_to_binary(PType, utf8),
+   STbin = atom_to_binary(SType, utf8),
+   throw(<<"Cannot connect '", SuccName/binary, "' (wants: ", STbin/binary,
+         ") to '", PredName/binary, "' (emits: ",  PTbin/binary, ")">>).
+
 
 component(<< ?USER_NODE_PREFIX, Callback/binary>>) ->
    Class = string:titlecase(Callback),

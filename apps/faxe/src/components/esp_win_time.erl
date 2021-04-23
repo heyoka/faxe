@@ -12,7 +12,7 @@
 -include("faxe.hrl").
 
 %% API
--export([init/3, process/3, handle_info/2, options/0]).
+-export([init/3, process/3, handle_info/2, options/0, wants/0, emits/0]).
 
 -record(state, {
    every,
@@ -27,6 +27,9 @@
 
 options() ->
    [{period, duration, undefined}, {every, duration}, {fill_period, is_set}].
+
+wants() -> point.
+emits() -> batch.
 
 init(_NodeId, _Inputs, #{period := Period, every := Every, fill_period := Fill}) ->
    Ev = faxe_time:duration_to_ms(Every),

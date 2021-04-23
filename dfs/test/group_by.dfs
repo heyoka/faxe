@@ -52,7 +52,6 @@ window
 .as('data.mode_change')
 %.keep('data')
 
-agg1
 |join(agg2)
 .merge_field('data')
 .tolerance(0s)
@@ -60,8 +59,6 @@ agg1
 .fill(0.00000)
 
 |group_union()
-%agg1
-%|group_union(agg2)
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%% |> end groups
 

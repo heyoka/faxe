@@ -17,7 +17,7 @@
 -include("faxe.hrl").
 
 %% API
--export([init/3, process/3, handle_info/2, options/0]).
+-export([init/3, process/3, handle_info/2, options/0, wants/0, emits/0]).
 
 -record(state, {
    period,
@@ -36,6 +36,9 @@ options() ->
       {every, duration}, %% output window contents every
       {align, is_set, false}, %% align window to 'every' unit
       {fill_period, is_set, false}]. %% fill full window period before first output
+
+wants() -> point.
+emits() -> batch.
 
 init(_NodeId, _Inputs, #{period := Period, every := Every, align := Align, fill_period := Fill}) ->
    NUnit =

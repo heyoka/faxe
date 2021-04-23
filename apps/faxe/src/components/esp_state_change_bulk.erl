@@ -28,7 +28,7 @@
 -define(PLACE_HOLDER, <<"$field">>).
 
 %% API
--export([init/3, process/3, options/0, check_options/0, build_fun/2]).
+-export([init/3, process/3, options/0, check_options/0, build_fun/2, wants/0, emits/0]).
 
 -record(state, {
    node_id,
@@ -65,6 +65,9 @@ check_options() ->
    [
       {oneplus_of_params, [enter, leave]}
    ].
+
+wants() -> point.
+emits() -> point.
 
 init(_NodeId, _Ins, #{lambda_pattern := Lambda_Pattern, enter_as := EnteredAs, leave_as := LeftAs, enter := EmitEntered,
    leave := EmitLeft, enter_keep := KeepFieldsEntered, leave_keep := KeepFieldsLeft, prefix := Prefix, field := Field,

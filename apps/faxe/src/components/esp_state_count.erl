@@ -19,7 +19,7 @@
 
 -include("faxe.hrl").
 %% API
--export([init/3, process/3, options/0]).
+-export([init/3, process/3, options/0, wants/0, emits/0]).
 
 -record(state, {
    node_id,
@@ -34,6 +34,9 @@ options() -> [
    {lambda, lambda},
    {as, binary, <<"state_count">>}
 ].
+
+wants() -> point.
+emits() -> point.
 
 init(_NodeId, _Ins, #{lambda := Lambda, as := As}) ->
    StateTrack = state_change:new(Lambda),

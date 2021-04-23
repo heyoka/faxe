@@ -12,7 +12,7 @@
 
 -include("faxe.hrl").
 %% API
--export([init/3, process/3, options/0, check_options/0]).
+-export([init/3, process/3, options/0, check_options/0, wants/0]).
 
 -record(state, {
    node_id,
@@ -29,6 +29,9 @@
    smtp_port,
    tls
 }).
+
+
+wants() -> point.
 
 options() -> [
    {from_address, binary, {email, from_address}},

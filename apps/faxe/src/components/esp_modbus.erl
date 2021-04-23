@@ -40,7 +40,7 @@
 
 -include("faxe.hrl").
 %% API
--export([init/3, process/3, options/0, handle_info/2, shutdown/1, read/3, check_options/0, metrics/0]).
+-export([init/3, process/3, options/0, handle_info/2, shutdown/1, read/3, check_options/0, metrics/0, emits/0]).
 
 -record(state, {
    ip,
@@ -90,6 +90,8 @@ metrics() ->
    [
       {?METRIC_BYTES_READ, meter, []}
    ].
+
+emits() -> point.
 
 init(NodeId, _Ins, #{} = Opts) ->
    State = init_opts(maps:to_list(Opts), #state{}),

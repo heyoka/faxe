@@ -28,7 +28,7 @@
 
 -include("faxe.hrl").
 %% API
--export([init/3, process/3, options/0, handle_info/2]).
+-export([init/3, process/3, options/0, handle_info/2, wants/0, emits/0]).
 
 -record(state, {
    node_id,
@@ -46,6 +46,9 @@ options() -> [
    {strict, is_set, false},
    {output, string, <<"last">>}
 ].
+
+wants() -> point.
+emits() -> point.
 
 init(_NodeId, _Ins, #{states := Lambdas, within := DurList0, strict := Strict}) ->
    DurList = [faxe_time:duration_to_ms(Dur) || Dur <- DurList0],

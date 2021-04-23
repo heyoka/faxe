@@ -23,7 +23,7 @@
 
 -include("faxe.hrl").
 %% API
--export([init/3, process/3, options/0, handle_info/2, inports/0]).
+-export([init/3, process/3, options/0, handle_info/2, inports/0, wants/0, emits/0]).
 
 
 -record(state, {
@@ -40,6 +40,9 @@
    timers = []
 }).
 
+
+wants() -> point.
+emits() -> point.
 
 inports() ->
    [{1, infinity}].

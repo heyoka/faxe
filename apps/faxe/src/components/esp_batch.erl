@@ -17,7 +17,7 @@
 -include("faxe.hrl").
 
 %% API
--export([init/3, process/3, handle_info/2, options/0]).
+-export([init/3, process/3, handle_info/2, options/0, wants/0, emits/0]).
 
 -record(state, {
    size,
@@ -32,6 +32,9 @@ options() ->
       {size, integer},
       {timeout, duration, <<"1h">>}
    ].
+
+wants() -> point.
+emits() -> batch.
 
 init(_NodeId, _Inputs, #{size := Size, timeout := Timeout0}) ->
    Timeout = case Timeout0 of T when is_binary(T) -> faxe_time:duration_to_ms(T); _Else -> undefined end,

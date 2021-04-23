@@ -24,7 +24,7 @@
 -define(TOTAL_NAME, <<"_total">>).
 
 %% API
--export([init/3, process/3, options/0]).
+-export([init/3, process/3, options/0, wants/0, emits/0]).
 
 -record(state, {
    node_id,
@@ -42,6 +42,9 @@ options() -> [
    {unit, duration, <<"1s">>},
    {emit_total, is_set, false}
 ].
+
+wants() -> point.
+emits() -> point.
 
 init(_NodeId, _Ins, #{lambda := Lambda, as := As, unit := Unit, emit_total := EmitTotal}) ->
    StateTrack = state_change:new(Lambda),

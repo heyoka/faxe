@@ -27,7 +27,7 @@
 
 -include("faxe.hrl").
 %% API
--export([init/3, process/3, options/0, handle_info/2, check_options/0]).
+-export([init/3, process/3, options/0, handle_info/2, check_options/0, wants/0, emits/0]).
 
 
 -record(state, {
@@ -56,6 +56,9 @@ options() -> [
 ].
 
 check_options() -> [{same_length, [fields, field_values]}].
+
+wants() -> point.
+emits() -> point.
 
 init(NodeId, _Ins,
     #{timeout := Timeout0, fields := Fields, field_values := Vals,

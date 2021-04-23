@@ -35,7 +35,7 @@
 %% API
 -export([init/3, process/3, options/0
    , check_options/0
-]).
+   , wants/0, emits/0]).
 
 -record(state, {
    node_id,
@@ -61,6 +61,9 @@ check_options() ->
    [
       {same_length, [keep, keep_as]}
    ].
+
+wants() -> point.
+emits() -> point.
 
 init(NodeId, _Ins, #{field := Field, min_vals := Min, keep := Keep, keep_as := KeepAs, as := As, max_age := MaxAge0}) ->
    MaxAge = case MaxAge0 of undefined -> undefined; Age -> faxe_time:duration_to_ms(Age) end,

@@ -4,6 +4,7 @@
 %% @doc
 %%
 %% @end
+%% @todo implement for batch
 -module(esp_value_diff).
 -author("Alexander Minichmair").
 
@@ -12,7 +13,7 @@
 
 -include("faxe.hrl").
 %% API
--export([init/3, process/3, options/0, check_options/0]).
+-export([init/3, process/3, options/0, check_options/0, wants/0, emits/0]).
 
 -define(MODE_ABS, <<"abs">>).
 -define(MODE_CP, <<"c-p">>).
@@ -36,6 +37,9 @@ options() -> [
 
 check_options() ->
    [{one_of, mode, [?MODE_ABS, ?MODE_CP, ?MODE_PC]}].
+
+wants() -> point.
+emits() -> point.
 
 init(NodeId, _Ins, #{fields := Fields, as := As0, default := Default, mode := Mode}) ->
    As1 = case As0 of undefined -> Fields; _ -> As0 end,

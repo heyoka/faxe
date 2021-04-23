@@ -9,7 +9,7 @@
 
 -behavior(df_component).
 %% API
--export([init/3, process/3, options/0, handle_info/2, check_options/0]).
+-export([init/3, process/3, options/0, handle_info/2, check_options/0, wants/0, emits/0]).
 
 -record(state, {
    groupval_fun,
@@ -32,6 +32,10 @@ options() -> [
 
 check_options() ->
    [{one_of_params, [fields, lambda]}].
+
+
+wants() -> point.
+emits() -> point.
 
 init({_GId, NodeId}, _Ins, #{reset_timeout := RTimeout} = Opts) ->
    ResetTimeout = faxe_time:duration_to_ms(RTimeout),
