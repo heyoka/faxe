@@ -89,6 +89,7 @@ WORKDIR faxe
 
 # install git, build release and cleanup deps
 RUN apt-get update && apt-get install -y --no-install-recommends gcc g++ make git-all \
+    && apt --only-upgrade install libbsd* libzstd* -y  \
     && rebar3 as prod release \
     && apt-get purge -y --auto-remove gcc g++ make git-all \
     && rm -rf /var/lib/apt/lists/*
