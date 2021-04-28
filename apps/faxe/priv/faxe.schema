@@ -376,6 +376,12 @@
     [{default, "doc"}, {datatype, string}]
 }.
 
+%% @doc crate tls
+%% enable the use of tls for crate postgre connections
+{mapping, "crate.tls.enable", "faxe.crate.tls.enable",
+    [{default, off}, {datatype, flag}, {commented, off}]
+}.
+
 %% @doc -------------------------------------------------------------------------------
 %% CrateDB defaults (http api)
 %% -------------------------------------------------------------------------------
@@ -403,6 +409,12 @@
 %% @doc CrateDB database
 {mapping, "crate_http.database", "faxe.crate_http.database",
     [{default, "doc"}, {datatype, string}]
+}.
+
+%% @doc crate tls
+%% enable the use of tls for crate http connections
+{mapping, "crate_http.tls.enable", "faxe.crate_http.tls.enable",
+    [{default, off}, {datatype, flag}, {commented, off}]
 }.
 
 %% @doc -------------------------------------------------------------------------------

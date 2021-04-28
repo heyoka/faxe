@@ -8,7 +8,7 @@
 
 -behaviour(gen_server).
 
--export([start_link/1, read/2]).
+-export([start_link/1, read/2, start_monitor/1]).
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2, terminate/2,
   code_change/3]).
 
@@ -39,6 +39,12 @@ read(Pid, Vars) ->
 start_link(#{} = Opts) ->
   gen_server:start_link(?MODULE, Opts#{owner => self()}, []).
 
+start_monitor(#{} = Opts) ->
+  case gen_server:start(?MODULE, Opts#{owner => self()}, []) of
+    {ok, Pid} -> erlang:monitor(process, Pid), {ok, Pid};
+    Other -> Other
+  end.
+
 init(#{ip := Ip, port := Port, slot := Slot, rack := Rack, owner := Owner}) ->
   Reconnector = faxe_backoff:new(
     {?RECON_MIN_INTERVAL, ?RECON_MAX_INTERVAL, ?RECON_MAX_RETRIES}),
@@ -68,11 +74,11 @@ handle_cast(_Request, State = #state{}) ->
 %% we match the Object field from the DOWN message against the current client pid
 handle_info({snap7_connected, Client}, State = #state{client = Client, owner = Owner}) ->
 %%  lager:notice("snap7_connected: ~p", [Client]),
-  Owner ! {up, self()},
+  Owner ! {s7_connected, self()},
   {noreply, State#state{client = Client}};
 handle_info({'DOWN', _MonitorRef, _Type, Client, Info}, State=#state{client = Client, owner = Owner}) ->
   lager:warning("Snap7 Client process is DOWN with : ~p ! ", [Info]),
-  Owner ! {down, self()},
+  Owner ! {s7_disconnected, self()},
   try_reconnect(State#state{client = undefined});
 %% old DOWN message from already restarted client process
 handle_info({'DOWN', _MonitorRef, _Type, _Object, _Info}, State) ->

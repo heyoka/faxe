@@ -37,6 +37,7 @@
   port,
   slot,
   rack,
+  client,
   interval,
   as :: list(binary()),
   as_prefix :: binary(),
@@ -69,7 +70,8 @@ options() -> [
   {as_prefix, string, undefined},
   {diff, is_set},
   {merge_field, string, undefined},
-  {byte_offset, integer, 0}
+  {byte_offset, integer, 0},
+  {use_pool, bool, false}
 ].
 
 check_options() ->
@@ -138,7 +140,7 @@ init({_, _NId}=NodeId, _Ins,
   ByteSize = bit_count(Parts)/8,
 
   connection_registry:reg(NodeId, Ip, Port, <<"s7">>),
-  s7pool_manager:connect(Opts),
+  S7Client = setup_connection(Opts),
   connection_registry:connecting(),
 
   %%  lager:info("~p VARS reduced to : ~p  with byte-size: ~p",[length(Addresses), length(Parts), bit_count(Parts)/8]),
@@ -149,6 +151,7 @@ init({_, _NId}=NodeId, _Ins,
     #state{
       ip = Ip,
       port = Port,
+      client = S7Client,
       as = AliasesList,
       slot = Slot,
       rack = Rack,
@@ -164,6 +167,14 @@ init({_, _NId}=NodeId, _Ins,
     }
   }.
 
+setup_connection(Opts = #{use_pool := true}) ->
+  s7pool_manager:connect(Opts),
+  undefined;
+setup_connection(Opts = #{use_pool := false}) ->
+  lager:notice("start s7worker ... "),
+  {ok, Client} = s7worker:start_monitor(Opts),
+  Client.
+
 
 process(_Inport, _Item, State = #state{connected = false}) ->
   {ok, State};
@@ -172,19 +183,22 @@ process(_Inport, Item, State = #state{connected = true}) ->
   handle_info(poll, State#state{port_data = Item}).
 
 handle_info(s7_connected, State = #state{align = Align, interval = Dur}) ->
+  lager:notice("s7_connected"),
   connection_registry:connected(),
   Timer = faxe_time:init_timer(Align, Dur, poll),
   {ok, State#state{timer = Timer, connected = true}};
 handle_info(s7_disconnected, State = #state{timer = Timer}) ->
+  lager:notice("s7_disconnected"),
   connection_registry:disconnected(),
   NewTimer = faxe_time:timer_cancel(Timer),
   {ok, State#state{timer = NewTimer, connected = false}};
-handle_info(poll,
-    State=#state{as = Aliases, timer = Timer, byte_size = ByteSize,
-      vars = Opts, diff = Diff, last_values = LastList, opts = ConnOpts, node_id = FlowIdNodeId}) ->
+handle_info(poll, State = #state{connected = false}) ->
+  {ok, State};
+handle_info(poll, State=#state{as = Aliases, timer = Timer, byte_size = ByteSize,
+      diff = Diff, last_values = LastList, node_id = FlowIdNodeId}) ->
 
   TStart = erlang:monotonic_time(microsecond),
-  Result = s7pool_manager:read_vars(ConnOpts, Opts),
+  Result = read_vars(State),
   TMs = round((erlang:monotonic_time(microsecond)-TStart)/1000),
   case Timer /= undefined andalso TMs > Timer#faxe_timer.interval of
     true -> lager:warning("[~p] Time to read: ~p ms",[self(), TMs]);
@@ -207,12 +221,23 @@ handle_info(poll,
       lager:warning("Error reading S7 Vars: ~p", [_Other]),
       {ok, State#state{timer = faxe_time:timer_next(Timer)}}
   end;
+handle_info({'DOWN', _Mon, process, Client, _Info}, State = #state{client = Client, opts = Opts, timer = Timer}) ->
+  lager:warning("s7worker is down"),
+  connection_registry:disconnected(),
+  NewTimer = faxe_time:timer_cancel(Timer),
+  NewClient = setup_connection(Opts),
+  {ok, State#state{client = NewClient, timer = NewTimer, connected = false}};
 handle_info(_E, S) ->
   {ok, S#state{}}.
 
-shutdown(#state{timer = Timer}) ->
+shutdown(#state{timer = Timer, client = Client}) ->
+  catch (gen_server:stop(Client)),
   catch (faxe_time:timer_cancel(Timer)).
 
+read_vars(#state{client = undefined, vars = Vars, opts = ConnOpts}) ->
+  s7pool_manager:read_vars(ConnOpts, Vars);
+read_vars(#state{client = Client, vars = Vars}) ->
+  s7worker:read(Client, Vars).
 
 %%% @doc no diff flag -> emit
 -spec maybe_emit(Diff :: true|false, Ts:: non_neg_integer(),

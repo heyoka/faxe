@@ -3,7 +3,7 @@ def device_id = 'DV0025LM33'
 def mqtt_host = '10.14.204.3'
 
 def s7 =
-    |s7poll()
+    |s7read()
     .ip('127.0.0.1')
     .rack(0)
     .slot(1)

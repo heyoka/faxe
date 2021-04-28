@@ -5,7 +5,7 @@ def in =
 
 def new =
 in
-    |state_duration_new()
+    |state_duration()
     .lambda(lambda: "val" < 7)
     .as('val_below_7')
     |debug('info')

@@ -83,7 +83,6 @@ maybe_compile({DFSString, ParserResult}) ->
 
 -spec compile({list(), list()}) -> {error, term()} | map().
 compile(D) ->
-%%   lager:notice("dfs compile: ~p", [D]),
    try eval(D) of
       GraphDef when is_map(GraphDef) ->
 %%         #{nodes := Nodes, edges := Edges} = GraphDef,
@@ -140,8 +139,6 @@ eval({Nodes, Connections}) ->
          {Def, []},
          Nodes
       ),
-   lager:warning("Got some new NodeConnections: ~p ~n Old : ~p",[NewConnections, Connections]),
-%%   [{{<<"debug">>,4},{<<"amqp_consume">>,3}},{{<<"amqp_consume">>,3},{<<"amqp_publish">>,2}},{{<<"amqp_publish">>,2},{<<"value_emitter">>,1}}]
    %% connect all
    lists:foldl(
       fun
@@ -158,9 +155,9 @@ eval({Nodes, Connections}) ->
 
 %% connect Successor to Predecessor
 check_connection({PredName, _}, {SuccName, _}) ->
-   lager:notice("Predecessor: ~p, Successor: ~p",[PredName, SuccName]),
+%%   lager:notice("Predecessor: ~p, Successor: ~p",[PredName, SuccName]),
    P = node_name(PredName), S = node_name(SuccName),
-   lager:notice("connect: ~p to ~p", [{SuccName, wants, df_component:wants(S)}, {PredName, emits, df_component:emits(P)}]),
+%%   lager:notice("connect: ~p to ~p", [{SuccName, wants, df_component:wants(S)}, {PredName, emits, df_component:emits(P)}]),
    check_item_types({SuccName, df_component:wants(S)}, {PredName, df_component:emits(P)}).
 
 check_item_types({_, Type}, {_, Type}) ->

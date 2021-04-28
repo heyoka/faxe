@@ -50,7 +50,7 @@ handle_call(_Request, _From, State = #state{}) ->
 handle_cast(_Request, State = #state{}) ->
   {noreply, State}.
 
-handle_info({up, Worker},
+handle_info({s7_connected, Worker},
     State = #state{pool = Pool, waiting_cons = Waiting, opts = #{ip := Ip}, initial_size = Initial}) ->
 
 %%  lager:notice("s7worker is up!"),
@@ -70,7 +70,7 @@ handle_info({up, Worker},
   end,
 %%  lager:alert("[~p] Pool: ~p, Waiting: ~p",[?MODULE, NewState#state.pool, NewState#state.waiting_cons]),
   {noreply, NewState};
-handle_info({down, Worker},
+handle_info({s7_disconnected, Worker},
     State = #state{pool = Pool, waiting_cons = Waiting, opts = #{ip := Ip}, initial_size = Initial}) ->
   NewWaiting =
   case lists:member(Worker, Waiting) of

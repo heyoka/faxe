@@ -48,7 +48,7 @@ options() ->
    [
       {host, string, {crate_http, host}},
       {port, integer, {crate_http, port}},
-      {tls, is_set, false},
+      {tls, is_set, {crate_http, tls, enable}},
       {table, string},
       {user, string, {crate_http, user}},
       {pass, string, {crate_http, pass}},

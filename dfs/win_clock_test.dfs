@@ -1,4 +1,4 @@
-var in =
+def in =
     |value_emitter()
     .every(1s)
     .type(point)
@@ -9,7 +9,7 @@ in
     |change_detect('val')
 
 in
-    |win_clock_new()
+    |win_clock()
     .every(5s)
     .period(15s)
     .fill_period()
