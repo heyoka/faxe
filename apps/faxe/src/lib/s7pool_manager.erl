@@ -99,7 +99,7 @@ handle_info({ensure_pool, #{ip := Ip} = Opts, User},
   UWaiting =
     case lists:member(Ip, Up) of
       true ->
-        User ! s7_connected,
+        User ! {s7_connected, Ip},
         UsersWaiting;
       false ->
         case maps:is_key(Ip, UsersWaiting) of
@@ -116,14 +116,14 @@ handle_info({up, Ip}, State = #state{pools_up = Up, ips_pools = _Pools, users_wa
   case lists:member(Ip, Up) of
     true -> {noreply, State};
     false ->
-      [U ! s7_connected || U <- maps:get(Ip, UWaiting)],
+      [U ! {s7_connected, Ip} || U <- maps:get(Ip, UWaiting)],
       {noreply, State#state{pools_up = [Ip|Up]}}
   end;
 handle_info({down, Ip}, State = #state{pools_up = Up, ips_pools = _Pools, pool_user = PoolUsers}) ->
   case maps:is_key(Ip, PoolUsers) of
     true ->
       UsersIp = maps:get(Ip, PoolUsers),
-      [U ! s7_disconnected || U <- sets:to_list(UsersIp)];
+      [U ! {s7_disconnected, Ip} || U <- sets:to_list(UsersIp)];
     false -> ok
   end,
   {noreply, State#state{pools_up = lists:delete(Ip, Up)}};

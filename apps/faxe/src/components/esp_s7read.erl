@@ -168,10 +168,11 @@ init({_, _NId}=NodeId, _Ins,
   }.
 
 setup_connection(Opts = #{use_pool := true}) ->
+  lager:notice("start s7pool demand owner: ~p", [self()]),
   s7pool_manager:connect(Opts),
   undefined;
 setup_connection(Opts = #{use_pool := false}) ->
-  lager:notice("start s7worker ... "),
+  lager:notice("start s7worker ... from owner: ~p", [self()]),
   {ok, Client} = s7worker:start_monitor(Opts),
   Client.
 
@@ -182,12 +183,12 @@ process(_Inport, Item, State = #state{connected = true}) ->
   % read now trigger
   handle_info(poll, State#state{port_data = Item}).
 
-handle_info(s7_connected, State = #state{align = Align, interval = Dur}) ->
+handle_info({s7_connected, _Client}, State = #state{align = Align, interval = Dur}) ->
   lager:notice("s7_connected"),
   connection_registry:connected(),
   Timer = faxe_time:init_timer(Align, Dur, poll),
   {ok, State#state{timer = Timer, connected = true}};
-handle_info(s7_disconnected, State = #state{timer = Timer}) ->
+handle_info({s7_disconnected, _Client}, State = #state{timer = Timer}) ->
   lager:notice("s7_disconnected"),
   connection_registry:disconnected(),
   NewTimer = faxe_time:timer_cancel(Timer),
@@ -228,6 +229,7 @@ handle_info({'DOWN', _Mon, process, Client, _Info}, State = #state{client = Clie
   NewClient = setup_connection(Opts),
   {ok, State#state{client = NewClient, timer = NewTimer, connected = false}};
 handle_info(_E, S) ->
+  lager:warning("got unexpected info: ~p",[_E]),
   {ok, S#state{}}.
 
 shutdown(#state{timer = Timer, client = Client}) ->

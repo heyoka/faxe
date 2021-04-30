@@ -6,8 +6,8 @@ dev1:
 	export FAXE_QUEUE_BASE_DIR=/home/heyoka/esq_data/ && \
 	export FAXE_QUEUE_CAPACITY=2 && \
 	export FAXE_CRATE_HTTP_TLS_ENABLE=on && \
-	export FAXE_MQTT_HOST=10.14.204.24 && \
-	export FAXE_LOG_LOGSTASH_BACKEND_ENABLE=off && \
+	export FAXE_MQTT_HOST=10.14.204.20 && \
+	export FAXE_LOG_LOGSTASH_BACKEND_ENABLE=on && \
 	export FAXE_LOG_LOGSTASH_LEVEL=warning && \
 #	export FAXE_FLOW_AUTO_START=off && \
 	export FAXE_ALLOW_ANONYMOUS=true && \

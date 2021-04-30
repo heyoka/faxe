@@ -40,6 +40,7 @@ start_link(#{} = Opts) ->
   gen_server:start_link(?MODULE, Opts#{owner => self()}, []).
 
 start_monitor(#{} = Opts) ->
+  lager:notice("Opts for s7worker: ~p",[Opts]),
   case gen_server:start(?MODULE, Opts#{owner => self()}, []) of
     {ok, Pid} -> erlang:monitor(process, Pid), {ok, Pid};
     Other -> Other
@@ -73,7 +74,7 @@ handle_cast(_Request, State = #state{}) ->
 %% client process is down,
 %% we match the Object field from the DOWN message against the current client pid
 handle_info({snap7_connected, Client}, State = #state{client = Client, owner = Owner}) ->
-%%  lager:notice("snap7_connected: ~p", [Client]),
+  lager:notice("snap7_connected: ~p for owner: ~p", [Client, Owner]),
   Owner ! {s7_connected, self()},
   {noreply, State#state{client = Client}};
 handle_info({'DOWN', _MonitorRef, _Type, Client, Info}, State=#state{client = Client, owner = Owner}) ->
@@ -122,6 +123,7 @@ connect(Ip, Rack, Slot) ->
   end.
 
 do_connect(Ip, Rack, Slot) ->
+  lager:info("~p do connect : ~p",[?MODULE, {Ip, Rack, Slot}]),
   {ok, Client} = snapclient:start_connect(#{ip => Ip, rack => Rack, slot => Slot}),
   erlang:monitor(process, Client),
   Client.

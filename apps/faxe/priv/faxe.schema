@@ -63,6 +63,7 @@
         true ->
             [{lager_logstash_backend,
                   [
+                   {protocol,      udp},
                    {level,         LogstashLevel},
                    {logstash_host, LogstashHost},
                    {logstash_port, LogstashPort},
