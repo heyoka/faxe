@@ -70,7 +70,7 @@
 -spec(start_link(Id :: term(), Params :: term()) ->
    {ok, Pid :: pid()} | ignore | {error, Reason :: term()}).
 start_link(Id, Params) ->
-   lager:notice("start graph"),
+   lager:info("start graph"),
    gen_server:start_link(?MODULE, [Id, Params], []).
 
 
@@ -105,7 +105,7 @@ stop_subgraph(FromVertex, Port) ->
    {ok, GraphPid} = graph_node_registry:get_graph(self()),
 %%   gen_server:call(GraphPid, {delete_subgraph, FromVertex, Port}).
    {Time, Res} = timer:tc(gen_server, call, [GraphPid, {delete_subgraph, FromVertex, Port}]),
-   lager:alert("Time to stop subgraph: ~p",[Time]),
+   lager:info("Time to stop subgraph: ~p",[Time]),
    Res.
 
 nodes(Graph) ->
@@ -164,10 +164,6 @@ init([Id, _Params]) ->
    Graph = digraph:new([acyclic, protected]),
    {ok, #state{graph = Graph, id = Id}}.
 
-
-handle_call({swarm, begin_handoff} = _Request, _From, State) ->
-   lager:notice("~p ~p begin_handoff : ~p",[?MODULE, State#state.id, _Request]),
-   {reply, {resume, State}, State};
 handle_call({add_node, NodeId, Component, Metadata}, _From, State=#state{id = _Id}) ->
    %gen_event:notify(dfevent_graph, {add_node, Id, {NodeId, Component}}),
    Inports = df_component:inports(Component),
@@ -286,7 +282,7 @@ code_change(_OldVsn, State, _Extra) ->
 %%%===================================================================
 do_stop(#state{running = Running, nodes = Nodes, id = Id}) ->
    lager_emit_backend:stop_trace(Id),
-   lager:warning("stop graph when running:~p",[Running]),
+   lager:info("stop graph when running:~p",[Running]),
    case Running of
       %% stop all components
       true ->
@@ -329,7 +325,7 @@ start(ModeOpts=#task_modes{run_mode = RunMode, temporary = Temp, temp_ttl = TTL}
       false -> undefined;
       true -> erlang:send_after(TTL, self(), timeout)
    end,
-   lager:warning("run_mode is :~p",[RunMode]),
+   lager:info("run_mode is :~p",[RunMode]),
 
    NewState#state{running = true, started = true,
       timeout_ref = TimerRef, start_mode = ModeOpts}.

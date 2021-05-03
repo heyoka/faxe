@@ -115,9 +115,15 @@ save_template(#template{definition = Def} = T) ->
 
 -spec save_task(#task{}) -> ok|{error, term()}.
 save_task(#task{id = undefined, definition = Def} = Task) ->
-   mnesia:dirty_write(Task#task{id = next_id(task), definition = maps:to_list(Def)});
+   NewTask = sort_tags(Task),
+   mnesia:dirty_write(NewTask#task{id = next_id(task), definition = maps:to_list(Def)});
 save_task(#task{definition = Def} = T) ->
-   mnesia:dirty_write(T#task{definition = maps:to_list(Def)}).
+   NewTask = sort_tags(T),
+   mnesia:dirty_write(NewTask#task{definition = maps:to_list(Def)}).
+
+sort_tags(Task = #task{tags = Tags}) ->
+   %% sort tags alphabetically
+   Task#task{tags = lists:sort(Tags)}.
 
 delete_task(#task{id = Key}) ->
    mnesia:dirty_delete({task, Key});

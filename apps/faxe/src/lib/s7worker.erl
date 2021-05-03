@@ -74,11 +74,10 @@ handle_cast(_Request, State = #state{}) ->
 %% client process is down,
 %% we match the Object field from the DOWN message against the current client pid
 handle_info({snap7_connected, Client}, State = #state{client = Client, owner = Owner}) ->
-  lager:notice("snap7_connected: ~p for owner: ~p", [Client, Owner]),
   Owner ! {s7_connected, self()},
   {noreply, State#state{client = Client}};
 handle_info({'DOWN', _MonitorRef, _Type, Client, Info}, State=#state{client = Client, owner = Owner}) ->
-  lager:warning("Snap7 Client process is DOWN with : ~p ! ", [Info]),
+  lager:info("Snap7 Client process is DOWN with : ~p ! ", [Info]),
   Owner ! {s7_disconnected, self()},
   try_reconnect(State#state{client = undefined});
 %% old DOWN message from already restarted client process
@@ -95,7 +94,6 @@ handle_info(connect,
       try_reconnect(State)
   end;
 handle_info(_E, S) ->
-  lager:warning("unhandled Req: ~p" ,[_E]),
   {noreply, S}.
 
 terminate(_Reason, _State = #state{client = Client}) ->
@@ -123,7 +121,6 @@ connect(Ip, Rack, Slot) ->
   end.
 
 do_connect(Ip, Rack, Slot) ->
-  lager:info("~p do connect : ~p",[?MODULE, {Ip, Rack, Slot}]),
   {ok, Client} = snapclient:start_connect(#{ip => Ip, rack => Rack, slot => Slot}),
   erlang:monitor(process, Client),
   Client.

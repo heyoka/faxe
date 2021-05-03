@@ -8,7 +8,8 @@ dev1:
 	export FAXE_CRATE_HTTP_TLS_ENABLE=on && \
 	export FAXE_MQTT_HOST=10.14.204.20 && \
 	export FAXE_LOG_LOGSTASH_BACKEND_ENABLE=on && \
-	export FAXE_LOG_LOGSTASH_LEVEL=warning && \
+	export FAXE_LOG_LOGSTASH_LEVEL=notice && \
+	export FAXE_LOG_LOGSTASH_HOST=10.14.204.17 && \
 #	export FAXE_FLOW_AUTO_START=off && \
 	export FAXE_ALLOW_ANONYMOUS=true && \
 #	export FAXE_S7POOL_MIN_SIZE=1 && \
@@ -21,6 +22,7 @@ dev1:
 	export FAXE_METRICS_HANDLER_MQTT_ENABLE=off && \
 #	export FAXE_DEBUG_HANDLER_MQTT_HOST=10.156.15.11 && \
 	export FAXE_DEBUG_HANDLER_MQTT_ENABLE=off && \
+	export FAXE_DEVICE_UUID=heyoka_local && \
 	rebar3 as dev1 release && _build/dev1/rel/faxe/bin/faxe console
 
 start:

@@ -71,7 +71,8 @@
                    {host, "my_ip"},
                    {metadata, [
                                {flow,  [{encoding, string}]},
-                               {comp,  [{encoding, string}]}
+                               {comp,  [{encoding, string}]},
+                               {device, [{encoding, binary}]}
                               ]}
                   ]}];
         false -> []

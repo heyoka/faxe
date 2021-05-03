@@ -123,10 +123,14 @@ device_name() ->
    %% first attempt is to try to get BALENA_DEVICE_UUID, should be set if we are running on balena
    case os:getenv(?KEY_BALENA_DEVICE_UUID) of
       false ->
-         %% so we are not running on balena, then we use our local ip address
-         %% @todo set env var for kubernetes
-         Ip0 = ip_to_bin(local_ip_v4()),
-         binary:replace(Ip0, <<".">>, <<"_">>, [global]);
+         case os:getenv(?KEY_FAXE_DEVICE_UUID) of
+            false ->
+               %% so we are not running on balena, then we use our local ip address
+               %% @todo set env var for kubernetes
+               Ip0 = ip_to_bin(local_ip_v4()),
+               binary:replace(Ip0, <<".">>, <<"_">>, [global]);
+            Id -> list_to_binary(Id)
+         end;
       DeviceId ->
          list_to_binary(DeviceId)
    end.
