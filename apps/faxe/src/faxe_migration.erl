@@ -22,12 +22,13 @@ migrate() ->
 maybe_migrate_task_table() ->
   NewFields = record_info(fields,  task),
   case mnesia:table_info(task, attributes) of
-    NewFields -> lager:warning("no table transform needed !"), ok;
+    NewFields -> lager:info("no table transform needed !"), ok;
     _ -> do_migrate_task_table()
   end.
 
 
 do_migrate_task_table() ->
+  lager:notice("transform task table"),
   mnesia:wait_for_tables(task, 5000),
   NewFields = record_info(fields,  task),
       Fun = fun( {task,

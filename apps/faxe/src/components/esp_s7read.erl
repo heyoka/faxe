@@ -99,7 +99,7 @@ check_options() ->
       fun(List, #{vars_prefix := VarsPrefix}) ->
         List1 = translate_vars(List, VarsPrefix),
         {P, _} = build_addresses(List1, lists:seq(1, length(List1)), 0),
-        lager:warning("bytes: ~p",[bit_count(P)/8]),
+%%        lager:warning("bytes: ~p",[bit_count(P)/8]),
         bit_count(P)/8 =< ?DEFAULT_BYTE_LIMIT
       end,
 
@@ -168,11 +168,9 @@ init({_, _NId}=NodeId, _Ins,
   }.
 
 setup_connection(Opts = #{use_pool := true}) ->
-  lager:notice("start s7pool demand owner: ~p", [self()]),
   s7pool_manager:connect(Opts),
   undefined;
 setup_connection(Opts = #{use_pool := false}) ->
-  lager:notice("start s7worker ... from owner: ~p", [self()]),
   {ok, Client} = s7worker:start_monitor(Opts),
   Client.
 
@@ -184,12 +182,12 @@ process(_Inport, Item, State = #state{connected = true}) ->
   handle_info(poll, State#state{port_data = Item}).
 
 handle_info({s7_connected, _Client}, State = #state{align = Align, interval = Dur}) ->
-  lager:notice("s7_connected"),
+  lager:debug("s7_connected"),
   connection_registry:connected(),
   Timer = faxe_time:init_timer(Align, Dur, poll),
   {ok, State#state{timer = Timer, connected = true}};
 handle_info({s7_disconnected, _Client}, State = #state{timer = Timer}) ->
-  lager:notice("s7_disconnected"),
+  lager:debug("s7_disconnected"),
   connection_registry:disconnected(),
   NewTimer = faxe_time:timer_cancel(Timer),
   {ok, State#state{timer = NewTimer, connected = false}};
@@ -202,7 +200,7 @@ handle_info(poll, State=#state{as = Aliases, timer = Timer, byte_size = ByteSize
   Result = read_vars(State),
   TMs = round((erlang:monotonic_time(microsecond)-TStart)/1000),
   case Timer /= undefined andalso TMs > Timer#faxe_timer.interval of
-    true -> lager:warning("[~p] Time to read: ~p ms",[self(), TMs]);
+    true -> lager:notice("[~p] Time to read: ~p ms",[self(), TMs]);
     false -> ok
   end,
   case Result of
@@ -223,7 +221,7 @@ handle_info(poll, State=#state{as = Aliases, timer = Timer, byte_size = ByteSize
       {ok, State#state{timer = faxe_time:timer_next(Timer)}}
   end;
 handle_info({'DOWN', _Mon, process, Client, _Info}, State = #state{client = Client, opts = Opts, timer = Timer}) ->
-  lager:warning("s7worker is down"),
+  lager:notice("s7worker is down"),
   connection_registry:disconnected(),
   NewTimer = faxe_time:timer_cancel(Timer),
   NewClient = setup_connection(Opts),

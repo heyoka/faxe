@@ -25,6 +25,11 @@
     [{default, off}, {datatype, flag}, {commented, off}]
 }.
 
+%% @doc whether to send logs to logstash using the udp or tcp protocol
+{mapping, "log.logstash_backend_protocol", "lager.handlers",
+    [{default, udp}, {datatype, {enum,[udp, tcp]}}, {commented, udp}]
+}.
+
 %% @doc logstash host name or address
 {mapping, "log.logstash_host", "lager.handlers",
     [{default, "127.0.0.1"}, {datatype, string}, {commented, "127.0.0.1"}]
@@ -36,9 +41,9 @@
 }.
 
 %% @doc whether to send logs to logstash
-%% logs will be sent via a udp socket to the configured logstash host
+%% logs will be sent via a udp or tcp socket to the configured logstash host
 {mapping, "log.logstash_backend_enable", "lager.handlers",
-    [{default, off}, {datatype, flag}, {commented, off}]
+    [{default, off}, {datatype, flag}]
 }.
 
 %% @doc set the log level for the logstash backend
@@ -54,6 +59,7 @@
     fun(Conf) ->
     ConsoleLevel = cuttlefish:conf_get("log.console_level", Conf),
     EmitLevel = cuttlefish:conf_get("log.emit_level", Conf),
+    LogstashProtocol = cuttlefish:conf_get("log.logstash_backend_protocol", Conf),
     LogstashEnable = cuttlefish:conf_get("log.logstash_backend_enable", Conf),
     LogstashLevel = cuttlefish:conf_get("log.logstash_level", Conf),
     LogstashHost = cuttlefish:conf_get("log.logstash_host", Conf),
@@ -63,7 +69,7 @@
         true ->
             [{lager_logstash_backend,
                   [
-                   {protocol,      udp},
+                   {protocol,      LogstashProtocol},
                    {level,         LogstashLevel},
                    {logstash_host, LogstashHost},
                    {logstash_port, LogstashPort},
