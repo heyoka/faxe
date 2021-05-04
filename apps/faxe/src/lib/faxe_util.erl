@@ -20,7 +20,9 @@
    clean_query/1, stringize_lambda/1,
    bytes_from_words/1, local_ip_v4/0,
    ip_to_bin/1, device_name/0, proplists_merge/2,
-   levenshtein/2, build_topic/2, build_topic/1, to_bin/1, flip_map/1]).
+   levenshtein/2, build_topic/2, build_topic/1,
+   to_bin/1, flip_map/1,
+   get_erlang_version/0, get_device_name/0]).
 
 -define(HTTP_PROTOCOL, <<"http://">>).
 
@@ -120,19 +122,36 @@ ip_to_bin({_A, _B, _C, _D} = Ip) ->
 %% @doc try to get a unique name for the device we are running on
 -spec device_name() -> binary().
 device_name() ->
+   try
+      persistent_term:get({?MODULE, device_name})
+   catch
+      _:badarg ->
+         Name = get_device_name(),
+         persistent_term:put({?MODULE, device_name}, Name),
+         Name
+   end.
+-spec get_device_name() -> binary().
+get_device_name() ->
    %% first attempt is to try to get BALENA_DEVICE_UUID, should be set if we are running on balena
+   %% RESIN_DEVICE_NAME_AT_INIT = balena device name
    case os:getenv(?KEY_BALENA_DEVICE_UUID) of
       false ->
          case os:getenv(?KEY_FAXE_DEVICE_UUID) of
             false ->
-               %% so we are not running on balena, then we use our local ip address
-               %% @todo set env var for kubernetes
+               %% so we are not running on balena and the FAXE env key is not set, then we use our local ip address
                Ip0 = ip_to_bin(local_ip_v4()),
                binary:replace(Ip0, <<".">>, <<"_">>, [global]);
             Id -> list_to_binary(Id)
          end;
       DeviceId ->
          list_to_binary(DeviceId)
+   end.
+
+-spec get_erlang_version() -> string().
+get_erlang_version() ->
+   case os:getenv("OTP_VERSION") of
+      false -> erlang:system_info(otp_release) ++ "/" ++ erlang:system_info(version);
+      Vs -> Vs
    end.
 
 proplists_merge(L, T) ->
