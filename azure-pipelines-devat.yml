@@ -316,6 +316,14 @@ steps:
                echo "sudo -u $(FAXE_RUNTIME_USER) /usr/bin/docker rmi $del_image"
                sudo -u $(FAXE_RUNTIME_USER) /usr/bin/docker rmi $del_image
             done
+            # del intermediate images too:
+            for image in $(docker images | grep none | awk '{print $3}');
+            do
+               echo "try to delete intermediate image $image:";
+               docker rmi $image;
+            done
+
         fi
+        
   displayName: 'housekeeping - keep only latest $IMAGE_KEEP image(s)'
   
