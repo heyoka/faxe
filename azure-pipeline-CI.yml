@@ -45,7 +45,7 @@ stages:
       #displayName: 'Security Scan'
       inputs:
         containerRegistry: 'harbor-docker-connection'
-        repository: 'faxe'
+        repository: 'cwa/faxe'
         command: 'push'
         tags: |
           $(Build.BuildNumber)
