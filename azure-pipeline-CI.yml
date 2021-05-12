@@ -34,8 +34,8 @@ stages:
         Dockerfile: 'Dockerfile_debian'
         tags: |
           $(Build.BuildNumber)
-          $(Build.SourceBranch)-$(Build.BuildNumber)
           latest
+#$(Build.SourceBranch)-$(Build.BuildNumber)
 #    - task: Docker@2
 #      displayName: build container image
 #      inputs:
