@@ -45,11 +45,12 @@ stages:
       #displayName: 'Security Scan'
       inputs:
         containerRegistry: 'harbor-docker-connection'
-        repository: 'cwa/faxe'
+        repository: 'faxe'
         command: 'push'
         tags: |
           $(Build.BuildNumber)
           $(Build.SourceBranch)-$(Build.BuildNumber)
+          latest
 
 #    - task: Docker@2
 #      inputs:
