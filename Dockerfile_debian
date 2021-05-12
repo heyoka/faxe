@@ -87,9 +87,12 @@ COPY ./ faxe
 
 WORKDIR faxe
 
+# define all packeges that should be updated
+ARG update_list="libbsd* libzstd* libcurl3-gnutls libldap-common libopenjp2-7 python3.7 libsvn1 libtiff5 linux-libc-dev subversion libpq5"
+
 # install git, build release and cleanup deps
 RUN apt-get update && apt-get install -y --no-install-recommends gcc g++ make git-all \
-    && apt --only-upgrade install libbsd* libzstd* -y  \
+    && apt --only-upgrade install ${update_list} -y  \
     && rebar3 as prod release \
     && apt-get purge -y --auto-remove gcc g++ make git-all \
     && rm -rf /var/lib/apt/lists/*
