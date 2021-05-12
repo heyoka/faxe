@@ -6,7 +6,7 @@ variables:
   dockerRegistryServiceConnection: 'nexus-docker-connection'
   imageRepository: 'docker'
   containerRegistry: 'docker.datahub.tgw-group.cloud:443'
-  imageName: 'cwa/faxe'
+  imageName: 'faxe/faxe'
   TAG: '$(Build.BuildNumber)'
 #- group: 'faxe_dev - Devcloud - secret' # variable group
   group: 'nexux_connection - ALL - secret' # variable group for keyvault (user/pw/api keys,...)
@@ -26,32 +26,44 @@ stages:
 #        command: 'login'
 #      displayName: registry log in 
     - task: Docker@2
-      displayName: build container image
-      inputs:
-        repository: $(imageName)
-        command: 'build'
-        Dockerfile: 'Dockerfile_debian'
-        tags: |
-          latest
-          $(Build.BuildNumber)
-    - task: CmdLine@2
-      displayName: 'build container image'
-      inputs:
-        script: |
-          echo skip trivy checks
-          #docker run --rm -v /var/run/docker.sock:/var/run/docker.sock  aquasec/trivy --exit-code 0 --ignore-unfixed --severity MEDIUM,HIGH $(imageName):$TAG
-          #docker run --rm -v /var/run/docker.sock:/var/run/docker.sock  aquasec/trivy --exit-code 1 --ignore-unfixed --severity CRITICAL $(imageName):$TAG
-    - task: Docker@2
-      #displayName: 'Security Scan'
+      displayName: 'docker build/push job'
       inputs:
         containerRegistry: 'harbor-docker-connection'
-        repository: 'faxe'
-        command: 'push'
+        repository: '$(imageName)'
+        command: 'buildAndPush'
+        Dockerfile: 'Dockerfile_debian'
         tags: |
           $(Build.BuildNumber)
           $(Build.SourceBranch)-$(Build.BuildNumber)
           latest
+#    - task: Docker@2
+#      displayName: build container image
+#      inputs:
+#        repository: $(imageName)
+#        command: 'build'
+#        Dockerfile: 'Dockerfile_debian'
+#        tags: |
+#          latest
+#          $(Build.BuildNumber)
+#    - task: CmdLine@2
+#      displayName: 'build container image'
+#      inputs:
+#        script: |
+#          echo skip trivy checks
+#          #docker run --rm -v /var/run/docker.sock:/var/run/docker.sock  aquasec/trivy --exit-code 0 --ignore-unfixed --severity MEDIUM,HIGH $(imageName):$TAG
+#          #docker run --rm -v /var/run/docker.sock:/var/run/docker.sock  aquasec/trivy --exit-code 1 --ignore-unfixed --severity CRITICAL $(imageName):$TAG
+#    - task: Docker@2
+#      #displayName: 'Security Scan'
+#      inputs:
+#        containerRegistry: 'harbor-docker-connection'
+#        repository: $(imageName)
+#        command: 'push'
+#        tags: |
+#          $(Build.BuildNumber)
+#          $(Build.SourceBranch)-$(Build.BuildNumber)
+#          latest
 
+    
 #    - task: Docker@2
 #      inputs:
 #        containerRegistry: 'nexus-docker-connection'
