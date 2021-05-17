@@ -10,7 +10,7 @@ variables:
 - group: 'vcs_balena - ALL - secret' # variable group'
 - name: BALENA_APPLICATION
   #value: 'TGW_DTR_TEST'
-  value: 'TGW-TEC'
+  value: 'TGW-Sorter-DataCollector'
 
 pool:
   vmImage: ubuntu-latest
