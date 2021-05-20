@@ -41,7 +41,7 @@
    stop_debug_to_json/2,
    start_group_to_json/2,
    stop_group_to_json/2,
-   set_group_size_to_json/2]).
+   set_group_size_to_json/2, from_upsert_task/2]).
 
 -include("faxe.hrl").
 
@@ -63,6 +63,8 @@ allowed_methods(Req, State=#state{mode = get}) ->
    {[<<"GET">>, <<"OPTIONS">>], Req, State};
 allowed_methods(Req, State=#state{mode = get_graph}) ->
    {[<<"GET">>, <<"OPTIONS">>], Req, State};
+allowed_methods(Req, State=#state{mode = upsert}) ->
+   {[<<"POST">>, <<"PUT">>], Req, State};
 allowed_methods(Req, State=#state{mode = register}) ->
    {[<<"POST">>], Req, State};
 allowed_methods(Req, State=#state{mode = start_temp}) ->
@@ -107,6 +109,9 @@ allow_missing_post(Req, State = #state{mode = Mode}) when Mode == remove_tags; M
 allow_missing_post(Req, State) ->
    {true, Req, State}.
 
+content_types_accepted(Req, State = #state{mode = upsert}) ->
+   Value = [{{ <<"application">>, <<"x-www-form-urlencoded">>, []}, from_upsert_task}],
+   {Value, Req, State};
 content_types_accepted(Req = #{method := <<"POST">>}, State = #state{mode = register}) ->
     Value = [{{ <<"application">>, <<"x-www-form-urlencoded">>, []}, from_register_task}],
     {Value, Req, State};
@@ -191,7 +196,7 @@ malformed_request(Req, State=#state{mode = Mode}) when Mode == add_tags; Mode ==
    Malformed = TagsJson == undefined,
    {Malformed,
       rest_helper:report_malformed(Malformed, Req1, [<<"tags">>]), State#state{tags = TagsJson}};
-malformed_request(Req, State=#state{mode = Mode}) when Mode == register ->
+malformed_request(Req, State=#state{mode = Mode}) when Mode == register orelse Mode == upsert ->
    {ok, Result, Req1} = cowboy_req:read_urlencoded_body(Req),
    Dfs = proplists:get_value(<<"dfs">>, Result, undefined),
    Name = proplists:get_value(<<"name">>, Result, undefined),
@@ -276,6 +281,14 @@ get_graph_to_json(Req, State=#state{task = Task}) ->
 from_register_task(Req, State = #state{name = TaskName, dfs = Dfs, tags = Tags}) ->
    rest_helper:do_register(Req, TaskName, Dfs, Tags, State, task).
 
+from_upsert_task(Req, State = #state{name = TaskId}) ->
+   lager:notice("upsert: ~p", [lager:pr(State, ?MODULE)]),
+   case faxe:get_task(TaskId) of
+      {error, not_found} -> from_register_task(Req, State);
+      #task{id = TId, name = Name} -> from_update_to_json(Req, State#state{task_id = TId, name = Name})
+   end.
+
+
 from_start_temp_task(Req, State) ->
    {ok, Result, Req3} = cowboy_req:read_urlencoded_body(Req),
 %%   TaskName = proplists:get_value(<<"name">>, Result),
@@ -319,9 +332,9 @@ from_ping_to_json(Req, State=#state{task_id = TaskId}) ->
 start_to_json(Req, State = #state{task_id = Id}) ->
    case faxe:start_task(Id, is_permanent(Req)) of
       {ok, _Graph} ->
-         {jiffy:encode(#{<<"ok">> => <<"started">>}), Req, State};
+         rest_helper:success(Req, State);
       {error, Error} ->
-         {jiffy:encode(#{<<"error">> => faxe_util:to_bin(Error)}), Req, State}
+         rest_helper:error(Req, State, faxe_util:to_bin(Error))
    end.
 
 start_group_to_json(Req, State = #state{task_id = Id}) ->
@@ -330,9 +343,9 @@ start_group_to_json(Req, State = #state{task_id = Id}) ->
    Mode = #task_modes{concurrency = Num, permanent = is_permanent(Req)},
    case faxe:start_task(Id, Mode) of
       {ok, _Graph} ->
-         {jiffy:encode(#{<<"ok">> => <<"group started">>}), Req, State};
+         rest_helper:success(Req, State);
       {error, Error} ->
-         {jiffy:encode(#{<<"error">> => faxe_util:to_bin(Error)}), Req, State}
+         rest_helper:error(Req, State, faxe_util:to_bin(Error))
    end.
 
 set_group_size_to_json(Req, State) ->
@@ -341,10 +354,10 @@ set_group_size_to_json(Req, State) ->
    NewSize = case catch binary_to_integer(NewSize0) of N when is_integer(N) -> N; _ -> 1 end,
    case faxe:set_group_size(GroupName, NewSize) of
       {error, What} ->
-         {jiffy:encode(#{<<"error">> => faxe_util:to_bin(What)}), Req, State};
+         rest_helper:error(Req, State, faxe_util:to_bin(What));
       _Other ->
          SizeBin = integer_to_binary(NewSize),
-         {jiffy:encode(#{<<"ok">> => <<"set new group size to ", SizeBin/binary>>}), Req, State}
+         rest_helper:success(Req, State, <<"set new group size to ", SizeBin/binary>>)
    end.
 
 
@@ -352,34 +365,34 @@ start_debug_to_json(Req, State = #state{task_id = Id}) ->
 %%   lager:info("start trace: ~p",[Id]),
    case faxe:start_trace(Id) of
       {ok, _Graph} ->
-         {jiffy:encode(#{<<"ok">> => <<"debug_started">>}), Req, State};
+         rest_helper:success(Req, State);
       {error, Error} ->
-         {jiffy:encode(#{<<"error">> => faxe_util:to_bin(Error)}), Req, State}
+         rest_helper:error(Req, State, faxe_util:to_bin(Error))
    end.
 
 stop_to_json(Req, State = #state{task_id = Id}) ->
    case faxe:stop_task(Id, is_permanent(Req)) of
       ok ->
-         {jiffy:encode(#{<<"ok">> => <<"stopped">>}), Req, State};
+         rest_helper:success(Req, State);
       {error, Error} ->
-         {jiffy:encode(#{<<"error">> => faxe_util:to_bin(Error)}), Req, State}
+         rest_helper:error(Req, State, faxe_util:to_bin(Error))
    end.
 
 stop_group_to_json(Req, State = #state{}) ->
    GroupName = cowboy_req:binding(groupname, Req),
    case faxe:stop_task_group(GroupName, is_permanent(Req)) of
       {error, Error} ->
-         {jiffy:encode(#{<<"error">> => faxe_util:to_bin(Error)}), Req, State};
+         rest_helper:error(Req, State, faxe_util:to_bin(Error));
       _Other ->
-         {jiffy:encode(#{<<"ok">> => <<"group stopped">>}), Req, State}
+         rest_helper:success(Req, State)
    end.
 
 stop_debug_to_json(Req, State = #state{task_id = Id}) ->
    case faxe:stop_trace(Id) of
       {ok, _Graph} ->
-         {jiffy:encode(#{<<"ok">> => <<"debug_stopped">>}), Req, State};
+         rest_helper:success(Req, State);
       {error, Error} ->
-         {jiffy:encode(#{<<"error">> => faxe_util:to_bin(Error)}), Req, State}
+         rest_helper:error(Req, State, faxe_util:to_bin(Error))
    end.
 
 errors_to_json(Req, State = #state{task_id = Id}) ->

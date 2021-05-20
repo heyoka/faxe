@@ -55,6 +55,7 @@
    interval,
    as,
    signed,
+   round,
    requests,
    timer,
    align = false,
@@ -79,7 +80,8 @@ options() -> [
    {as, binary_list},
    {output, string_list, undefined},
    {signed, atom_list, undefined},
-   {max_connections, pos_integer, auto}].
+   {max_connections, pos_integer, auto},
+   {round, integer, undefined}].
 
 check_options() ->
    [
@@ -127,6 +129,8 @@ init_opts([{align, Align}|Opts], State) ->
    init_opts(Opts, State#state{align = Align});
 init_opts([{max_connections, MaxConn}|Opts], State) ->
    init_opts(Opts, State#state{num_readers = MaxConn});
+init_opts([{round, Prec}|Opts], State) ->
+   init_opts(Opts, State#state{round = Prec});
 init_opts(_O, State) ->
    State.
 
@@ -169,7 +173,8 @@ handle_info(poll, State = #state{readers = Readers, requests = Requests, timer =
          BSize = byte_size(flowdata:to_json(OutPoint)),
          node_metrics:metric(?METRIC_BYTES_READ, BSize, Id),
          node_metrics:metric(?METRIC_ITEMS_IN, 1, Id),
-         {emit, {1, OutPoint}, State#state{timer = faxe_time:timer_next(Timer)}}
+         NewOutPoint = maybe_round(OutPoint, State),
+         {emit, {1, NewOutPoint}, State#state{timer = faxe_time:timer_next(Timer)}}
    end;
 handle_info({'EXIT', Pid, Why}, State = #state{}) ->
    lager:warning("Modbus Reader exited with reason: ~p",[Why]),
@@ -191,6 +196,21 @@ handle_info({modbus, Reader, disconnected}, State=#state{}) ->
 handle_info(_E, S) ->
 %%   lager:warning("[~p] unexpected info: ~p",[?MODULE, _E]),
    {ok, S#state{}}.
+
+maybe_round(Point, #state{round = undefined}) ->
+   Point;
+maybe_round(Point, #state{round = Precision, as = Aliases, outputs = OutTypes}) ->
+   AsTypes = lists:zip(Aliases, OutTypes),
+   lager:notice("As-Types: ~p",[AsTypes]),
+   RoundFn =
+   fun
+      ({As, DType}, Point0) when DType =:= <<"float32">> orelse DType =:= <<"double">> ->
+         flowdata:set_field(Point0, As, faxe_util:round_float(flowdata:field(Point0, As), Precision));
+      (_, Point1) -> Point1
+   end,
+   lists:foldl(RoundFn, Point, AsTypes).
+
+
 
 handle_disconnect(Reader, State = #state{readers = Readers, timer = Timer}) ->
    Readers0 = lists:delete(Reader, Readers),
@@ -412,6 +432,24 @@ build_find_contiguous_test() ->
          start => 2715}
    ],
    ?assertEqual(Expected, find_contiguous(sort_by_start(Requests))).
+
+round_values_test() ->
+   P = test_point(),
+   State = test_state(),
+   Expected = #data_point{fields = #{<<"val1">> => 3, <<"val2">> => 2.456549, <<"val3">> => 134.554}},
+   ?assertEqual(Expected, maybe_round(P, State)).
+no_rounding_test() ->
+   P = test_point(),
+   State0 = test_state(),
+   State = State0#state{round = undefined},
+   ?assertEqual(P, maybe_round(P, State)).
+
+test_point() ->
+   #data_point{fields = #{<<"val1">> => 3, <<"val2">> => 2.45654866543, <<"val3">> => 134.554}}.
+test_state() ->
+   #state{round = 6,
+      as = [<<"val1">>, <<"val2">>, <<"val3">>],
+      outputs = [<<"int16">>, <<"double">>, <<"float32">>]}.
 
 
 -endif.

@@ -214,27 +214,22 @@ update_json(Req, State = #state{mode = Mode}) ->
             Tags = binary:split(Tags0,[<<",">>, <<" ">>],[global, trim_all]),
             faxe:update_by_tags(Tags, true)
       end,
-   Resp =
    case Result of
       R when is_list(R) ->
          Add = maybe_plural(length(R), <<"flow">>),
-         #{<<"success">> => true, <<"message">> => <<"updated ", Add/binary>>};
+         rest_helper:success(Req, State, <<"updated ", Add/binary>>);
       _ ->
-         #{<<"success">> => false}
-   end,
-   {jiffy:encode(Resp), Req, State}.
+         rest_helper:error(Req, State)
+   end.
 
 start_permanent_json(Req, State) ->
-   Resp =
-      case faxe:start_permanent_tasks() of
-         R when is_list(R) ->
-            Add = maybe_plural(length(R), <<"permanent flow">>),
-            #{<<"success">> => true, <<"message">> => <<"started ", Add/binary>>};
-         _ ->
-            #{<<"success">> => false}
-      end,
-   {jiffy:encode(Resp), Req, State}.
-
+   case faxe:start_permanent_tasks() of
+      R when is_list(R) ->
+         Add = maybe_plural(length(R), <<"permanent flow">>),
+         rest_helper:success(Req, State, <<"started ", Add/binary>>);
+      _ ->
+         rest_helper:error(Req, State)
+   end.
 
 stop_all_json(Req, State) ->
    Running = faxe:list_running_tasks(),
@@ -276,8 +271,7 @@ stop_list(TaskList, Req, State) ->
       end, [], TaskList
    ),
    Add = maybe_plural(length(StopResult), <<"flow">>),
-   M = #{<<"success">> => true, <<"message">> => <<"stopped ", Add/binary>>},
-   {jiffy:encode(M), Req, State}.
+   rest_helper:success(Req, State, <<"stopped ", Add/binary>>).
 
 start_list(TaskList, Req, State) ->
    StopResult =
@@ -295,8 +289,7 @@ start_list(TaskList, Req, State) ->
          end, [], TaskList
       ),
    Add = maybe_plural(length(StopResult), <<"flow">>),
-   M = #{<<"success">> => true, <<"message">> => <<"started ", Add/binary>>},
-   {jiffy:encode(M), Req, State}.
+   rest_helper:success(Req, State, <<"started ", Add/binary>>).
 
 id_list(Req) ->
    Ids = cowboy_req:binding(ids, Req),

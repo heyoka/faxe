@@ -14,7 +14,8 @@
 %% API
 -export([task_to_map/1, template_to_map/1, do_register/6,
    reg_fun/3, report_malformed/3, add_tags/2, set_tags/2,
-   get_task_or_template_id/2, is_authorized/1, is_authorized/2]).
+   get_task_or_template_id/2, is_authorized/1, is_authorized/2,
+   success/2, success/3, error/2, error/3]).
 
 
 -spec is_authorized(term()) -> {true, Username::binary()} | false.
@@ -134,3 +135,16 @@ get_task_or_template_id(TName, _) ->
          #template{id = NewId} -> NewId;
          _  -> 0
       end.
+
+success(Req, State) ->
+   resp(Req, State, #{<<"success">> => <<"true">>}).
+success(Req, State, Message) ->
+   resp(Req, State, #{<<"success">> => <<"true">>, <<"message">> => Message}).
+
+error(Req, State) ->
+   resp(Req, State, #{<<"success">> => <<"false">>}).
+error(Req, State, Error) ->
+   resp(Req, State, #{<<"success">> => <<"false">>, <<"error">> => Error}).
+
+resp(Req, State, RespMap) ->
+   {jiffy:encode(RespMap), Req, State}.
