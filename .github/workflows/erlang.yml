@@ -13,8 +13,7 @@ jobs:
     runs-on: ubuntu-latest
 
     container:
-      image: erlang:22.3
-
+      image: erlang:23.2.6
     steps:
     - uses: actions/checkout@v2
     - name: Compile
