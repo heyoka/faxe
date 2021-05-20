@@ -257,6 +257,11 @@
     [{default, 16}, {datatype, integer}]
 }.
 
+%% @doc whether to use the s7 pool (default for all s7read nodes)
+{mapping, "s7pool.enable", "faxe.s7pool.enable",
+    [{default, off}, {datatype, flag}]
+}.
+
 %% @doc -------------------------------------------------------------------------------
 %% MQTT defaults
 %% -------------------------------------------------------------------------------
@@ -515,6 +520,13 @@
 %% Note that the base options for these mqtt connections come from the 'mqtt' options above.
 %% If needed you can override these default mqtt-options for every handler type.
 %% @end
+
+%% For the /config RestAPI endpoint, this host will be reported as the mqtt debug/log/metrics handler, if given
+%% otherwise the actual mqtt host will be reported. Note that this host will not be used for an actual mqtt-connection, but
+%% only for reporting (Useful if faxe is behind a proxy etc.)
+{mapping, "report_debug.mqtt_host", "faxe.report_debug.mqtt_host",
+    [{default, ""}, {datatype, string}, {commented, "example.com"}]
+}.
 
 %% @doc
 %% ----------------------- METRICS ------------------------------

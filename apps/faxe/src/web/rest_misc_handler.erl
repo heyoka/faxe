@@ -133,6 +133,7 @@ config_json(Req, State=#state{mode = config}) ->
 
 opts_mqtt(Key, TopicKey) ->
    [{handler, [{mqtt, Debug0}]}] = faxe_config:get(Key),
+   ReportMqttHost = proplists:get_value(mqtt_host, faxe_config:get(report_debug)),
    All0 = faxe_event_handlers:mqtt_opts(Debug0),
    All = lists:map(
       fun({K, V}) ->
@@ -141,6 +142,7 @@ opts_mqtt(Key, TopicKey) ->
             base_topic ->
                Name = faxe_util:device_name(),
                faxe_util:build_topic([V, Name, TopicKey]);
+            host when ReportMqttHost =/= [] -> ReportMqttHost;
             _ -> V
          end,
          {K, faxe_util:to_bin(NewV)}

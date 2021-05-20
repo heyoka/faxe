@@ -71,7 +71,7 @@ options() -> [
   {diff, is_set},
   {merge_field, string, undefined},
   {byte_offset, integer, 0},
-  {use_pool, bool, false}
+  {use_pool, bool, {s7pool, enable}}
 ].
 
 check_options() ->
