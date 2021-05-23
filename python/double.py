@@ -18,7 +18,7 @@ class Double(Faxe):
 
     def handle_point(self, point_data):
         self.counter += 1
-        self.emit({"count": self.counter, self.asfieldname: point_data["val"] * 2})
+        self.emit({"count": self.counter, self.asfieldname: point_data["data"]["val"] * 2})
 
     def handle_batch(self, batch_data):
         out_list = list()
@@ -27,7 +27,7 @@ class Double(Faxe):
         self.emit(out_list)
 
     def calc(self, point_dict):
-        point_dict[self.asfieldname] = point_dict["val"] * 2
+        point_dict[self.asfieldname] = point_dict["data"]["val"] * 2
         return point_dict
 
     # def __del__(self):
