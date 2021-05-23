@@ -1,0 +1,7 @@
+|value_emitter()
+.every(3s)
+.mode('monotonic_int')
+.type(point)
+.fields('val1', 'val2')
+
+|debug()

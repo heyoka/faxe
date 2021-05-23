@@ -7,7 +7,7 @@
 
 -include("faxe.hrl").
 %% API
--export([init/3, process/3, handle_info/2, options/0, params/0]).
+-export([init/3, process/3, handle_info/2, options/0, params/0, handle_ack/2]).
 -record(state, {
    node_id           :: term(),
    every             :: non_neg_integer(),
@@ -17,19 +17,26 @@
    batch_size        :: non_neg_integer(),
    align             :: atom(),
    fields            :: list(binary()),
-   json_string       :: binary()
+   json_string       :: binary(),
+   mode              :: binary()
 }).
 
 params() -> [].
 
 options() ->
-   [{every, duration, <<"5s">>}, {jitter, duration, <<"0ms">>}, {type, atom, batch},
-      {batch_size, integer, 5}, {align, is_set},
-      {fields, binary_list, [<<"val">>]}, {format, atom, undefined}].
+   [
+      {every, duration, <<"5s">>},
+      {jitter, duration, <<"0ms">>},
+      {type, atom, batch},
+      {batch_size, integer, 5},
+      {align, is_set},
+      {fields, binary_list, [<<"val">>]},
+      {format, atom, undefined},
+      {mode, string, <<"random">>}].
 
 init(NodeId, _Inputs,
     #{every := Every, type := Type, batch_size := BatchSize, align := Unit,
-       fields := Fields, format := Fmt, jitter := Jitter}) ->
+       fields := Fields, format := Fmt, jitter := Jitter, mode := Mode}) ->
    NUnit =
       case Unit of
          false -> false;
@@ -37,12 +44,13 @@ init(NodeId, _Inputs,
       end,
    JT = faxe_time:duration_to_ms(Jitter),
    EveryMs = faxe_time:duration_to_ms(Every),
-   State = #state{node_id = NodeId, every = EveryMs, fields = Fields,
+   State = #state{node_id = NodeId, every = EveryMs, fields = Fields, mode = Mode,
       type = Type, batch_size = BatchSize, align = NUnit, format = Fmt, jitter = JT},
 
    erlang:send_after(EveryMs, self(), values),
    rand:seed(exs1024s),
 %%   lager:info("~p state is : ~p",[?MODULE, State]),
+   lager:info("I am ~p",[self()]),
    {ok, none, State}.
 
 
@@ -58,16 +66,20 @@ handle_info(values, State=#state{every = Every,jitter = JT}) ->
 handle_info(_Request, State) ->
    {ok, State}.
 
-build_msg(S = #state{type = batch, batch_size = Size, fields = Fields, format = Fmt}) ->
+handle_ack(DTag, State) ->
+   lager:warning("got ack for Tag: ~p",[DTag]),
+   {ok, State}.
+
+build_msg(S = #state{type = batch, batch_size = Size}) ->
    {TsStart, Dist} = batch_start(S),
-   Values = batch_points(TsStart, Dist, [], Size, Fields, Fmt),
+   Values = batch_points(TsStart, Dist, [], Size, S),
    flowdata:set_bounds(#data_batch{points = Values})
 ;
-build_msg(#state{type = point, align = false, fields = Fields, format = Fmt, jitter = JT}) ->
-   point(faxe_time:now()+(round(rand:uniform()*JT)), Fields, Fmt);
-build_msg(#state{type = point, align = Unit, fields = Fields, format = Fmt}) ->
+build_msg(S=#state{type = point, align = false, jitter = JT}) ->
+   point(faxe_time:now()+(round(rand:uniform()*JT)), S);
+build_msg(S=#state{type = point, align = Unit}) ->
 %%   lager:info(" ~p build point~n",[?MODULE]),
-   point(faxe_time:align(faxe_time:now(), Unit), Fields, Fmt).
+   point(faxe_time:align(faxe_time:now(), Unit), S).
 
 batch_start(#state{type = batch, batch_size = Size, every = Every, align = false}) ->
 %%   lager:info("Align is undefined"),
@@ -77,30 +89,38 @@ batch_start(#state{type = batch, batch_size = Size, align = Unit}) ->
    Ts1 = faxe_time:now() - ((Size + 1) * faxe_time:unit_to_ms(Unit)),
    {faxe_time:align(Ts1, Unit), faxe_time:unit_to_ms(Unit)}.
 
-batch_points(_Ts, _Dist, Vals, 0, _F, _Fmt) ->
+batch_points(_Ts, _Dist, Vals, 0, #state{}) ->
    Vals;
-batch_points(Ts, Dist, Vals, Num, Fields, Format) ->
-   batch_points(Ts+Dist, Dist, [point(Ts, Fields, Format)|Vals], Num - 1, Fields, Format).
+batch_points(Ts, Dist, Vals, Num, S=#state{}) ->
+   batch_points(Ts+Dist, Dist, [point(Ts, S)|Vals], Num - 1, S).
 
-point(Ts, FieldNames, undefined) ->
-   Fields0 = #{},
+point(Ts, #state{fields = FieldNames, format = undefined, mode = Mode}) ->
    Fields =
    lists:foldl(
       fun(FName, FMap) ->
-         FMap#{FName => rand:uniform()*10}
+         FMap#{FName => val(Mode)}
       end,
-      Fields0,
+      #{},
       FieldNames
    ),
-   #data_point{ts = Ts, fields = Fields};
-point(Ts, FieldNames, ejson) ->
+   #data_point{ts = Ts, fields = Fields, dtag = count(dtag)};
+point(Ts, #state{fields = FieldNames, format = ejson, mode = Mode}) ->
    Fields0 = #{},
    Fields =
       lists:foldl(
          fun(FName, FMap) ->
-            #{<<FName/binary, <<"_root">>/binary >> => FMap#{FName => rand:uniform()*10}}
+            #{<<FName/binary, <<"_root">>/binary >> => FMap#{FName => val(Mode)}}
          end,
          Fields0,
          FieldNames
       ),
-      #data_point{ts = Ts, fields = Fields}.
+      #data_point{ts = Ts, fields = Fields, dtag = count(dtag)}.
+
+val(<<"random">>) -> rand:uniform()*10;
+val(<<"monotonic_int">> = K) ->
+   count(K).
+
+count(K) ->
+   Val = case get(K) of undefined -> 0; V -> V end,
+   put(K, Val+1),
+   Val.
