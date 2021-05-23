@@ -3,13 +3,13 @@
 -module(esp_avg).
 -author("Alexander Minichmair").
 
--inherit(esp_stats).
+
 -behavior(esp_stats).
 %% API
 -export([execute/2, options/0]).
 
 options() ->
-   get_options() ++ [{module, atom, ?MODULE}].
+   esp_stats:get_options() ++ [{module, atom, ?MODULE}].
 
 execute({_Tss, Values}, _S) ->
    {first, lists:sum(Values)/length(Values)}.

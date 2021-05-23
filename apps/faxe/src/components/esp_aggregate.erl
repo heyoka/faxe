@@ -30,8 +30,6 @@
    ]
 ).
 
--callback execute(tuple(), term()) -> tuple().
-
 -record(state, {
    node_id,
    fields,

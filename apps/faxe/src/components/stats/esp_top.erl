@@ -5,7 +5,7 @@
 
 -include("faxe.hrl").
 
--inherit(esp_stats).
+
 -behavior(esp_stats).
 %% API
 -export([execute/2, options/0]).

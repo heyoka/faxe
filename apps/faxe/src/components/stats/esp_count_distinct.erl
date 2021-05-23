@@ -3,7 +3,7 @@
 -module(esp_count_distinct).
 -author("Alexander Minichmair").
 
--inherit(esp_stats).
+
 -behavior(esp_stats).
 
 -include("faxe.hrl").

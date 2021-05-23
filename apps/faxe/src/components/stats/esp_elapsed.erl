@@ -3,13 +3,13 @@
 -module(esp_elapsed).
 -author("Alexander Minichmair").
 
--inherit(esp_stats).
+
 -behavior(esp_stats).
 %% API
 -export([execute/2, options/0]).
 
 options() ->
-   get_options() ++ [{module, atom, ?MODULE}].
+   esp_stats:get_options() ++ [{module, atom, ?MODULE}].
 
 execute({Tss, _Values}, _Opts) ->
    calc(Tss, []).

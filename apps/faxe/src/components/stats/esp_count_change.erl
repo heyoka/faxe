@@ -4,7 +4,7 @@
 -module(esp_count_change).
 -author("Alexander Minichmair").
 
--inherit(esp_stats).
+
 -behavior(esp_stats).
 
 -include("faxe.hrl").

@@ -3,13 +3,13 @@
 -module(c_noop).
 -author("Alexander Minichmair").
 
--inherit(esp_stats).
+
 -behavior(esp_stats).
 %% API
 -export([execute/2, options/0]).
 
 options() ->
-   get_options() ++ [{module, atom, ?MODULE}].
+   esp_stats:get_options() ++ [{module, atom, ?MODULE}].
 
 execute({_Tss, _Values} = Data, _S) ->
    Data.

@@ -143,10 +143,10 @@ eval({Nodes, Connections}) ->
    lists:foldl(
       fun
          ({Successor, Predecessor}, Def1) ->
-            check_connection(Predecessor, Successor),
+%%            check_connection(Predecessor, Successor),
             dataflow:add_edge({node_id(Predecessor), 1, node_id(Successor), 1, []}, Def1);
          ({Successor, Predecessor, Port}, Def2) ->
-            check_connection(Predecessor, Successor),
+%%            check_connection(Predecessor, Successor),
             dataflow:add_edge({node_id(Predecessor), 1, node_id(Successor), Port, []}, Def2)
       end,
       NewDef,
