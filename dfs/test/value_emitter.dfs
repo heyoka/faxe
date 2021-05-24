@@ -2,6 +2,11 @@
 .every(3s)
 .mode('monotonic_int')
 .type(point)
-.fields('val1', 'val2')
+%.fields('val1', 'val2')
+
+|default()
+.fields('some')
+.field_values('value')
+|delete().fields('wasined')
 
 |debug()

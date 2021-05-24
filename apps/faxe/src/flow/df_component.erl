@@ -327,6 +327,7 @@ handle_info({start, Inputs, FlowMode},
 
    AR = case FlowMode of pull -> AReq; push -> none end,
    CallbackHandlesInfo = erlang:function_exported(CB, handle_info, 2),
+   CallbackHandlesAck = erlang:function_exported(CB, handle_ack, 2),
 
    {noreply,
       State#c_state{
@@ -335,7 +336,10 @@ handle_info({start, Inputs, FlowMode},
          cb_state = NewCBState,
          cb_inited = true,
          flow_mode = FlowMode,
-         cb_handle_info = CallbackHandlesInfo}}
+         cb_handle_info = CallbackHandlesInfo,
+         cb_handle_ack = CallbackHandlesAck
+         }
+   }
 ;
 %%% DEBUG
 handle_info(start_debug, State = #c_state{}) ->
@@ -351,7 +355,7 @@ handle_info({request, ReqPid, ReqPort}, State = #c_state{node_index = NodeIndex}
    {noreply, State};
 
 handle_info({ack, DTag}, State = #c_state{inports = Ins}) ->
-   lager:notice("~p got ack for DTag: ~p",[self(), DTag]),
+   lager:notice("~p got ack for DTag: ~p (cb_handle_ack: ~p)",[self(), DTag, State#c_state.cb_handle_ack]),
    NewState = cb_handle_ack(DTag, State),
    lists:foreach(fun({_Port, Pid}) -> Pid ! {ack, DTag} end, Ins),
    {noreply, NewState#c_state{emit_debug = false}};
