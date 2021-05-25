@@ -11,7 +11,8 @@ variables:
 - name: BALENA_APPLICATION
   #value: 'TGW_DTR_TEST'
   #value: 'TGW-Sorter-DataCollector'
-  value: 'TGW-TEC'
+  #value: 'TGW-TEC'
+  value: 'MIAE-Test-Faxe'
 
 pool:
   vmImage: ubuntu-latest
