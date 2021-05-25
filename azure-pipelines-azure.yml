@@ -163,6 +163,7 @@ steps:
         [ ${#FAXE_QUEUE_TTL} == "0" ] || echo "FAXE_QUEUE_TTL=$FAXE_QUEUE_TTL" >> $(environmentFile)
         [ ${#FAXE_QUEUE_TTS} == "0" ] || echo "FAXE_QUEUE_TTS=$FAXE_QUEUE_TTS" >> $(environmentFile)
         [ ${#FAXE_RABBITMQ_ROOT_EXCHANGE} == "0" ] || echo "FAXE_RABBITMQ_ROOT_EXCHANGE=$FAXE_RABBITMQ_ROOT_EXCHANGE" >> $(environmentFile)
+        [ ${#FAXE_REPORT_DEBUG_MQTT_HOST} == "0" ] || echo "FAXE_REPORT_DEBUG_MQTT_HOST=$FAXE_REPORT_DEBUG_MQTT_HOST" >> $(environmentFile)
         [ ${#FAXE_S7POOL_MAX_SIZE} == "0" ] || echo "FAXE_S7POOL_MAX_SIZE=$FAXE_S7POOL_MAX_SIZE" >> $(environmentFile)
         [ ${#FAXE_S7POOL_MIN_SIZE} == "0" ] || echo "FAXE_S7POOL_MIN_SIZE=$FAXE_S7POOL_MIN_SIZE" >> $(environmentFile)   
         
