@@ -143,21 +143,23 @@ eval({Nodes, Connections}) ->
    lists:foldl(
       fun
          ({Successor, Predecessor}, Def1) ->
-%%            check_connection(Predecessor, Successor),
+            check_connection(Predecessor, Successor),
             dataflow:add_edge({node_id(Predecessor), 1, node_id(Successor), 1, []}, Def1);
          ({Successor, Predecessor, Port}, Def2) ->
-%%            check_connection(Predecessor, Successor),
+            check_connection(Predecessor, Successor),
             dataflow:add_edge({node_id(Predecessor), 1, node_id(Successor), Port, []}, Def2)
       end,
       NewDef,
       Connections ++ NewConnections
    ).
 
-%% connect Successor to Predecessor
+%% connect Successor to Predecessor, ignoring custom python nodes
+check_connection({<<"@", _/binary>> = P, _}, _) ->
+   ok;
+check_connection(_, {<<"@", _/binary>> = P, _}) ->
+   ok;
 check_connection({PredName, _}, {SuccName, _}) ->
-%%   lager:notice("Predecessor: ~p, Successor: ~p",[PredName, SuccName]),
    P = node_name(PredName), S = node_name(SuccName),
-%%   lager:notice("connect: ~p to ~p", [{SuccName, wants, df_component:wants(S)}, {PredName, emits, df_component:emits(P)}]),
    check_item_types({SuccName, df_component:wants(S)}, {PredName, df_component:emits(P)}).
 
 check_item_types({_, Type}, {_, Type}) ->
