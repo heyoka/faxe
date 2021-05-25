@@ -64,6 +64,7 @@
 }).
 
 -define(FUNCTIONS, [<<"coils">>, <<"hregs">>, <<"iregs">>, <<"inputs">>, <<"memory">>]).
+-define(OUT_TYPES, [<<"int16">>, <<"int32">>, <<"float32">>, <<"double">>, <<"coils">>,<<"ascii">>, <<"binary">>]).
 -define(FUNCTION_PREFIX, <<"read_">>).
 -define(READ_TIMEOUT, 5000).
 
@@ -85,7 +86,9 @@ options() -> [
 
 check_options() ->
    [
-      {same_length, [function, from, count, as, output, signed]}
+      {same_length, [function, from, count, as, output, signed]},
+      {one_of, function, ?FUNCTIONS},
+      {one_of, output, ?OUT_TYPES}
    ].
 
 metrics() ->

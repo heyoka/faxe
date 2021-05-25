@@ -16,7 +16,7 @@
 
 -include("faxe.hrl").
 %% API
--export([init/3, process/3, options/0, handle_info/2, shutdown/1, metrics/0, check_options/0]).
+-export([init/3, process/3, options/0, handle_info/2, shutdown/1, metrics/0, check_options/0, handle_ack/2]).
 
 -define(RECONNECT_TIMEOUT, 2000).
 
@@ -37,6 +37,7 @@
    ack_every,
    ack_after,
    ack_timer,
+   flow_ack,
    last_dtag,
    ssl = false,
    opts,
@@ -65,6 +66,7 @@ options() -> [
    {prefetch, integer, 10},
    {ack_every, integer, 5},
    {ack_after, duration, <<"5s">>},
+   {use_flow_ack, bool, true},
    {dt_field, string, <<"ts">>},
    {dt_format, string, ?TF_TS_MILLI},
    {safe, is_set, false},
@@ -87,8 +89,8 @@ init({_GraphId, _NodeId} = Idx, _Ins,
    #{ host := Host0, port := Port, user := _User, pass := _Pass, vhost := _VHost, queue := _Q,
       exchange := _Ex, prefetch := Prefetch, routing_key := _RoutingKey, bindings := _Bindings,
       dt_field := DTField, dt_format := DTFormat, ssl := _UseSSL, include_topic := IncludeTopic,
-      topic_as := TopicKey, ack_every := AckEvery0, ack_after := AckTimeout0, as := As}
-      = Opts0) ->
+      topic_as := TopicKey, ack_every := AckEvery0, ack_after := AckTimeout0, as := As,
+      use_flow_ack := FlowAck} = Opts0) ->
 
    process_flag(trap_exit, true),
    AckTimeout = faxe_time:duration_to_ms(AckTimeout0),
@@ -97,7 +99,7 @@ init({_GraphId, _NodeId} = Idx, _Ins,
    State = #state{
       include_topic = IncludeTopic, topic_key = TopicKey, as = As,
       opts = Opts, prefetch = Prefetch, ack_every = AckEvery0, ack_after = AckTimeout,
-      dt_field = DTField, dt_format = DTFormat},
+      dt_field = DTField, dt_format = DTFormat, flow_ack = FlowAck},
 
    QFile = faxe_config:q_file(Idx),
    QConf = proplists:delete(ttf, faxe_config:get_esq_opts()),
@@ -118,7 +120,7 @@ handle_info({ {DTag, RKey}, {Payload, _Headers}, _From},
    node_metrics:metric(?METRIC_BYTES_READ, byte_size(Payload), FNId),
    node_metrics:metric(?METRIC_ITEMS_IN, 1, FNId),
    DataPoint = build_point(Payload, RKey, State),
-   ok = esq:enq(DataPoint, Q),
+   ok = esq:enq(DataPoint#data_point{dtag = DTag}, Q),
    dataflow:maybe_debug(item_in, 1, DataPoint, FNId, State#state.debug_mode),
    NewState = maybe_ack(State#state{collected = NumCollected+1, last_dtag = DTag}),
    {ok, NewState};
@@ -143,6 +145,11 @@ handle_info(stop_debug, State) -> {ok, State#state{debug_mode = false}};
 handle_info(_R, State) ->
    {ok, State}.
 
+handle_ack(DTag, State=#state{consumer = From}) ->
+   lager:warning("got ack for Tag: ~p",[DTag]),
+   carrot:ack_multiple(From, DTag),
+   {ok, State}.
+
 shutdown(#state{consumer = C, last_dtag = DTag}) ->
    case DTag of
       undefined -> ok;
@@ -150,6 +157,8 @@ shutdown(#state{consumer = C, last_dtag = DTag}) ->
    end,
    catch (rmq_consumer:stop(C)).
 
+maybe_ack(State = #state{flow_ack = true}) ->
+   State;
 maybe_ack(State = #state{last_dtag = undefined, collected = 0}) ->
    State;
 maybe_ack(State = #state{collected = NumCollected, ack_every = NumCollected}) ->
