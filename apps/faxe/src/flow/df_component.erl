@@ -11,9 +11,6 @@
 -export([start_link/6]).
 -export([start_node/3, inports/1, outports/1, start_async/3, wants/1, emits/1]).
 
-%% convenience function for node implementations
--export([ack/2]).
-
 %% Callback API
 
 %% gen_server callbacks
@@ -355,7 +352,7 @@ handle_info({request, ReqPid, ReqPort}, State = #c_state{node_index = NodeIndex}
    {noreply, State};
 
 handle_info({ack, DTag}, State = #c_state{inports = Ins}) ->
-   lager:notice("~p got ack for DTag: ~p (cb_handle_ack: ~p)",[self(), DTag, State#c_state.cb_handle_ack]),
+%%   lager:notice("~p got ack for DTag: ~p (cb_handle_ack: ~p)",[self(), DTag, State#c_state.cb_handle_ack]),
    NewState = cb_handle_ack(DTag, State),
    lists:foreach(fun({_Port, Pid}) -> Pid ! {ack, DTag} end, Ins),
    {noreply, NewState#c_state{emit_debug = false}};
@@ -483,11 +480,11 @@ handle_process_result({request, {Port, PPids}, NState}, State=#c_state{flow_mode
       true, false};
 handle_process_result({emit_ack, {Port, Emitted}, DTag, NState}, State = #c_state{inports = Ins}) ->
    emit(Port, Emitted, State),
-   ack(DTag, Ins),
+   dataflow:ack(DTag, Ins),
    {State#c_state{cb_state = NState}, false, true};
 handle_process_result({emit_ack, Emitted, DTag, NState}, State = #c_state{inports = Ins}) ->
    emit(1, Emitted, State),
-   ack(DTag, Ins),
+   dataflow:ack(DTag, Ins),
    {State#c_state{cb_state = NState}, false, true};
 handle_process_result({emit_request, {Port, Emitted}, {ReqPort, PPids}, NState},
     State=#c_state{flow_mode = FMode}) when is_list(PPids) ->
@@ -510,9 +507,6 @@ emit(Port, Value, State = #c_state{node_index = NodeIndex}) ->
    true = df_subscription:output(NodeIndex, Value, Port),
    metric(?METRIC_ITEMS_OUT, 1, State),
    maybe_debug(item_out, Port, Value, State).
-
-ack(DTag, Inputs) ->
-   lists:foreach(fun({_Port, Pid}) -> Pid ! {ack, DTag} end, Inputs).
 
 %% @doc emit debug events
 maybe_debug(_Key, _Port, _Value, #c_state{emit_debug = false}) ->

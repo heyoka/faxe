@@ -21,7 +21,7 @@ unknown_opt_test() ->
   ?assertEqual(Expected, compile_helper("unknown_options_test.dfs")).
 
 batch_test() ->
-  Expected =  #{edges =>
+  Expected =   #{edges =>
   [{<<"value_emitter1">>,1,<<"batch2">>,1,[]},
     {<<"batch2">>,1,<<"debug3">>,1,[]}],
     nodes =>
@@ -33,7 +33,8 @@ batch_test() ->
           every => <<"8000ms">>,
           fields => [<<"val">>],
           format => undefined,jitter => <<"3700ms">>,
-          type => point}}]}
+          mode => <<"random">>,type => point}}]}
+
   ,
   ?assertEqual(Expected, compile_helper("batch_test.dfs")).
 

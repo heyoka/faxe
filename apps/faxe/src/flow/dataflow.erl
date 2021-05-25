@@ -23,7 +23,13 @@
    add_trace_handler/1,
    add_trace_handler/3]).
 
--export([request_items/2, emit/1, build_options/3, maybe_check_opts/2, maybe_debug/5]).
+-export([
+   request_items/2,
+   emit/1,
+   build_options/3,
+   maybe_check_opts/2,
+   maybe_debug/5,
+   ack/2]).
 
 %%====================================================================
 %% CALLBACK API functions
@@ -107,6 +113,10 @@ maybe_debug(_Key, _Port, _Value, _Idx, false) ->
    ok;
 maybe_debug(Key, Port, Value, Idx, true) ->
    gen_event:notify(faxe_debug, {Key, Idx, Port, Value}).
+
+-spec ack(non_neg_integer(), list(tuple())) -> [ok].
+ack(DTag, Inputs) ->
+   lists:foreach(fun({_Port, Pid}) -> Pid ! {ack, DTag} end, Inputs).
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %%%

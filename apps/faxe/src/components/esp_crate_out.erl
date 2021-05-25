@@ -30,7 +30,8 @@
    tls,
    fn_id,
    last_error,
-   debug_mode = false
+   debug_mode = false,
+   flow_inputs
 }).
 
 -define(KEY, <<"stmt">>).
@@ -62,10 +63,9 @@ metrics() ->
       {?METRIC_BYTES_SENT, meter, []}
    ].
 
-init(NodeId, _Inputs,
+init(NodeId, Inputs,
     #{host := Host0, port := Port, database := DB, table := Table, user := User, pass := Pass,
-       tls := Tls,
-       db_fields := DBFields, faxe_fields := FaxeFields, remaining_fields_as := RemFieldsAs}) ->
+       tls := Tls, db_fields := DBFields, faxe_fields := FaxeFields, remaining_fields_as := RemFieldsAs}) ->
 
    Host = binary_to_list(Host0),
    erlang:send_after(0, self(), start_client),
@@ -73,7 +73,8 @@ init(NodeId, _Inputs,
    connection_registry:reg(NodeId, Host, Port, <<"http">>),
    {ok, all, #state{host = Host, port = Port, database = DB, user = User, pass = Pass,
       failed_retries = ?FAILED_RETRIES, remaining_fields_as = RemFieldsAs, tls = Tls,
-      table = Table, query = Query, db_fields = DBFields, faxe_fields = FaxeFields, fn_id = NodeId}}.
+      table = Table, query = Query, db_fields = DBFields, faxe_fields = FaxeFields,
+      fn_id = NodeId, flow_inputs = Inputs}}.
 
 %%% DATA IN
 %% not connected -> drop message
@@ -130,24 +131,28 @@ recon(State) ->
 %%% DATA OUT
 send(Item, State = #state{query = Q, faxe_fields = Fields, remaining_fields_as = RemFieldsAs,
       database = Schema, user = User, pass = Pass}) ->
-   Query = build(Item, Q, Fields, RemFieldsAs),
-   Headers0 = [{?DEFAULT_SCHEMA_HDR, Schema}, {<<"content-type">>, <<"application/json">>}],
-   Headers =
-   case Pass of
-      undefined -> Headers0;
-      _ when is_binary(Pass) andalso is_binary(User) -> UP = <<User/binary, ":", Pass/binary>>,
-         Auth = base64:encode(UP),
-         Headers0 ++ [{?AUTH_HEADER_KEY, <<"Basic ", Auth/binary>>}];
-      _ -> Headers0
-   end,
-   NewState = do_send(Query, Headers, 0, State#state{last_error = undefined}),
-   MBytes = case (catch bytes(Query)) of
-               B when is_integer(B) -> B;
-               _ -> 0
-            end,
-   node_metrics:metric(?METRIC_BYTES_SENT, MBytes, State#state.fn_id),
-   node_metrics:metric(?METRIC_ITEMS_OUT, 1, State#state.fn_id),
-   NewState.
+   DTag = retrieve_dtag(Item),
+   lager:info(" ack dtag is : ~p for: ~p",[DTag, lager:pr(Item, ?MODULE)]),
+   dataflow:ack(DTag, State#state.flow_inputs),
+   State.
+%%   Query = build(Item, Q, Fields, RemFieldsAs),
+%%   Headers0 = [{?DEFAULT_SCHEMA_HDR, Schema}, {<<"content-type">>, <<"application/json">>}],
+%%   Headers =
+%%   case Pass of
+%%      undefined -> Headers0;
+%%      _ when is_binary(Pass) andalso is_binary(User) -> UP = <<User/binary, ":", Pass/binary>>,
+%%         Auth = base64:encode(UP),
+%%         Headers0 ++ [{?AUTH_HEADER_KEY, <<"Basic ", Auth/binary>>}];
+%%      _ -> Headers0
+%%   end,
+%%   NewState = do_send(Query, Headers, 0, State#state{last_error = undefined}),
+%%   MBytes = case (catch bytes(Query)) of
+%%               B when is_integer(B) -> B;
+%%               _ -> 0
+%%            end,
+%%   node_metrics:metric(?METRIC_BYTES_SENT, MBytes, State#state.fn_id),
+%%   node_metrics:metric(?METRIC_ITEMS_OUT, 1, State#state.fn_id),
+%%   NewState.
 
 bytes(Query) ->
    case is_binary(Query) of
@@ -216,6 +221,10 @@ build_query(ValueList0, Table, RemFieldsAs) when is_list(ValueList0) ->
    Q = <<Q1/binary, "(", QMarks/binary, ")">>,
    Q.
 
+retrieve_dtag(#data_point{dtag = DTag}) -> DTag;
+retrieve_dtag(#data_batch{points = Points}) ->
+   P = lists:last(Points),
+   retrieve_dtag(P).
 
 get_response(Client, Ref) ->
    {response, _IsFin, Status, _Headers} = gun:await(Client, Ref),
