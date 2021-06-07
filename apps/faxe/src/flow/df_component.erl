@@ -163,13 +163,13 @@
     {error, Reason :: term()}.
 
 %% @doc
-%% HANDLE_ACK/2
+%% HANDLE_ACK/3
 %%
 %% optional
 %% handle data acknowledge messages from downstream nodes :
 %%
 %% @end
--callback handle_ack(Request :: term(), State :: cbstate()) ->
+-callback handle_ack(Mode :: single|multi, DTag :: non_neg_integer(), State :: cbstate()) ->
    {ok, NewCallbackState :: cbstate()} |
    {error, Reason :: term()}.
 
@@ -188,7 +188,7 @@
 -optional_callbacks([
    options/0, check_options/0, wants/0, emits/0,
    inports/0, outports/0,
-   handle_info/2, handle_ack/2, shutdown/1]).
+   handle_info/2, handle_ack/3, shutdown/1]).
 
 
 
@@ -273,7 +273,7 @@ handle_call({start, Inputs, FlowMode}, _From,
 
    AR = case FlowMode of pull -> AReq; push -> none end,
    CallbackHandlesInfo = erlang:function_exported(CB, handle_info, 2),
-   CallbackHandlesAck = erlang:function_exported(CB, handle_ack, 2),
+   CallbackHandlesAck = erlang:function_exported(CB, handle_ack, 3),
    %% metrics
 %%   folsom_metrics:new_histogram(NId, slide, 60),
 %%   folsom_metrics:new_history(<< NId/binary, ?FOLSOM_ERROR_HISTORY >>, 24),
@@ -324,7 +324,7 @@ handle_info({start, Inputs, FlowMode},
 
    AR = case FlowMode of pull -> AReq; push -> none end,
    CallbackHandlesInfo = erlang:function_exported(CB, handle_info, 2),
-   CallbackHandlesAck = erlang:function_exported(CB, handle_ack, 2),
+   CallbackHandlesAck = erlang:function_exported(CB, handle_ack, 3),
 
    {noreply,
       State#c_state{
@@ -351,10 +351,10 @@ handle_info({request, ReqPid, ReqPort}, State = #c_state{node_index = NodeIndex}
    true = df_subscription:request(NodeIndex, ReqPid, ReqPort),
    {noreply, State};
 
-handle_info({ack, DTag}, State = #c_state{inports = Ins}) ->
-%%   lager:notice("~p got ack for DTag: ~p (cb_handle_ack: ~p)",[self(), DTag, State#c_state.cb_handle_ack]),
-   NewState = cb_handle_ack(DTag, State),
-   lists:foreach(fun({_Port, Pid}) -> Pid ! {ack, DTag} end, Ins),
+handle_info({ack, Mode, DTag} = Req, State = #c_state{inports = Ins}) ->
+   lager:notice("~p got ack for DTag: ~p (cb_handle_ack: ~p)",[self(), DTag, State#c_state.cb_handle_ack]),
+   NewState = cb_handle_ack(Mode, DTag, State),
+   lists:foreach(fun({_Port, Pid}) -> Pid ! Req end, Ins),
    {noreply, NewState#c_state{emit_debug = false}};
 
 %% RECEIVING ITEM
@@ -441,9 +441,9 @@ cb_handle_info(Req, State = #c_state{cb_state = CB, component = Module}) ->
          State
    end.
 
-cb_handle_ack(_DTag, State = #c_state{cb_handle_ack = false}) -> State;
-cb_handle_ack(DTag, State = #c_state{cb_state = CB, component = Module}) ->
-   case Module:handle_ack(DTag, CB) of
+cb_handle_ack(_Mode, _DTag, State = #c_state{cb_handle_ack = false}) -> State;
+cb_handle_ack(Mode, DTag, State = #c_state{cb_state = CB, component = Module}) ->
+   case Module:handle_ack(Mode, DTag, CB) of
       {ok, CB0} ->
          State#c_state{cb_state = CB0};
       {error, _Reason} ->

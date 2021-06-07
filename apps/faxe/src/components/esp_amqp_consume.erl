@@ -16,7 +16,15 @@
 
 -include("faxe.hrl").
 %% API
--export([init/3, process/3, options/0, handle_info/2, shutdown/1, metrics/0, check_options/0, handle_ack/2]).
+-export([
+   init/3,
+   process/3,
+   options/0,
+   handle_info/2,
+   shutdown/1,
+   metrics/0,
+   check_options/0,
+   handle_ack/3]).
 
 -define(RECONNECT_TIMEOUT, 2000).
 
@@ -119,8 +127,9 @@ handle_info({ {DTag, RKey}, {Payload, _Headers}, _From},
     State=#state{queue = Q, flownodeid = FNId, collected = NumCollected}) ->
    node_metrics:metric(?METRIC_BYTES_READ, byte_size(Payload), FNId),
    node_metrics:metric(?METRIC_ITEMS_IN, 1, FNId),
-   DataPoint = build_point(Payload, RKey, State),
-   ok = esq:enq(DataPoint#data_point{dtag = DTag}, Q),
+   DataPoint0 = build_point(Payload, RKey, State),
+   DataPoint = DataPoint0#data_point{dtag = DTag},
+   ok = esq:enq(DataPoint, Q),
    dataflow:maybe_debug(item_in, 1, DataPoint, FNId, State#state.debug_mode),
    NewState = maybe_ack(State#state{collected = NumCollected+1, last_dtag = DTag}),
    {ok, NewState};
@@ -145,9 +154,10 @@ handle_info(stop_debug, State) -> {ok, State#state{debug_mode = false}};
 handle_info(_R, State) ->
    {ok, State}.
 
-handle_ack(DTag, State=#state{consumer = From}) ->
-   lager:warning("got ack for Tag: ~p",[DTag]),
-   carrot:ack_multiple(From, DTag),
+handle_ack(Mode, DTag, State=#state{consumer = From}) ->
+   lager:warning("got ack ~p for Tag: ~p",[Mode, DTag]),
+   Func = case Mode of single -> ack; multi -> ack_multiple end,
+   carrot:Func(From, DTag),
    {ok, State}.
 
 shutdown(#state{consumer = C, last_dtag = DTag}) ->

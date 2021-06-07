@@ -133,7 +133,7 @@ send(Item, State = #state{query = Q, faxe_fields = Fields, remaining_fields_as =
       database = Schema, user = User, pass = Pass}) ->
    DTag = retrieve_dtag(Item),
    lager:info(" ack dtag is : ~p for: ~p",[DTag, lager:pr(Item, ?MODULE)]),
-   dataflow:ack(DTag, State#state.flow_inputs),
+   dataflow:ack(Item, State#state.flow_inputs),
    State.
 %%   Query = build(Item, Q, Fields, RemFieldsAs),
 %%   Headers0 = [{?DEFAULT_SCHEMA_HDR, Schema}, {<<"content-type">>, <<"application/json">>}],
