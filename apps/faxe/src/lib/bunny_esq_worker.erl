@@ -138,8 +138,9 @@ handle_info(#'basic.return'{reply_text = RText, routing_key = RKey}, State) ->
    lager:info("Rabbit returned message: ~p",[{RText, RKey}]),
    {noreply, State};
 
-handle_info(#'basic.nack'{delivery_tag = _DTag, multiple = _Multiple}, State) ->
-   lager:warning("Rabbit nacked message: ~p",[{_DTag}]),
+handle_info(#'basic.nack'{delivery_tag = _DTag, multiple = _Multiple}, State=#state{config = AmqpParams}) ->
+   Host = proplists:get_value(host, AmqpParams, <<"unknown">>),
+   lager:warning("Rabbit at ~p nacked message: ~p",[Host, {_DTag}]),
    {noreply, State};
 
 handle_info(#'channel.flow'{}, State) ->

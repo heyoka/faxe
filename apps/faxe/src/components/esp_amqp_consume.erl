@@ -53,7 +53,6 @@
    dt_format,
    emitter,
    flownodeid,
-   save = false,
    debug_mode = false,
    include_topic = true,
    topic_key,
@@ -77,7 +76,6 @@ options() -> [
    {use_flow_ack, bool, true},
    {dt_field, string, <<"ts">>},
    {dt_format, string, ?TF_TS_MILLI},
-   {safe, is_set, false},
    {include_topic, bool, true},
    {topic_as, string, <<"topic">>},
    {as, string, undefined}
@@ -107,15 +105,20 @@ init({_GraphId, _NodeId} = Idx, _Ins,
    State = #state{
       include_topic = IncludeTopic, topic_key = TopicKey, as = As,
       opts = Opts, prefetch = Prefetch, ack_every = AckEvery0, ack_after = AckTimeout,
-      dt_field = DTField, dt_format = DTFormat, flow_ack = FlowAck},
+      dt_field = DTField, dt_format = DTFormat, flow_ack = FlowAck, flownodeid = Idx},
 
+   NewState = maybe_init_q(State),
+
+   connection_registry:reg(Idx, Host, Port, <<"amqp">>),
+   {ok, start_consumer(NewState)}.
+
+maybe_init_q(State = #state{flow_ack = true}) ->
+   State;
+maybe_init_q(State = #state{flownodeid = Idx}) ->
    QFile = faxe_config:q_file(Idx),
    QConf = proplists:delete(ttf, faxe_config:get_esq_opts()),
    {ok, Q} = esq:new(QFile, QConf),
-
-   NewState = start_emitter(State#state{queue = Q, flownodeid = Idx}),
-   connection_registry:reg(Idx, Host, Port, <<"amqp">>),
-   {ok, start_consumer(NewState)}.
+   start_emitter(State#state{queue = Q}).
 
 process(_In, _, State = #state{}) ->
    {ok, State}.
@@ -123,16 +126,13 @@ process(_In, _, State = #state{}) ->
 %%
 %% new queue-message arrives ...
 %%
-handle_info({ {DTag, RKey}, {Payload, _Headers}, _From},
-    State=#state{queue = Q, flownodeid = FNId, collected = NumCollected}) ->
+handle_info({ {DTag, RKey}, {Payload, _Headers}, _From}, State=#state{flownodeid = FNId}) ->
    node_metrics:metric(?METRIC_BYTES_READ, byte_size(Payload), FNId),
    node_metrics:metric(?METRIC_ITEMS_IN, 1, FNId),
    DataPoint0 = build_point(Payload, RKey, State),
    DataPoint = DataPoint0#data_point{dtag = DTag},
-   ok = esq:enq(DataPoint, Q),
    dataflow:maybe_debug(item_in, 1, DataPoint, FNId, State#state.debug_mode),
-   NewState = maybe_ack(State#state{collected = NumCollected+1, last_dtag = DTag}),
-   {ok, NewState};
+   enq_or_emit(DataPoint, DTag, State);
 
 handle_info({'DOWN', _MonitorRef, process, Consumer, _Info}, #state{consumer = Consumer} = State) ->
    connection_registry:disconnected(),
@@ -154,6 +154,8 @@ handle_info(stop_debug, State) -> {ok, State#state{debug_mode = false}};
 handle_info(_R, State) ->
    {ok, State}.
 
+handle_ack(_, _, State=#state{flow_ack = false}) ->
+   {ok, State};
 handle_ack(Mode, DTag, State=#state{consumer = From}) ->
    lager:warning("got ack ~p for Tag: ~p",[Mode, DTag]),
    Func = case Mode of single -> ack; multi -> ack_multiple end,
@@ -166,6 +168,13 @@ shutdown(#state{consumer = C, last_dtag = DTag}) ->
       _ -> carrot:ack_multiple(C, DTag)
    end,
    catch (rmq_consumer:stop(C)).
+
+enq_or_emit(Item, _DTag, State = #state{flow_ack = true}) ->
+   {emit, Item, State};
+enq_or_emit(Item, DTag, State = #state{queue = Q, collected = NumCollected}) ->
+   ok = esq:enq(Item, Q),
+   NewState = maybe_ack(State#state{collected = NumCollected+1, last_dtag = DTag}),
+   {ok, NewState}.
 
 maybe_ack(State = #state{flow_ack = true}) ->
    State;

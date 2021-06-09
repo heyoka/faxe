@@ -90,7 +90,6 @@ process(_Inport, #data_point{} = _Point, State = #state{}) ->
   {ok, State}.
 
 handle_info({tcp, Socket, Data}, State=#state{fn_id = FNId}) ->
-  lager:info("got tcp data: ~p",[Data]),
   node_metrics:metric(?METRIC_ITEMS_IN, 1, FNId),
   node_metrics:metric(?METRIC_BYTES_READ, byte_size(Data), FNId),
   NewState = maybe_emit(Data, State),

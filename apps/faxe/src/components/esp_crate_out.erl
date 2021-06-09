@@ -9,7 +9,7 @@
 
 -behavior(df_component).
 %% API
--export([init/3, process/3, options/0, handle_info/2, do_send/4, shutdown/1, metrics/0]).
+-export([init/3, process/3, options/0, handle_info/2, do_send/5, shutdown/1, metrics/0]).
 
 -record(state, {
    host :: string(),
@@ -56,7 +56,8 @@ options() ->
       {database, string, <<"doc">>},
       {db_fields, string_list},
       {faxe_fields, string_list},
-      {remaining_fields_as, string, undefined}].
+      {remaining_fields_as, string, undefined},
+      {max_retries, integer, ?FAILED_RETRIES}].
 
 metrics() ->
    [
@@ -65,14 +66,15 @@ metrics() ->
 
 init(NodeId, Inputs,
     #{host := Host0, port := Port, database := DB, table := Table, user := User, pass := Pass,
-       tls := Tls, db_fields := DBFields, faxe_fields := FaxeFields, remaining_fields_as := RemFieldsAs}) ->
+       tls := Tls, db_fields := DBFields, faxe_fields := FaxeFields,
+       remaining_fields_as := RemFieldsAs, max_retries := MaxRetries}) ->
 
    Host = binary_to_list(Host0),
    erlang:send_after(0, self(), start_client),
    Query = build_query(DBFields, Table, RemFieldsAs),
    connection_registry:reg(NodeId, Host, Port, <<"http">>),
    {ok, all, #state{host = Host, port = Port, database = DB, user = User, pass = Pass,
-      failed_retries = ?FAILED_RETRIES, remaining_fields_as = RemFieldsAs, tls = Tls,
+      failed_retries = MaxRetries, remaining_fields_as = RemFieldsAs, tls = Tls,
       table = Table, query = Query, db_fields = DBFields, faxe_fields = FaxeFields,
       fn_id = NodeId, flow_inputs = Inputs}}.
 
@@ -131,28 +133,24 @@ recon(State) ->
 %%% DATA OUT
 send(Item, State = #state{query = Q, faxe_fields = Fields, remaining_fields_as = RemFieldsAs,
       database = Schema, user = User, pass = Pass}) ->
-   DTag = retrieve_dtag(Item),
-   lager:info(" ack dtag is : ~p for: ~p",[DTag, lager:pr(Item, ?MODULE)]),
-   dataflow:ack(Item, State#state.flow_inputs),
-   State.
-%%   Query = build(Item, Q, Fields, RemFieldsAs),
-%%   Headers0 = [{?DEFAULT_SCHEMA_HDR, Schema}, {<<"content-type">>, <<"application/json">>}],
-%%   Headers =
-%%   case Pass of
-%%      undefined -> Headers0;
-%%      _ when is_binary(Pass) andalso is_binary(User) -> UP = <<User/binary, ":", Pass/binary>>,
-%%         Auth = base64:encode(UP),
-%%         Headers0 ++ [{?AUTH_HEADER_KEY, <<"Basic ", Auth/binary>>}];
-%%      _ -> Headers0
-%%   end,
-%%   NewState = do_send(Query, Headers, 0, State#state{last_error = undefined}),
-%%   MBytes = case (catch bytes(Query)) of
-%%               B when is_integer(B) -> B;
-%%               _ -> 0
-%%            end,
-%%   node_metrics:metric(?METRIC_BYTES_SENT, MBytes, State#state.fn_id),
-%%   node_metrics:metric(?METRIC_ITEMS_OUT, 1, State#state.fn_id),
-%%   NewState.
+   Query = build(Item, Q, Fields, RemFieldsAs),
+   Headers0 = [{?DEFAULT_SCHEMA_HDR, Schema}, {<<"content-type">>, <<"application/json">>}],
+   Headers =
+   case Pass of
+      undefined -> Headers0;
+      _ when is_binary(Pass) andalso is_binary(User) -> UP = <<User/binary, ":", Pass/binary>>,
+         Auth = base64:encode(UP),
+         Headers0 ++ [{?AUTH_HEADER_KEY, <<"Basic ", Auth/binary>>}];
+      _ -> Headers0
+   end,
+   NewState = do_send(Item, Query, Headers, 0, State#state{last_error = undefined}),
+   MBytes = case (catch bytes(Query)) of
+               B when is_integer(B) -> B;
+               _ -> 0
+            end,
+   node_metrics:metric(?METRIC_BYTES_SENT, MBytes, State#state.fn_id),
+   node_metrics:metric(?METRIC_ITEMS_OUT, 1, State#state.fn_id),
+   NewState.
 
 bytes(Query) ->
    case is_binary(Query) of
@@ -174,20 +172,21 @@ build(Item, Query, Fields, RemFieldsAs) ->
       end,
    jiffy:encode(#{?KEY => Query, ?ARGS => BulkArgs}).
 
-do_send(_Body, _Headers, MaxFailedRetries, S = #state{failed_retries = MaxFailedRetries, last_error = Err}) ->
+do_send(_Item, _Body, _Headers, MaxFailedRetries, S = #state{failed_retries = MaxFailedRetries, last_error = Err}) ->
    lager:warning("could not send ~p with ~p retries, last error: ~p", [_Body, MaxFailedRetries, Err]),
    S#state{last_error = undefined};
-do_send(Body, Headers, Retries, S = #state{client = Client}) ->
+do_send(Item, Body, Headers, Retries, S = #state{client = Client}) ->
    Ref = gun:post(Client, ?PATH, Headers, Body),
    case catch(get_response(Client, Ref)) of
       ok ->
+         dataflow:ack(Item, S#state.flow_inputs),
          S;
       {error, _} ->
          lager:warning("could not send ~p: invalid request", [Body]),
          S;
 
       O ->
-         do_send(Body, Headers, Retries+1, S#state{last_error = O})
+         do_send(Item, Body, Headers, Retries+1, S#state{last_error = O})
    end.
 
 
@@ -220,11 +219,6 @@ build_query(ValueList0, Table, RemFieldsAs) when is_list(ValueList0) ->
    QMarks = iolist_to_binary(lists:join(<<", ">>, lists:duplicate(length(ValueList), "?"))),
    Q = <<Q1/binary, "(", QMarks/binary, ")">>,
    Q.
-
-retrieve_dtag(#data_point{dtag = DTag}) -> DTag;
-retrieve_dtag(#data_batch{points = Points}) ->
-   P = lists:last(Points),
-   retrieve_dtag(P).
 
 get_response(Client, Ref) ->
    {response, _IsFin, Status, _Headers} = gun:await(Client, Ref),

@@ -417,14 +417,16 @@ handle_info(stop, State=#c_state{node_id = _N, component = Mod, cb_state = CBSta
 ;
 
 %% Callback Module handle_info
-handle_info(Req, State=#c_state{component = Module, cb_state = CB, cb_handle_info = true}) ->
+handle_info(Req, State = #c_state{component = Module, cb_state = CB, cb_handle_info = true}) ->
    case Module:handle_info(Req, CB) of
-              {ok, CB0} ->
-                 {noreply, State#c_state{cb_state = CB0}};
-              {emit, {_Port, _Val} = Data, CB1} ->
-                 handle_info({emit, Data}, State#c_state{cb_state = CB1});
-              {error, _Reason} ->
-                 {noreply, State#c_state{cb_state = CB}}
+      {ok, CB0} ->
+         {noreply, State#c_state{cb_state = CB0}};
+      {emit, {_Port, _Val} = Data, CB1} ->
+         handle_info({emit, Data}, State#c_state{cb_state = CB1});
+      {emit, Data, CB1} ->
+         handle_info({emit, {1, Data}}, State#c_state{cb_state = CB1});
+      {error, _Reason} ->
+         {noreply, State#c_state{cb_state = CB}}
    end
 
 ;

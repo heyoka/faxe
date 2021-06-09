@@ -82,7 +82,7 @@ process(_Inport, #data_point{} = _Point, State = #state{}) ->
 %% ignore lines that are less than min_length bytes long
 handle_info({tcp, Socket, Data}, State=#state{min_length = Min}) when byte_size(Data) < Min ->
   inet:setopts(Socket, [{active, once}]),
-  lager:notice("message dropped: ~p :: ~p",[byte_size(Data), Data]),
+  lager:notice("message dropped, too short: ~p :: ~p",[byte_size(Data), Data]),
   {ok, State};
 handle_info({tcp, Socket, Data0}, State=#state{fn_id = FNId}) ->
   Data = string:chomp(Data0),
@@ -94,7 +94,6 @@ handle_info({tcp, Socket, Data0}, State=#state{fn_id = FNId}) ->
   {ok, NewState};
 handle_info({tcp_closed, _S}, S=#state{}) ->
   connection_registry:disconnected(),
-  lager:notice("tcp_closed"),
   try_reconnect(S#state{socket = undefined});
 handle_info({tcp_error, Socket, _E}, State) ->
   lager:warning("tcp_error: ~p", [_E]),
@@ -105,7 +104,6 @@ handle_info(do_reconnect, State=#state{ip = Ip, port = Port, line_delimiter = LD
   case connect(Ip, Port, LD) of
     {ok, Socket} ->
       connection_registry:connected(),
-      lager:notice("connected to ~p" ,[Ip] ),
       inet:setopts(Socket, [{active, once}]),
       {ok, State#state{socket = Socket, reconnector = faxe_backoff:reset(Recon)}};
     {error, Error} -> lager:warning("[~p] Error connecting to ~p: ~p",[?MODULE, {Ip, Port},Error]), try_reconnect(State)
@@ -130,7 +128,6 @@ try_reconnect(State=#state{reconnector = Reconnector}) ->
 
 connect(Ip, Port, _LineDelimiter) ->
   reconnect_watcher:bump(),
-  lager:info("connect to: ~p",[{Ip, Port}]),
   gen_tcp:connect(binary_to_list(Ip), Port, ?SOCKOPTS).
 
 maybe_emit(Data, State = #state{changes = false}) -> do_emit(Data, State);

@@ -44,7 +44,6 @@ parse(BinData) ->
    Out1 = Out0#{<<"alarm_state">> => AlarmStateMap},
    State = robot_state(OpState, OpMode, Avail, AlarmState),
    Out = Out1#{<<"robot_state">> => State},
-   lager:notice("the fields: ~p" ,[Out]),
    {?TGW_DATAFORMAT, ?PARSER_VERSION, Out}.
 
 
