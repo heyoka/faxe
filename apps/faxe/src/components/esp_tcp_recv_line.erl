@@ -82,7 +82,7 @@ process(_Inport, #data_point{} = _Point, State = #state{}) ->
 %% ignore lines that are less than min_length bytes long
 handle_info({tcp, Socket, Data}, State=#state{min_length = Min}) when byte_size(Data) < Min ->
   inet:setopts(Socket, [{active, once}]),
-  lager:notice("message dropped, too short: ~p :: ~p",[byte_size(Data), Data]),
+  lager:info("message dropped, too short: ~p :: ~p",[byte_size(Data), Data]),
   {ok, State};
 handle_info({tcp, Socket, Data0}, State=#state{fn_id = FNId}) ->
   Data = string:chomp(Data0),

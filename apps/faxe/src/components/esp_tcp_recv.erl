@@ -108,7 +108,7 @@ handle_info(do_reconnect, State=#state{ip = Ip, port = Port, packet = Packet, re
       connection_registry:connected(),
       inet:setopts(Socket, [{active, once}]),
       {ok, State#state{socket = Socket, reconnector = faxe_backoff:reset(Recon)}};
-    {error, Error} -> lager:error("[~p] Error connecting to ~p: ~p",[?MODULE, {Ip, Port},Error]),
+    {error, Error} -> lager:warning("[~p] Error connecting to ~p: ~p",[?MODULE, {Ip, Port},Error]),
       try_reconnect(State)
   end;
 handle_info(_E, S) ->
