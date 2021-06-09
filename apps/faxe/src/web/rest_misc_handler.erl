@@ -1,10 +1,9 @@
 %%%-------------------------------------------------------------------
-%%% @author $author
-%%% @copyright (C) $year, $company
+%%% @author Alexander Minichmair
+%%% @copyright (C) 2020
 %%% @doc
 %%%
 %%% @end
-%%% Created : $fulldate
 %%%-------------------------------------------------------------------
 -module(rest_misc_handler).
 
