@@ -108,9 +108,9 @@ COPY --from=erlang /buildroot/faxe/_build/prod/rel/faxe /faxe
 # cleanup
 RUN rm -rf /buildroot
 
-RUN groupadd -g 999 faxe \
-	&& useradd -g 999 -u 999 -s /bin/bash -m faxe \
-	&& chown -R 999 /faxe  \
+RUN groupadd -g 10000 faxe \
+	&& useradd -g 10000 -u 9999 -s /bin/bash -m faxe \
+	&& chown -R 10000 /faxe  \
 	&& chmod -R g=u /faxe
 
 USER faxe
