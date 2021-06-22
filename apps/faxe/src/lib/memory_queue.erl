@@ -56,3 +56,42 @@ to_list_reset(Q = #mem_queue{q = Queue}) ->
    }.
 
 
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%% TESTS %%%%%%%%%
+-ifdef(TEST).
+
+basic_test() ->
+   Q = new(20),
+   Q1 = enq(1, Q),
+   ?assertEqual(1, Q1#mem_queue.current),
+   {ok, Res, Q2} = deq(Q1),
+   ?assertEqual(1, Res),
+   ?assertEqual(0, Q2#mem_queue.current).
+
+empty_test() ->
+   Q = new(1000),
+   Q1 = enq(1, Q),
+   {ok, 1, Q2} = deq(Q1),
+   {R, _Q3} = deq(Q2),
+   ?assertEqual(empty, R).
+
+overflow_test() ->
+   Q = new(2),
+   Q1 = enq(1, Q),
+   Q2 = enq(2, Q1),
+   Q3 = enq(3, Q2),
+   ?assertEqual(2, Q3#mem_queue.current),
+   ?assertEqual([2,3], to_list(Q3)).
+
+reset_test() ->
+   Q = new(15),
+   Q1 = enq(1, Q),
+   Q2 = enq(2, Q1),
+   Q3 = enq(3, Q2),
+   ?assertEqual(3, Q3#mem_queue.current),
+   {Res, QNew} = to_list_reset(Q3),
+   ?assertEqual([1,2,3], Res),
+   ?assertEqual(0, QNew#mem_queue.current),
+   ?assertEqual([], to_list(QNew)).
+
+-endif.
+

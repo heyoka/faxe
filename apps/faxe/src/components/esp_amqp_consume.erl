@@ -141,9 +141,6 @@ handle_info({'DOWN', _MonitorRef, process, Consumer, _Info}, #state{consumer = C
 handle_info({'DOWN', _MonitorRef, process, Emitter, _Info}, #state{emitter = Emitter} = State) ->
    lager:notice("Q-Emitter ~p is 'DOWN'",[Emitter]),
    {ok, start_emitter(State)};
-handle_info(Other, #state{consumer = Client} = State) ->
-   lager:warning("AmqpConsumer is 'DOWN' Info:~p, client: ~p", [Other, Client]),
-   {ok, State};
 handle_info(ack_timeout, State = #state{last_dtag = undefined}) ->
    {ok, State#state{ack_timer = undefined}};
 handle_info(ack_timeout, State = #state{collected = _Num}) ->
@@ -151,6 +148,9 @@ handle_info(ack_timeout, State = #state{collected = _Num}) ->
    {ok, NewState};
 handle_info(start_debug, State) -> {ok, State#state{debug_mode = true}};
 handle_info(stop_debug, State) -> {ok, State#state{debug_mode = false}};
+handle_info(Other, #state{consumer = Client} = State) when is_pid(Client) ->
+   lager:warning("AmqpConsumer is 'DOWN' Info:~p, client: ~p", [Other, Client]),
+   {ok, State};
 handle_info(_R, State) ->
    {ok, State}.
 
