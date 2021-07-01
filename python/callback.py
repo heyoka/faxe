@@ -11,7 +11,7 @@ class Callback(Faxe):
         opts = []
         return opts
 
-    def init(self, args):
+    def init(self, args=None):
         print("my args: ", args)
 
     def handle_point(self, point_data):

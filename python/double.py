@@ -11,7 +11,7 @@ class Double(Faxe):
         ]
         return opts
 
-    def init(self, args):
+    def init(self, args=None):
         self.fieldname = args["field"]
         self.asfieldname = args["as"]
         self.counter = 0
