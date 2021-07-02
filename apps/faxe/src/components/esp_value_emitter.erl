@@ -49,8 +49,6 @@ init(NodeId, _Inputs,
 
    erlang:send_after(EveryMs, self(), values),
    rand:seed(exs1024s),
-%%   lager:info("~p state is : ~p",[?MODULE, State]),
-   lager:info("I am ~p",[self()]),
    {ok, none, State}.
 
 

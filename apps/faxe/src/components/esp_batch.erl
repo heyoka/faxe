@@ -17,7 +17,7 @@
 -include("faxe.hrl").
 
 %% API
--export([init/3, process/3, handle_info/2, options/0, wants/0, emits/0]).
+-export([init/3, process/3, handle_info/2, options/0, wants/0, emits/0, shutdown/1]).
 
 -record(state, {
    size,
@@ -54,6 +54,13 @@ handle_info(batch_timeout, State) ->
    {emit, {1, Batch}, NewState};
 handle_info(_Request, State) ->
    {ok, State}.
+
+shutdown(#state{length = 0}) ->
+   ok;
+shutdown(State) ->
+   {Batch, _NewState} = prepare_batch(State),
+   dataflow:emit(Batch).
+
 
 
 %%%===================================================================
