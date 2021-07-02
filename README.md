@@ -1,7 +1,7 @@
 faxe
 =====
 
-    Flow based data collector/ time-centric data processor
+    Flow based data collector/ data processor
    
     
 Status
@@ -19,4 +19,4 @@ faxe is a rebar3 release
 
 Erlang
 ------
-    >= 21
+    >= 22
