@@ -33,8 +33,6 @@ class Faxe:
     base class for faxe's custom user nodes written in python
     """
 
-    __class = None
-
     def __init__(self, args):
         self.erlang_pid = args[b'erl']
         self.init(DecodeDict(dict(args)))
@@ -47,13 +45,13 @@ class Faxe:
         print("classname ", classname, " modname ", modname)
         cls = getattr(module, classname)
         method = getattr(cls, "options")
-        outList = []
+        outlist = []
         for i, x in enumerate(method()):
             l = list(x)
             l[0] = erlport.erlterms.Atom(l[0])
             l[1] = erlport.erlterms.Atom(l[1])
-            outList.append(tuple(l))
-        return outList
+            outlist.append(tuple(l))
+        return outlist
 
     @staticmethod
     def options():

@@ -6,8 +6,6 @@
 -module(esp_group_union).
 -author("Alexander Minichmair").
 
--include("dataflow.hrl").
-
 -behavior(df_component).
 %% API
 -export([init/3, process/3, options/0]).

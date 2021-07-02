@@ -57,7 +57,6 @@ init([]) ->
         {reconnect_watcher,
             {reconnect_watcher, start_link, []},
             permanent, 5000, worker, []},
-
         {s7pool_sup,
             {s7pool_sup, start_link, []},
             permanent, infinity, supervisor, [s7pool_sup]}

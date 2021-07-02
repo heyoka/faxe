@@ -88,11 +88,13 @@ COPY ./ faxe
 WORKDIR faxe
 
 # define all packeges that should be updated
-ARG update_list="libbsd* libzstd* libcurl3-gnutls libldap-common libopenjp2-7 python3.7 libsvn1 libtiff5 linux-libc-dev subversion libpq5 libldap-2.4-2"
+ARG update_list="libbsd* libzstd* libcurl3-gnutls libldap-common libopenjp2-7 python3.7 libsvn1 libtiff5 linux-libc-dev subversion libpq5 libldap-2.4-2 liblz4-1"
+ARG remove_list="libx11-6 libx11-data libx11-dev subversion libsvn1 libwebp* libwebp-dev"
 
 # install git, build release and cleanup deps
 RUN apt-get update && apt-get install -y --no-install-recommends gcc g++ make git-all \
     && apt --only-upgrade --no-install-recommends install ${update_list} -y  \
+    && apt remove  --auto-remove ${remove_list} -y  \
     && rebar3 as prod release \
     && apt-get purge -y --auto-remove gcc g++ make git-all \
     && rm -rf /var/lib/apt/lists/*
@@ -105,6 +107,13 @@ FROM erlang
 COPY --from=erlang /buildroot/faxe/_build/prod/rel/faxe /faxe
 # cleanup
 RUN rm -rf /buildroot
+
+RUN groupadd -g 10000 faxe \
+	&& useradd -g 10000 -u 9999 -s /bin/bash -m faxe \
+	&& chown -R 9999 /faxe  \
+	&& chmod -R g=u /faxe
+
+USER 9999
 
 # Expose relevant ports
 ## http api

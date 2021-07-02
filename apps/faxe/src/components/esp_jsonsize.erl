@@ -7,7 +7,7 @@
 -module(esp_jsonsize).
 -author("Alexander Minichmair").
 
--include("dataflow.hrl").
+-include("faxe.hrl").
 
 -behavior(df_component).
 %% API

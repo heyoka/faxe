@@ -31,7 +31,8 @@
     uuid,
     mapz,
     gen_smtp,
-    vmstats
+    vmstats,
+    faxe_common
    ]},
   {env,[]},
   {modules, [esp_stats]},
