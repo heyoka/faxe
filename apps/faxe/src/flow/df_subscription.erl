@@ -10,7 +10,7 @@
 -module(df_subscription).
 -author("Alexander Minichmair").
 
--include("dataflow.hrl").
+-include("faxe.hrl").
 
 %% API
 -export([new/5, output/3, request/3, save_subscriptions/2, subscriptions/1, list/1]).

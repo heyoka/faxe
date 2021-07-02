@@ -8,7 +8,7 @@
 -module(esp_union).
 -author("Alexander Minichmair").
 
--include("dataflow.hrl").
+-include("faxe.hrl").
 
 -behavior(df_component).
 %% API
