@@ -7,6 +7,7 @@
    [kernel,
     stdlib,
     inets,
+    faxe_common,
     xmerl,
     mnesia,
     lager,
@@ -31,8 +32,7 @@
     uuid,
     mapz,
     gen_smtp,
-    vmstats,
-    faxe_common
+    vmstats
    ]},
   {env,[]},
   {modules, [esp_stats]},

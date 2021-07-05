@@ -1,0 +1,15 @@
+case os:getenv("FAXE_EXTENSIONS") of
+    false -> CONFIG; % env var not defined
+    []    -> CONFIG; % env var set to empty string
+    Path ->
+        {ok, [AddDeps]} = file:consult(Path),
+        NewDeps = proplists:get_value(deps, CONFIG) ++ AddDeps,
+        NewCONFIG = lists:keystore(deps, 1, CONFIG, {deps, NewDeps}),
+        %% next get the additional app names
+        AddApps = proplists:get_keys(AddDeps),
+        %% relx section
+        [{release, Vsn, Apps} | RRest] = Relx  = proplists:get_value(relx, NewCONFIG),
+        NewRelx = [{release, Vsn, Apps++AddApps} | RRest],
+        Out = lists:keystore(relx, 1, NewCONFIG, {relx, NewRelx})
+
+end.
