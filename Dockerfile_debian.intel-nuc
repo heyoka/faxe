@@ -88,6 +88,8 @@ WORKDIR faxe
 ARG update_list="libbsd* libzstd* libcurl3-gnutls libldap-common libopenjp2-7 python3.7  libtiff5 linux-libc-dev subversion libpq5 libldap-2.4-2 liblz4-1 libsvn1"
 ARG remove_list=""
 
+ENV FAXE_EXTENSIONS="ext.config"
+
 # install git, build release and cleanup deps
 RUN apt-get update && apt-get install -y --no-install-recommends gcc g++ make git-all \
 	&& apt --only-upgrade --no-install-recommends install ${update_list} -y  \
