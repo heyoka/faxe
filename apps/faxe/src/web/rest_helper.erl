@@ -15,7 +15,7 @@
 -export([task_to_map/1, template_to_map/1, do_register/6,
    reg_fun/3, report_malformed/3, add_tags/2, set_tags/2,
    get_task_or_template_id/2, is_authorized/1, is_authorized/2,
-   success/2, success/3, error/2, error/3]).
+   success/2, success/3, error/2, error/3, int_or_bin/1]).
 
 
 -spec is_authorized(term()) -> {true, Username::binary()} | false.
@@ -79,7 +79,7 @@ template_to_map(_T = #template{definition = _Def0, id = Id, name = Name, date = 
 report_malformed(false, Req, _) -> Req;
 report_malformed(true, Req, ParamList) ->
    Req1 = cowboy_req:set_resp_header(<<"Content-Type">>, <<"application/json">>, Req),
-   cowboy_req:set_resp_body(jiffy:encode(#{success => false, params_missing => ParamList}), Req1).
+   cowboy_req:set_resp_body(jiffy:encode(#{success => false, <<"params_invalid_or_missing">> => ParamList}), Req1).
 
 do_register(Req, TaskName, Dfs, Tags, State, Type) ->
    case reg_fun(Dfs, TaskName, Type) of
@@ -106,22 +106,18 @@ do_register(Req, TaskName, Dfs, Tags, State, Type) ->
 reg_fun(Dfs, Name, task) -> Res = faxe:register_string_task(Dfs, Name), Res;
 reg_fun(Dfs, Name, _) -> faxe:register_template_string(Dfs, Name).
 
--spec add_tags(list(), any()) -> ok | {error, term()}.
-add_tags(Tags, TaskId) ->
-   case Tags of
-      [] -> ok;
-      TagJson ->
-         faxe:add_tags(TaskId, jiffy:decode(TagJson))
-   end.
+-spec add_tags(binary()|list(), any()) -> ok | {error, term()}.
+add_tags(Tags, TaskId) when is_binary(Tags)->
+   add_tags(jiffy:decode(Tags), TaskId);
+add_tags(TagList, TaskId) when is_list(TagList) ->
+   faxe:add_tags(TaskId, TagList).
 
--spec set_tags(list(), any()) -> ok | {error, term()}.
-set_tags(Tags, TaskId) ->
-   Tags1 =
-   case Tags of
-      [] -> [];
-      _ -> jiffy:decode(Tags)
-   end,
-   faxe:set_tags(TaskId, Tags1).
+-spec set_tags(binary()|list(), any()) -> ok | {error, term()}.
+set_tags(Tags, TaskId) when is_binary(Tags)->
+   set_tags(jiffy:decode(Tags), TaskId);
+set_tags(TagList, TaskId) when is_list(TagList) ->
+   faxe:set_tags(TaskId, TagList).
+
 
 get_task_or_template_id(TName, task) ->
    NewTask = faxe:get_task(TName),
@@ -148,3 +144,10 @@ error(Req, State, Error) ->
 
 resp(Req, State, RespMap) ->
    {jiffy:encode(RespMap), Req, State}.
+
+
+int_or_bin(Bin) ->
+   case catch binary_to_integer(Bin) of
+      I when is_integer(I) -> I;
+      _ -> Bin
+   end.

@@ -49,11 +49,7 @@
 
 init(Req, [{op, Mode}]) ->
    TId = cowboy_req:binding(task_id, Req),
-   TaskId =
-   case catch binary_to_integer(TId) of
-      I when is_integer(I) -> I;
-      _ -> TId
-   end,
+   TaskId = rest_helper:int_or_bin(TId),
    {cowboy_rest, Req, #state{mode = Mode, task_id = TaskId}}.
 
 is_authorized(Req, State) ->
@@ -193,23 +189,28 @@ content_types_provided(Req0 = #{method := _Method}, State=#state{mode = _Mode}) 
 malformed_request(Req, State=#state{mode = Mode}) when Mode == add_tags; Mode == remove_tags ->
    {ok, Result, Req1} = cowboy_req:read_urlencoded_body(Req),
    TagsJson = proplists:get_value(<<"tags">>, Result, undefined),
-   Malformed = TagsJson == undefined,
+   TagList = convert_tags(TagsJson),
+   Malformed = TagList == invalid,
    {Malformed,
-      rest_helper:report_malformed(Malformed, Req1, [<<"tags">>]), State#state{tags = TagsJson}};
+      rest_helper:report_malformed(Malformed, Req1, [<<"tags">>]), State#state{tags = TagList}};
 malformed_request(Req, State=#state{mode = Mode}) when Mode == register orelse Mode == upsert ->
    {ok, Result, Req1} = cowboy_req:read_urlencoded_body(Req),
-   Dfs = proplists:get_value(<<"dfs">>, Result, undefined),
-   Name = proplists:get_value(<<"name">>, Result, undefined),
-   Tags = proplists:get_value(<<"tags">>, Result, []),
-   Malformed = (Dfs == undefined orelse Name == undefined),
-   {Malformed, rest_helper:report_malformed(Malformed, Req1, [<<"dfs">>, <<"name">>]),
+   Dfs = proplists:get_value(<<"dfs">>, Result, invalid),
+   Name = proplists:get_value(<<"name">>, Result, invalid),
+   Tags = convert_tags(proplists:get_value(<<"tags">>, Result, undefined)),
+   {_Good, MalformedP} = lists:splitwith(fun({_N, E}) -> E /= invalid end,
+      [{<<"dfs">>, Dfs}, {<<"name">>, Name}, {<<"tags">>, Tags}]),
+   Malformed = MalformedP /= [],
+   {Malformed, rest_helper:report_malformed(Malformed, Req1, proplists:get_keys(MalformedP)),
       State#state{dfs = Dfs, name = Name, tags = Tags}};
 malformed_request(Req, State=#state{mode = Mode}) when Mode == update ->
    {ok, Result, Req1} = cowboy_req:read_urlencoded_body(Req),
-   Dfs = proplists:get_value(<<"dfs">>, Result, undefined),
-   Tags = proplists:get_value(<<"tags">>, Result, []),
-   Malformed = (Dfs == undefined),
-   {Malformed, rest_helper:report_malformed(Malformed, Req1, [<<"dfs">>]),
+   Dfs = proplists:get_value(<<"dfs">>, Result, invalid),
+   Tags = convert_tags(proplists:get_value(<<"tags">>, Result, undefined)),
+   {_Good, MalformedP} = lists:splitwith(fun({_N, E}) -> E /= invalid end,
+      [{<<"dfs">>, Dfs}, {<<"tags">>, Tags}]),
+   Malformed = MalformedP /= [],
+   {Malformed, rest_helper:report_malformed(Malformed, Req1, proplists:get_keys(MalformedP)),
       State#state{dfs = Dfs, tags = Tags}};
 malformed_request(Req, State=#state{mode = _Mode}) ->
    {false, Req, State}.
@@ -419,8 +420,7 @@ logs_to_json(Req, State = #state{task_id = Id}) ->
 create_to_json(Req, State) ->
    {stop, Req, State}.
 
-add_tags_from_json(Req, State = #state{task_id = TaskId, tags = TagsJson}) ->
-   Tags = jiffy:decode(TagsJson),
+add_tags_from_json(Req, State = #state{task_id = TaskId, tags = Tags}) ->
    case faxe:add_tags(TaskId, Tags) of
       ok ->
          Req4 = cowboy_req:set_resp_body(
@@ -432,8 +432,7 @@ add_tags_from_json(Req, State = #state{task_id = TaskId, tags = TagsJson}) ->
          {false, Req4, State}
    end.
 
-remove_tags_from_json(Req, State = #state{task_id = TaskId, tags = TagsJson}) ->
-   Tags = jiffy:decode(TagsJson),
+remove_tags_from_json(Req, State = #state{task_id = TaskId, tags = Tags}) ->
    case faxe:remove_tags(TaskId, Tags) of
       ok ->
          Req4 = cowboy_req:set_resp_body(
@@ -448,3 +447,12 @@ remove_tags_from_json(Req, State = #state{task_id = TaskId, tags = TagsJson}) ->
 is_permanent(Req) ->
    Permanent = cowboy_req:binding(permanent, Req, <<"false">>),
    Permanent == <<"true">>.
+
+
+convert_tags(undefined) -> [];
+convert_tags(Bin) when is_binary(Bin) ->
+   case catch jiffy:decode(Bin) of
+      TagList when is_list(TagList) -> TagList;
+      _ -> invalid
+   end;
+convert_tags(_) -> invalid.

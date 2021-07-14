@@ -277,6 +277,7 @@ has_user_with_pw(User, Pw) ->
 %%%%%%%%%%%%%%%%%%%%%%%%%%%% table management %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 db_init() ->
+   check_dir(),
    case lists:member(node(), mnesia:table_info(schema, disc_copies)) of
 
       true 	-> lager:info("schema already there, loading tables from disc"),
@@ -292,6 +293,19 @@ db_init() ->
             [_|_] = Nodes -> add_extra_nodes(Nodes)
          end
 
+   end.
+
+%% check mnesia dir
+check_dir() ->
+   Dir = mnesia:system_info(directory),
+   case filelib:ensure_dir(Dir) of
+      ok ->
+         case filelib:is_dir(Dir) of
+            false -> mnesia_dir_failed(Dir, "is not there and creation failed");
+            true -> ok
+         end;
+      {error, Reason} ->
+         mnesia_dir_failed(Dir, Reason)
    end.
 
 
@@ -399,3 +413,7 @@ write_terms(Filename, List) ->
    Format = fun(Term) -> io_lib:format("~tp.~n", [Term]) end,
    Text = lists:map(Format, List),
    file:write_file(Filename, Text).
+
+mnesia_dir_failed(Dir, Reason) ->
+   io:format("~n[FATAL] Mnesia dir '~p' is not accessible, (~p)~n",[Dir, Reason]),
+   erlang:halt("[FATAL] Mnesia dir not accessible, please check path and permissions.").

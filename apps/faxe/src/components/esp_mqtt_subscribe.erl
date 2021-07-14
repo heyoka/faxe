@@ -105,7 +105,7 @@ handle_info(connect, State) ->
    {ok, State};
 handle_info({mqttc, C, connected}, State=#state{host = Host, reconnector = Recon}) ->
    connection_registry:connected(),
-   lager:notice("mqtt client connected to ~p",[Host]),
+   lager:info("mqtt client connected to ~p",[Host]),
    NewState = State#state{client = C, connected = true, reconnector = faxe_backoff:reset(Recon)},
    subscribe(NewState),
    {ok, NewState};

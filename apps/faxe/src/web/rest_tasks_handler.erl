@@ -293,7 +293,8 @@ start_list(TaskList, Req, State) ->
 
 id_list(Req) ->
    Ids = cowboy_req:binding(ids, Req),
-   binary:split(Ids,[<<",">>, <<" ">>],[global, trim_all]).
+   L = binary:split(Ids,[<<",">>, <<" ">>],[global, trim_all]),
+   [rest_helper:int_or_bin(E) || E <- L].
 
 tasks_by_tags(Req) ->
    Tags = cowboy_req:binding(tags, Req),
