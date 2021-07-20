@@ -68,7 +68,62 @@ handle_info(emit, State=#state{every = Every, jitter = JT, ejson = JS, as = As})
    erlang:send_after(After, self(), emit),
    JsonMap = lists:nth(rand:uniform(length(JS)), JS),
    Msg = flowdata:set_field(#data_point{ts = faxe_time:now()}, As, JsonMap),
+
+   lager:notice("~p", [obj_from_array(Msg)]),
+
    {emit,{1, Msg}, State};
 handle_info(_Request, State) ->
    {ok, State}.
+
+obj_from_array(Point) ->
+   Res = obj_from_array(Point, <<"data.sections">>, <<>>, <<"name">>),
+   obj_from_array(Res, <<"data.sections">>, <<"inventoryLine">>, <<"sku">>).
+
+obj_from_array(Point = #data_point{}, Path, SubPath, Key) ->
+   Array0 = flowdata:field(Point, Path),
+   lager:notice("THE FIELD: ~p",[Array0]),
+   {Arrays, BasePaths} =
+   case is_list(Array0) of
+      true -> {[Array0], [Path]};
+      false -> %% its a map
+         PathList = [<<AKey/binary, ".", SubPath/binary>> || AKey <- maps:keys(Array0)],
+         lager:info("pathlist: ~p",[PathList]),
+         As = jsn:get_list(PathList, Array0),
+         lager:notice("ArraYs: ~p", [As]),
+         BPaths = [<<Path/binary, ".", SFix/binary>> || SFix <- PathList],
+         {As, BPaths}
+   end,
+
+   lager:info("array: ~p",[Arrays]),
+   lager:info("basepaths: ~p",[BasePaths]),
+   lists:foldl(
+      fun
+         %% if we have not found an array, skip the transfrom
+         ({_, undefined}, Point) -> Point;
+
+         ({BasePath, ArrayEntry}, Point) ->
+         transform(Point, ArrayEntry, BasePath, Key)
+      end,
+      Point,
+      lists:zip(BasePaths, Arrays)
+   ).
+
+transform(Point, Array, Path, Key) ->
+   %% get the new subobject keys and the array entries (objects)
+   lager:info("path is: ~p",[Path]),
+   lager:warning("array is : ~p",[Array]),
+   Selected = jsn:select([{value, Key}, identity], Array),
+   lager:notice("Selections: ~p",[Selected]),
+   OutPrep =
+      lists:map(fun([KeyVal, Contents0]) ->
+
+         SelPath = <<Path/binary, ".", KeyVal/binary>>,
+         {SelPath, jsn:delete(Key, Contents0)}
+                end,
+         Selected),
+   NewPoint = flowdata:delete_field(Point, Path),
+   flowdata:set_fields(NewPoint, OutPrep).
+
+
+
 

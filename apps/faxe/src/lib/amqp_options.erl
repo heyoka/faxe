@@ -33,6 +33,8 @@ parse([{user, User} | R], Acc) when is_binary(User) ->
    parse(R, Acc#{user => User});
 parse([{pass, Pass} | R], Acc) when is_binary(Pass) ->
    parse(R, Acc#{pass => Pass});
+parse([{vhost, VHost} | R], Acc) when is_binary(VHost) ->
+   parse(R, Acc#{vhost => VHost});
 parse([{connection_timeout, ConnTimeout} | R], Acc) when is_integer(ConnTimeout) ->
    parse(R, Acc#{connection_timeout => ConnTimeout});
 parse([{ssl, false} | R], Acc) ->
