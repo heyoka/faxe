@@ -69,7 +69,7 @@ handle_info(emit, State=#state{every = Every, jitter = JT, ejson = JS, as = As})
    JsonMap = lists:nth(rand:uniform(length(JS)), JS),
    Msg = flowdata:set_field(#data_point{ts = faxe_time:now()}, As, JsonMap),
 
-   lager:notice("~p", [obj_from_array(Msg)]),
+%%   lager:notice("~p", [obj_from_array(Msg)]),
 
    {emit,{1, Msg}, State};
 handle_info(_Request, State) ->
