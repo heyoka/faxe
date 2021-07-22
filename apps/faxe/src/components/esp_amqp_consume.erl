@@ -73,7 +73,7 @@ options() -> [
    {prefetch, integer, 10},
    {ack_every, integer, 5},
    {ack_after, duration, <<"5s">>},
-   {use_flow_ack, bool, true},
+   {use_flow_ack, bool, false},
    {dt_field, string, <<"ts">>},
    {dt_format, string, ?TF_TS_MILLI},
    {include_topic, bool, true},
@@ -126,7 +126,7 @@ process(_In, _, State = #state{}) ->
 %%
 %% new queue-message arrives ...
 %%
-handle_info({ {DTag, RKey}, {Payload, _Headers}, _From}, State=#state{flownodeid = FNId}) ->
+handle_info({ {DTag, RKey}, {Payload, _Headers}, _Channel}, State=#state{flownodeid = FNId}) ->
    node_metrics:metric(?METRIC_BYTES_READ, byte_size(Payload), FNId),
    node_metrics:metric(?METRIC_ITEMS_IN, 1, FNId),
    DataPoint0 = build_point(Payload, RKey, State),
@@ -149,17 +149,17 @@ handle_info(ack_timeout, State = #state{collected = _Num}) ->
 handle_info(start_debug, State) -> {ok, State#state{debug_mode = true}};
 handle_info(stop_debug, State) -> {ok, State#state{debug_mode = false}};
 handle_info(Other, #state{consumer = Client} = State) when is_pid(Client) ->
-   lager:notice("AmqpConsumer is 'DOWN' Info:~p, client: ~p", [Other, Client]),
+   lager:notice("AmqpConsumer Info:~p, client: ~p", [Other, Client]),
    {ok, State};
 handle_info(_R, State) ->
    {ok, State}.
 
 handle_ack(_, _, State=#state{flow_ack = false}) ->
    {ok, State};
-handle_ack(Mode, DTag, State=#state{consumer = From}) ->
+handle_ack(Mode, DTag, State=#state{consumer = Consumer}) ->
    lager:debug("got ack ~p for Tag: ~p",[Mode, DTag]),
    Func = case Mode of single -> ack; multi -> ack_multiple end,
-   carrot:Func(From, DTag),
+   carrot:Func(Consumer, DTag),
    {ok, State}.
 
 shutdown(#state{consumer = C, last_dtag = DTag}) ->
@@ -188,6 +188,7 @@ maybe_ack(State) ->
    State.
 
 do_ack(State = #state{last_dtag = DTag, consumer = From, ack_timer = Timer, collected = _Num}) ->
+   lager:info("ack_multiple to ~p",[DTag]),
    catch erlang:cancel_timer(Timer),
    carrot:ack_multiple(From, DTag),
    State#state{collected = 0, last_dtag = undefined, ack_timer = undefined}.
