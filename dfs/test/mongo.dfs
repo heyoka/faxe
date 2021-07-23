@@ -1,0 +1,19 @@
+|mongo_query()
+.host('localhost')
+.user('root')
+.pass('root')
+.database('test')
+.collection('inventory')
+.query(<<< {"item": "canvas"} >>>)
+.every(5s)
+.as('data')
+
+
+|aggregate()
+.fields('size.h', 'size.w', 'size.h')
+.functions('avg', 'avg', 'sum')
+.as('canvas.size_h_avg', 'canvas.size_w_avg', 'canvas.size_h_sum')
+
+|debug()
+
+
