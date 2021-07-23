@@ -43,7 +43,7 @@
 options() ->
    [
       {host, string},
-      {port, integer},
+      {port, integer, 1521},
       {user, string},
       {pass, string, <<>>},
       {service_name, string},
@@ -51,7 +51,7 @@ options() ->
       {result_type, string, <<"batch">>}, %% 'batch' or 'point'
       {time_field, string, <<"ts">>},
       {every, duration, <<"5s">>},
-      {align, is_set},
+      {align, is_set, false},
       {limit, string, <<"30">>}].
 
 check_options() ->

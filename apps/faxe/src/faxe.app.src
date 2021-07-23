@@ -27,6 +27,7 @@
     bear,
     folsom,
     epgsql,
+    mongodb,
     jamdb_oracle,
     carrot,
     uuid,

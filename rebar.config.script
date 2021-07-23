@@ -10,6 +10,5 @@ case os:getenv("FAXE_EXTENSIONS") of
         %% relx section
         [{release, Vsn, Apps} | RRest] = Relx  = proplists:get_value(relx, NewCONFIG),
         NewRelx = [{release, Vsn, Apps++AddApps} | RRest],
-        Out = lists:keystore(relx, 1, NewCONFIG, {relx, NewRelx})
-
+        lists:keystore(relx, 1, NewCONFIG, {relx, NewRelx})
 end.
