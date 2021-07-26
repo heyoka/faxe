@@ -5,12 +5,13 @@
 .database('test')
 .collection('inventory')
 .query(<<< {"item": "canvas"} >>>)
+%.query(<<< {"size.h": {"$gt": 16}} >>>)
 .every(5s)
 .as('data')
 
 
 |aggregate()
-.fields('size.h', 'size.w', 'size.h')
+.fields('data.size.h', 'data.size.w', 'data.size.h')
 .functions('avg', 'avg', 'sum')
 .as('canvas.size_h_avg', 'canvas.size_w_avg', 'canvas.size_h_sum')
 

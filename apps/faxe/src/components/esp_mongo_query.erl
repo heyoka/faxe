@@ -48,7 +48,7 @@ options() ->
       {query, string, <<"{}">>}, %% json string
       {as, binary, undefined},
       {time_field, string, <<"ts">>},
-      {every, duration, <<"5s">>},
+      {every, duration, undefined},
       {align, is_set, false}
    ].
 
@@ -86,11 +86,9 @@ init(NodeId, _Inputs, #{host := Host0, port := Port, user := User, every := Ever
    erlang:send_after(0, self(), reconnect),
    {ok, all, State}.
 
-
-process(_In, _P = #data_point{}, State = #state{}) ->
-   {ok, State};
-process(_In, _B = #data_batch{}, State = #state{}) ->
-   {ok, State}.
+%% read on incoming data-items
+process(_In, _DataItem, State = #state{}) ->
+   handle_info(query, State).
 
 handle_info(reconnect, State = #state{client = Client}) ->
    NewState =
