@@ -60,19 +60,19 @@ allowed_methods(Req, State=#state{mode = get}) ->
 allowed_methods(Req, State=#state{mode = get_graph}) ->
    {[<<"GET">>, <<"OPTIONS">>], Req, State};
 allowed_methods(Req, State=#state{mode = upsert}) ->
-   {[<<"POST">>, <<"PUT">>], Req, State};
+   {[<<"POST">>, <<"PUT">>, <<"OPTIONS">>], Req, State};
 allowed_methods(Req, State=#state{mode = register}) ->
-   {[<<"POST">>], Req, State};
+   {[<<"POST">>, <<"OPTIONS">>], Req, State};
 allowed_methods(Req, State=#state{mode = start_temp}) ->
-   {[<<"POST">>], Req, State};
+   {[<<"POST">>, <<"OPTIONS">>], Req, State};
 allowed_methods(Req, State=#state{mode = start_debug}) ->
-   {[<<"GET">>], Req, State};
+   {[<<"GET">>, <<"OPTIONS">>], Req, State};
 allowed_methods(Req, State=#state{mode = stop_debug}) ->
-   {[<<"GET">>], Req, State};
+   {[<<"GET">>, <<"OPTIONS">>], Req, State};
 allowed_methods(Req, State=#state{mode = update}) ->
-   {[<<"POST">>], Req, State};
+   {[<<"POST">>, <<"OPTIONS">>], Req, State};
 allowed_methods(Req, State=#state{mode = ping}) ->
-   {[<<"POST">>], Req, State};
+   {[<<"POST">>, <<"OPTIONS">>], Req, State};
 allowed_methods(Req, State=#state{mode = start}) ->
    {[<<"GET">>, <<"OPTIONS">>], Req, State};
 allowed_methods(Req, State=#state{mode = start_group}) ->
@@ -88,15 +88,15 @@ allowed_methods(Req, State=#state{mode = errors}) ->
 allowed_methods(Req, State=#state{mode = logs}) ->
    {[<<"GET">>, <<"OPTIONS">>], Req, State};
 allowed_methods(Req, State=#state{mode = delete}) ->
-   {[<<"DELETE">>], Req, State};
+   {[<<"DELETE">>, <<"OPTIONS">>], Req, State};
 allowed_methods(Req, State=#state{mode = delete_group}) ->
-   {[<<"DELETE">>], Req, State};
+   {[<<"DELETE">>, <<"OPTIONS">>], Req, State};
 allowed_methods(Req, State=#state{mode = remove_tags}) ->
-   {[<<"POST">>], Req, State};
+   {[<<"POST">>, <<"OPTIONS">>], Req, State};
 allowed_methods(Req, State=#state{mode = add_tags}) ->
-   {[<<"POST">>], Req, State};
+   {[<<"POST">>, <<"OPTIONS">>], Req, State};
 allowed_methods(Req, State=#state{mode = set_group_size}) ->
-   {[<<"GET">>], Req, State};
+   {[<<"GET">>, <<"OPTIONS">>], Req, State};
 allowed_methods(Req, State=#state{}) ->
    {[], Req, State}.
 

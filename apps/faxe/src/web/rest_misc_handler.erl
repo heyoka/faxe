@@ -28,11 +28,11 @@ is_authorized(Req, State) ->
    rest_helper:is_authorized(Req, State).
 
 allowed_methods(Req, S=#state{mode = loglevels}) ->
-   {[<<"GET">>], Req, S};
+   {[<<"GET">>, <<"OPTIONS">>], Req, S};
 allowed_methods(Req, S=#state{mode = loglevel}) ->
-   {[<<"POST">>], Req, S};
+   {[<<"POST">>, <<"OPTIONS">>], Req, S};
 allowed_methods(Req, S=#state{mode = validate_dfs}) ->
-   {[<<"POST">>], Req, S};
+   {[<<"POST">>, <<"OPTIONS">>], Req, S};
 allowed_methods(Req, State) ->
     Value = [<<"GET">>, <<"OPTIONS">>],
     {Value, Req, State}.

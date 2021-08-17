@@ -35,7 +35,7 @@ is_authorized(Req, State) ->
    rest_helper:is_authorized(Req, State).
 
 allowed_methods(Req, State=#state{mode = user_delete}) ->
-   {[<<"DELETE">>], Req, State};
+   {[<<"DELETE">>, <<"OPTIONS">>], Req, State};
 allowed_methods(Req, State=#state{mode = user_add}) ->
    {[<<"POST">>, <<"PUT">>], Req, State};
 allowed_methods(Req, State) ->

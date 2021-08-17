@@ -44,7 +44,7 @@ is_authorized(Req, State) ->
    rest_helper:is_authorized(Req, State).
 
 allowed_methods(Req, State=#state{mode = import}) ->
-   {[<<"POST">>], Req, State};
+   {[<<"POST">>, <<"OPTIONS">>], Req, State};
 allowed_methods(Req, State) ->
     Value = [<<"GET">>, <<"OPTIONS">>],
     {Value, Req, State}.

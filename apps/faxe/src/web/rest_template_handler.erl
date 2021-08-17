@@ -41,11 +41,11 @@ is_authorized(Req, State) ->
 allowed_methods(Req, State=#state{mode = get}) ->
    {[<<"GET">>, <<"OPTIONS">>], Req, State};
 allowed_methods(Req, State=#state{mode = register}) ->
-   {[<<"POST">>], Req, State};
+   {[<<"POST">>, <<"OPTIONS">>], Req, State};
 allowed_methods(Req, State=#state{mode = totask}) ->
-   {[<<"POST">>], Req, State};
+   {[<<"POST">>, <<"OPTIONS">>], Req, State};
 allowed_methods(Req, State=#state{mode = delete}) ->
-   {[<<"DELETE">>], Req, State}.
+   {[<<"DELETE">>, <<"OPTIONS">>], Req, State}.
 
 %%allowed_methods(Req, State) ->
 %%    Value = [<<"GET">>, <<"OPTIONS">>, <<"PUT">>, <<"POST">>, <<"DELETE">>],
