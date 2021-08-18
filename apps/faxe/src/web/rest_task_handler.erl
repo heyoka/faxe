@@ -56,47 +56,47 @@ is_authorized(Req, State) ->
    rest_helper:is_authorized(Req, State).
 
 allowed_methods(Req, State=#state{mode = get}) ->
-   {[<<"GET">>, <<"OPTIONS">>], Req, State};
+   {[<<"GET">>], Req, State};
 allowed_methods(Req, State=#state{mode = get_graph}) ->
-   {[<<"GET">>, <<"OPTIONS">>], Req, State};
+   {[<<"GET">>], Req, State};
 allowed_methods(Req, State=#state{mode = upsert}) ->
-   {[<<"POST">>, <<"PUT">>, <<"OPTIONS">>], Req, State};
+   {[<<"POST">>, <<"PUT">>], Req, State};
 allowed_methods(Req, State=#state{mode = register}) ->
-   {[<<"POST">>, <<"OPTIONS">>], Req, State};
+   {[<<"POST">>], Req, State};
 allowed_methods(Req, State=#state{mode = start_temp}) ->
-   {[<<"POST">>, <<"OPTIONS">>], Req, State};
+   {[<<"POST">>], Req, State};
 allowed_methods(Req, State=#state{mode = start_debug}) ->
-   {[<<"GET">>, <<"OPTIONS">>], Req, State};
+   {[<<"GET">>], Req, State};
 allowed_methods(Req, State=#state{mode = stop_debug}) ->
-   {[<<"GET">>, <<"OPTIONS">>], Req, State};
+   {[<<"GET">>], Req, State};
 allowed_methods(Req, State=#state{mode = update}) ->
-   {[<<"POST">>, <<"OPTIONS">>], Req, State};
+   {[<<"POST">>], Req, State};
 allowed_methods(Req, State=#state{mode = ping}) ->
-   {[<<"POST">>, <<"OPTIONS">>], Req, State};
+   {[<<"POST">>], Req, State};
 allowed_methods(Req, State=#state{mode = start}) ->
-   {[<<"GET">>, <<"OPTIONS">>], Req, State};
+   {[<<"GET">>], Req, State};
 allowed_methods(Req, State=#state{mode = start_group}) ->
-   {[<<"GET">>, <<"OPTIONS">>], Req, State};
+   {[<<"GET">>], Req, State};
 allowed_methods(Req, State=#state{mode = stop}) ->
-   {[<<"GET">>, <<"OPTIONS">>], Req, State};
+   {[<<"GET">>], Req, State};
 allowed_methods(Req, State=#state{mode = stop_group}) ->
-   {[<<"GET">>, <<"OPTIONS">>], Req, State};
+   {[<<"GET">>], Req, State};
 allowed_methods(Req, State=#state{mode = stats}) ->
-   {[<<"GET">>, <<"OPTIONS">>], Req, State};
+   {[<<"GET">>], Req, State};
 allowed_methods(Req, State=#state{mode = errors}) ->
-   {[<<"GET">>, <<"OPTIONS">>], Req, State};
+   {[<<"GET">>], Req, State};
 allowed_methods(Req, State=#state{mode = logs}) ->
-   {[<<"GET">>, <<"OPTIONS">>], Req, State};
+   {[<<"GET">>], Req, State};
 allowed_methods(Req, State=#state{mode = delete}) ->
-   {[<<"DELETE">>, <<"OPTIONS">>], Req, State};
+   {[<<"DELETE">>], Req, State};
 allowed_methods(Req, State=#state{mode = delete_group}) ->
-   {[<<"DELETE">>, <<"OPTIONS">>], Req, State};
+   {[<<"DELETE">>], Req, State};
 allowed_methods(Req, State=#state{mode = remove_tags}) ->
-   {[<<"POST">>, <<"OPTIONS">>], Req, State};
+   {[<<"POST">>], Req, State};
 allowed_methods(Req, State=#state{mode = add_tags}) ->
-   {[<<"POST">>, <<"OPTIONS">>], Req, State};
+   {[<<"POST">>], Req, State};
 allowed_methods(Req, State=#state{mode = set_group_size}) ->
-   {[<<"GET">>, <<"OPTIONS">>], Req, State};
+   {[<<"GET">>], Req, State};
 allowed_methods(Req, State=#state{}) ->
    {[], Req, State}.
 

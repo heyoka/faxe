@@ -17,7 +17,7 @@ valid_entity_length(Req=#{body_length := Length}, State) ->
     {Value, Req, State}.
 
 allowed_methods(Req, State) ->
-   {[<<"POST">>, <<"OPTIONS">>], Req, State}.
+   {[<<"POST">>], Req, State}.
 
 content_types_accepted(Req = #{method := <<"POST">>}, State) ->
    Value = [{{ <<"multipart">>, <<"form-data">>, []}, from_data}],

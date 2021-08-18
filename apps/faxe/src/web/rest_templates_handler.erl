@@ -36,9 +36,9 @@ is_authorized(Req, State) ->
   rest_helper:is_authorized(Req, State).
 
 allowed_methods(Req, State=#state{mode = import}) ->
-  {[<<"POST">>, <<"OPTIONS">>], Req, State};
+  {[<<"POST">>], Req, State};
 allowed_methods(Req, State) ->
-    Value = [<<"GET">>, <<"OPTIONS">>],
+    Value = [<<"GET">>],
     {Value, Req, State}.
 
 allow_missing_post(Req, State = #state{mode = import}) ->

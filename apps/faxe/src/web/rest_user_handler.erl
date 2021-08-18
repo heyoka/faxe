@@ -35,11 +35,11 @@ is_authorized(Req, State) ->
    rest_helper:is_authorized(Req, State).
 
 allowed_methods(Req, State=#state{mode = user_delete}) ->
-   {[<<"DELETE">>, <<"OPTIONS">>], Req, State};
+   {[<<"DELETE">>], Req, State};
 allowed_methods(Req, State=#state{mode = user_add}) ->
    {[<<"POST">>, <<"PUT">>], Req, State};
 allowed_methods(Req, State) ->
-    Value = [<<"GET">>, <<"OPTIONS">>],
+    Value = [<<"GET">>],
     {Value, Req, State}.
 
 content_types_accepted(Req, State = #state{mode = user_add}) ->

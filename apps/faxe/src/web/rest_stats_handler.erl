@@ -27,7 +27,7 @@ is_authorized(Req, State) ->
   rest_helper:is_authorized(Req, State).
 
 allowed_methods(Req, State) ->
-    Value = [<<"GET">>, <<"OPTIONS">>],
+    Value = [<<"GET">>],
     {Value, Req, State}.
 
 content_types_provided(Req, State) ->

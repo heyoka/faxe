@@ -28,13 +28,13 @@ is_authorized(Req, State) ->
    rest_helper:is_authorized(Req, State).
 
 allowed_methods(Req, S=#state{mode = loglevels}) ->
-   {[<<"GET">>, <<"OPTIONS">>], Req, S};
+   {[<<"GET">>], Req, S};
 allowed_methods(Req, S=#state{mode = loglevel}) ->
-   {[<<"POST">>, <<"OPTIONS">>], Req, S};
+   {[<<"POST">>], Req, S};
 allowed_methods(Req, S=#state{mode = validate_dfs}) ->
-   {[<<"POST">>, <<"OPTIONS">>], Req, S};
+   {[<<"POST">>], Req, S};
 allowed_methods(Req, State) ->
-    Value = [<<"GET">>, <<"OPTIONS">>],
+    Value = [<<"GET">>],
     {Value, Req, State}.
 
 content_types_accepted(Req = #{method := <<"POST">>}, State = #state{mode = validate_dfs}) ->

@@ -39,13 +39,13 @@ is_authorized(Req, State) ->
    rest_helper:is_authorized(Req, State).
 
 allowed_methods(Req, State=#state{mode = get}) ->
-   {[<<"GET">>, <<"OPTIONS">>], Req, State};
+   {[<<"GET">>], Req, State};
 allowed_methods(Req, State=#state{mode = register}) ->
-   {[<<"POST">>, <<"OPTIONS">>], Req, State};
+   {[<<"POST">>], Req, State};
 allowed_methods(Req, State=#state{mode = totask}) ->
-   {[<<"POST">>, <<"OPTIONS">>], Req, State};
+   {[<<"POST">>], Req, State};
 allowed_methods(Req, State=#state{mode = delete}) ->
-   {[<<"DELETE">>, <<"OPTIONS">>], Req, State}.
+   {[<<"DELETE">>], Req, State}.
 
 %%allowed_methods(Req, State) ->
 %%    Value = [<<"GET">>, <<"OPTIONS">>, <<"PUT">>, <<"POST">>, <<"DELETE">>],
