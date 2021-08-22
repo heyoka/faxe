@@ -1,0 +1,50 @@
+%% input data ->
+
+|json_emitter()
+ .every(500ms)
+ .json(
+     <<<{"code" : {"id": 224, "name" : "224"}, "message": "this is a test", "mode": 1}>>>,
+     <<<{"code" : {"id": 334, "name" : "334"}, "message": "this is another test", "mode": 1}>>>,
+     <<<{"code" : {"id": 114, "name" : "114"}, "message": "this is another test", "mode": 2}>>>,
+     <<<{"code" : {"id": 443, "name" : "443"}, "message": "this is another test", "mode": 1}>>>,
+     <<<{"code" : {"id": 224, "name" : "224"}, "message": "this is another test", "mode": 2}>>>,
+     <<<{"code" : {"id": 111, "name" : "111"}, "message": "this is another test", "mode": 1}>>>,
+     <<<{"code" : {"id": 443, "name" : "443"}, "message": "this is another test", "mode": 0}>>>,
+     <<<{"code" : {"id": 224, "name" : "224"}, "message": "this is another test", "mode": 0}>>>,
+     <<<{"code" : {"id": 111, "name" : "111"}, "message": "this is another test", "mode": 0}>>>,
+     <<<{"code" : {"id": 334, "name" : "334"}, "message": "this is another test", "mode": 0}>>>,
+     <<<{"code" : {"id": 551, "name" : "551"}, "message": "this is another test", "mode": 2}>>>,
+     <<<{"code" : {"id": 551, "name" : "551"}, "message": "this is another test", "mode": 0}>>>
+ )
+ .as('data')
+
+
+%% collect 2 fields ('data.code' and 'data.message') with the key-field 'data.code'.
+%% this node will output a data_batch item with a list of data-points
+%% where the original timestamp and meta-data is preserved and
+%% containing the fields mentioned before
+%% (on every incoming data-item)
+%% every 3 secondes
+%%
+|collect()
+%% the collect node will build an internal buffer base on the 'key_field'
+.key_field('data.code.id')
+%% condition for addition to the internal collection buffer
+.add(lambda: "data.mode" > 0)
+%% condition for removal of values
+.remove(lambda: "data.mode" == 0)
+%% we keep these fields in the resultion data_batch
+.keep('data.code', 'data.message')
+%% collection of type set, so no duplicates
+.type('set')
+
+.emit_every(3s)
+|debug('info')
+
+%% make sense of the data-collection in counting the 'data.code' values
+|aggregate()
+.fields('data.code')
+.functions('count_distinct')
+.as('code_count')
+
+|debug()
