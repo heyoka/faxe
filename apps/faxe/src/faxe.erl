@@ -218,6 +218,7 @@ register_task(DfsScript, Name, Type) ->
             group = Name,
             group_leader = true
          },
+         flow_changed({flow, Name, register}),
          faxe_db:save_task(Task)
    end.
 
@@ -262,6 +263,7 @@ register_template(DfsScript, Name, Type) ->
                   name = Name,
                   dfs = DFS
                },
+               flow_changed({template, Name, delete}),
                faxe_db:save_template(Template);
 
             {error, What} -> {error, What}
@@ -357,6 +359,7 @@ update(DfsScript, Task, ScriptType) ->
             definition = Map,
             dfs = DFS,
             date = faxe_time:now_date()},
+         flow_changed({flow, Task#task.name, update}),
          faxe_db:save_task(NewTask);
       Err -> Err
    end.
@@ -467,12 +470,15 @@ do_start_task(T = #task{name = Name, definition = GraphDef},
          try dataflow:start_graph(Graph, Mode) of
             ok ->
                faxe_db:save_task(T#task{pid = Graph, last_start = faxe_time:now_date(), permanent = Perm}),
+               Res =
                case Concurrency of
                   1 -> {ok, Graph};
                   Num when Num > 1 ->
                      start_concurrent(T, Mode),
                      {ok, Graph}
-               end
+               end,
+               flow_changed({task, Name, start}),
+               Res
          catch
             _:E = E -> {error, graph_start_error}
          end;
@@ -601,7 +607,9 @@ do_stop_task(T = #task{pid = Graph, group_leader = _Leader, group = _Group}, Per
                true -> T#task{permanent = false};
                false -> T
             end,
-         faxe_db:save_task(NewT#task{pid = undefined, last_stop = faxe_time:now_date()});
+         Res = faxe_db:save_task(NewT#task{pid = undefined, last_stop = faxe_time:now_date()}),
+         flow_changed({task, T#task.name, stop}),
+         Res;
 %%         case Leader of
 %%            true ->
 %%               GroupMembers = faxe_db:get_tasks_by_group(Group),
@@ -629,7 +637,14 @@ do_delete_task(T = #task{id = TaskId, group = Group, group_leader = Leader}) ->
       true -> {error, task_is_running};
       false ->
          case faxe_db:delete_task(TaskId) of
-            ok -> case Leader of true -> delete_task_group(Group), ok; false -> ok end;
+            ok ->
+               case Leader of
+                  true ->
+                     delete_task_group(Group),
+                     flow_changed({flow, TaskId, delete}),
+                     ok;
+                  false -> ok
+               end;
             Else -> Else
          end
    end.
@@ -651,7 +666,9 @@ delete_template(TaskId) ->
    case T of
       {error, not_found} -> ok;
       #template{} ->
-         faxe_db:delete_template(TaskId)
+         Res = faxe_db:delete_template(TaskId),
+         flow_changed({template, TaskId, delete}),
+         Res
    end.
 
 is_task_alive(#task{pid = Graph}) when is_pid(Graph) ->
@@ -756,6 +773,13 @@ template_to_task(Template = #template{dfs = DFS}, TaskName, Vars) ->
             template = Template#template.name,
             template_vars = Vars
             },
-         faxe_db:save_task(Task);
+         Res = faxe_db:save_task(Task),
+         flow_changed({flow, TaskName, register}),
+         Res;
       {error, What} -> {error, What}
    end.
+
+flow_changed({Type, Affected, Method}) ->
+   Msg = #data_point{ts = faxe_time:now(),
+      fields = #{<<"type">> => Type, <<"affected">> => Affected, <<"method">> => Method}},
+   gen_event:notify(flow_changed, Msg).

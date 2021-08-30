@@ -22,27 +22,35 @@
 %% API
 -export([init/3, process/3, options/0
 %%   , check_options/0
-   , wants/0, emits/0, handle_info/2]).
+   , wants/0, emits/0, handle_info/2, check_options/0, do_process/2]).
+
+-define(UPDATE_NEVER, <<"never">>).
+-define(UPDATE_ALWAYS, <<"always">>).
+
+-define(TYPE_SET, <<"set">>).
+-define(TYPE_LIST, <<"list">>).
 
 -record(state, {
    node_id,
    buffer = undefined,
    add_function,
    remove_function,
+   update,
    emit_interval,
-   field
+   fields
    ,keep
    ,keep_as,
-   type = <<"list">>,
+   type = ?TYPE_SET,
    as,
    max_age
 }).
 
 options() -> [
-   {key_field, string},
-   {type, string, <<"list">>},
+   {key_fields, string_list},
+   {type, string, ?TYPE_SET},
    {add, lambda},
    {remove, lambda},
+   {update, any, ?UPDATE_NEVER}, %% 'never', 'always' or lambda expression
    {emit_every, duration, undefined},
    {keep, string_list, undefined}, %% a list of field path to keep for every data_point
    {keep_as, string_list, undefined}, %% rename the kept fields
@@ -50,10 +58,21 @@ options() -> [
    {max_age, duration, undefined}
 ].
 
+check_options() ->
+   [
+      {same_length, [keep, keep_as]},
+      {func, update,
+         fun(Val) ->
+            is_function(Val) orelse Val == ?UPDATE_NEVER orelse Val == ?UPDATE_ALWAYS
+         end,
+         <<" can only be 'never', 'always' or a lambda expression">>},
+      {one_of, type, [?TYPE_SET, ?TYPE_LIST]}
+   ].
+
 wants() -> point.
 emits() -> batch.
 
-init(NodeId, _Ins, #{key_field := Field, add := AddFunc, remove := RemFunc, type := Type,
+init(NodeId, _Ins, #{key_fields := Fields, add := AddFunc, remove := RemFunc, update := Update, type := Type,
    emit_every := EmitEvery, keep := Keep, keep_as := KeepAs, as := As, max_age := MaxAge0}) ->
 
    EmitInterval = case EmitEvery of undefined -> undefined; _ -> faxe_time:duration_to_ms(EmitEvery) end,
@@ -62,47 +81,86 @@ init(NodeId, _Ins, #{key_field := Field, add := AddFunc, remove := RemFunc, type
    {ok, all,
       #state{
          node_id = NodeId,
-         field = Field,
+         fields = Fields,
          type = Type,
          add_function = AddFunc,
          remove_function = RemFunc,
+         update = Update,
          emit_interval = EmitInterval,
          keep = Keep,
          keep_as = Aliases,
          as = As,
          max_age = MaxAge}}.
 
-process(P, Point, State = #state{buffer = undefined}) ->
+process(Port, #data_point{} = Point, State = #state{buffer = undefined}) ->
    maybe_start_emit_timeout(State),
-   process(P, Point, State#state{buffer = []});
-process(_Port, #data_point{} = Point, State = #state{}) ->
-   NewBuffer0 = maybe_add(Point, State),
-   NewBuffer = maybe_remove(Point, State#state{buffer = NewBuffer0}),
-   maybe_emit(State#state{buffer = NewBuffer}).
+   process(Port, Point, State#state{buffer = []});
+process(_Port, #data_point{} = Point, State = #state{fields = Field, buffer = Buffer}) ->
+   {T, Res} = timer:tc(?MODULE, do_process, [Point, State]),
+   lager:info("Took: ~p my",[T]),
+   case Res of
+      {ok, State} -> {ok, State};
+      {Changed, Buffer} -> maybe_emit(Changed, State#state{buffer = Buffer})
+   end.
+
+do_process(#data_point{} = Point, State = #state{buffer = Buffer}) ->
+   case keyval(Point, State) of
+      undefined -> {ok, State};
+      KeyVal ->
+         case proplists:get_value(KeyVal, Buffer) of
+            undefined ->
+               %% it is not there so only adding will be appropiate
+               maybe_add(Point, KeyVal, State);
+            _ ->
+               %% entry with this key is present, so update or remove possible
+               %% if update did happen, we do not bother to test if remove should be done
+               {ChangedBool, NewBuffer0} = maybe_update(Point, KeyVal, State),
+               case ChangedBool of
+                  true -> {true, NewBuffer0};
+                  false -> maybe_remove(Point, KeyVal, State#state{buffer = NewBuffer0})
+               end
+         end
+   end.
 
 handle_info(emit_timeout, State = #state{}) ->
    maybe_start_emit_timeout(State),
    do_emit(State).
 
-maybe_add(Point = #data_point{ts = _Ts}, State = #state{add_function = AddFunc, field = Field, buffer = Buffer}) ->
+keyval(Point, #state{fields = [Field]}) when is_binary(Field) ->
+   flowdata:field(Point, Field);
+keyval(Point, #state{fields = Fields}) ->
+   FVals = flowdata:fields(Point, Fields),
+   case lists:all(fun(Val) -> Val == undefined end, FVals) of
+      true -> undefined;
+      false -> term_to_binary(FVals)
+   end.
+
+
+maybe_add(Point = #data_point{ts = _Ts}, KeyVal, State = #state{add_function = AddFunc, buffer = Buffer}) ->
    case catch(faxe_lambda:execute(Point, AddFunc)) of
-      true -> add(flowdata:field(Point, Field), keep(Point, State), State);
-      _ -> Buffer
+      true -> add(KeyVal, keep(Point, State), State);
+      _ -> {false, Buffer}
    end.
 
-maybe_remove(Point = #data_point{ts = _Ts}, State = #state{remove_function = RemFunc, field = Field, buffer = Buffer}) ->
+maybe_remove(Point = #data_point{ts = _Ts}, KeyVal, State = #state{remove_function = RemFunc, buffer = Buffer}) ->
    case catch(faxe_lambda:execute(Point, RemFunc)) of
-      true -> remove(flowdata:field(Point, Field), State);
-      _ -> Buffer
+      true -> {true, remove(KeyVal, State)};
+      _ -> {false, Buffer}
    end.
 
-maybe_emit(State = #state{emit_interval = undefined}) ->
+maybe_update(_Point, _KeyVal, #state{update = ?UPDATE_NEVER, buffer = Buffer}) ->
+   {false, Buffer};
+maybe_update(Point, KeyVal, State = #state{}) ->
+   update(KeyVal, Point, State).
+
+maybe_emit(true, State = #state{emit_interval = undefined}) ->
    do_emit(State);
-maybe_emit(State = #state{}) ->
+maybe_emit(_, State = #state{}) ->
    {ok, State}.
 
 do_emit(State = #state{buffer = Buff}) ->
    Points0 = [Val || {_Key, Val} <- Buff],
+%%   lager:notice("emit: ~p", [[Key || {Key, _Val} <- Buff]]),
    %% sort elements by timestamp for data_batch
    Points = lists:keysort(2, Points0),
    Batch = #data_batch{points = Points},
@@ -122,18 +180,65 @@ keep(DataPoint, #state{keep = FieldNames, keep_as = Aliases}) when is_list(Field
 %%   flowdata:set_tags(NewPoint0, )
    NewPoint0.
 
-add(Key, Point, #state{buffer = Buffer0, type = <<"set">>}) ->
+add(Key, Point, #state{buffer = Buffer0, type = ?TYPE_SET}) ->
    case proplists:get_value(Key, Buffer0) of
       undefined ->
-         lager:warning("add: ~p", [Key]), [{Key, Point} | Buffer0];
+%%         lager:warning("add: ~p", [Key]),
+         {true, [{Key, Point} | Buffer0]};
       _ ->
-         lager:warning("already exists: ~p", [Key]),
-         Buffer0
+%%         lager:info("already exists: ~p", [Key]),
+         {false, Buffer0}
    end;
-add(Key, Point, #state{buffer = Buffer0, type = <<"list">>}) ->
-   lager:warning("add: ~p", [Key]),
-   [{Key, Point} | Buffer0].
+add(Key, Point, #state{buffer = Buffer0, type = ?TYPE_LIST}) ->
+%%   lager:warning("add: ~p", [Key]),
+   {true, [{Key, Point} | Buffer0]}.
 
 remove(Key, #state{buffer = Buffer0}) ->
-   lager:warning("remove: ~p", [Key]),
+%%   lager:warning("remove: ~p", [Key]),
    proplists:delete(Key, Buffer0).
+
+update(Key, Point, State = #state{update = Fun, buffer = Buffer}) when is_function(Fun) ->
+   case catch(faxe_lambda:execute(Point, Fun)) of
+      true -> replace(Key, Point, State);
+      _ -> {false, Buffer}
+   end;
+update(Key, Point, S = #state{update = ?UPDATE_ALWAYS}) ->
+   replace(Key, Point, S).
+
+replace(Key, Point, State = #state{buffer = Buffer}) ->
+%%   lager:warning("update: ~p",[Key]),
+   {true, [{Key, keep(Point, State)}|proplists:delete(Key, Buffer)]}.
+
+%%%%%%%%%%%%%%%%%% TESTS %%%%%%%%%%%%%%%%%%%%%%%%%%
+-ifdef(TEST).
+
+state() ->
+   RemoveFun = lambda_tests:lambda_helper("Data_mode == 0", ["data_mode"]),
+   AddFun = lambda_tests:lambda_helper("Data_mode > 0", ["data_mode"]),
+   #state{fields = [<<"data_code_id">>], add_function = AddFun, remove_function = RemoveFun,
+      update = ?UPDATE_NEVER, buffer = []}.
+
+point(Idx, Mode) ->
+   #data_point{ts = Idx, fields = #{<<"data_code_id">> => Idx, <<"data_mode">> => Mode} }.
+
+basic_test() ->
+   State = state(),
+   {_Changed1, Buffer1} = R1 = do_process(point(1,1), State),
+   State1 = State#state{buffer = Buffer1},
+   ?assertEqual({true, [{1, point(1, 1)}]}, R1)
+   ,
+   {_Changed2, Buffer2} = R2 = do_process(point(1,1), State1),
+   State2 = State#state{buffer = Buffer2},
+   ?assertEqual({false, [{1, point(1, 1)}]}, R2)
+   ,
+   {_, Buffer3} = R3 = do_process(point(2,0), State2),
+   State3 = State#state{buffer = Buffer3},
+   ?assertEqual({false, [{1, point(1, 1)}]}, R3)
+   ,
+   R4 = do_process(point(1,0), State3),
+   ?assertEqual({true, []}, R4)
+.
+
+
+
+-endif.

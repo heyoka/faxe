@@ -26,6 +26,8 @@ dev1:
 	export FAXE_HTTP_API_SSL_KEYFILE=/home/heyoka/workspace/faxe/certs_tgw/tgw_wildcard.key && \
 	export FAXE_CONN_STATUS_HANDLER_MQTT_ENABLE=on && \
 	export FAXE_METRICS_HANDLER_MQTT_ENABLE=off && \
+	export FAXE_FLOW_CHANGED_HANDLER_MQTT_ENABLE=off && \
+	export FAXE_FLOW_CHANGED_HANDLER_MQTT_BASE_TOPIC=tgw/sys/faxe/ && \
 #	export FAXE_DEBUG_HANDLER_MQTT_HOST=10.156.15.11 && \
 	export FAXE_DEBUG_HANDLER_MQTT_ENABLE=off && \
 	export FAXE_HOST=heyoka_local && \

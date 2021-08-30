@@ -134,6 +134,7 @@ delete_task(TaskId) ->
    end
 .
 
+
 delete_template(#template{id = Key}) ->
    mnesia:dirty_delete({template, Key});
 delete_template(TId) ->

@@ -88,6 +88,7 @@ init([Callback, Args]) ->
    Topic = faxe_util:build_topic([BaseTopic, Name]),
    {ok, AdditionalOpts, CbState} = Callback:init(Topic),
    MqttOpts = maps:merge(MqttOpts0, AdditionalOpts),
+   lager:notice("mqtt-opts for callback: ~p :: ~p",[Callback, MqttOpts]),
    {ok, Publisher} = mqtt_publisher:start_link(MqttOpts),
    {ok,
       #state{publisher = Publisher, publisher_opts = MqttOpts,
@@ -155,6 +156,10 @@ handle_call(_Request, State) ->
    {swap_handler, Args1 :: term(), NewState :: #state{},
       Handler2 :: (atom() | {atom(), Id :: term()}), Args2 :: term()} |
    remove_handler).
+handle_info({publish, Topic, Data} = M, State = #state{publisher = Publisher}) ->
+   lager:warning("~p publish:: ~p",[?MODULE, M]),
+   publish(Topic, Data, Publisher),
+   {ok, State};
 handle_info({'EXIT', Publisher, _Reason}, State = #state{publisher = Publisher, publisher_opts = Opts}) ->
    %% publisher died
    {ok, Publisher} = mqtt_publisher:start_link(Opts),

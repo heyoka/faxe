@@ -380,7 +380,7 @@ convert(Name, Type, PVals) ->
       false -> case length(PVals) of
                   0 -> {Name, cparam(Type, [])};
                   1 ->
-%%                     lager:warning("pvals is: ~p",[PVals]),
+                     lager:warning("~p :: pvals is: ~p",[Type, PVals]),
                      {Name, cparam(Type, hd(PVals))};
                   _ ->
                      PValList =
@@ -430,7 +430,7 @@ cparam(is_set, _) -> true;
 cparam(atom, {identifier, Val}) -> binary_to_atom(Val);
 cparam(bool, {identifier, Val}) -> binary_to_atom(Val);
 cparam(binary, {string, Val}) -> Val;
-cparam(lambda, {lambda, Fun, BinRefs, FunRefs}) -> make_lambda_fun(Fun, FunRefs, BinRefs);
+cparam(_, {lambda, Fun, BinRefs, FunRefs}) -> make_lambda_fun(Fun, FunRefs, BinRefs);
 cparam(lambda, Fun) -> Fun;
 cparam(list, {_T, Val}) -> [Val];
 %%cparam(integer, {_T, Val}) -> Val;

@@ -3,18 +3,22 @@
 |json_emitter()
  .every(500ms)
  .json(
-     <<<{"code" : {"id": 224, "name" : "224"}, "message": "this is a test", "mode": 1}>>>,
-     <<<{"code" : {"id": 334, "name" : "334"}, "message": "this is another test", "mode": 1}>>>,
-     <<<{"code" : {"id": 114, "name" : "114"}, "message": "this is another test", "mode": 2}>>>,
-     <<<{"code" : {"id": 443, "name" : "443"}, "message": "this is another test", "mode": 1}>>>,
-     <<<{"code" : {"id": 224, "name" : "224"}, "message": "this is another test", "mode": 2}>>>,
-     <<<{"code" : {"id": 111, "name" : "111"}, "message": "this is another test", "mode": 1}>>>,
-     <<<{"code" : {"id": 443, "name" : "443"}, "message": "this is another test", "mode": 0}>>>,
-     <<<{"code" : {"id": 224, "name" : "224"}, "message": "this is another test", "mode": 0}>>>,
-     <<<{"code" : {"id": 111, "name" : "111"}, "message": "this is another test", "mode": 0}>>>,
-     <<<{"code" : {"id": 334, "name" : "334"}, "message": "this is another test", "mode": 0}>>>,
-     <<<{"code" : {"id": 551, "name" : "551"}, "message": "this is another test", "mode": 2}>>>,
-     <<<{"code" : {"id": 551, "name" : "551"}, "message": "this is another test", "mode": 0}>>>
+     <<<{"code" : {"id": 224, "name" : "224", "idx": "224:cdd"}, "message": "this is a test", "mode": 1}>>>,
+     <<<{"code" : {"id": 334, "name" : "334", "idx": "334:cdd"}, "message": "this is another test", "mode": 1}>>>,
+     <<<{"code" : {"id": 334, "name" : "334-update", "idx": "334:cdd"}, "message": "this is another test", "mode": 1}>>>,
+     <<<{"code" : {"id": 114, "name" : "114", "idx": "114:cdd"}, "message": "this is another test", "mode": 2}>>>,
+     <<<{"code" : {"id": 114, "name" : "114-update", "idx": "114:cdd"}, "message": "this is another test", "mode": 2}>>>,
+     <<<{"code" : {"id": 443, "name" : "443", "idx": "443:cdd"}, "message": "this is another test", "mode": 1}>>>,
+     <<<{"code" : {"id": 224, "name" : "224-update", "idx": "224:cdd"}, "message": "this is another test", "mode": 2}>>>,
+     <<<{"code" : {"id": 111, "name" : "111", "idx": "111:cdd"}, "message": "this is another test", "mode": 1}>>>,
+     <<<{"code" : {"id": 443, "name" : "443", "idx": "443:cdd"}, "message": "this is another test", "mode": 0}>>>,
+     <<<{"code" : {"id": 224, "name" : "224", "idx": "224:cdd"}, "message": "this is another test", "mode": 0}>>>,
+     <<<{"code" : {"id": 111, "name" : "111", "idx": "111:cdd"}, "message": "this is another test", "mode": 0}>>>,
+     <<<{"code" : {"id": 111, "name" : "111-update", "idx": "111:cdd"}, "message": "this is another test", "mode": 2}>>>,
+     <<<{"code" : {"id": 334, "name" : "334", "idx": "334:cdd"}, "message": "this is another test", "mode": 0}>>>,
+     <<<{"code" : {"id": 551, "name" : "551", "idx": "551:cdd"}, "message": "this is another test", "mode": 2}>>>,
+     <<<{"code" : {"id": 551, "name" : "551", "idx": "551:cdd"}, "message": "this is another test", "mode": 0}>>>,
+     <<<{"code-idx" : {"id": 222, "name" : "222", "idx": "222:cdd"}, "message": "this is another test", "mode": 0}>>>
  )
  .as('data')
 
@@ -28,17 +32,19 @@
 %%
 |collect()
 %% the collect node will build an internal buffer base on the 'key_field'
-.key_field('data.code.id')
+.key_fields('data.code.id') %, 'data.code.idxs')
 %% condition for addition to the internal collection buffer
 .add(lambda: "data.mode" > 0)
+%% condtion for updating a value
+%.update(lambda: "data.mode" > 0 AND str_ends_with("data.code.name", '-update'))
 %% condition for removal of values
 .remove(lambda: "data.mode" == 0)
 %% we keep these fields in the resultion data_batch
 .keep('data.code', 'data.message')
 %% collection of type set, so no duplicates
-.type('set')
+%.type('set')
 
-.emit_every(3s)
+.emit_every(10s)
 |debug('info')
 
 %% make sense of the data-collection in counting the 'data.code' values
@@ -47,4 +53,4 @@
 .functions('count_distinct')
 .as('code_count')
 
-|debug()
+%|debug()

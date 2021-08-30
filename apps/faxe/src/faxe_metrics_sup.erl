@@ -39,6 +39,10 @@ init([]) ->
       {gen_event, start_link, [{local, faxe_debug}]},
       permanent, 5000, worker, []}
     ,
+    {flow_changed,
+      {gen_event, start_link, [{local, flow_changed}]},
+      permanent, 5000, worker, []}
+    ,
     {metrics_collector,
       {metrics_collector, start_link, []},
       permanent, 5000, worker, []}
