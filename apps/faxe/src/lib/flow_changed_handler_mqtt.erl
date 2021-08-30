@@ -6,6 +6,7 @@
 -behaviour(event_handler_mqtt).
 
 -include("faxe.hrl").
+
 %% event_handler_mqtt callbacks
 -export([
    init/1,
