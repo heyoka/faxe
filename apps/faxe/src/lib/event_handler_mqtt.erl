@@ -88,7 +88,7 @@ init([Callback, Args]) ->
    Topic = faxe_util:build_topic([BaseTopic, Name]),
    {ok, AdditionalOpts, CbState} = Callback:init(Topic),
    MqttOpts = maps:merge(MqttOpts0, AdditionalOpts),
-   lager:notice("mqtt-opts for callback: ~p :: ~p",[Callback, MqttOpts]),
+%%   lager:debug("mqtt-opts for callback: ~p :: ~p",[Callback, MqttOpts]),
    {ok, Publisher} = mqtt_publisher:start_link(MqttOpts),
    {ok,
       #state{publisher = Publisher, publisher_opts = MqttOpts,
