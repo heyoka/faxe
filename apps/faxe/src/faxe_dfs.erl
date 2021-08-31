@@ -380,7 +380,7 @@ convert(Name, Type, PVals) ->
       false -> case length(PVals) of
                   0 -> {Name, cparam(Type, [])};
                   1 ->
-                     lager:warning("~p :: pvals is: ~p",[Type, PVals]),
+%%                     lager:warning("~p :: pvals is: ~p",[Type, PVals]),
                      {Name, cparam(Type, hd(PVals))};
                   _ ->
                      PValList =

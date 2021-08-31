@@ -64,6 +64,10 @@ init([]) ->
         {initial_task_starter,
             {initial_task_starter, start_link, []},
             permanent, 5000, worker, []}
+        ,
+        {http_manager,
+            {http_manager, start_link, []},
+            permanent, 5000, worker, []}
    ],
    {ok, { {one_for_one, 5, 20}, Procs} }.
 

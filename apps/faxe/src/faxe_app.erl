@@ -29,7 +29,8 @@ start(_StartType, _StartArgs) ->
    {StartFunction, SockOpts} =
       case faxe_config:get_http_tls() of
          true -> {start_tls, faxe_config:get_http_ssl_opts()};
-         _ -> {start_clear, []} end,
+         _ -> {start_clear, []}
+      end,
    lager:notice("cowboy http(s) listener starting with: ~p",[{StartFunction, SockOpts}]),
    MaxConns = 200, Acceptors = 5,
    {ok, _} = cowboy:StartFunction(http,

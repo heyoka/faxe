@@ -1,0 +1,13 @@
+|http_listen()
+.port(8899)
+.path('/StandardInterface/MaintenanceAlertStandardInterface_SaveMaintenanceAlertStandardInterface')
+.content_type('application/x-www-form-urlencoded')
+.as('data.http_res')
+.payload_type('json')
+.tls()
+
+|http_listen()
+.port(8898)
+.content_type('text/plain')
+.as('data.http_res')
+.payload_type('json')

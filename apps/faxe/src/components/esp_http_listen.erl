@@ -1,0 +1,88 @@
+%% Date: 30.08.21 - 16:44
+%% HTTP Listen
+%% Ⓒ 2021 heyoka
+%%
+%%
+-module(esp_http_listen).
+-author("Alexander Minichmair").
+
+-include("faxe.hrl").
+
+-behavior(df_component).
+%% API
+-export([init/3, process/3, options/0, handle_info/2, check_options/0]).
+
+-define(CONT_TYPE_PLAIN, <<"text/plain">>).
+-define(CONT_TYPE_FORM_URLENCODED, <<"application/x-www-form-urlencoded">>).
+-define(P_TYPE_PLAIN, <<"plain">>).
+-define(P_TYPE_JSON, <<"json">>).
+
+-record(state, {
+   port :: non_neg_integer(),
+   tls = false :: true|false,
+   payload_type = <<"plain">> :: binary(),
+   as,
+   fn_id,
+   cowboy_id :: tuple()
+}).
+
+options() ->
+   [
+      {port, integer},
+      {path, string, <<"/">>},
+      {tls, is_set, false},
+      {payload_type, string, ?P_TYPE_PLAIN},
+      {content_type, string, ?CONT_TYPE_FORM_URLENCODED},
+      {as, string, undefined}
+   ].
+
+check_options() ->
+   [
+      {one_of, content_type, [?CONT_TYPE_FORM_URLENCODED, ?CONT_TYPE_PLAIN]},
+      {one_of, payload_type, [?P_TYPE_PLAIN, ?P_TYPE_JSON]}
+   ].
+
+init(NodeId, _Inputs,
+    #{port := Port, path := Path0, tls := Tls, payload_type := PType, content_type := CType, as := As}) ->
+
+   Path = binary_to_list(Path0),
+   Alias =
+   case {As, CType} of
+      {undefined, ?CONT_TYPE_PLAIN} -> <<"data">>;
+      _ -> As
+   end,
+   [Type, SubType] = binary:split(CType, <<"/">>),
+   ContentType = {Type, SubType, []},
+   CowboyOpts = #{path => Path, port => Port, tls => Tls, content_type => ContentType},
+   case http_manager:reg(CowboyOpts) of
+      ok -> {ok, all,
+         #state{port = Port, tls = Tls, fn_id = NodeId, payload_type = PType, as = Alias}};
+      {error, Reason} ->
+         {error, Reason}
+   end.
+
+process(_In, #data_point{}, State = #state{}) ->
+   {ok, State};
+process(_In, #data_batch{}, State = #state{}) ->
+   {ok, State}.
+
+handle_info({http_data, Data}, State = #state{as = As, payload_type = PType}) when is_binary(Data) ->
+   Content = case PType of ?P_TYPE_JSON -> jiffy:decode(Data, [return_maps]); _ -> Data end,
+   P = #data_point{ts = faxe_time:now(), fields = jsn:set(As, #{}, Content)},
+   {emit, P, State};
+handle_info({http_data, Data}, State = #state{as = As, payload_type = PType}) when is_list(Data) ->
+   Fields0 = maps:from_list(Data),
+   Fields1 =
+   case PType of
+      ?P_TYPE_JSON -> maps:map(fun(_K, V) -> jiffy:decode(V, [return_maps]) end, Fields0);
+      ?P_TYPE_PLAIN -> Fields0
+   end,
+   Fields =
+   case As of
+      undefined -> Fields1;
+      V when is_binary(V) -> jsn:set(As, #{}, Fields1)
+   end,
+   P = #data_point{ts = faxe_time:now(), fields = Fields},
+   {emit, P, State};
+handle_info(_R, State) ->
+   {ok, State}.
