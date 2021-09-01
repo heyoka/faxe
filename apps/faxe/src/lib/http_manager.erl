@@ -67,12 +67,12 @@ code_change(_OldVsn, State = #state{}, _Extra) ->
 %%%===================================================================
 %%% Internal functions
 %%%===================================================================
-start_cowboy(#{path := Route, port := Port, tls := Tls, content_type := ContentType}, {From, _Ref},
-    State = #state{cowboys = Clients}) ->
+start_cowboy(#{path := Route, port := Port, tls := Tls, content_type := ContentType, user := User, pass := Pass},
+    {From, _Ref}, State = #state{cowboys = Clients}) ->
   CowboyRef = {http_listen, Port},
   Routes = [
     {'_', [
-      {Route, http_listen_handler, [{client, From}, {content_type, ContentType}]}
+      {Route, http_listen_handler, [{client, From}, {content_type, ContentType}, {user, User}, {pass, Pass}]}
       ]
     }],
 
@@ -82,7 +82,7 @@ start_cowboy(#{path := Route, port := Port, tls := Tls, content_type := ContentT
       true -> {start_tls, faxe_config:get_http_ssl_opts()};
       _ -> {start_clear, []}
     end,
-  lager:notice("cowboy http(s) listener starting with: ~p on Port: ~p", [{StartFunction, SockOpts}, Port]),
+  lager:info("cowboy http(s) listener starting with: ~p on Port: ~p", [{StartFunction, SockOpts}, Port]),
   {ok, _} = cowboy:StartFunction(CowboyRef,
     #{socket_opts => [{port, Port}] ++ SockOpts,
       max_connections => ?MAX_CONNECTIONS,

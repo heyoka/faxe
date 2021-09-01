@@ -28,22 +28,34 @@
 
 options() ->
    [
-      {port, integer},
+      {port, integer, 8899},
       {path, string, <<"/">>},
       {tls, is_set, false},
       {payload_type, string, ?P_TYPE_PLAIN},
       {content_type, string, ?CONT_TYPE_FORM_URLENCODED},
-      {as, string, undefined}
+      {as, string, undefined},
+      {user, string, undefined},
+      {pass, string, undefined}
    ].
 
 check_options() ->
    [
       {one_of, content_type, [?CONT_TYPE_FORM_URLENCODED, ?CONT_TYPE_PLAIN]},
-      {one_of, payload_type, [?P_TYPE_PLAIN, ?P_TYPE_JSON]}
+      {one_of, payload_type, [?P_TYPE_PLAIN, ?P_TYPE_JSON]},
+      {func, pass,
+         fun(Pass, #{user := User}) ->
+            case User of
+               undefined -> true;
+               Other when is_binary(Other) -> Pass /= undefined
+            end
+         end,
+         <<" must be given, if 'user' is given.">>
+      }
    ].
 
 init(NodeId, _Inputs,
-    #{port := Port, path := Path0, tls := Tls, payload_type := PType, content_type := CType, as := As}) ->
+    #{port := Port, path := Path0, tls := Tls, payload_type := PType, content_type := CType, as := As,
+       user := User, pass := Pass}) ->
 
    Path = binary_to_list(Path0),
    Alias =
@@ -53,7 +65,7 @@ init(NodeId, _Inputs,
    end,
    [Type, SubType] = binary:split(CType, <<"/">>),
    ContentType = {Type, SubType, []},
-   CowboyOpts = #{path => Path, port => Port, tls => Tls, content_type => ContentType},
+   CowboyOpts = #{path => Path, port => Port, tls => Tls, content_type => ContentType, user => User, pass => Pass},
    case http_manager:reg(CowboyOpts) of
       ok -> {ok, all,
          #state{port = Port, tls = Tls, fn_id = NodeId, payload_type = PType, as = Alias}};

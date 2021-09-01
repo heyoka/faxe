@@ -25,13 +25,20 @@
 -export([
 ]).
 
--record(state, {client_pid, content_type, body, peer, user}).
+-record(state, {client_pid, content_type, body, peer, user, pass}).
 
-init(#{peer := Peer} = Req, [{client, Pid}, {content_type, ContentType}]) ->
-   {cowboy_rest, Req, #state{client_pid = Pid, peer = Peer, content_type = ContentType}}.
+init(#{peer := Peer} = Req, [{client, Pid}, {content_type, ContentType}, {user, User}, {pass, Pass}]) ->
+   {cowboy_rest, Req, #state{client_pid = Pid, peer = Peer, content_type = ContentType, user = User, pass = Pass}}.
 
-is_authorized(Req, State) ->
-   {true, Req, State}.
+is_authorized(Req, State = #state{user = undefined}) ->
+   {true, Req, State};
+is_authorized(Req, State = #state{user = User, pass = Pass}) ->
+   case cowboy_req:parse_header(<<"authorization">>, Req) of
+      {basic, User , Pass} ->
+         {true, Req, State};
+      _ ->
+         {{false, <<"Basic realm=\"faxe\"">>}, Req, State}
+   end.
 
 allowed_methods(Req, State=#state{}) ->
    {[<<"POST">>, <<"PUT">>], Req, State}.
@@ -54,9 +61,7 @@ malformed_request(Req, State) ->
 
 
 from_req(Req, State = #state{client_pid = ClientPid, body = Body}) ->
-   lager:notice("send ~p to ~p",[Body, ClientPid]),
    ClientPid ! {http_data, Body},
-%%   lager:notice("~p got response: ~p", [?MODULE, Res]),
    RespMap = #{<<"success">> => true},
    Req2 = cowboy_req:set_resp_header(<<"content-type">>, <<"application/json">>, Req),
    Req3 = cowboy_req:set_resp_body(jiffy:encode(RespMap), Req2),
