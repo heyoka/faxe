@@ -14,7 +14,6 @@
 -export([
    init/2,
    allowed_methods/2,
-%%   content_types_provided/2,
    is_authorized/2,
    content_types_accepted/2,
    malformed_request/2,

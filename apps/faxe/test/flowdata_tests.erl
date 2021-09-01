@@ -533,4 +533,26 @@ clean_keys_test() ->
          <<"val">> => 5.110380884727162,<<"this_is_a_key_with_points">> => <<"val.with.points">>},
    ?assertEqual(Expected, flowdata:clean_field_keys(Map)).
 
+set_root_undefined_test() ->
+   P = #data_point{ts = 1, fields = #{<<"field1">> => 33}},
+   ?assertEqual(P, flowdata:set_root(P, undefined)).
+
+set_root_not_present_test() ->
+   P = #data_point{ts = 1, fields = #{<<"field1">> => 33}},
+   Expect = P#data_point{fields = #{<<"new_root">> => #{<<"field1">> => 33}}},
+   ?assertEqual(Expect, flowdata:set_root(P, <<"new_root">>)).
+
+set_root_not_present_deep_test() ->
+   P = #data_point{ts = 1, fields = #{<<"field1">> => 33}},
+   Expect = P#data_point{fields = #{<<"new_root">> => #{<<"new_sub_root">> => #{<<"field1">> => 33}}}},
+   ?assertEqual(Expect, flowdata:set_root(P, <<"new_root.new_sub_root">>)).
+
+set_root_present_test() ->
+   P = #data_point{fields = #{<<"root">> => #{<<"field1">> => 33}}},
+   ?assertEqual(P, flowdata:set_root(P, <<"root">>)).
+
+set_root_present_deep_test() ->
+   P = #data_point{fields = #{<<"root">> => #{<<"subroot">> => #{<<"field1">> => 33}}}},
+   ?assertEqual(P, flowdata:set_root(P, <<"root.subroot">>)).
+
 -endif.
