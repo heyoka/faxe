@@ -52,6 +52,9 @@ allow_missing_post(Req, State) ->
 malformed_request(Req, State = #state{content_type = {<<"text">>, <<"plain">>, _}}) ->
    {ok, Body, Req1} = cowboy_req:read_body(Req),
    {false, Req1, State#state{body = Body}};
+malformed_request(Req, State = #state{content_type = {<<"application">>, <<"json">>, _}}) ->
+   {ok, Body, Req1} = cowboy_req:read_body(Req),
+   {false, Req1, State#state{body = Body}};
 malformed_request(Req, State = #state{content_type = {<<"application">>, <<"x-www-form-urlencoded">>, _}}) ->
    {ok, Result, Req1} = cowboy_req:read_urlencoded_body(Req),
    {false, Req1, State#state{body = Result}};

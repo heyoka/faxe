@@ -1,0 +1,10 @@
+|http_get()
+.host('127.0.0.1')
+.port(8081)
+.path('/v1/stats/faxe')
+.every(4s)
+.align()
+.as('get_response')
+.tls()
+
+|debug()

@@ -82,10 +82,11 @@ do_send(Body, Headers, Retries, S = #state{client = Client, path = Path, fn_id =
          node_metrics:metric(?METRIC_ITEMS_OUT, 1, FNId),
          node_metrics:metric(?METRIC_BYTES_SENT, byte_size(Body), FNId),
          S;
-      {error, _} ->
-         lager:warning("could not send ~p: invalid request", [Body]),
+      {error, What} ->
+         lager:warning("could not send ~p: invalid request: ~p", [Body, What]),
          S;
-      _O ->
+      O ->
+         lager:notice("Problem sending data: ~p",[O]),
          do_send(Body, Headers, Retries+1, S)
 
    end.
@@ -109,11 +110,15 @@ start_client(State = #state{host = Host, port = Port, tls = Tls}) ->
    end.
 
 get_response(Client, Ref) ->
-   {response, _IsFin, Status, _Headers} = _Res = gun:await(Client, Ref),
-%%   lager:notice("resp-res: ~p",[Res]),
-   {ok, Message} = gun:await_body(Client, Ref),
-%%   lager:notice("resp-body: ~p",[Message]),
-   handle_response(integer_to_binary(Status), Message).
+   case gun:await(Client, Ref) of
+      {response, fin, Status, _Headers} ->
+         {error, {no_data, Status}};
+      {response, nofin, Status, _Headers} ->
+         {ok, Body} = gun:await_body(Client, Ref),
+         handle_response(integer_to_binary(Status), Body);
+      Other -> Other
+
+   end.
 
 -spec handle_response(integer(), binary()) -> ok|{error, invalid}|{failed, term()}.
 handle_response(<<"2", _/binary>>, _BodyJSON) ->

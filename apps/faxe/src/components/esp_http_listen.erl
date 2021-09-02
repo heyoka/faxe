@@ -14,6 +14,7 @@
 
 -define(CONT_TYPE_PLAIN, <<"text/plain">>).
 -define(CONT_TYPE_FORM_URLENCODED, <<"application/x-www-form-urlencoded">>).
+-define(CONT_TYPE_JSON, <<"application/json">>).
 -define(P_TYPE_PLAIN, <<"plain">>).
 -define(P_TYPE_JSON, <<"json">>).
 
@@ -31,8 +32,8 @@ options() ->
       {port, integer, 8899},
       {path, string, <<"/">>},
       {tls, is_set, false},
-      {payload_type, string, ?P_TYPE_PLAIN},
-      {content_type, string, ?CONT_TYPE_FORM_URLENCODED},
+      {payload_type, string, ?P_TYPE_JSON},
+      {content_type, string, ?CONT_TYPE_JSON},
       {as, string, undefined},
       {user, string, undefined},
       {pass, string, undefined}
@@ -40,7 +41,7 @@ options() ->
 
 check_options() ->
    [
-      {one_of, content_type, [?CONT_TYPE_FORM_URLENCODED, ?CONT_TYPE_PLAIN]},
+      {one_of, content_type, [?CONT_TYPE_FORM_URLENCODED, ?CONT_TYPE_PLAIN, ?CONT_TYPE_JSON]},
       {one_of, payload_type, [?P_TYPE_PLAIN, ?P_TYPE_JSON]},
       {func, pass,
          fun(Pass, #{user := User}) ->
@@ -60,7 +61,7 @@ init(NodeId, _Inputs,
    Path = binary_to_list(Path0),
    Alias =
    case {As, CType} of
-      {undefined, ?CONT_TYPE_PLAIN} -> <<"data">>;
+      {undefined, TypeV} when TypeV == ?CONT_TYPE_JSON orelse TypeV == ?CONT_TYPE_PLAIN -> <<"data">>;
       _ -> As
    end,
    [Type, SubType] = binary:split(CType, <<"/">>),
@@ -79,9 +80,9 @@ process(_In, #data_batch{}, State = #state{}) ->
    {ok, State}.
 
 handle_info({http_data, Data}, State = #state{as = As, payload_type = PType}) when is_binary(Data) ->
+   lager:warning("http_data: ~p state: ~p", [Data, lager:pr(State, ?MODULE)]),
    Content = case PType of ?P_TYPE_JSON -> jiffy:decode(Data, [return_maps]); _ -> Data end,
-   P = #data_point{ts = faxe_time:now(), fields = jsn:set(As, #{}, Content)},
-   {emit, P, State};
+   emit(Content, State);
 handle_info({http_data, Data}, State = #state{as = As, payload_type = PType}) when is_list(Data) ->
    Fields0 = maps:from_list(Data),
    Fields1 =
@@ -89,12 +90,15 @@ handle_info({http_data, Data}, State = #state{as = As, payload_type = PType}) wh
       ?P_TYPE_JSON -> maps:map(fun(_K, V) -> jiffy:decode(V, [return_maps]) end, Fields0);
       ?P_TYPE_PLAIN -> Fields0
    end,
-   Fields =
-   case As of
-      undefined -> Fields1;
-      V when is_binary(V) -> jsn:set(As, #{}, Fields1)
-   end,
-   P = #data_point{ts = faxe_time:now(), fields = Fields},
-   {emit, P, State};
+   emit(Fields1, State);
 handle_info(_R, State) ->
    {ok, State}.
+
+emit(CFields, S = #state{as = As}) ->
+   Fields =
+      case As of
+         undefined -> CFields;
+         V when is_binary(V) -> jsn:set(As, #{}, CFields)
+      end,
+   P = #data_point{ts = faxe_time:now(), fields = Fields},
+   {emit, P, S}.

@@ -37,7 +37,7 @@
 options() ->
    [
       {host, string},
-      {port, integer},
+      {port, integer, 80},
       {path, string, <<"/">>},
       {payload_type, string, ?P_TYPE_JSON},
       {param_keys, string_list, []},
@@ -140,7 +140,7 @@ build(Ts, Data, #state{payload_type = PType, as = As}) ->
    end.
 
 start_client(State = #state{host = Host, port = Port, tls = Tls}) ->
-   lager:info("start client: ~n~p",[State]),
+   lager:debug("start client: ~n~p",[State]),
    connection_registry:connecting(),
    Opts = #{connect_timeout => 3000},
    Options =
