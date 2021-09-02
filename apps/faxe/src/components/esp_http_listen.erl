@@ -80,7 +80,6 @@ process(_In, #data_batch{}, State = #state{}) ->
    {ok, State}.
 
 handle_info({http_data, Data}, State = #state{as = As, payload_type = PType}) when is_binary(Data) ->
-   lager:warning("http_data: ~p state: ~p", [Data, lager:pr(State, ?MODULE)]),
    Content = case PType of ?P_TYPE_JSON -> jiffy:decode(Data, [return_maps]); _ -> Data end,
    emit(Content, State);
 handle_info({http_data, Data}, State = #state{as = As, payload_type = PType}) when is_list(Data) ->

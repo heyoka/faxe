@@ -48,7 +48,6 @@ handle_cast(_Request, State = #state{}) ->
 
 handle_info({'DOWN', _MonitorRef, _Type, Pid, _Info}, State = #state{cowboys = Clients}) ->
   connection_registry:disconnected(),
-  lager:warning("client is down"),
   case proplists:get_value(Pid, Clients) of
     undefined -> ok;
     InstanceName -> cowboy:stop_listener(InstanceName)
