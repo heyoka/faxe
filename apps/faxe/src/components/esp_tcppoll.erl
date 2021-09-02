@@ -35,7 +35,8 @@ options() -> [
   {count, integer, 1},
   {prefix, string, <<"val_">>}].
 
-init(_NodeId, _Ins, #{ip := Ip, port := Port, every := Dur, count := C, prefix := Prefix}) ->
+init(NodeId, _Ins, #{ip := Ip, port := Port, every := Dur, count := C, prefix := Prefix}) ->
+  connection_registry:reg(NodeId, Ip, Port, <<"tcp">>),
   {ok, Socket} = connect(Ip, Port),
   Interval = faxe_time:duration_to_ms(Dur),
   TRef = poll(0),
@@ -59,6 +60,7 @@ handle_info(poll, State=#state{socket = S, count = C}) ->
   gen_tcp:send(S, [<<"get">>, C]),
   {ok, State};
 handle_info({tcp_closed, _S}, S=#state{ip = Ip, port = Port, interval = Interval, timer_ref = TRef}) ->
+  connection_registry:disconnected(),
   catch (erlang:cancel_timer(TRef)),
   {ok, Socket} = connect(Ip, Port),
   poll(Interval),
@@ -80,6 +82,7 @@ poll(Interval) ->
   erlang:send_after(Interval, self(), poll).
 
 connect(Ip, Port) ->
+  connection_registry:connected(),
   gen_tcp:connect(binary_to_list(Ip), Port, ?SOCKOPTS).
 
 convert(Point=#data_point{}, Data, NamePrefix) when is_list(Data) ->
