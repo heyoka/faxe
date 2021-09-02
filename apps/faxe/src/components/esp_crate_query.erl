@@ -101,7 +101,7 @@ handle_info(query,
    NewTimer = faxe_time:timer_next(Timer),
    %% do query
    Resp = epgsql:prepared_query(C, ?STMT, [QueryMark-Period, QueryMark]),
-   lager:notice("Resp: ~p",[Resp]),
+   lager:debug("Resp: ~p",[Resp]),
    handle_response(Resp, RType, State#state{timer = NewTimer});
 
 handle_info({'EXIT', _C, Reason}, State = #state{timer = Timer}) ->

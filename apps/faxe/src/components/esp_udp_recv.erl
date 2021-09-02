@@ -20,7 +20,7 @@
 
 -include("faxe.hrl").
 %% API
--export([init/3, process/3, options/0, handle_info/2, shutdown/1]).
+-export([init/3, process/3, options/0, handle_info/2, shutdown/1, metrics/0]).
 
 -record(state, {
   port,
@@ -28,7 +28,8 @@
   as,
   parser = undefined :: undefined|atom(), %% parser module
   changes = false,
-  prev_crc32
+  prev_crc32,
+  fn_id
 }).
 
 -define(SOCKOPTS,
@@ -48,10 +49,15 @@ options() -> [
   {changed, is_set, false} %% only emit, when new data is different to previous
 ].
 
+metrics() ->
+  [
+    {?METRIC_BYTES_READ, meter, []}
+  ].
 
-init(_NodeId, _Ins,
+
+init(NodeId, _Ins,
     #{port := Port, as := As, parser := Parser, changed := Changed}) ->
-  State = #state{port = Port, as = As, changes = Changed, parser = Parser},
+  State = #state{port = Port, as = As, changes = Changed, parser = Parser, fn_id = NodeId},
   NewState = connect(State),
   {ok, all, NewState}.
 
@@ -60,8 +66,10 @@ process(_In, #data_batch{points = _Points} = _Batch, State = #state{}) ->
 process(_Inport, #data_point{} = _Point, State = #state{}) ->
   {ok, State}.
 
-handle_info({udp, Socket, _IP, _InPortNo, Packet}, State=#state{}) ->
+handle_info({udp, Socket, _IP, _InPortNo, Packet}, State=#state{fn_id = FNId}) ->
   lager:notice("udp packet arrived: ~p", [Packet]),
+  node_metrics:metric(?METRIC_ITEMS_IN, 1, FNId),
+  node_metrics:metric(?METRIC_BYTES_SENT, faxe_util:bytes(Packet), FNId),
   NewState = maybe_emit(Packet, State),
   inet:setopts(Socket, [{active, once}]),
   {ok, NewState};

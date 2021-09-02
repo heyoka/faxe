@@ -62,7 +62,7 @@ check_options() ->
 
 metrics() ->
    [
-      {?METRIC_READING_TIME, histogram, [slide, 60], "Network time for sending a message."}
+%%      {?METRIC_READING_TIME, histogram, [slide, 60], "Network time for sending a message."}
 %%      {?METRIC_BYTES_READ, histogram, [slide, 60], "Size of item sent in kib."}
    ].
 
@@ -123,7 +123,7 @@ handle_info({'EXIT', _C, _Reason}, State = #state{timer = Timer}) ->
    erlang:send_after(1000, self(), reconnect),
    {ok, State#state{timer = NewTimer}};
 handle_info(What, State) ->
-   lager:warning("++other info : ~p",[What]),
+   lager:info("++other info : ~p",[What]),
    {ok, State}.
 
 

@@ -10,7 +10,7 @@
 
 -behavior(df_component).
 %% API
--export([init/3, process/3, options/0, handle_info/2, check_options/0]).
+-export([init/3, process/3, options/0, handle_info/2, check_options/0, metrics/0]).
 
 -define(CONT_TYPE_PLAIN, <<"text/plain">>).
 -define(CONT_TYPE_FORM_URLENCODED, <<"application/x-www-form-urlencoded">>).
@@ -54,6 +54,11 @@ check_options() ->
       }
    ].
 
+metrics() ->
+   [
+      {?METRIC_BYTES_READ, meter, []}
+   ].
+
 init(NodeId, _Inputs,
     #{port := Port, path := Path0, tls := Tls, payload_type := PType, content_type := CType, as := As,
        user := User, pass := Pass}) ->
@@ -79,21 +84,23 @@ process(_In, #data_point{}, State = #state{}) ->
 process(_In, #data_batch{}, State = #state{}) ->
    {ok, State}.
 
-handle_info({http_data, Data}, State = #state{as = As, payload_type = PType}) when is_binary(Data) ->
+handle_info({http_data, Data, Body_Length}, State = #state{payload_type = PType}) when is_binary(Data) ->
    Content = case PType of ?P_TYPE_JSON -> jiffy:decode(Data, [return_maps]); _ -> Data end,
-   emit(Content, State);
-handle_info({http_data, Data}, State = #state{as = As, payload_type = PType}) when is_list(Data) ->
+   emit(Content, Body_Length, State);
+handle_info({http_data, Data, Body_Length}, State = #state{as = As, payload_type = PType}) when is_list(Data) ->
    Fields0 = maps:from_list(Data),
    Fields1 =
    case PType of
       ?P_TYPE_JSON -> maps:map(fun(_K, V) -> jiffy:decode(V, [return_maps]) end, Fields0);
       ?P_TYPE_PLAIN -> Fields0
    end,
-   emit(Fields1, State);
+   emit(Fields1, Body_Length, State);
 handle_info(_R, State) ->
    {ok, State}.
 
-emit(CFields, S = #state{as = As}) ->
+emit(CFields, Body_Length, S = #state{as = As, fn_id = FNId}) ->
+   node_metrics:metric(?METRIC_BYTES_READ, Body_Length, FNId),
+   node_metrics:metric(?METRIC_ITEMS_IN, 1, FNId),
    Fields =
       case As of
          undefined -> CFields;

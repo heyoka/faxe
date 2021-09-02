@@ -56,7 +56,7 @@ check_options() ->
 
 metrics() ->
    [
-      {?METRIC_BYTES_SENT, meter, []}
+      {?METRIC_BYTES_READ, meter, []}
    ].
 
 init(NodeId, _Inputs,
@@ -106,9 +106,11 @@ try_request(Ts, State=#state{}) ->
 
 try_request(_Ts, State=#state{retries = Retries}, Retries) ->
    {ok, State};
-try_request(Ts, State=#state{}, TriedSoFar) ->
+try_request(Ts, State=#state{fn_id = FNId}, TriedSoFar) ->
    case request(State) of
       {ok, Data} ->
+         node_metrics:metric(?METRIC_BYTES_READ, faxe_util:bytes(Data), FNId),
+         node_metrics:metric(?METRIC_ITEMS_IN, 1, FNId),
          {emit, build(Ts, Data, State), State};
       {failed, Reason} ->
          lager:warning("request failed with Reason: ~p, ~p time(s) tried so far",[Reason, TriedSoFar]),

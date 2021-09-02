@@ -64,10 +64,11 @@ check_options() ->
          <<" seems not to be valid json">>}
    ].
 
+%% @todo figure out how to get the byte-size of the data
 metrics() ->
    [
-      {?METRIC_READING_TIME, histogram, [slide, 60], "Network time for sending a message."}
-%%      {?METRIC_BYTES_READ, histogram, [slide, 60], "Size of item sent in kib."}
+%%      {?METRIC_READING_TIME, histogram, [slide, 60], "Network time for sending a message."},
+%%      {?METRIC_BYTES_READ, meter, []}
    ].
 
 init(NodeId, _Inputs, #{host := Host0, port := Port, user := User, every := Every, as := As,

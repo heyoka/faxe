@@ -97,7 +97,8 @@ check_options() ->
 metrics() ->
    [
       {?METRIC_SENDING_TIME, histogram, [slide, 60], "Network time for sending a message."},
-      {?METRIC_BYTES_READ, meter, [], "Size of item read in kib."}
+      {?METRIC_BYTES_READ, meter, [], "Size of item read in kib."},
+      {?METRIC_BYTES_SENT, meter, [], "Size of item sent in kib."}
    ].
 
 init(NodeId, _Ins,
@@ -239,12 +240,18 @@ handle_queue_exit(Q, State = #state{queue_to_topics = QueueTopics,
    {ok, State#state{queue_to_topics = NewQTopics, topic_to_queue = NewTopicQs,
       publisher_to_queue = maps:without([Publisher], Pubs)}}.
 
-data_received(Topic, Payload, S = #state{topic_to_queue = Queues, amqp_exchange = Exchange, topic_last_seen = Last})
+data_received(Topic, Payload, S = #state{topic_to_queue = Queues, amqp_exchange = Exchange, topic_last_seen = Last,
+   fn_id = FNId})
       when is_map_key(Topic, Queues) ->
    Q = maps:get(Topic, Queues),
    RoutingKey = topic_to_key(Topic),
 %%   lager:notice("got data with topic: ~p and enqueue with routingkey :~p",[Topic, RK]),
    ok = esq:enq({Exchange, RoutingKey, Payload, []}, Q),
+   ByteSize = byte_size(Payload),
+   node_metrics:metric(?METRIC_BYTES_SENT, ByteSize, FNId),
+   node_metrics:metric(?METRIC_BYTES_READ, ByteSize, FNId),
+   node_metrics:metric(?METRIC_ITEMS_IN, 1, FNId),
+   node_metrics:metric(?METRIC_ITEMS_OUT, 1, FNId),
    {ok, S#state{topic_last_seen = Last#{Topic => faxe_time:now()}}};
 data_received(Topic, Payload, S = #state{}) ->
    lager:warning("get new queue and publisher: ~p",[Topic]),

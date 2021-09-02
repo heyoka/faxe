@@ -91,7 +91,7 @@ process(_Inport, #data_point{} = _Point, State = #state{}) ->
 
 handle_info({tcp, Socket, Data}, State=#state{fn_id = FNId}) ->
   node_metrics:metric(?METRIC_ITEMS_IN, 1, FNId),
-  node_metrics:metric(?METRIC_BYTES_READ, byte_size(Data), FNId),
+  node_metrics:metric(?METRIC_BYTES_READ, faxe_util:bytes(Data), FNId),
   NewState = maybe_emit(Data, State),
   inet:setopts(Socket, [{active, once}]),
   {ok, NewState};

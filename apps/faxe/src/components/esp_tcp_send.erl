@@ -14,7 +14,7 @@
 
 -include("faxe.hrl").
 %% API
--export([init/3, process/3, options/0, handle_info/2, shutdown/1, check_options/0]).
+-export([init/3, process/3, options/0, handle_info/2, shutdown/1, check_options/0, metrics/0]).
 
 -record(state, {
   ip,
@@ -35,7 +35,8 @@
   timer_ref,
   msg_text,
   msg_json,
-  last_item
+  last_item,
+  fn_id
 }).
 
 -define(SOCKOPTS, [{active, once}, binary]).
@@ -56,6 +57,11 @@ check_options() ->
 %%    {one_of_params, [msg_text, msg_json]}
   ]
 .
+
+metrics() ->
+  [
+    {?METRIC_BYTES_SENT, meter, []}
+  ].
 
 init(NodeId, _Ins,
     #{ip := Ip, port := Port, every := Dur, msg_text := Text, msg_json := Json,
@@ -84,7 +90,8 @@ init(NodeId, _Ins,
       interval = Interval,
       msg_text = Text,
       msg_json = Json,
-      last_item = flowdata:new()
+      last_item = flowdata:new(),
+      fn_id = NodeId
     }
   }.
 
@@ -150,9 +157,12 @@ send(#state{msg_json = undefined, msg_text = Text} = State) ->
 send(#state{msg_json = Json} = State) ->
   do_send(jiffy:encode(Json), maybe_start_timeout(State)).
 
-do_send(Msg, State = #state{socket = Socket}) ->
+do_send(Msg, State = #state{socket = Socket, fn_id = FNId}) ->
   case gen_tcp:send(Socket, Msg) of
-    ok -> sender(State);
+    ok ->
+      node_metrics:metric(?METRIC_ITEMS_OUT, 1, FNId),
+      node_metrics:metric(?METRIC_BYTES_SENT, faxe_util:bytes(Msg), FNId),
+      sender(State);
     {error, What} ->
       lager:warning("Error sending tcp data: ~p",[What]),
       catch (gen_tcp:close(Socket)),

@@ -144,23 +144,10 @@ send(Item, State = #state{query = Q, faxe_fields = Fields, remaining_fields_as =
       _ -> Headers0
    end,
    NewState = do_send(Item, Query, Headers, 0, State#state{last_error = undefined}),
-   MBytes = case (catch bytes(Query)) of
-               B when is_integer(B) -> B;
-               _ -> 0
-            end,
+   MBytes = faxe_util:bytes(Query),
    node_metrics:metric(?METRIC_BYTES_SENT, MBytes, State#state.fn_id),
    node_metrics:metric(?METRIC_ITEMS_OUT, 1, State#state.fn_id),
    NewState.
-
-bytes(Query) ->
-   case is_binary(Query) of
-      true -> byte_size(Query);
-      false ->
-         case is_list(Query) of
-            true -> byte_size(iolist_to_binary(Query));
-            false -> 0
-         end
-   end.
 
 -spec build(#data_point{}|#data_batch{}, binary(), list(), binary()) -> iodata().
 build(Item, Query, Fields, RemFieldsAs) ->

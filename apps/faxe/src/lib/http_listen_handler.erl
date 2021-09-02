@@ -24,10 +24,18 @@
 -export([
 ]).
 
--record(state, {client_pid, content_type, body, peer, user, pass}).
+-record(state, {client_pid, content_type, body, peer, user, pass, body_length}).
 
 init(#{peer := Peer} = Req, [{client, Pid}, {content_type, ContentType}, {user, User}, {pass, Pass}]) ->
-   {cowboy_rest, Req, #state{client_pid = Pid, peer = Peer, content_type = ContentType, user = User, pass = Pass}}.
+   Length = cowboy_req:header(<<"content-length">>, Req, <<"0">>),
+   {cowboy_rest, Req,
+      #state{
+         client_pid = Pid,
+         peer = Peer,
+         content_type = ContentType,
+         user = User,
+         pass = Pass,
+         body_length = binary_to_integer(Length)}}.
 
 is_authorized(Req, State = #state{user = undefined}) ->
    {true, Req, State};
@@ -62,8 +70,8 @@ malformed_request(Req, State) ->
    {true, Req, State}.
 
 
-from_req(Req, State = #state{client_pid = ClientPid, body = Body}) ->
-   ClientPid ! {http_data, Body},
+from_req(Req, State = #state{client_pid = ClientPid, body = Body, body_length = Length}) ->
+   ClientPid ! {http_data, Body, Length},
    RespMap = #{<<"success">> => true},
    Req2 = cowboy_req:set_resp_header(<<"content-type">>, <<"application/json">>, Req),
    Req3 = cowboy_req:set_resp_body(jiffy:encode(RespMap), Req2),
