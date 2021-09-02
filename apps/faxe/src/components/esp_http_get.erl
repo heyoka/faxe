@@ -111,7 +111,7 @@ try_request(Ts, State=#state{}, TriedSoFar) ->
       {ok, Data} ->
          {emit, build(Ts, Data, State), State};
       {failed, Reason} ->
-         lager:warning("request failed with Reason: ~p, retry",[Reason]),
+         lager:warning("request failed with Reason: ~p, ~p time(s) tried so far",[Reason, TriedSoFar]),
          try_request(Ts, State, TriedSoFar + 1);
       {error, Why} ->
          lager:warning("Error on request: ~p", [Why]),
@@ -124,11 +124,12 @@ request(#state{client = Client, path = Path}) ->
    StreamRef = gun:get(Client, Path, []),
    case gun:await(Client, StreamRef) of
       {response, fin, Status, _Headers} ->
-         lager:notice("Response Status: ~p",[Status]),
-         no_data;
+         {error, {no_data, Status}};
       {response, nofin, Status, _Headers} ->
          {ok, Body} = gun:await_body(Client, StreamRef),
-         handle_response(integer_to_binary(Status), Body)
+         handle_response(integer_to_binary(Status), Body);
+      Other -> Other
+
    end.
 
 build(Ts, Data, #state{payload_type = PType, as = As}) ->
