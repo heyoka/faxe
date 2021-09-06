@@ -111,7 +111,7 @@ check_options() ->
 
 metrics() ->
   [
-    {?METRIC_READING_TIME, histogram, [slide, 60]},
+%%    {?METRIC_READING_TIME, histogram, [slide, 60]},
     {?METRIC_BYTES_READ, meter, []}
   ].
 

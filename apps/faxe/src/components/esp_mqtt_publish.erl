@@ -61,7 +61,7 @@ check_options() ->
 
 metrics() ->
    [
-      {?METRIC_SENDING_TIME, histogram, [slide, 60], "Network time for sending a message."},
+%%      {?METRIC_SENDING_TIME, histogram, [slide, 60], "Network time for sending a message."},
       {?METRIC_BYTES_SENT, meter, [], "Size of item sent in kib."}
    ].
 

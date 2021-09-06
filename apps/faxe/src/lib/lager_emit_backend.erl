@@ -27,10 +27,10 @@
 %%==============================================================================
 
 start_trace(FlowId) ->
-   ets:insert(log_emit_flows, {FlowId, true}).
+   ets:insert(trace_flows, {FlowId, true}).
 
 stop_trace(FlowId) ->
-   ets:delete(log_emit_flows, FlowId).
+   ets:delete(trace_flows, FlowId).
 
 
 init(Args) ->
@@ -92,7 +92,7 @@ handle_event(_Event, State) ->
    {ok, State}.
 
 handle_info(update_flow_list, State = #state{}) ->
-   List = proplists:get_keys(ets:tab2list(log_emit_flows)),
+   List = proplists:get_keys(ets:tab2list(trace_flows)),
 %%   lager:info("new flow_list: ~p",[List]),
    erlang:send_after(?FLOW_LIST_UPDATE_INTERVAL, self(), update_flow_list),
    {ok, State#state{flow_ids = List}};

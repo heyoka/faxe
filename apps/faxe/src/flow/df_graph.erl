@@ -70,7 +70,6 @@
 -spec(start_link(Id :: term(), Params :: term()) ->
    {ok, Pid :: pid()} | ignore | {error, Reason :: term()}).
 start_link(Id, Params) ->
-   lager:info("start graph"),
    gen_server:start_link(?MODULE, [Id, Params], []).
 
 

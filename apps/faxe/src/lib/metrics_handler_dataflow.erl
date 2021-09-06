@@ -18,7 +18,6 @@
    code_change/3]).
 
 -define(SERVER, ?MODULE).
--define(TOPIC_BASE, <<"ttgw/sys/faxe/">>).
 
 -record(state, {
    parent,

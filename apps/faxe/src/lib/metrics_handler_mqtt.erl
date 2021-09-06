@@ -29,6 +29,7 @@ init(Topic0) ->
 handle_event({{FlowId}, Item}, State = #state{topic = Topic}) ->
    T = <<Topic/binary, "/", FlowId/binary>>,
    {publish, T, Item, State};
-handle_event({{FlowId, NodeId, MetricName}, Item}, State = #state{topic = Topic}) ->
+handle_event({{FlowId, NodeId, MetricName}=Idx, Item}, State = #state{topic = Topic}) ->
+%%   lager:info("[~p] event for: ~p",[?MODULE, Idx]),
    T = <<Topic/binary, "/", FlowId/binary, "/", NodeId/binary, "/", MetricName/binary>>,
    {publish, T, Item, State}.

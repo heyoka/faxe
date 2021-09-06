@@ -4,7 +4,11 @@
 .path('/v1/stats/faxe')
 .every(4s)
 .align()
-.as('get_response')
-.tls()
+.as('data')
+%.tls()
 
-|debug()
+|eval(lambda: round(now() / 1000))
+.as('data.timestamp_sec')
+
+|mqtt_publish()
+.topic('tgw/data/test/miae/faxe_stats')

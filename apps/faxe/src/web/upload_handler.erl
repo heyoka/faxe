@@ -7,13 +7,14 @@
 -include("faxe.hrl").
 
 -define(UPLOAD_TIMEOUT, 50000). %% 50sec timeout for upload to backend
+-define(MAX_UPLOAD_SIZE_BYTES, 5000000). %% ca 5 Mib
 
 init(Req, [{op, Mode}]) ->
    lager:notice("upload handler: ~p", [Mode]),
    {cowboy_rest, Req, Mode}.
 
 valid_entity_length(Req=#{body_length := Length}, State) ->
-    Value = faxe_config:get(max_upload_size, 5000000) >= Length,
+    Value = faxe_config:get(max_upload_size, ?MAX_UPLOAD_SIZE_BYTES) >= Length,
     {Value, Req, State}.
 
 allowed_methods(Req, State) ->

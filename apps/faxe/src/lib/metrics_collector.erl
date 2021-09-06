@@ -17,10 +17,8 @@
 
 -record(metrics_collector_state, {timer}).
 
--define(INTERVAL, <<"10s">>).
+-define(INTERVAL, <<"30s">>).
 
--define(DATA_FORMAT_NODE, <<"92.001">>).
--define(DATA_FORMAT_FLOW, <<"92.002">>).
 %%%===================================================================
 %%% Spawning and gen_server implementation
 %%%===================================================================
@@ -46,7 +44,7 @@ handle_info(collect, State = #metrics_collector_state{timer = Timer}) ->
 %%  lager:info("Metrics collection took: ~p my",[TimeToCollect]),
   lists:foreach(
     fun({FlowId, NMS} = DP) ->
-%%      lager:info("~p",[NMS]),
+%%      lager:info("FlowId: ~p :: ~p",[FlowId, NMS]),
       publish(DP, Ts),
       publish_flow_metrics(FlowId, NMS, Ts)
 %%      lager:notice("FlowMetrics: ~p",[publish_flow_metrics(FlowId, NMS)])
@@ -111,6 +109,7 @@ flow_nodes(FlowList) ->
 
 metrics() ->
   FlowNodes = flow_nodes(get_flows()),
+%%  lager:notice("metrics for : ~p",[FlowNodes]),
   metrics(FlowNodes, []).
 
 metrics([], Acc) ->
@@ -119,18 +118,26 @@ metrics([{FlowId, Nodes}| R] = _L, Acc) ->
 %%  lager:notice("metrics_names: ~p, ~p",[L,  Acc]),
   F = fun({NId, Comp, _Pid}) ->
     AllNodeMetrics = node_metrics:node_metrics(Comp),
-    [#{
-      name => node_metrics:metric_name(FlowId, NId, MetricName),
-      flow_id => FlowId,
-      node_id => NId,
-      metric_name => MetricName,
-      type => MetricType
-    }
-
-      || {MetricName, MetricType, _, _ } <- AllNodeMetrics
-    ]
+%%    lager:info("AllNodeMetrics for ~p :: ~n",[Comp]),
+%%    [lager:info("~p",[metric(M)]) || M <- AllNodeMetrics],
+    lists:map(
+      fun(RawMetric) ->
+        Metric = #{metric_name := MetricName} = metric(RawMetric),
+        Metric#{name => node_metrics:metric_name(FlowId, NId, MetricName),
+          flow_id => FlowId,
+          node_id => NId}
+      end,
+      AllNodeMetrics
+    )
       end,
   metrics(R, Acc ++ [{FlowId, lists:flatmap(F, Nodes)}]).
+
+metric({MetricName, MetricType, _, _ }) ->
+  #{metric_name => MetricName, type => MetricType};
+metric({MetricName, MetricType, _}) ->
+  #{metric_name => MetricName, type => MetricType};
+metric({MetricName, MetricType}) ->
+  #{metric_name => MetricName, type => MetricType}.
 
 publish_flow_metrics(FlowId, Metrics, Ts) ->
   F =
@@ -167,7 +174,7 @@ publish_flow_metrics(FlowId, Metrics, Ts) ->
   end,
   FlowFields = maps:map(FL,  Grouped),
   P = #data_point{ts = Ts,
-    fields = maps:merge(FlowFields, #{<<"flow_id">> => FlowId, <<"df">> => ?DATA_FORMAT_FLOW})},
+    fields = maps:merge(FlowFields, #{<<"flow_id">> => FlowId})},
 %%  lager:warning("FlowMETRICS: ~s" ,[flowdata:to_json(P)]),
   gen_event:notify(faxe_metrics, {{FlowId}, P}).
 
@@ -181,7 +188,7 @@ collect([#{type := Type, name := Name, node_id := NId, flow_id := FId, metric_na
   MTrans =
   #{
     <<"type">> => atom_to_binary(Type, latin1), <<"node_id">> => NId,
-    <<"flow_id">> => FId, <<"metric_name">> => MName, <<"df">> => ?DATA_FORMAT_NODE
+    <<"flow_id">> => FId, <<"metric_name">> => MName
   },
   Data =
   case (catch get_data(Type, Name)) of
