@@ -2,7 +2,6 @@
 %% HTTP Post Request
 %% Ⓒ 2019 heyoka
 %%
-%% @todo retry on error
 %%
 -module(esp_http_post).
 -author("Alexander Minichmair").

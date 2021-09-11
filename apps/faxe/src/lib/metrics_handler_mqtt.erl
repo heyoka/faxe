@@ -29,7 +29,14 @@ init(Topic0) ->
 handle_event({{FlowId}, Item}, State = #state{topic = Topic}) ->
    T = <<Topic/binary, "/", FlowId/binary>>,
    {publish, T, Item, State};
-handle_event({{FlowId, NodeId, MetricName}=Idx, Item}, State = #state{topic = Topic}) ->
-%%   lager:info("[~p] event for: ~p",[?MODULE, Idx]),
-   T = <<Topic/binary, "/", FlowId/binary, "/", NodeId/binary, "/", MetricName/binary>>,
-   {publish, T, Item, State}.
+handle_event({{FlowId, NodeId, MetricName} = Idx, Item}, State = #state{topic = Topic}) ->
+
+   case ets:lookup(metric_trace_flows, FlowId) of
+      [{FlowId, true}] ->
+         lager:info("[~p] event for: ~p",[?MODULE, Idx]),
+         T = <<Topic/binary, "/", FlowId/binary, "/", NodeId/binary, "/", MetricName/binary>>,
+         {publish, T, Item, State};
+      _ ->
+         lager:info("[~p] no event for: ~p",[?MODULE, FlowId]),
+         {ok, State}
+   end.

@@ -19,13 +19,23 @@
    get_http_ssl_opts/0,
    get_http_tls/0,
    filter_empty_options/1,
-   get_esq_opts/0]).
+   get_esq_opts/0,
+   get_sub/2, get_sub/3]).
 
 get(Key) ->
    application:get_env(faxe, Key, undefined).
 
 get(Key, Default) ->
    application:get_env(faxe, Key, Default).
+
+get_sub(Key, SubKey) ->
+   get_sub(Key, SubKey, undefined).
+
+get_sub(Key, SubKey, Default) ->
+   case faxe_config:get(Key, Default) of
+      Default -> Default;
+      L when is_list(L) -> proplists:get_value(SubKey, L, Default)
+   end.
 
 %% @doc get the base dir for esq q-files
 -spec q_file(tuple()) -> list().

@@ -3,7 +3,6 @@
 %%% @copyright (C) 2019, <COMPANY>
 %%% @doc
 %%% get data from a siemens s7 plc via the snap7 library
-%%% @todo check for more bytes to read at a time
 %%% @end
 %%% Created : 14. June 2019 11:32:22
 %%%-------------------------------------------------------------------

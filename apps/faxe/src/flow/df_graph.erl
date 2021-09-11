@@ -24,12 +24,14 @@
    sink_nodes/1,
    source_nodes/1,
    get_stats/1,
-   get_errors/1,
-   ping/1, export/1,
+   ping/1,
    start_trace/1,
    stop_trace/1,
    start_subgraph/1,
-   stop_subgraph/2]).
+   stop_subgraph/2,
+   graph_def/1,
+   start_metrics_trace/2,
+   stop_metrics_trace/1]).
 
 %% gen_server callbacks
 -export([init/1,
@@ -55,6 +57,7 @@
    start_mode = undefined :: #task_modes{},
    timeout_ref          :: reference(),
    debug_timeout_ref    :: reference(),
+   metrics_timeout_ref  :: reference(),
    nodes    = []        :: list(tuple()),
    subgraphs = #{}      :: #{RootNodeName :: binary() => #subgraph{}}
 }).
@@ -110,6 +113,9 @@ stop_subgraph(FromVertex, Port) ->
 nodes(Graph) ->
    call(Graph, nodes).
 
+graph_def(Graph) ->
+   call(Graph, graph_def).
+
 vertices(Graph) ->
    call(Graph, vertices).
 
@@ -128,14 +134,14 @@ start_trace(Graph) ->
 stop_trace(Graph) ->
    Graph ! stop_trace.
 
+start_metrics_trace(Graph, Duration) ->
+   Graph ! {start_metrics_trace, Duration}.
+
+stop_metrics_trace(Graph) ->
+   Graph ! stop_metrics_trace.
+
 get_stats(Graph) ->
    call(Graph, stats).
-
-get_errors(Graph) ->
-   call(Graph, get_errors).
-
-export(Graph) ->
-   call(Graph, export).
 
 call(Graph, Mode) ->
    gen_server:call(Graph, {Mode}).
@@ -181,6 +187,9 @@ handle_call({add_edge, SourceNode, SourcePort, TargetNode, TargetPort, Metadata}
    {reply, ok, State};
 handle_call({nodes}, _From, State=#state{nodes = Nodes}) ->
    {reply, Nodes, State};
+handle_call({graph_def}, _From, State=#state{graph = Graph, nodes = Nodes}) ->
+   Out = graph_builder:to_graph_def(Graph, Nodes),
+   {reply, Out, State};
 handle_call({vertices}, _From, State = #state{graph = G}) ->
    All = digraph:vertices(G),
    Out = [digraph:vertex(G, V) || V <- All],
@@ -212,25 +221,12 @@ handle_call({stop}, _From, State) ->
    do_stop(State),
    {stop, normal, State};
 handle_call({stats}, _From, State=#state{nodes = Nodes}) ->
-
    Res = [{NodeId, gen_server:call(NPid, stats)} || {NodeId, NPid} <- Nodes],
    {reply, Res, State};
-handle_call({get_errors}, _From, State=#state{nodes = Nodes}) ->
-   GetHistory =
-      fun(NodeId) ->
-         {NodeId, #{
-            <<"processing_errors">> =>
-            folsom_metrics:get_history_values(<< NodeId/binary, ?METRIC_ERRORS/binary >>, 24)}
-         }
-      end,
-   Res = [GetHistory(NodeId) || {NodeId, _NPid} <- Nodes],
-   {reply, {ok, Res}, State};
 handle_call({ping}, _From, State = #state{timeout_ref = TRef, start_mode = #task_modes{temp_ttl = TTL}}) ->
    erlang:cancel_timer(TRef),
    NewTimer = erlang:send_after(TTL, self(), timeout),
-   {reply, {ok, TTL}, State#state{timeout_ref = NewTimer}};
-handle_call({export}, _From, State = #state{}) ->
-   {reply, deprecated, State#state{}}.
+   {reply, {ok, TTL}, State#state{timeout_ref = NewTimer}}.
 
 handle_cast(_Request, State) ->
    {noreply, State}.
@@ -247,6 +243,15 @@ handle_info(start_trace, State = #state{nodes = Nodes, id = Id, debug_timeout_re
 handle_info(stop_trace, State = #state{nodes = Nodes, id = Id}) ->
    lager_emit_backend:stop_trace(Id),
    [Pid ! stop_debug || {_, _, Pid} <- Nodes],
+   {noreply, State};
+handle_info({start_metrics_trace, Duration}, State = #state{id = Id, metrics_timeout_ref = TRef}) ->
+   catch erlang:cancel_timer(TRef),
+   TRefNew = erlang:send_after(Duration, self(), stop_metrics_trace),
+   ets:insert(metric_trace_flows, {Id, true}),
+   {noreply, State#state{metrics_timeout_ref = TRefNew}};
+handle_info(stop_metrics_trace, State = #state{id = Id}) ->
+   lager:info("stop_metrics_trace"),
+   ets:delete(metric_trace_flows, Id),
    {noreply, State};
 handle_info({start, RunMode}, State) ->
    {noreply, start(RunMode, State)};

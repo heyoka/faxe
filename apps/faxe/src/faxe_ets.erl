@@ -62,7 +62,8 @@ init([]) ->
    ok = new_table(temp_tasks, set),
    ok = new_table(s7_pools, set),
    ok = new_table(node_connections, set),
-   ok = new_table(trace_flows, set),
+   ok = new_table(debug_trace_flows, set),
+   ok = new_table(metric_trace_flows, set),
    ok = new_table(esq_queues, set),
    %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
    %%%%% mem-node ets tables

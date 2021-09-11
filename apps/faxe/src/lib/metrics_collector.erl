@@ -27,7 +27,9 @@ start_link() ->
   gen_server:start_link({local, ?SERVER}, ?MODULE, [], []).
 
 init([]) ->
-  Timer = faxe_time:init_timer(true, ?INTERVAL, collect),
+  Interval = faxe_util:to_bin(faxe_config:get_sub(metrics, publish_interval, ?INTERVAL)),
+  lager:warning("config interval: ~p",[Interval]),
+  Timer = faxe_time:init_timer(true, Interval, collect),
 %%  erlang:send_after(?INTERVAL, self(), collect),
   {ok, #metrics_collector_state{timer = Timer}}.
 
@@ -65,6 +67,7 @@ code_change(_OldVsn, State = #metrics_collector_state{}, _Extra) ->
 %%%===================================================================
 %%% Internal functions
 %%%===================================================================
+
 publish({FlowId, Metrics}, Ts) ->
   F = fun(#data_point{fields = Fields} = P) ->
     NodeId = maps:get(<<"node_id">>, Fields),
@@ -145,10 +148,12 @@ publish_flow_metrics(FlowId, Metrics, Ts) ->
     Val =
     case MName of
       ?METRIC_ERRORS -> maps:get(<<"counter">>, Fields);
-      ?METRIC_ITEMS_IN -> maps:get(<<"count">>, Fields);
-      ?METRIC_ITEMS_OUT -> maps:get(<<"count">>, Fields);
-      ?METRIC_BYTES_READ -> maps:get(<<"count">>, Fields);
-      ?METRIC_BYTES_SENT -> maps:get(<<"count">>, Fields);
+      ?METRIC_ITEMS_IN -> maps:get(<<"total">>, Fields);
+      ?METRIC_ITEMS_OUT -> maps:get(<<"total">>, Fields);
+      ?METRIC_BYTES_READ -> maps:get(<<"five">>, Fields); %% bytes per second
+      ?METRIC_BYTES_READ_SIZE -> maps:get(<<"mean">>, Fields); %% bytes average
+      ?METRIC_BYTES_SENT -> maps:get(<<"five">>, Fields); %% bytes per second
+      ?METRIC_BYTES_SENT_SIZE -> maps:get(<<"mean">>, Fields); %% bytes average
       ?METRIC_MSG_Q_SIZE -> maps:get(<<"gauge">>, Fields);
       ?METRIC_MEM_USED -> maps:get(<<"gauge">>, Fields);
       ?METRIC_PROCESSING_TIME -> maps:get(<<"mean">>, Fields);
@@ -163,26 +168,35 @@ publish_flow_metrics(FlowId, Metrics, Ts) ->
   FL =
   fun(K, V) ->
     case K of
-      ?METRIC_ITEMS_IN -> lists:max(V);
-      ?METRIC_ITEMS_OUT -> lists:max(V);
-      ?METRIC_PROCESSING_TIME -> lists:sum(V)/length(V);
-      ?METRIC_BYTES_SENT -> round(lists:sum(V)/1024);
-      ?METRIC_BYTES_READ -> round(lists:sum(V)/1024);
-      ?METRIC_MEM_USED -> round(lists:sum(V)/1024);
+      ?METRIC_ITEMS_IN -> lists:max(V); %% max of all nodes
+      ?METRIC_ITEMS_OUT -> lists:max(V); %% max of all nodes
+      ?METRIC_PROCESSING_TIME -> faxe_lambda_lib:round_float(lists:sum(V)/length(V), 3); %% average proc time
+      ?METRIC_BYTES_SENT -> faxe_lambda_lib:round_float(lists:sum(V), 2); %% average bytes-sent per second
+      ?METRIC_BYTES_READ -> faxe_lambda_lib:round_float(lists:sum(V), 2); %% average bytes-read per second
+      ?METRIC_MEM_USED -> lists:sum(V); %%
       _ -> lists:sum(V)
     end
   end,
   FlowFields = maps:map(FL,  Grouped),
   P = #data_point{ts = Ts,
-    fields = maps:merge(FlowFields, #{<<"flow_id">> => FlowId})},
+    fields = maps:merge(rename_metrics(FlowFields), #{<<"flow_id">> => FlowId})},
 %%  lager:warning("FlowMETRICS: ~s" ,[flowdata:to_json(P)]),
   gen_event:notify(faxe_metrics, {{FlowId}, P}).
 
-
+rename_metrics(Map = #{?METRIC_BYTES_SENT_SIZE := SentSize}) ->
+  Map0 = maps:without([?METRIC_BYTES_SENT_SIZE], Map),
+  Map0#{<<"bytes_sent_avg">> => SentSize};
+rename_metrics(Map= #{?METRIC_BYTES_READ_SIZE := ReadSize}) ->
+  Map0 = maps:without([?METRIC_BYTES_READ_SIZE], Map),
+  Map0#{<<"bytes_read_avg">> => ReadSize};
+rename_metrics(M) ->
+  M.
 
 collect({FId, Metrics}) ->
   {FId, collect(Metrics, [])}.
 collect([], Acc) ->
+%%  lager:notice("collected: ~p", [Acc]),
+%%  build(Acc);
   Acc;
 collect([#{type := Type, name := Name, node_id := NId, flow_id := FId, metric_name := MName} = _M|R], Acc) ->
   MTrans =
@@ -190,31 +204,39 @@ collect([#{type := Type, name := Name, node_id := NId, flow_id := FId, metric_na
     <<"type">> => atom_to_binary(Type, latin1), <<"node_id">> => NId,
     <<"flow_id">> => FId, <<"metric_name">> => MName
   },
-  Data =
+  Data0 =
   case (catch get_data(Type, Name)) of
     M when is_map(M) -> M;
     _ -> #{}
   end,
-  collect(R, [#data_point{ts = faxe_time:now(), fields = maps:merge(MTrans, Data)} | Acc]).
+  Data = maps:merge(MTrans, Data0),
+%%  lager:warning("collected: ~p", [Data]),
+  collect(R, [#data_point{ts = faxe_time:now(), fields = Data} | Acc]).
+
 
 get_data(histogram, Name) ->
   S = folsom_metrics:get_histogram_statistics(Name),
   M = maps:from_list(S),
+%%  lager:notice("histogram metrics: ~p",[M]),
   #{
-    <<"mean">> => maps:get(arithmetic_mean, M),
+    <<"mean">> => faxe_lambda_lib:round_float(maps:get(arithmetic_mean, M), 3),
     <<"min">> => maps:get(min, M),
     <<"max">> => maps:get(max, M),
     <<"n">> => maps:get(n, M)
   };
 get_data(meter, Name) ->
   S = folsom_metrics:get_metric_value(Name),
+%%  lager:info("meter info: ~p", [folsom_metrics:get_metric_info(Name)]),
   M = maps:from_list(S),
+%%  lager:notice("meter metrics: ~p",[M]),
   #{
-    <<"count">> => maps:get(count, M),
+    <<"total">> => maps:get(count, M),
     <<"instant">> => maps:get(instant, M),
     <<"one">> => maps:get(one, M),
     <<"five">> => maps:get(five, M),
     <<"fifteen">> => maps:get(fifteen, M)
+%%    ,
+%%    <<"mean">> => maps:get(mean, M)
   };
 get_data(Type, Name) ->
   D = folsom_metrics:get_metric_value(Name),

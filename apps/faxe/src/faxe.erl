@@ -31,13 +31,11 @@
    update_string_task/2,
    update_task/3,
    update/3,
-   get_errors/1,
    list_permanent_tasks/0,
    get_task/1,
    ping_task/1,
    start_temp/2,
    start_file_temp/2,
-   export/1,
    get_template/1,
    list_temporary_tasks/0,
    list_tasks_by_template/1,
@@ -45,7 +43,6 @@
    get_all_tags/0,
    add_tags/2,
    remove_tags/2,
-   get_logs/4,
    set_tags/2,
    get_graph/1,
    task_to_graph/1,
@@ -62,7 +59,7 @@
    task_to_graph_running/1,
    update_all/1,
    update_by_tags/2,
-   update_by_template/2]).
+   update_by_template/2, start_metrics_trace/2, stop_metrics_trace/1]).
 
 start_permanent_tasks() ->
    Tasks = faxe_db:get_permanent_tasks(),
@@ -110,26 +107,13 @@ get_graph(TaskId) ->
    end.
 
 task_to_graph_running(#task{pid = GraphPid} = _T) ->
-   AllNodes = df_graph:nodes(GraphPid),
-   NodesOut = [
-      #{<<"name">> => NName, <<"type">> => NType} || {NName, NType, _Pid} <- AllNodes
-   ],
-   Edges0 = df_graph:edges(GraphPid),
-   Edges = [
-      #{<<"src">> => Source, <<"src_port">> => PortOut, <<"dest">> => Dest, <<"dest_port">> => PortIn}
-      || {_E, Source, Dest, #{src_port := PortOut, tgt_port := PortIn}} <- Edges0
-   ],
-   #{nodes => NodesOut, edges => Edges}.
+   df_graph:graph_def(GraphPid).
 
 task_to_graph(#task{definition = #{edges := Edges, nodes := Nodes} } = _T) ->
-   EdgesOut = [
-      #{<<"src">> => Source, <<"src_port">> => PortOut, <<"dest">> => Dest, <<"dest_port">> => PortIn}
-      || {Source, PortOut, Dest, PortIn, _} <- Edges
-   ],
-   NodesOut = [
-      #{<<"name">> => NName, <<"type">> => NType} || {NName, NType, _Opts} <- Nodes
-   ],
-   #{nodes => NodesOut, edges => EdgesOut}.
+   G = digraph:new(),
+   [graph_builder:add_node(G, NName, NType) || {NName, NType, _Opts} <- Nodes],
+   [graph_builder:add_edge(G, Source, PortOut, Dest, PortIn, M) || {Source, PortOut, Dest, PortIn, M} <- Edges],
+   graph_builder:to_graph_def(G, Nodes).
 
 -spec get_template(term()) -> {error, not_found}|#template{}.
 get_template(TemplateId) ->
@@ -695,42 +679,6 @@ get_stats(TaskId) ->
       #task{} -> {ok, []}
    end.
 
-%% @deprecated
--spec get_errors(integer()|binary()) -> {error, term()} | {ok, term()}.
-get_errors(TaskId) ->
-   T = faxe_db:get_task(TaskId),
-   case T of
-      {error, not_found} -> {error, not_found};
-      #task{pid = Graph} when is_pid(Graph) ->
-         case is_process_alive(Graph) of
-            true -> df_graph:get_errors(Graph);
-            false -> {error, task_not_running}
-         end;
-      #task{} -> {ok, []}
-   end.
-
-%% @deprecated
--spec get_logs(integer()|binary(), binary(), non_neg_integer(), non_neg_integer()) ->
-   {error, term()} | {ok, list(map())}.
-get_logs(TaskId, Severity, MaxAge, Limit) ->
-   T = faxe_db:get_task(TaskId),
-   case T of
-      {error, not_found} -> {error, not_found};
-      #task{name = Name} -> crate_log_reader:read_logs(Name, Severity, MaxAge, Limit)
-   end.
-
-export(TaskId) ->
-   T = faxe_db:get_task(TaskId),
-   case T of
-      {error, not_found} -> {error, not_found};
-      #task{pid = Graph} when is_pid(Graph) ->
-         case is_process_alive(Graph) of
-            true -> df_graph:export(Graph);
-            false -> {error, task_not_running}
-         end;
-      #task{} -> {ok, []}
-   end.
-
 -spec start_trace(non_neg_integer()|binary()) -> {ok, pid()} | {error, not_found} | {error_task_not_running}.
 start_trace(TaskId) ->
    T = faxe_db:get_task(TaskId),
@@ -754,6 +702,36 @@ stop_trace(TaskId) ->
       #task{pid = Graph} when is_pid(Graph) ->
          case is_process_alive(Graph) of
             true -> df_graph:stop_trace(Graph), {ok, Graph};
+            false -> {error, task_not_running}
+         end;
+      #task{} -> {error, task_not_running}
+   end.
+
+-spec start_metrics_trace(non_neg_integer()|binary(), undefined|non_neg_integer()) ->
+   {ok, pid()} | {error, not_found} | {error_task_not_running}.
+start_metrics_trace(TaskId, DurationMs) ->
+   T = faxe_db:get_task(TaskId),
+   case T of
+      {error, not_found} -> {error, not_found};
+      #task{pid = Graph} when is_pid(Graph) ->
+         case is_process_alive(Graph) of
+            true ->
+               Duration = case DurationMs of undefined -> faxe_config:get(debug_time, 60000); _ -> DurationMs end,
+               df_graph:start_metrics_trace(Graph, Duration),
+               {ok, Graph};
+            false -> {error, task_not_running}
+         end;
+      #task{} -> {error, task_not_running}
+   end.
+
+-spec stop_metrics_trace(non_neg_integer()|binary()) -> {ok, pid()} | {error, not_found} | {error_task_not_running}.
+stop_metrics_trace(TaskId) ->
+   T = faxe_db:get_task(TaskId),
+   case T of
+      {error, not_found} -> {error, not_found};
+      #task{pid = Graph} when is_pid(Graph) ->
+         case is_process_alive(Graph) of
+            true -> df_graph:stop_metrics_trace(Graph), {ok, Graph};
             false -> {error, task_not_running}
          end;
       #task{} -> {error, task_not_running}

@@ -31,17 +31,15 @@
    create_to_json/2,
    start_to_json/2,
    stop_to_json/2,
-   errors_to_json/2,
    from_ping_to_json/2,
    from_start_temp_task/2,
    remove_tags_from_json/2,
-   add_tags_from_json/2
-   , logs_to_json/2,
+   add_tags_from_json/2,
    start_debug_to_json/2,
    stop_debug_to_json/2,
    start_group_to_json/2,
    stop_group_to_json/2,
-   set_group_size_to_json/2, from_upsert_task/2]).
+   set_group_size_to_json/2, from_upsert_task/2, start_metrics_trace_to_json/2, stop_metrics_trace_to_json/2]).
 
 -include("faxe.hrl").
 
@@ -68,6 +66,10 @@ allowed_methods(Req, State=#state{mode = start_temp}) ->
 allowed_methods(Req, State=#state{mode = start_debug}) ->
    {[<<"GET">>], Req, State};
 allowed_methods(Req, State=#state{mode = stop_debug}) ->
+   {[<<"GET">>], Req, State};
+allowed_methods(Req, State=#state{mode = start_metrics_trace}) ->
+   {[<<"GET">>], Req, State};
+allowed_methods(Req, State=#state{mode = stop_metrics_trace}) ->
    {[<<"GET">>], Req, State};
 allowed_methods(Req, State=#state{mode = update}) ->
    {[<<"POST">>], Req, State};
@@ -157,6 +159,14 @@ content_types_provided(Req, State=#state{mode = stop_debug}) ->
       {{<<"application">>, <<"json">>, []}, stop_debug_to_json},
       {{<<"text">>, <<"html">>, []}, stop_debug_to_json}
    ], Req, State};
+content_types_provided(Req, State=#state{mode = start_metrics_trace}) ->
+   {[
+      {{<<"application">>, <<"json">>, []}, start_metrics_trace_to_json}
+   ], Req, State};
+content_types_provided(Req, State=#state{mode = stop_metrics_trace}) ->
+   {[
+      {{<<"application">>, <<"json">>, []}, stop_metrics_trace_to_json}
+   ], Req, State};
 content_types_provided(Req, State=#state{mode = stop}) ->
    {[
       {{<<"application">>, <<"json">>, []}, stop_to_json},
@@ -170,15 +180,6 @@ content_types_provided(Req, State=#state{mode = set_group_size}) ->
    {[
       {{<<"application">>, <<"json">>, []}, set_group_size_to_json}
    ], Req, State};
-content_types_provided(Req0 = #{method := _Method}, State=#state{mode = errors}) ->
-   {[
-      {{<<"application">>, <<"json">>, []}, errors_to_json},
-      {{<<"text">>, <<"html">>, []}, errors_to_json}
-   ], Req0, State};
-content_types_provided(Req0 = #{method := _Method}, State=#state{mode = logs}) ->
-   {[
-      {{<<"application">>, <<"json">>, []}, logs_to_json}
-   ], Req0, State};
 content_types_provided(Req0 = #{method := _Method}, State=#state{mode = _Mode}) ->
    {[
       {{<<"application">>, <<"json">>, []}, create_to_json},
@@ -361,6 +362,24 @@ set_group_size_to_json(Req, State) ->
          rest_helper:success(Req, State, <<"set new group size to ", SizeBin/binary>>)
    end.
 
+start_metrics_trace_to_json(Req, State = #state{task_id = Id}) ->
+   DurationMin = cowboy_req:binding(duration_minutes, Req),
+   TraceDuration =
+   case DurationMin of
+      DurMin when is_binary(DurMin) ->
+         case catch(binary_to_integer(DurMin)) of
+            Minutes when is_integer(Minutes) -> Minutes * 60 * 1000;
+            _ -> undefined
+         end;
+      undefined -> undefined
+   end,
+   lager:info("start metrics trace: ~p :: ~p",[Id, TraceDuration]),
+   case faxe:start_metrics_trace(Id, TraceDuration) of
+      {ok, _Graph} ->
+         rest_helper:success(Req, State);
+      {error, Error} ->
+         rest_helper:error(Req, State, faxe_util:to_bin(Error))
+   end.
 
 start_debug_to_json(Req, State = #state{task_id = Id}) ->
 %%   lager:info("start trace: ~p",[Id]),
@@ -388,33 +407,20 @@ stop_group_to_json(Req, State = #state{}) ->
          rest_helper:success(Req, State)
    end.
 
-stop_debug_to_json(Req, State = #state{task_id = Id}) ->
-   case faxe:stop_trace(Id) of
+stop_metrics_trace_to_json(Req, State = #state{task_id = Id}) ->
+   case faxe:stop_metrics_trace(Id) of
       {ok, _Graph} ->
          rest_helper:success(Req, State);
       {error, Error} ->
          rest_helper:error(Req, State, faxe_util:to_bin(Error))
    end.
 
-errors_to_json(Req, State = #state{task_id = Id}) ->
-   case faxe:get_errors(Id) of
-      {ok, Errors} ->
-         {jiffy:encode(#{<<"error">> => faxe_util:to_bin(Errors)}), Req, State};
-      {error, What} ->
-         {jiffy:encode(#{<<"error">> => faxe_util:to_bin(What)}), Req, State}
-   end.
-
-%% read log from crate db
-logs_to_json(Req, State = #state{task_id = Id}) ->
-   #{max_age := MaxAge, limit := Limit} =
-      cowboy_req:match_qs([{max_age, [], <<"15">>}, {limit, [], <<"20">>}], Req),
-   case faxe:get_logs(Id, "",
-      binary_to_integer(MaxAge)*60*1000, binary_to_integer(Limit)
-   ) of
-      {ok, Logs} ->
-         {jiffy:encode(#{<<"logs">> => Logs}), Req, State};
-      {error, What} ->
-         {jiffy:encode(#{<<"error">> => faxe_util:to_bin(What)}), Req, State}
+stop_debug_to_json(Req, State = #state{task_id = Id}) ->
+   case faxe:stop_trace(Id) of
+      {ok, _Graph} ->
+         rest_helper:success(Req, State);
+      {error, Error} ->
+         rest_helper:error(Req, State, faxe_util:to_bin(Error))
    end.
 
 create_to_json(Req, State) ->

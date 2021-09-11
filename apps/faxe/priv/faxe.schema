@@ -553,6 +553,13 @@
     [{default, "sys/faxe"}, {datatype, string}, {commented, "sys/faxe"}]
 }.
 
+%% @doc flow-metrics publish interval
+%% Interval at which flow-metrics get publish to the handler
+{mapping, "metrics.publish_interval", "faxe.metrics.publish_interval",
+    [{default, "30s"}, {datatype, string}]
+}.
+
+
 
 
 %% @doc ----------------------- CONNECTION STATUS ------------------------
@@ -601,9 +608,9 @@
     [{default, "sys/faxe"}, {datatype, string}, {commented, "sys/faxe"}]
 }.
 
-%% @doc time debug messages will be published to the configured endpoints
+%% @doc time debug and node-metric messages will be published to the configured endpoints
 {mapping, "debug.time", "faxe.debug_time",
-    [{default, "25s"}, {datatype, {duration, ms}}]
+    [{default, "30s"}, {datatype, {duration, ms}}]
 }.
 
 
