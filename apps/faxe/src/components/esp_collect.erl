@@ -93,12 +93,12 @@ init(NodeId, _Ins, #{key_fields := Fields, add := AddFunc, remove := RemFunc, up
 process(Port, #data_point{} = Point, State = #state{buffer = undefined}) ->
    maybe_start_emit_timeout(State),
    process(Port, Point, State#state{buffer = []});
-process(_Port, #data_point{} = Point, State = #state{fields = Field, buffer = Buffer}) ->
+process(_Port, #data_point{} = Point, State = #state{fields = _Field, buffer = Buffer}) ->
    {T, Res} = timer:tc(?MODULE, do_process, [Point, State]),
    lager:info("Took: ~p my",[T]),
    case Res of
       {ok, State} -> {ok, State};
-      {Changed, Buffer} -> maybe_emit(Changed, State#state{buffer = Buffer})
+      {Changed, NewBuffer} -> maybe_emit(Changed, State#state{buffer = NewBuffer})
    end.
 
 do_process(#data_point{} = Point, State = #state{buffer = Buffer}) ->
