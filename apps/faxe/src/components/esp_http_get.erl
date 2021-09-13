@@ -121,9 +121,8 @@ try_request(Ts, State=#state{fn_id = FNId}, TriedSoFar) ->
    end.
 
 request(#state{client = Client, path = Path}) ->
-%%   Headers = [{<<"Accept">>, <<"application/json">>}, {<<"Cache-Control">>, {<<"max-age=0">>}}],
-   %Headers = [{<<"Authorization">>, <<"Basic ">>}],
-   StreamRef = gun:get(Client, Path, []),
+   Headers = [{<<"accept">>, <<"application/json">>}, {<<"user-agent">>, <<"faxe/0.16.0">>}],
+   StreamRef = gun:get(Client, Path, Headers),
    case gun:await(Client, StreamRef) of
       {response, fin, Status, _Headers} ->
          {error, {no_data, Status}};
