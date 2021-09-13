@@ -24,19 +24,16 @@
    {error, Reason :: term()}).
 init(Topic0) ->
    Topic = faxe_util:build_topic([Topic0, <<"metrics">>]),
-   {ok, #{qos => 1}, #state{topic = Topic}}.
+   {ok, #{qos => 0}, #state{topic = Topic}}.
 
 handle_event({{FlowId}, Item}, State = #state{topic = Topic}) ->
    T = <<Topic/binary, "/", FlowId/binary>>,
    {publish, T, Item, State};
-handle_event({{FlowId, NodeId, MetricName} = Idx, Item}, State = #state{topic = Topic}) ->
-
+handle_event({{FlowId, NodeId, MetricName}, Item}, State = #state{topic = Topic}) ->
    case ets:lookup(metric_trace_flows, FlowId) of
       [{FlowId, true}] ->
-         lager:info("[~p] event for: ~p",[?MODULE, Idx]),
          T = <<Topic/binary, "/", FlowId/binary, "/", NodeId/binary, "/", MetricName/binary>>,
          {publish, T, Item, State};
       _ ->
-         lager:info("[~p] no event for: ~p",[?MODULE, FlowId]),
          {ok, State}
    end.

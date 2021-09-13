@@ -183,10 +183,10 @@ publish_flow_metrics(FlowId, Metrics, Ts) ->
 
 rename_metrics(Map = #{?METRIC_BYTES_SENT_SIZE := SentSize}) ->
   Map0 = maps:without([?METRIC_BYTES_SENT_SIZE], Map),
-  Map0#{<<"bytes_sent_avg">> => SentSize};
+  rename_metrics(Map0#{<<"bytes_sent_avg">> => SentSize});
 rename_metrics(Map= #{?METRIC_BYTES_READ_SIZE := ReadSize}) ->
   Map0 = maps:without([?METRIC_BYTES_READ_SIZE], Map),
-  Map0#{<<"bytes_read_avg">> => ReadSize};
+  rename_metrics(Map0#{<<"bytes_read_avg">> => ReadSize});
 rename_metrics(M) ->
   M.
 
