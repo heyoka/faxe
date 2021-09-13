@@ -90,7 +90,6 @@ handle_info(gather, State = #state{stats = Stats}) ->
    TemplatesAll = faxe:list_templates(),
    Paths = ets:tab2list(field_paths),
    S = #{
-      <<"data_throughput_sec">> => faxe_lambda_lib:random(203),
       <<"data_paths_known">> => length(Paths),
       <<"faxe_version">> => list_to_binary(FaxeVsn),
       <<"opt_version">> => list_to_binary(faxe_util:get_erlang_version()),
@@ -100,7 +99,6 @@ handle_info(gather, State = #state{stats = Stats}) ->
       <<"permanent_tasks">> => length(TasksPermanent),
       <<"registered_templates">> => length(TemplatesAll)
    },
-%%   lager:notice("~p collected: ~p",[?SERVER, S]),
    {noreply, State#state{stats = maps:merge(Stats, S)}};
 handle_info(_Info, State) ->
    {noreply, State}.

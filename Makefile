@@ -8,6 +8,8 @@ dev1:
 	export FAXE_QUEUE_CAPACITY=2 && \
 	export FAXE_CRATE_HTTP_TLS_ENABLE=off && \
 	export FAXE_MQTT_HOST=devat-mqtt-vip1.tgwdev.internal && \
+	export FAXE_MQTT_USER=cwa-m62Vn8sszdsgU4PeKxXJ && \
+	export FAXE_MQTT_PASS="#y3MFK!wt5xu5jn!DHDT" && \
 	export FAXE_AMQP_HOST=10.14.204.28 && \
 	export FAXE_AMQP_USER=18qzeaI79SiWx4ykcnyo && \
 	export FAXE_AMQP_PASS=otzMmLNSDgUI6zwEiSvY && \

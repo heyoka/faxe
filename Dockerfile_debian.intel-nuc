@@ -2,14 +2,14 @@
 FROM balenalib/intel-nuc-debian-python:latest as erlang
 
 ### erlang and rebar3
-ENV OTP_VERSION="23.2.6" \
-    REBAR3_VERSION="3.13.1"
+ENV OTP_VERSION="24.0.6" \
+    REBAR3_VERSION="3.16.1"
 
 LABEL org.opencontainers.image.version=$OTP_VERSION
 
 RUN set -xe \
 	&& OTP_DOWNLOAD_URL="https://github.com/erlang/otp/archive/OTP-${OTP_VERSION}.tar.gz" \
-	&& OTP_DOWNLOAD_SHA256="5bc6b31b36b949bf06e84d51986311fc1d2ace5e717aae3186dc057d4838445d" \
+	&& OTP_DOWNLOAD_SHA256="a60a7d776a4573e2018d6fad6df957e3911ecbce5f11497a8ec537f613aca0a1" \
 	&& fetchDeps=' \
 		curl \
 		ca-certificates' \
@@ -47,7 +47,7 @@ RUN set -xe \
 	  && make install ) \
 	## REBAR3
 	&& REBAR3_DOWNLOAD_URL="https://github.com/erlang/rebar3/archive/${REBAR3_VERSION}.tar.gz" \
-	&& REBAR3_DOWNLOAD_SHA256="706cc0770062bde2674abc01964c68553398fe4d8023605b305cfe326b92520f" \
+	&& REBAR3_DOWNLOAD_SHA256="a14711b09f6e1fc1b080b79d78c304afebcbb7fafed9d0972eb739f0ed89121b" \
 	&& mkdir -p /usr/src/rebar3-src \
 	&& curl -fSL -o rebar3-src.tar.gz "$REBAR3_DOWNLOAD_URL" \
 	&& echo "$REBAR3_DOWNLOAD_SHA256 rebar3-src.tar.gz" | sha256sum -c - \
