@@ -39,7 +39,6 @@ destroy(FlowId, NodeId, Component) ->
 node_metrics(Component) ->
   Common = ?NODE_COMMON_METRICS,
   AddMetrics = get_node_metrics(Component),
-  lager:notice("component for metrics: ~p ::: ~p" ,[Component, AddMetrics]),
   Common ++ AddMetrics.
   %,
   %lager:notice("nodemetrics: ~p : ~p",[{FlowId, NodeId, Component}, Ms]),
@@ -52,13 +51,11 @@ get_node_metrics(Component) ->
   end.
 
 maybe_add_bytes_metrics(ComponentMetrics) ->
-  lager:notice("maybe_add_bytes_metrics: ~p", [ComponentMetrics]),
   M0 =
   case lists:keyfind(?METRIC_BYTES_READ, 1, ComponentMetrics) of
     T when is_tuple(T) -> ComponentMetrics ++ [{?METRIC_BYTES_READ_SIZE, histogram, []}];
     false -> ComponentMetrics
   end,
-  lager:notice("M0 :: ~p",[M0]),
   case lists:keyfind(?METRIC_BYTES_SENT, 1, M0) of
     T1 when is_tuple(T1) -> M0 ++ [{?METRIC_BYTES_SENT_SIZE, histogram, []}];
     false -> M0

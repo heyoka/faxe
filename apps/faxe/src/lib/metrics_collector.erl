@@ -28,9 +28,7 @@ start_link() ->
 
 init([]) ->
   Interval = faxe_util:to_bin(faxe_config:get_sub(metrics, publish_interval, ?INTERVAL)),
-  lager:warning("config interval: ~p",[Interval]),
   Timer = faxe_time:init_timer(true, Interval, collect),
-%%  erlang:send_after(?INTERVAL, self(), collect),
   {ok, #metrics_collector_state{timer = Timer}}.
 
 handle_call(_Request, _From, State = #metrics_collector_state{}) ->
