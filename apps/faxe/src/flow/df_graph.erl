@@ -25,7 +25,7 @@
    source_nodes/1,
    get_stats/1,
    ping/1,
-   start_trace/1,
+   start_trace/2,
    stop_trace/1,
    start_subgraph/1,
    stop_subgraph/2,
@@ -128,8 +128,8 @@ sink_nodes(Graph) ->
 source_nodes(Graph) ->
    call(Graph, source_nodes).
 
-start_trace(Graph) ->
-   Graph ! start_trace.
+start_trace(Graph, Duration) ->
+   Graph ! {start_trace, Duration}.
 
 stop_trace(Graph) ->
    Graph ! stop_trace.
@@ -233,12 +233,11 @@ handle_cast(_Request, State) ->
 
 
 
-handle_info(start_trace, State = #state{nodes = Nodes, id = Id, debug_timeout_ref = TRef}) ->
+handle_info({start_trace, Duration}, State = #state{nodes = Nodes, id = Id, debug_timeout_ref = TRef}) ->
    catch erlang:cancel_timer(TRef),
    lager_emit_backend:start_trace(Id),
    [Pid ! start_debug || {_, _, Pid} <- Nodes],
-   Timeout = faxe_config:get(debug_time, ?TRACE_TIMEOUT),
-   TRefNew = erlang:send_after(Timeout, self(), stop_trace),
+   TRefNew = erlang:send_after(Duration, self(), stop_trace),
    {noreply, State#state{debug_timeout_ref = TRefNew}};
 handle_info(stop_trace, State = #state{nodes = Nodes, id = Id}) ->
    lager_emit_backend:stop_trace(Id),

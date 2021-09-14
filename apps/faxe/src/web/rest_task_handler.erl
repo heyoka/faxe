@@ -83,12 +83,6 @@ allowed_methods(Req, State=#state{mode = stop}) ->
    {[<<"GET">>], Req, State};
 allowed_methods(Req, State=#state{mode = stop_group}) ->
    {[<<"GET">>], Req, State};
-allowed_methods(Req, State=#state{mode = stats}) ->
-   {[<<"GET">>], Req, State};
-allowed_methods(Req, State=#state{mode = errors}) ->
-   {[<<"GET">>], Req, State};
-allowed_methods(Req, State=#state{mode = logs}) ->
-   {[<<"GET">>], Req, State};
 allowed_methods(Req, State=#state{mode = delete}) ->
    {[<<"DELETE">>], Req, State};
 allowed_methods(Req, State=#state{mode = delete_group}) ->
@@ -363,16 +357,7 @@ set_group_size_to_json(Req, State) ->
    end.
 
 start_metrics_trace_to_json(Req, State = #state{task_id = Id}) ->
-   DurationMin = cowboy_req:binding(duration_minutes, Req),
-   TraceDuration =
-   case DurationMin of
-      DurMin when is_binary(DurMin) ->
-         case catch(binary_to_integer(DurMin)) of
-            Minutes when is_integer(Minutes) -> Minutes * 60 * 1000;
-            _ -> undefined
-         end;
-      undefined -> undefined
-   end,
+   TraceDuration = get_duration(Req),
    lager:info("start metrics trace: ~p :: ~p",[Id, TraceDuration]),
    case faxe:start_metrics_trace(Id, TraceDuration) of
       {ok, _Graph} ->
@@ -382,8 +367,9 @@ start_metrics_trace_to_json(Req, State = #state{task_id = Id}) ->
    end.
 
 start_debug_to_json(Req, State = #state{task_id = Id}) ->
-%%   lager:info("start trace: ~p",[Id]),
-   case faxe:start_trace(Id) of
+   DebugDuration = get_duration(Req),
+   lager:info("start debug trace: ~p :: ~p",[Id, DebugDuration]),
+   case faxe:start_trace(Id, DebugDuration) of
       {ok, _Graph} ->
          rest_helper:success(Req, State);
       {error, Error} ->
@@ -462,3 +448,15 @@ convert_tags(Bin) when is_binary(Bin) ->
       _ -> invalid
    end;
 convert_tags(_) -> invalid.
+
+-spec get_duration(cowboy_req:req()) -> undefined|non_neg_integer().
+get_duration(Req) ->
+   DurationMin = cowboy_req:binding(duration_minutes, Req),
+   case DurationMin of
+      DurMin when is_binary(DurMin) ->
+         case catch (binary_to_integer(DurMin)) of
+            Minutes when is_integer(Minutes) -> Minutes * 60 * 1000;
+            _ -> undefined
+         end;
+      undefined -> undefined
+   end.

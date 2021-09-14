@@ -46,7 +46,7 @@
    set_tags/2,
    get_graph/1,
    task_to_graph/1,
-   start_trace/1,
+   start_trace/2,
    stop_trace/1,
    update_all/0,
    stop_task_group/2,
@@ -679,20 +679,25 @@ get_stats(TaskId) ->
       #task{} -> {ok, []}
    end.
 
--spec start_trace(non_neg_integer()|binary()) -> {ok, pid()} | {error, not_found} | {error_task_not_running}.
-start_trace(TaskId) ->
+-spec start_trace(non_neg_integer()|binary(), non_neg_integer()|undefined) -> {ok, pid()} | {error, not_found} | {error_task_not_running}.
+start_trace(TaskId, DrationMs) ->
    T = faxe_db:get_task(TaskId),
    case T of
       {error, not_found} -> {error, not_found};
       #task{pid = Graph} when is_pid(Graph) ->
          case is_process_alive(Graph) of
             true ->
-               df_graph:start_trace(Graph),
+               df_graph:start_trace(Graph, trace_duration(DrationMs)),
                {ok, Graph};
             false -> {error, task_not_running}
          end;
       #task{} -> {error, task_not_running}
    end.
+
+trace_duration(undefined) ->
+   faxe_config:get(debug_time, 60000);
+trace_duration(DurationMs) when is_integer(DurationMs) ->
+   DurationMs.
 
 -spec stop_trace(non_neg_integer()|binary()) -> {ok, pid()} | {error, not_found} | {error_task_not_running}.
 stop_trace(TaskId) ->
@@ -716,8 +721,7 @@ start_metrics_trace(TaskId, DurationMs) ->
       #task{pid = Graph} when is_pid(Graph) ->
          case is_process_alive(Graph) of
             true ->
-               Duration = case DurationMs of undefined -> faxe_config:get(debug_time, 60000); _ -> DurationMs end,
-               df_graph:start_metrics_trace(Graph, Duration),
+               df_graph:start_metrics_trace(Graph, trace_duration(DurationMs)),
                {ok, Graph};
             false -> {error, task_not_running}
          end;

@@ -15,7 +15,7 @@
 -define(FAILED_RETRIES, 3).
 -define(P_TYPE_PLAIN, <<"plain">>).
 -define(P_TYPE_JSON, <<"json">>).
-
+-define(HEADERS, [{<<"accept">>, <<"application/json,text/plain">>}]).
 
 -record(state, {
    host :: string(),
@@ -28,6 +28,7 @@
    timer :: undefined|#faxe_timer{},
    uri_params :: map(),
    client,
+   headers,
    failed_retries,
    retries,
    tls,
@@ -71,10 +72,12 @@ init(NodeId, _Inputs,
          _ -> As
       end,
    erlang:send_after(0, self(), start_client),
+   Headers = ?HEADERS ++ [{<<"user-agent">>, http_lib:user_agent()}],
    {ok, all,
       #state{
          host = Host, port = Port,
          path = Path, tls = Tls,
+         headers = Headers,
          every = Every, align = Align,
          retries = Retries, as = Alias,
          payload_type = PType,
@@ -120,8 +123,7 @@ try_request(Ts, State=#state{fn_id = FNId}, TriedSoFar) ->
          {ok, State}
    end.
 
-request(#state{client = Client, path = Path}) ->
-   Headers = [{<<"accept">>, <<"application/json">>}, {<<"user-agent">>, <<"faxe/0.16.0">>}],
+request(#state{client = Client, path = Path, headers = Headers}) ->
    StreamRef = gun:get(Client, Path, Headers),
    case gun:await(Client, StreamRef) of
       {response, fin, Status, _Headers} ->
