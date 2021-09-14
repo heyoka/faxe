@@ -10,6 +10,7 @@ LABEL org.opencontainers.image.version=$OTP_VERSION
 RUN set -xe \
 	&& OTP_DOWNLOAD_URL="https://github.com/erlang/otp/archive/OTP-${OTP_VERSION}.tar.gz" \
 	&& OTP_DOWNLOAD_SHA256="a60a7d776a4573e2018d6fad6df957e3911ecbce5f11497a8ec537f613aca0a1" \
+	&& CONFIGURE_ARGS="--without-wx --without-debugger --without-observer --without-et --without-javac --without-odbc --without-megaco" \
 	&& fetchDeps=' \
 		curl \
 		ca-certificates' \
@@ -45,10 +46,10 @@ RUN set -xe \
 	&& ( cd $ERL_TOP \
 	  && ./otp_build autoconf \
 	  && gnuArch="$(dpkg-architecture --query DEB_HOST_GNU_TYPE)" \
-	  && ./configure --build="$gnuArch" \
+	  && ./configure --build="$gnuArch" $CONFIGURE_ARGS \
 	  && make -j$(nproc) \
 	  && make install ) \
-	## REBAR3
+	&& find /usr/local -name examples | xargs rm -rf \
 	&& REBAR3_DOWNLOAD_URL="https://github.com/erlang/rebar3/archive/${REBAR3_VERSION}.tar.gz" \
 	&& REBAR3_DOWNLOAD_SHA256="a14711b09f6e1fc1b080b79d78c304afebcbb7fafed9d0972eb739f0ed89121b" \
 	&& mkdir -p /usr/src/rebar3-src \
