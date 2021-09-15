@@ -131,7 +131,7 @@ config_json(Req, State=#state{mode = config}) ->
    {jiffy:encode(Out, [uescape]), Req, State}.
 
 opts_mqtt(Key, TopicKey) ->
-   [{handler, [{mqtt, Debug0}]}] = faxe_config:get(Key),
+   Debug0 = get_config_mqtt_handler(Key),
    ReportMqttHost = proplists:get_value(mqtt_host, faxe_config:get(report_debug)),
    All0 = faxe_event_handlers:mqtt_opts(Debug0),
    All = lists:map(
@@ -148,6 +148,13 @@ opts_mqtt(Key, TopicKey) ->
       end,
       proplists:delete(ssl, All0)),
    maps:without([user, pass], maps:from_list(All)).
+
+get_config_mqtt_handler(Key) ->
+   C0 = faxe_config:get(Key),
+   case proplists:get_value(handler, C0) of
+      undefined -> [];
+      [{mqtt, Mqtt}] -> Mqtt
+   end.
 
 valid_level(Level) ->
    lists:member(Level, levels()).
