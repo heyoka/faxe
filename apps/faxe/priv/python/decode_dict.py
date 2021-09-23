@@ -44,6 +44,9 @@ class DecodeDict(MutableMapping):
     def __contains__(self, key):
         return self.store.__contains__(self.__keytransform__(key))
 
+    def __copy__(self):
+        return self.store.copy()
+
     def __keytransform__(self, key):
         if self.own_key_type == erlport.erlterms.Atom:
             return key.encode("utf-8")

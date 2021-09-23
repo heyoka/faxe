@@ -125,7 +125,7 @@ from_import(Req, State=#state{}) ->
 
 do_import(TasksList, Req, State) ->
    {Ok, Err} =
-      lists:foldl(
+      plists:fold(
          fun(TaskMap=#{<<"name">> := TName}, {OkList, ErrList}) ->
             case import_task(TaskMap) of
                {ok, _Id} -> {[TName|OkList], ErrList};
@@ -133,9 +133,8 @@ do_import(TasksList, Req, State) ->
             end
          end,
          {[],[]},
-         TasksList
-      ),
-%%   [lager:notice("import: ~p",[import_task(T)]) || T <- TasksList],
+         TasksList,
+      5),
    Req2 = cowboy_req:set_resp_body(
       jiffy:encode(
          #{total => length(TasksList), successful => length(Ok),

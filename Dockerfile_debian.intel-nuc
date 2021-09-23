@@ -92,7 +92,7 @@ WORKDIR faxe
 ENV FAXE_EXTENSIONS="ext.config"
 
 # install git, build release and cleanup deps
-RUN apt-get update && apt-get install -y --no-install-recommends gcc g++ make git-all \
+RUN apt-get update && apt-get install -y --no-install-recommends gcc g++ make git-all curl \
 	#&& apt --only-upgrade --no-install-recommends install ${update_list} -y  \
     #&& apt remove  --auto-remove ${remove_list} -y  \
     && apt upgrade -y \

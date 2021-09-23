@@ -62,18 +62,21 @@ init(NodeId, _Inputs,
 process(_Inport, _Value, State) ->
    {ok, State}.
 
-handle_info(emit, State=#state{every = Every, jitter = JT, ejson = JS, as = As}) ->
+handle_info(emit, State=#state{jitter = 0, every = Every}) ->
+   do_emit(Every, State);
+handle_info(emit, State=#state{every = Every, jitter = JT}) ->
    Jitter = round(rand:uniform()*JT),
    After = Every+(Jitter),
-   erlang:send_after(After, self(), emit),
-   JsonMap = lists:nth(rand:uniform(length(JS)), JS),
-   Msg = flowdata:set_field(#data_point{ts = faxe_time:now()}, As, JsonMap),
-
-%%   lager:notice("~p", [obj_from_array(Msg)]),
-
-   {emit,{1, Msg}, State};
+   do_emit(After, State);
 handle_info(_Request, State) ->
    {ok, State}.
+
+do_emit(Next, State=#state{ejson = JS, as = As}) ->
+   erlang:send_after(Next, self(), emit),
+   JsonMap = lists:nth(rand:uniform(length(JS)), JS),
+   Msg = flowdata:set_field(#data_point{ts = faxe_time:now()}, As, JsonMap),
+   {emit,{1, Msg}, State}.
+
 
 obj_from_array(Point) ->
    Res = obj_from_array(Point, <<"data.sections">>, <<>>, <<"name">>),

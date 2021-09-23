@@ -25,9 +25,6 @@
 %% API
 -export([init/3, process/3, options/0, handle_info/2, shutdown/1, check_options/0, metrics/0, data_received/3]).
 
--define(DEFAULT_PORT, 1883).
--define(DEFAULT_SSL_PORT, 8883).
-
 %% state for direct publish mode
 -record(state, {
    client,

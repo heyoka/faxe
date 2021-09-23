@@ -8,7 +8,7 @@
 -behaviour(application).
 
 %% Application callbacks
--export([start/2, stop/1, prepare_stop/1]).
+-export([start/2, stop/1, prepare_stop/1, set_balena_device_tag/2]).
 
 -define(APP, faxe).
 -define(PRIV_DIR, code:priv_dir(?APP)).
@@ -78,3 +78,5 @@ print_started(HttpPort) ->
 %% Internal functions
 %%====================================================================
 
+set_balena_device_tag(Key, Val) ->
+   os:cmd("cd etc && sh set_balena_device_tag.sh " ++ Key ++ " " ++ Val).

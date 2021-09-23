@@ -77,8 +77,9 @@ publish({FlowId, Metrics}, Ts) ->
 
 do_collect() ->
   Ms = metrics(),
-  All = [collect(M) || M <- Ms],
-  All.
+  plists:map(fun(FlowMetrics) -> collect(FlowMetrics) end, Ms, 5).
+%%  All = [collect(M) || M <- Ms],
+%%  All.
 
 get_flows() ->
   case (catch faxe:list_running_tasks() ++ faxe:list_temporary_tasks()) of

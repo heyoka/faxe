@@ -13,3 +13,5 @@ def s =
     %.foo('sefooo')
     %.bar(12.5)
     %.baz(55)
+
+    |debug()

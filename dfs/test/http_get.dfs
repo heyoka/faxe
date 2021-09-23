@@ -7,7 +7,7 @@
 .as('data')
 %.tls()
 
-|eval(lambda: round(now() / 1000))
+|eval(lambda: round( (now() / 1000) ))
 .as('data.timestamp_sec')
 
 |mqtt_publish()

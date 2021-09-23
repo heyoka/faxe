@@ -290,7 +290,8 @@ update_by_template(TemplateId, Force) ->
    update_list(Tasks, Force).
 
 update_list(TaskList, Force) when is_list(TaskList) ->
-   [update_task(DfsScript, Id, Force, data) || #task{id = Id, dfs = DfsScript} <- TaskList].
+   F = fun(#task{id = Id, dfs = DfsScript}) -> update_task(DfsScript, Id, Force, data) end,
+   plists:map(F, TaskList, 5).
 
 
 -spec update_file_task(list(), integer()|binary()) -> ok|{error, term()}.
@@ -312,6 +313,7 @@ update_task(DfsScript, TaskId, Force, ScriptType) ->
 %%      {_, T=#task{group_leader = false}} -> {error, group_leader_update_only};
       Err -> {Err, nil}
    end,
+   Out =
    case Res of
       {ok, _Task = #task{group_leader = true, group = Group}} ->
          GroupMembers = faxe_db:get_tasks_by_group(Group),
@@ -325,7 +327,8 @@ update_task(DfsScript, TaskId, Force, ScriptType) ->
          end;
       {{ok, _}, _} -> ok;
       {Error, _} -> Error
-   end.
+   end,
+   Out.
 
 maybe_update(DfsScript, T = #task{}, true, ScriptType) ->
    update(DfsScript, T, ScriptType);

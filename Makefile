@@ -5,7 +5,10 @@ dev1:
 	export FAXE_DFS_SCRIPT_PATH=/home/heyoka/workspace/faxe/dfs/ && \
 	export FAXE_PYTHON_SCRIPT_PATH=/home/heyoka/workspace/faxe/python/ && \
 	export FAXE_QUEUE_BASE_DIR=/home/heyoka/esq_data/ && \
-	export FAXE_QUEUE_CAPACITY=2 && \
+	export FAXE_QUEUE_CAPACITY=50 && \
+	export FAXE_DEQUEUE_INTERVAL=3ms && \
+	export FAXE_DEQUEUE_MIN_INTERVAL=1ms && \
+	export FAXE_DEQUEUE_MAX_INTERVAL=600ms && \
 	export FAXE_CRATE_HTTP_TLS_ENABLE=off && \
 	export FAXE_MQTT_HOST=devat-mqtt-vip1.tgwdev.internal && \
 	export FAXE_MQTT_USER=cwa-m62Vn8sszdsgU4PeKxXJ && \

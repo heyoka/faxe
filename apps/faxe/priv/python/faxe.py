@@ -9,11 +9,14 @@ from decode_dict import DecodeDict
 
 
 def encode_data(data):
+    if isinstance(data, DecodeDict):
+        return data.store
     if type(data) == list:
         newlist = [encode_data(d) for d in data]
         return newlist
     if type(data) == dict:
         return encode_dict(data)
+
 
 def encode_dict(mydict):
     return {to_bytes(k): to_bytes(v) for (k, v) in mydict.items()}
@@ -42,14 +45,14 @@ class Faxe:
         classname = clname
         modname = classname.lower()
         module = __import__(modname)
-        print("classname ", classname, " modname ", modname)
+        print("call info for: classname ", classname, " modname ", modname)
         cls = getattr(module, classname)
         method = getattr(cls, "options")
         outlist = []
         for i, x in enumerate(method()):
             l = list(x)
-            l[0] = erlport.erlterms.Atom(l[0])
-            l[1] = erlport.erlterms.Atom(l[1])
+            l[0] = erlport.erlterms.Atom(to_bytes(l[0]))
+            l[1] = erlport.erlterms.Atom(to_bytes(l[1]))
             outlist.append(tuple(l))
         return outlist
 
@@ -59,8 +62,8 @@ class Faxe:
         overwrite this method to request options you would like to use
 
         return value is a list of tuples: (option_name, option_type, (optional: default type))
-        a two tuple: (b"foo", b"string") with no default value is mandatory in the dfs script
-        a three tuple: (b"foo", b"string", b"mystring") may be overwritten in a dfs script
+        a two tuple: ("foo", "string") with no default value is mandatory in the dfs script
+        a three tuple: ("foo", "string", "mystring") may be overwritten in a dfs script
 
         :return: list of tuples
         """
@@ -91,7 +94,7 @@ class Faxe:
         batch = []
         for point in req:
             batch.append(DecodeDict(point))
-        self.handle_batch(req)
+        self.handle_batch(batch)
         return self
 
     def point(self, req):
@@ -101,9 +104,9 @@ class Faxe:
     def emit(self, emit_data):
         """
         used to emit data to the next node(s)
-        :param emit_data: dict | list of dicts
+        :param emit_data: dict | DecodeDict | list of dicts | list of DecodeDict
         """
-        if type(emit_data) == dict or type(emit_data) == list:
+        if type(emit_data) == dict or isinstance(emit_data, DecodeDict) or type(emit_data) == list:
             erlport.erlang.cast(self.erlang_pid,
                                 (erlport.erlterms.Atom(b'emit_data'), encode_data(emit_data)))
 

@@ -35,12 +35,12 @@
    ssl = false,
    ssl_opts = [],
    queue,
-   mem_queue,
+   mem_queue :: memory_queue:mem_queue(),
    max_mem_queue_len = 100,
-   deq_interval = 15,
    reconnector :: faxe_backoff:backoff(),
    node_id,
-   client_id
+   client_id,
+   adapt_interval :: adaptive_interval:interval()
 }).
 
 %%%===================================================================
@@ -82,10 +82,10 @@ start_link(Opts) ->
 init([#{} = Opts]) ->
    init_all(Opts, #state{mem_queue = memory_queue:new()});
 init([#{} = Opts, Queue]) ->
-   init_all(Opts, #state{queue = Queue}).
+   init_all(Opts, #state{queue = Queue, adapt_interval = adaptive_interval:new()}).
 
 init_all(#{host := Host, port := Port} = Opts, State) ->
-   lager:info("[~p] MQTT_OPTS are: ~p",[?MODULE, Opts]),
+%%   lager:info("[~p] MQTT_OPTS are: ~p",[?MODULE, Opts]),
    NId =
    case maps:is_key(node_id, Opts) of
       true -> maps:get(node_id, Opts);
@@ -173,6 +173,7 @@ handle_cast(_Request, State) ->
 %%                                   {stop, Reason, State}
 %% @end
 %%--------------------------------------------------------------------
+%% mem-queue only
 handle_info({mqttc, C, connected},
     State=#state{queue = undefined, mem_queue = Q, host = Host}) ->
    connection_registry:connected(),
@@ -181,11 +182,11 @@ handle_info({mqttc, C, connected},
    [publish(M, NewState) || M <- PendingList],
    lager:info("mqtt client connected to ~p",[Host]),
    {noreply, NewState};
+%% internal ondisc queue is used
 handle_info({mqttc, C, connected}, State=#state{}) ->
    connection_registry:connected(),
    lager:info("mqtt client connected!!"),
-   NewState = State#state{client = C, connected = true},
-   next(NewState),
+   NewState = next(State#state{client = C, connected = true}),
    {noreply, NewState};
 handle_info({mqttc, _C,  disconnected}, State=#state{client = Client}) ->
    connection_registry:disconnected(),
@@ -193,8 +194,7 @@ handle_info({mqttc, _C,  disconnected}, State=#state{client = Client}) ->
    catch exit(Client, kill),
    {noreply, State#state{connected = false, client = undefined}};
 handle_info(deq, State=#state{}) ->
-   next(State),
-   {noreply, State};
+   {noreply, next(State)};
 handle_info({publish, {_Topic, _Message}=M}, State = #state{connected = false, mem_queue = Q}) ->
    NewQ = memory_queue:enq(M, Q),
    {noreply, State#state{mem_queue = NewQ}};
@@ -216,14 +216,17 @@ handle_info(E, S) ->
    lager:warning("unexpected: ~p~n", [E]),
    {noreply, S}.
 
-next(State=#state{queue = Q, deq_interval = Interval}) ->
+next(State=#state{queue = Q, adapt_interval = AdaptInt}) ->
+   {NewInterval, NewAdaptInt} =
    case esq:deq(Q) of
-      [] -> ok; %lager:info("Queue is empty!"), ok;
+      [] ->
+         adaptive_interval:in(miss, AdaptInt);
       [#{payload := {_Topic, _Message}=M}] ->
-%%         lager:notice("~p: msg from Q: ~p", [faxe_time:now(), M]),
-         publish(M, State)
+         publish(M, State),
+         adaptive_interval:in(hit, AdaptInt)
    end,
-   erlang:send_after(Interval, self(), deq).
+   erlang:send_after(NewInterval, self(), deq),
+   State#state{adapt_interval = NewAdaptInt}.
 
 
 publish({Topic, Msg}, #state{retained = Ret, qos = Qos, client = C})

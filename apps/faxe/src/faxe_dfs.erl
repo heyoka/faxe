@@ -111,7 +111,11 @@ eval({Nodes, Connections}) ->
             {NewConns, ParamOptions} = node_conn_params(N, Params),
 %%            lager:info("~nafter node_conn_params: ~p",[ParamOptions]),
             %% get component options
-            CompOptions0 = component_options(Component, NOpts, NodeName),
+            %% node name
+            NodeId = node_id(N),
+            %% additional common options
+            AdditionalOptions = df_component:add_options(NodeId),
+            CompOptions0 = component_options(Component, NOpts, NodeName) ++ AdditionalOptions,
 %%            lager:info("~nafter component_options: ~p",[CompOptions0]),
             %% set default from config
             CompOptions = eval_options(CompOptions0, []),
@@ -128,8 +132,7 @@ eval({Nodes, Connections}) ->
             %% any errors raised here, would be caught in the surrounding call
             FinalOpts = dataflow:build_options(Component, NodeOptions, CompOptions++NOpts),
 
-            NodeId = node_id(N),
-            lager:info("all options for node ~p: ~p", [N, FinalOpts]),
+            lager:debug("all options for node ~p: ~p", [N, FinalOpts]),
             {
                dataflow:add_node({NodeId, Component, FinalOpts}, Def0),
                   Conns ++ NewConns
@@ -199,7 +202,6 @@ component_options(Component, _NOpts, NodeName) ->
       true -> Component:options();
       false -> throw("Component '" ++ binary_to_list(NodeName) ++ ":options' not found")
    end.
-
 
 %% evaluate default config options
 eval_options([], Acc) ->

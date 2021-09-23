@@ -6,8 +6,8 @@ class Double(Faxe):
     @staticmethod
     def options():
         opts = [
-            (b'field', b'string'),
-            (b'as', b'string')
+            ("field", "string"),
+            ("as", "string")
         ]
         return opts
 
@@ -18,7 +18,7 @@ class Double(Faxe):
 
     def handle_point(self, point_data):
         self.counter += 1
-        self.emit({"count": self.counter, self.asfieldname: point_data["data"]["val"] * 2})
+        self.emit(self.calc(point_data))
 
     def handle_batch(self, batch_data):
         out_list = list()
@@ -30,5 +30,3 @@ class Double(Faxe):
         point_dict[self.asfieldname] = point_dict["data"]["val"] * 2
         return point_dict
 
-    # def __del__(self):
-    #     raise Exception("deleted Object!")

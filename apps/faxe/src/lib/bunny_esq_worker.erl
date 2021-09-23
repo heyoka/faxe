@@ -7,6 +7,7 @@
 %%% Required Types.
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 -include_lib("amqp_client/include/amqp_client.hrl").
+-include("faxe.hrl").
 
 -define(DELIVERY_MODE_NON_PERSISTENT, 1).
 -define(DEQ_INTERVAL, 15).
@@ -22,9 +23,11 @@
    last_confirmed_dtag  = 0         :: non_neg_integer(),
    queue,
    deq_interval         = ?DEQ_INTERVAL,
+   adaptive_interval                :: adaptive_interval:adaptive_interval(),
    deq_timer_ref,
    delivery_mode        = ?DELIVERY_MODE_NON_PERSISTENT,
-   safe_mode            = false %% whether to work with ondisc queue acks
+   safe_mode            = false, %% whether to work with ondisc queue acks
+   mem_q                            :: memory_queue:mem_queue()
 }).
 
 -type state():: #state{}.
@@ -64,20 +67,23 @@ init([Queue, Config]) ->
    Reconnector = faxe_backoff:new({100, 4200}),
    {ok, Reconnector1} = faxe_backoff:execute(Reconnector, connect),
    AmqpParams = amqp_options:parse(Config),
-   DeqInterval = proplists:get_value(deq_interval, faxe_config:get_esq_opts(), ?DEQ_INTERVAL),
    SafeMode = maps:get(safe_mode, Config, false),
    DeliveryMode = case maps:get(persistent, Config, false) of true -> 2; false -> 1 end,
+   MemQ = case Queue of undefined -> memory_queue:new(); _ -> undefined end,
+   AdaptInt = adaptive_interval:new(),
    {ok, #state{
       reconnector = Reconnector1,
       queue = Queue,
       config = AmqpParams,
-      deq_interval = DeqInterval,
+      deq_interval = adaptive_interval:current(AdaptInt),
+      adaptive_interval = AdaptInt,
       delivery_mode = DeliveryMode,
-      safe_mode = SafeMode}}.
+      safe_mode = SafeMode,
+      mem_q = MemQ}}.
 
 -spec handle_cast(term(), state()) -> {noreply, state()}.
 handle_cast(Msg, State) ->
-   lager:error("Invalid cast: ~p in ~p", [Msg, ?MODULE]),
+   lager:warning("Invalid cast: ~p in ~p", [Msg, ?MODULE]),
    {noreply, State}.
 
 %%%%%%%%%%%%%%%%%%%
@@ -86,7 +92,7 @@ handle_cast(Msg, State) ->
 handle_info(connect, State) ->
    NewState = start_connection(State),
    case NewState#state.available of
-      true -> {noreply, start_deq_timer(NewState)};
+      true -> lager:notice("channel available again"), NState = maybe_redeliver(NewState), {noreply, maybe_start_deq_timer(NState)};
       false -> {noreply, NewState}
    end;
 
@@ -102,10 +108,14 @@ handle_info({'EXIT', MQPid, Reason}, State=#state{channel = MQPid, reconnector =
 
 %% dequeue
 handle_info(deq, State = #state{available = false}) ->
+   lager:warning("deq deliver when not available"),
    {noreply, State};
 handle_info(deq, State = #state{available = true}) ->
    {noreply, next(State)};
 
+handle_info({deliver, Exchange, Key, Payload, Args}, State) ->
+   NewState = deliver({Exchange, Key, Payload, Args}, 1, State),
+   {noreply, NewState};
 
 %% @doc
 %% We handle the ack, nack, etc... - messages with these functions
@@ -144,20 +154,21 @@ handle_info(#'basic.nack'{delivery_tag = _DTag, multiple = _Multiple}, State=#st
    {noreply, State};
 
 handle_info(#'channel.flow'{}, State) ->
-   lager:warning("Rabbit blocked channel: ~p",[State#state.channel]),
+   lager:warning("AMQP channel in flow control: ~p",[State#state.channel]),
    {noreply, State};
 
 handle_info(#'channel.flow_ok'{}, State) ->
-   lager:info("Rabbit unblocked channel: ~p",[State#state.channel]),
+   lager:info("AMQP channel released flow control: ~p",[State#state.channel]),
    {noreply, State};
 
 handle_info(#'connection.blocked'{}, State) ->
    lager:warning("Rabbit blocked Connection: ~p",[State#state.connection]),
    {noreply, State#state{available = false}};
 
-handle_info(#'connection.unblocked'{}, State) ->
+handle_info(#'connection.unblocked'{}, State = #state{deq_timer_ref = T}) ->
    lager:warning("Rabbit unblocked Connection: ~p",[State#state.connection]),
-   {noreply, State#state{available = true}};
+   catch (erlang:cancel_timer(T)),
+   {noreply, maybe_start_deq_timer(State#state{available = true})};
 
 handle_info(report_pendinglist_length, #state{pending_acks = P} = State) ->
    lager:notice("Bunny-Worker PendingList-length: ~p", [{self(), length(P)}]),
@@ -217,21 +228,25 @@ code_change(_OldVsn, State, _Extra) ->
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %%% Private API.
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-next(#state{queue = Q} = State) ->
+next(#state{queue = Q, adaptive_interval = AdaptInt} = State) ->
    NewState =
       case esq:deq(Q) of
          [] ->
-%%            lager:info("~p esq:deq miss (~p)",[self(), erlang:process_info(self(), message_queue_len)]),
-            State;
+            {NewIntervalM, NewAdaptIntM} = adaptive_interval:in(miss, AdaptInt),
+%%            lager:notice("q miss, new int: ~p", [lager:pr(NewAdaptIntM, adaptive_interval)]),
+            State#state{adaptive_interval = NewAdaptIntM, deq_interval = NewIntervalM};
          [#{payload := Payload, receipt := Receipt}] ->
-%%            lager:notice("esq:deq hit !"),
-            deliver(Payload, Receipt, State)
+            {NewIntervalH, NewAdaptIntH} = adaptive_interval:in(hit, AdaptInt),
+%%            lager:notice("q hit, new int: ~p", [lager:pr(NewAdaptIntH, adaptive_interval)]),
+            deliver(Payload, Receipt, State#state{deq_interval = NewIntervalH, adaptive_interval = NewAdaptIntH})
       end,
-   start_deq_timer(NewState).
+   maybe_start_deq_timer(NewState).
 
-deliver({_Exchange, _Key, _Payload, _Args}, _QReceipt, State = #state{available = false}) ->
-   lager:warning("channel is not available"),
+deliver({_Exchange, _Key, _Payload, _Args}, _QReceipt, State = #state{available = false, mem_q = undefined}) ->
    State;
+deliver({_Exchange, _Key, _Payload, _Args} = M, _QReceipt, State = #state{available = false, mem_q = Q}) ->
+   NewQ = memory_queue:enq(M, Q),
+   State#state{mem_q = NewQ};
 deliver({Exchange, Key, Payload, Args}, QReceipt, State = #state{channel = Channel, delivery_mode = DeliveryMode}) ->
 %%   lager:notice("Channel is: ~p",[Channel]),
    NextSeqNo = amqp_channel:next_publish_seqno(Channel),
@@ -243,16 +258,31 @@ deliver({Exchange, Key, Payload, Args}, QReceipt, State = #state{channel = Chann
    NewState =
       case amqp_channel:call(Channel, Publish, Message) of
          ok ->
-            PenList = maps:put(NextSeqNo, QReceipt, State#state.pending_acks),
+            case State#state.safe_mode of
+               true ->
+                  PenList = maps:put(NextSeqNo, QReceipt, State#state.pending_acks),
 %%            lager:info("put pending tag: ~p", [NextSeqNo]),
-            State#state{pending_acks = PenList};
+                  State#state{pending_acks = PenList};
+               false -> State
+            end;
          Error ->
-            lager:error("error when calling channel : ~p", [Error]),
+            lager:warning("error when calling channel : ~p", [Error]),
             State
       end,
    NewState.
 
-start_deq_timer(State = #state{deq_interval = Interval}) ->
+maybe_redeliver(S = #state{mem_q = Q, queue = undefined}) ->
+   {Items, NewQ} = memory_queue:to_list_reset(Q),
+   F = fun(Item, StateAcc) ->
+      deliver(Item, 0, StateAcc)
+      end,
+   lists:foldl(F, S#state{mem_q = NewQ}, Items);
+maybe_redeliver(S = #state{mem_q = undefined}) ->
+   S.
+
+maybe_start_deq_timer(State = #state{queue = undefined}) ->
+   State;
+maybe_start_deq_timer(State = #state{deq_interval = Interval}) ->
    TRef = erlang:send_after(Interval, self(), deq),
    State#state{deq_timer_ref = TRef}.
 
@@ -268,8 +298,9 @@ start_connection(State = #state{config = Config, reconnector = Recon}) ->
          Channel = new_channel(Connection),
          case Channel of
             {ok, Chan} ->
-               State#state{connection = Conn, channel = Chan, available = true,
-                  reconnector = faxe_backoff:reset(Recon)};
+               NState = State#state{connection = Conn, channel = Chan, available = true,
+                  reconnector = faxe_backoff:reset(Recon)},
+               NState;
             Er ->
                lager:warning("Error starting channel: ~p",[Er]),
                {ok, Reconnector} = faxe_backoff:execute(Recon, connect),

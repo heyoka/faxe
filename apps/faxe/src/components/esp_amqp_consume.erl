@@ -3,7 +3,7 @@
 %%% @copyright (C) 2019, <COMPANY>
 %%% @doc
 %%% Consume data from an amqp-broker like rabbitmq.
-%%%
+%%% If safe is true -> use internal ondisc queue, otherwise just emit to downstream nodes
 %%%
 %%% @end
 %%% Created : 27. May 2019 09:00
@@ -56,7 +56,8 @@
    debug_mode = false,
    include_topic = true,
    topic_key,
-   as
+   as,
+   safe_mode = true
 }).
 
 options() -> [
@@ -73,7 +74,8 @@ options() -> [
    {prefetch, integer, 10},
    {ack_every, integer, 5},
    {ack_after, duration, <<"5s">>},
-   {use_flow_ack, bool, false},
+%%   {use_flow_ack, bool, false},
+   {safe, boolean, true},
    {dt_field, string, <<"ts">>},
    {dt_format, string, ?TF_TS_MILLI},
    {include_topic, bool, true},
@@ -95,8 +97,11 @@ init({_GraphId, _NodeId} = Idx, _Ins,
    #{ host := Host0, port := Port, user := _User, pass := _Pass, vhost := _VHost, queue := _Q,
       exchange := _Ex, prefetch := Prefetch, routing_key := _RoutingKey, bindings := _Bindings,
       dt_field := DTField, dt_format := DTFormat, ssl := _UseSSL, include_topic := IncludeTopic,
-      topic_as := TopicKey, ack_every := AckEvery0, ack_after := AckTimeout0, as := As,
-      use_flow_ack := FlowAck} = Opts0) ->
+      topic_as := TopicKey, ack_every := AckEvery0, ack_after := AckTimeout0, as := As
+      ,
+%%      use_flow_ack := FlowAck,
+   safe := Safe
+   } = Opts0) ->
 
    process_flag(trap_exit, true),
    AckTimeout = faxe_time:duration_to_ms(AckTimeout0),
@@ -105,16 +110,17 @@ init({_GraphId, _NodeId} = Idx, _Ins,
    State = #state{
       include_topic = IncludeTopic, topic_key = TopicKey, as = As,
       opts = Opts, prefetch = Prefetch, ack_every = AckEvery0, ack_after = AckTimeout,
-      dt_field = DTField, dt_format = DTFormat, flow_ack = FlowAck, flownodeid = Idx},
+      dt_field = DTField, dt_format = DTFormat, safe_mode = Safe, flownodeid = Idx},
 
    NewState = maybe_init_q(State),
 
    connection_registry:reg(Idx, Host, Port, <<"amqp">>),
    {ok, start_consumer(NewState)}.
 
-maybe_init_q(State = #state{flow_ack = true}) ->
+maybe_init_q(State = #state{safe_mode = false}) ->
    State;
 maybe_init_q(State = #state{flownodeid = Idx}) ->
+   lager:warning("start esq ..."),
    QFile = faxe_config:q_file(Idx),
    QConf = proplists:delete(ttf, faxe_config:get_esq_opts()),
    {ok, Q} = esq:new(QFile, QConf),
@@ -162,19 +168,22 @@ handle_ack(Mode, DTag, State=#state{consumer = Consumer}) ->
    carrot:Func(Consumer, DTag),
    {ok, State}.
 
-shutdown(#state{consumer = C, last_dtag = DTag}) ->
+shutdown(#state{consumer = C, last_dtag = DTag, emitter = Emitter}) ->
    case DTag of
       undefined -> ok;
       _ -> carrot:ack_multiple(C, DTag)
    end,
-   catch (rmq_consumer:stop(C)).
+   catch (rmq_consumer:stop(C)),
+   catch (gen_server:stop(Emitter)).
 
-enq_or_emit(Item, _DTag, State = #state{flow_ack = true}) ->
-   {emit, Item, State};
-enq_or_emit(Item, DTag, State = #state{queue = Q, collected = NumCollected}) ->
+enq_or_emit(Item, DTag, State = #state{safe_mode = false}) ->
+   {emit, Item, maybe_ack(DTag, State)};
+enq_or_emit(Item, DTag, State = #state{queue = Q}) ->
    ok = esq:enq(Item, Q),
-   NewState = maybe_ack(State#state{collected = NumCollected+1, last_dtag = DTag}),
-   {ok, NewState}.
+   {ok, maybe_ack(DTag, State)}.
+
+maybe_ack(NewDTag, State = #state{collected = NumCollected}) ->
+   maybe_ack(State#state{collected = NumCollected+1, last_dtag = NewDTag}).
 
 maybe_ack(State = #state{flow_ack = true}) ->
    State;
@@ -188,7 +197,7 @@ maybe_ack(State) ->
    State.
 
 do_ack(State = #state{last_dtag = DTag, consumer = From, ack_timer = Timer, collected = _Num}) ->
-   lager:info("ack_multiple to ~p",[DTag]),
+%%   lager:info("ack_multiple to ~p",[DTag]),
    catch erlang:cancel_timer(Timer),
    carrot:ack_multiple(From, DTag),
    State#state{collected = 0, last_dtag = undefined, ack_timer = undefined}.

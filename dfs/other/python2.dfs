@@ -1,13 +1,18 @@
-
-def s =
-    |value_emitter()
-    .every(3s)
+|value_emitter()
+    .every(200ms)
     .type(point)
 
-    |default()
+|default()
     .fields('id', 'df', 'vs')
     .field_values('oi23u4oi23u4oi32u34oi2u3', '02.005', 1)
 
-    @double()
+@double()
     .field('val')
     .as('double_val')
+
+|batch(5)
+
+@callback()
+
+|debug()
+

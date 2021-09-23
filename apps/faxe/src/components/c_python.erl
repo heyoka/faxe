@@ -88,15 +88,14 @@ process(_Inp, #data_batch{points = Points} = Batch, State = #state{callback_modu
    NewPoints = [data_map(P) || P <- Points],
    Data = flowdata:to_mapstruct(Batch#data_batch{points = NewPoints}),
 %%   lager:warning("data: ~p",[Data]),
-   {_T, NewObj} =
-      timer:tc(pythra, method, [Python, Obj, ?PYTHON_BATCH_CALL, [Data]]),
+   NewObj = pythra:method(Python, Obj, ?PYTHON_BATCH_CALL, [Data]),
 %%   lager:info("~p emitting: ~p after: ~p",[Mod, NewObj, T]),
    {ok, State#state{cb_object = NewObj}}
 ;
 process(_Inp, #data_point{} = Point, State = #state{python_instance = Python, cb_object = Obj}) ->
 
    Data = flowdata:to_mapstruct(data_map(Point)),
-%%   lager:warning("Data: ~p" ,[Data]),
+%%   lager:warning("Data TO PYTHON: ~p" ,[Data]),
 %%   {_, _, Ob} =
 %%   case catch pythra:method(Python, Obj, ?PYTHON_POINT_CALL, [Data]) of
 %%      Bin when is_binary(Bin) -> {ok, State#state{cb_object = Bin}};
@@ -118,18 +117,17 @@ handle_info({emit_data, Data0}, State) when is_map(Data0) ->
    Point = flowdata:point_from_json_map(Data0),
    {emit, {1, maybe_rename(Point, State)}, State};
 handle_info({emit_data, Data}, State) when is_list(Data) ->
-   lager:notice("got batch data from python: ~p", [Data]),
    Points = [flowdata:point_from_json_map(D) || D <- Data],
    Batch = #data_batch{points = Points},
-   lager:info("emit batch: ~p",[Batch]),
    {emit, {1, maybe_rename(Batch, State)}, State};
 handle_info({emit_data, {"Map", Data}}, State) when is_list(Data) ->
-   lager:notice("got point data from python: ~p", [Data]),
+%%   lager:notice("got point data from python: ~p", [Data]),
    {emit, {1, Data}, State};
 handle_info({python_error, Error}, State) ->
    lager:error("error from python: ~p", [Error]),
    {ok, State};
 handle_info(_Request, State) ->
+   lager:notice("got from python: ~p", [_Request]),
    {ok, State}.
 
 shutdown(#state{python_instance = Python}) ->
