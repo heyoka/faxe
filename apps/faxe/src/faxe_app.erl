@@ -77,6 +77,3 @@ print_started(HttpPort) ->
 %%====================================================================
 %% Internal functions
 %%====================================================================
-
-set_balena_device_tag(Key, Val) ->
-   os:cmd("cd etc && sh set_balena_device_tag.sh " ++ Key ++ " " ++ Val).
