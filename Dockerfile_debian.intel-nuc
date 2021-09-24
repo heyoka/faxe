@@ -101,6 +101,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends gcc g++ make gi
     && apt-get purge -y --auto-remove gcc g++ make git-all \
     && rm -rf /var/lib/apt/lists/*
 
+RUN ls -l ; ls -l scripts/*; [ -d scripts ] && mv scripts/* _build/balena/rel/faxe
 
 ### Build stage 2
 FROM debian
