@@ -12,7 +12,7 @@
 -export([
    init/2, allowed_methods/2, config_json/2, content_types_provided/2,
    is_authorized/2, content_types_accepted/2, from_validate_dfs/2,
-   malformed_request/2, from_set_loglevel/2, loglevels_json/2]).
+   malformed_request/2, from_set_loglevel/2, loglevels_json/2, config_all_json/2]).
 
 %%
 %% Additional callbacks
@@ -49,6 +49,10 @@ content_types_provided(Req, State = #state{mode = config}) ->
     {[
        {{<<"application">>, <<"json">>, []}, config_json}
     ], Req, State};
+content_types_provided(Req, State = #state{mode = config_all}) ->
+   {[
+      {{<<"text">>, <<"plain">>, []}, config_all_json}
+   ], Req, State};
 content_types_provided(Req = #{method := <<"GET">>}, State = #state{mode = loglevels}) ->
    {[
       {{<<"application">>, <<"json">>, []}, loglevels_json}
@@ -129,6 +133,14 @@ config_json(Req, State=#state{mode = config}) ->
    Out = #{<<"debug">> => Debug, <<"log">> => Logs, <<"metrics">> => Metrics,
       <<"conn_status">> => ConnStatus, <<"debug_time_ms">> => DebugTime},
    {jiffy:encode(Out, [uescape]), Req, State}.
+
+config_all_json(Req, State) ->
+   ConfigAll = application:get_all_env(faxe),
+   CString = io_lib:format("~p", [ConfigAll]),
+%%   Req2 = cowboy_req:set_resp_body(ConfigAll, Req),
+%%   Req3 = cowboy_req:set_resp_header(<<"content-type">>)
+%%   {true, Req2, State}.
+   {CString, Req, State}.
 
 opts_mqtt(Key, TopicKey) ->
    Debug0 = get_config_mqtt_handler(Key),
