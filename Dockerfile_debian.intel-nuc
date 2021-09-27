@@ -115,5 +115,5 @@ RUN rm -rf /buildroot
 ## http api
 EXPOSE 80
 
-ENTRYPOINT ["/faxe/bin/faxe"]
-CMD ["foreground"]
+ENTRYPOINT ["/faxe/bin/faxe", "foreground"]
+#CMD ["foreground"]
