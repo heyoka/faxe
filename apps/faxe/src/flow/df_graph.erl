@@ -220,9 +220,9 @@ handle_call({start, Modes}, _From, State) ->
 handle_call({stop}, _From, State) ->
    do_stop(State),
    {stop, normal, State};
-handle_call({stats}, _From, State=#state{nodes = Nodes}) ->
-   Res = [{NodeId, gen_server:call(NPid, stats)} || {NodeId, NPid} <- Nodes],
-   {reply, Res, State};
+%%handle_call({stats}, _From, State=#state{nodes = Nodes}) ->
+%%   Res = [{NodeId, gen_server:call(NPid, stats)} || {NodeId, NPid} <- Nodes],
+%%   {reply, Res, State};
 handle_call({ping}, _From, State = #state{timeout_ref = TRef, start_mode = #task_modes{temp_ttl = TTL}}) ->
    erlang:cancel_timer(TRef),
    NewTimer = erlang:send_after(TTL, self(), timeout),
@@ -236,12 +236,12 @@ handle_cast(_Request, State) ->
 handle_info({start_trace, Duration}, State = #state{nodes = Nodes, id = Id, debug_timeout_ref = TRef}) ->
    catch erlang:cancel_timer(TRef),
    lager_emit_backend:start_trace(Id),
-   [Pid ! start_debug || {_, _, Pid} <- Nodes],
+   [Pid ! start_debug || #node{pid = Pid} <- Nodes],
    TRefNew = erlang:send_after(Duration, self(), stop_trace),
    {noreply, State#state{debug_timeout_ref = TRefNew}};
 handle_info(stop_trace, State = #state{nodes = Nodes, id = Id}) ->
    lager_emit_backend:stop_trace(Id),
-   [Pid ! stop_debug || {_, _, Pid} <- Nodes],
+   [Pid ! stop_debug || #node{pid = Pid} <- Nodes],
    {noreply, State};
 handle_info({start_metrics_trace, Duration}, State = #state{id = Id, metrics_timeout_ref = TRef}) ->
    catch erlang:cancel_timer(TRef),
@@ -291,7 +291,7 @@ do_stop(#state{running = Running, nodes = Nodes, id = Id}) ->
       true ->
          %% destroy all metrics (NOT)
 %%         lists:foreach(fun({NodeId, Comp, _NPid}) -> node_metrics:destroy(Id, NodeId, Comp) end, Nodes),
-         lists:foreach(fun({_NodeId, _Comp, NPid}) -> NPid ! stop end, Nodes);
+         lists:foreach(fun(#node{pid = NPid}) -> NPid ! stop end, Nodes);
       false -> ok
    end,
    timer:sleep(1000).
@@ -356,9 +356,9 @@ build_nodes(NodeIds, Graph, Id) ->
          #{component := Component, inports := Inports, outports := OutPorts, metadata := Metadata}
             = Label,
          {ok, Pid} = df_component:start_link(Component, Id, NodeId, Inports, OutPorts, Metadata),
-         {NodeId, Component, Pid}
+         #{'_name' := Name} = Metadata,
+         #node{pid = Pid, component = Component, id = NodeId, name = Name}
       end, lists:reverse(NodeIds)),
-%%   lager:info("graph nodes: ~p",[Nodes]),
    Nodes.
 
 -spec build_subscriptions(list({binary(), atom(), pid()}), digraph:graph(), pull|push) ->
@@ -366,7 +366,7 @@ build_nodes(NodeIds, Graph, Id) ->
 build_subscriptions(Nodes, Graph, RunMode) ->
    Subscriptions =
       lists:foldl(
-         fun({NId, _C, _Pid}, Acc) ->
+         fun(#node{id = NId}, Acc) ->
             [{NId, build_node_subscriptions(Graph, NId, Nodes, RunMode)}|Acc]
          end, [], Nodes),
    Subscriptions.
@@ -408,7 +408,7 @@ build_node_subscriptions(Graph, Node, Nodes, FlowMode) ->
 start_async(Nodes, Subscriptions, RunMode, Id) ->
    %% start the nodes with subscriptions
    lists:foreach(
-      fun({NodeId, Comp, NPid}) ->
+      fun(#node{id = NodeId, component = Comp, pid = NPid}) ->
          {Inputs, Subs} = proplists:get_value(NodeId, Subscriptions),
          df_subscription:save_subscriptions({Id, NodeId}, Subs),
          node_metrics:setup(Id, NodeId, Comp),
@@ -591,18 +591,18 @@ register_nodes(Nodes) when is_list(Nodes) ->
    graph_node_registry:register_graph_nodes(self(), get_node_pids(Nodes)).
 
 maybe_initial_pull(push, _Nodes) -> ok;
-maybe_initial_pull(pull, Nodes) -> lists:foreach(fun({_NodeId, _C, NPid}) -> NPid ! pull end, Nodes).
+maybe_initial_pull(pull, Nodes) -> lists:foreach(fun(#node{pid = NPid}) -> NPid ! pull end, Nodes).
 
 -spec get_node_pid(binary(), list(tuple())) -> pid()|false.
 get_node_pid(NodeId, Nodes) when is_list(Nodes) ->
-   {_, _, NodePid} = lists:keyfind(NodeId, 1, Nodes),
+   #node{pid = NodePid} = lists:keyfind(NodeId, #node.id, Nodes),
    NodePid.
 -spec get_node_pids(list(tuple())) -> list(pid()).
 get_node_pids(Nodes) when is_list(Nodes) ->
-   [NPid || {_NodeId, _Comp, NPid} <- Nodes].
+   [NPid || #node{pid = NPid} <- Nodes].
 
 get_node_component(NodeId, Nodes) when is_list(Nodes) ->
-   {_, Component, _} = lists:keyfind(NodeId, 1, Nodes),
+   #node{component = Component} = lists:keyfind(NodeId, #node.id, Nodes),
    Component.
 
 

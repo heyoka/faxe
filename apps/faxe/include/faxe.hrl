@@ -24,6 +24,13 @@
   current
 }).
 
+-record(node, {
+  id :: binary(),
+  pid :: undefined | pid(),
+  component :: atom(),
+  name :: binary()
+}).
+
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %%
 %% db records

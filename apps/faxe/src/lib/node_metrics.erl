@@ -101,7 +101,7 @@ metric(FlowNodeId, Name, Value) when is_binary(FlowNodeId), is_binary(Name) ->
   folsom_metrics:notify({<<FlowNodeId/binary, Name/binary>>, Value}).
 
 %%% @doc get process_info metrics and send them to the metrics backend
-process_metrics(FlowId, {NId, _C, NPid}) ->
+process_metrics(FlowId, #node{id = NId, pid = NPid}) ->
   {message_queue_len, MsgQueueLength} = erlang:process_info(NPid, message_queue_len),
   {memory, MemUsage} = erlang:process_info(NPid, memory),
 

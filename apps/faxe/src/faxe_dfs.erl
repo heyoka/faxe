@@ -121,7 +121,7 @@ eval({Nodes, Connections}) ->
             CompOptions = eval_options(CompOptions0, []),
 %%            lager:info("~nafter eval_options: ~p",[CompOptions]),
             %% convert and assimilate options
-            {NName, _Id} = N,
+            {NName, _} = N,
             NOptions = convert_options(NName, CompOptions, lists:flatten(Options ++ ParamOptions)),
 %%            lager:warning("here after convert_options"),
             NodeOptions = NOptions ++ NOpts,
@@ -157,9 +157,9 @@ eval({Nodes, Connections}) ->
    ).
 
 %% connect Successor to Predecessor, ignoring custom python nodes
-check_connection({<<"@", _/binary>> = P, _}, _) ->
+check_connection({<<"@", _/binary>> = _P, _}, _) ->
    ok;
-check_connection(_, {<<"@", _/binary>> = P, _}) ->
+check_connection(_, {<<"@", _/binary>> = _P, _}) ->
    ok;
 check_connection({PredName, _}, {SuccName, _}) ->
    P = node_name(PredName), S = node_name(SuccName),

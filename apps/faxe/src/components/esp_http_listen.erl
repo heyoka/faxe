@@ -87,7 +87,7 @@ process(_In, #data_batch{}, State = #state{}) ->
 handle_info({http_data, Data, Body_Length}, State = #state{payload_type = PType}) when is_binary(Data) ->
    Content = case PType of ?P_TYPE_JSON -> jiffy:decode(Data, [return_maps]); _ -> Data end,
    emit(Content, Body_Length, State);
-handle_info({http_data, Data, Body_Length}, State = #state{as = As, payload_type = PType}) when is_list(Data) ->
+handle_info({http_data, Data, Body_Length}, State = #state{payload_type = PType}) when is_list(Data) ->
    Fields0 = maps:from_list(Data),
    Fields1 =
    case PType of

@@ -3,6 +3,8 @@
 -module(graph_builder).
 -author("Alexander Minichmair").
 
+-include("faxe.hrl").
+
 %% API
 -export([new/0, add_node/3, add_node/4, add_edge/5, add_edge/6, to_graph_def/2]).
 
@@ -33,8 +35,13 @@ to_graph_def(Graph, NodeList) ->
       {Index+1, Out++FlatSub}
        end,
    {_Idx, Groups} = lists:foldl(F, {1, []}, Components),
-   CFun = fun({NName, NType, _}) ->
-      #{<<"name">> => NName, <<"type">> => NType, <<"group">> => proplists:get_value(NName, Groups, 1)}
+   CFun = fun
+             (#node{id = NName, component = NType, name = DisplayName}) ->
+                #{<<"name">> => NName, <<"display_name">> => DisplayName, <<"type">> => NType,
+                   <<"group">> => proplists:get_value(NName, Groups, 1)};
+             ({NodName, NodType, #{'_name' := DisName}}) ->
+                #{<<"name">> => NodName, <<"display_name">> => DisName, <<"type">> => NodType,
+                   <<"group">> => proplists:get_value(NodName, Groups, 1)}
           end,
    NodesOut = lists:map(CFun, NodeList),
    Edges = [

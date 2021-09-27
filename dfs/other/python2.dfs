@@ -1,6 +1,7 @@
 |value_emitter()
     .every(200ms)
     .type(point)
+    ._name('emitter')
 
 |default()
     .fields('id', 'df', 'vs')
@@ -9,10 +10,12 @@
 @double()
     .field('val')
     .as('double_val')
+    ._name('python_double')
 
 |batch(5)
 
 @callback()
+._name('python_passthrough')
 
 |debug()
 

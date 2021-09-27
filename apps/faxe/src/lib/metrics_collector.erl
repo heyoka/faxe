@@ -118,7 +118,7 @@ metrics([], Acc) ->
   Acc;
 metrics([{FlowId, Nodes}| R] = _L, Acc) ->
 %%  lager:notice("metrics_names: ~p, ~p",[L,  Acc]),
-  F = fun({NId, Comp, _Pid}) ->
+  F = fun(#node{id = NId, component = Comp}) ->
     AllNodeMetrics = node_metrics:node_metrics(Comp),
 %%    lager:info("AllNodeMetrics for ~p :: ~n",[Comp]),
 %%    [lager:info("~p",[metric(M)]) || M <- AllNodeMetrics],

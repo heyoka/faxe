@@ -2,7 +2,7 @@
 %% Ⓒ 2017 heyoka
 %% @doc window which refers it's timing to the timestamp contained in the incoming data-items
 %% rewrite with queue module instead of lists
-%% @todo setup timeout where points get evicted even though there are timestamps missing ? yes!
+%% @todo setup timeout where points get evicted even though there are timestamps missing ?
 %%
 -module(esp_win_time).
 -author("Alexander Minichmair").
@@ -26,7 +26,11 @@
 }).
 
 options() ->
-   [{period, duration, undefined}, {every, duration}, {fill_period, is_set}].
+   [
+      {period, duration, undefined},
+      {every, duration},
+      {fill_period, is_set}
+   ].
 
 wants() -> point.
 emits() -> batch.

@@ -1,0 +1,8 @@
+|value_emitter()
+.every(500ms)
+.jitter(4600ms)
+
+|win_session()
+.session_timeout(4500ms)
+
+|debug('info')
