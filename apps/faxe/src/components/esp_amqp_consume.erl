@@ -57,7 +57,8 @@
    include_topic = true,
    topic_key,
    as,
-   safe_mode = true
+   safe_mode = false,
+   confirm = true
 }).
 
 options() -> [
@@ -71,16 +72,17 @@ options() -> [
    {bindings, string_list, []},
    {queue, string},
    {exchange, string},
-   {prefetch, integer, 10},
-   {ack_every, integer, 5},
+   {prefetch, integer, 70},
+   {ack_every, integer, 10},
    {ack_after, duration, <<"5s">>},
 %%   {use_flow_ack, bool, false},
-   {safe, boolean, true},
+   {safe, boolean, false},
    {dt_field, string, <<"ts">>},
    {dt_format, string, ?TF_TS_MILLI},
    {include_topic, bool, true},
    {topic_as, string, <<"topic">>},
-   {as, string, undefined}
+   {as, string, undefined},
+   {confirm, boolean, true}
 ].
 
 check_options() ->
@@ -100,7 +102,7 @@ init({_GraphId, _NodeId} = Idx, _Ins,
       topic_as := TopicKey, ack_every := AckEvery0, ack_after := AckTimeout0, as := As
       ,
 %%      use_flow_ack := FlowAck,
-   safe := Safe
+   safe := Safe, confirm := Confirm
    } = Opts0) ->
 
    process_flag(trap_exit, true),
@@ -110,7 +112,7 @@ init({_GraphId, _NodeId} = Idx, _Ins,
    State = #state{
       include_topic = IncludeTopic, topic_key = TopicKey, as = As,
       opts = Opts, prefetch = Prefetch, ack_every = AckEvery0, ack_after = AckTimeout,
-      dt_field = DTField, dt_format = DTFormat, safe_mode = Safe, flownodeid = Idx},
+      dt_field = DTField, dt_format = DTFormat, safe_mode = Safe, flownodeid = Idx, confirm = Confirm},
 
    NewState = maybe_init_q(State),
 
@@ -120,7 +122,6 @@ init({_GraphId, _NodeId} = Idx, _Ins,
 maybe_init_q(State = #state{safe_mode = false}) ->
    State;
 maybe_init_q(State = #state{flownodeid = Idx}) ->
-   lager:warning("start esq ..."),
    QFile = faxe_config:q_file(Idx),
    QConf = proplists:delete(ttf, faxe_config:get_esq_opts()),
    {ok, Q} = esq:new(QFile, QConf),
@@ -182,6 +183,8 @@ enq_or_emit(Item, DTag, State = #state{queue = Q}) ->
    ok = esq:enq(Item, Q),
    {ok, maybe_ack(DTag, State)}.
 
+maybe_ack(_NewDTag, State = #state{confirm = false}) ->
+   State;
 maybe_ack(NewDTag, State = #state{collected = NumCollected}) ->
    maybe_ack(State#state{collected = NumCollected+1, last_dtag = NewDTag}).
 
@@ -236,7 +239,7 @@ start_emitter(State = #state{queue = Q}) ->
 
 -spec consumer_config(Opts :: map()) -> list().
 consumer_config(Opts = #{vhost := VHost, queue := Q,
-   prefetch := Prefetch, exchange := XChange, bindings := Bindings, routing_key := RoutingKey}) ->
+   prefetch := Prefetch, exchange := XChange, bindings := Bindings, routing_key := RoutingKey, confirm := Confirm}) ->
    RMQConfig = faxe_config:get(rabbitmq),
    RootExchange = proplists:get_value(root_exchange, RMQConfig, <<"amq.topic">>),
 %%   HostParams = %% connection parameters
@@ -245,6 +248,7 @@ consumer_config(Opts = #{vhost := VHost, queue := Q,
          {workers, 1},  % Number of connections, but not relevant here,
          % because we start the consumer monitored
          {callback, self()},
+         {confirm, Confirm},
          {setup_type, permanent},
          {prefetch_count, Prefetch},
          {vhost, VHost},

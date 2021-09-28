@@ -1,9 +1,9 @@
 %% Date: 26.09.21 - 19:41
 %% Ⓒ 2021 heyoka
 %% @doc
-%% A session window aggregates records into a session, which represents a period of activity separated by a specified gap of inactivity,
-%% or "idleness". Any records with timestamps that occur within the inactivity gap of existing sessions are merged into the existing sessions.
-%% If a record's timestamp occurs outside of the session gap, a new session is created.
+%% A session window aggregates records into a session, which represents a period of activity separated by a specified gap of inactivity.
+%% Any data_points with timestamps that occur within the inactivity gap of existing sessions will be added to this session.
+%% If a data_points's timestamp occurs outside of the session gap, a new session is created.
 %% A new session window starts if the last record that arrived is further back in time than the specified inactivity gap.
 %%
 %% window which refers it's timing to the timestamp contained in the incoming data-items just like the win_time node does

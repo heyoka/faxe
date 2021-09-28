@@ -227,28 +227,28 @@
 %% The queue would not fetch anything from disk into memory buffer if capacity is 0.
 %%
 {mapping, "queue_capacity", "faxe.esq.capacity",
-    [{default, 10}, {datatype, integer}]
+    [{default, 30}, {datatype, integer}]
 }.
 
 %% @doc dequeue interval.
 %% Start interval at which the queue is asked for an element.
 %%
 {mapping, "dequeue_interval", "faxe.esq.deq_interval",
-    [{default, "30ms"}, {datatype, {duration, ms}}]
+    [{default, "15ms"}, {datatype, {duration, ms}}]
 }.
 
 %% @doc dequeue min interval.
 %% Min interval at which the queue is asked for an element.
 %%
 {mapping, "dequeue.min_interval", "faxe.esq.deq_min_interval",
-    [{default, "10ms"}, {datatype, {duration, ms}}]
+    [{default, "3ms"}, {datatype, {duration, ms}}]
 }.
 
 %% @doc dequeue max interval.
 %% Max interval at which the queue is asked for an element.
 %%
 {mapping, "dequeue.max_interval", "faxe.esq.deq_max_interval",
-    [{default, "300ms"}, {datatype, {duration, ms}}]
+    [{default, "200ms"}, {datatype, {duration, ms}}]
 }.
 
 %% @doc interval change step size.

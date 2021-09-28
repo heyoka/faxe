@@ -71,6 +71,7 @@ init([Queue, Config]) ->
    DeliveryMode = case maps:get(persistent, Config, false) of true -> 2; false -> 1 end,
    MemQ = case Queue of undefined -> memory_queue:new(); _ -> undefined end,
    AdaptInt = adaptive_interval:new(),
+%%   lager:info("adaptive interval: ~p",[lager:pr(AdaptInt, adaptive_interval)]),
    {ok, #state{
       reconnector = Reconnector1,
       queue = Queue,
@@ -92,7 +93,7 @@ handle_cast(Msg, State) ->
 handle_info(connect, State) ->
    NewState = start_connection(State),
    case NewState#state.available of
-      true -> lager:notice("channel available again"), NState = maybe_redeliver(NewState), {noreply, maybe_start_deq_timer(NState)};
+      true -> NState = maybe_redeliver(NewState), {noreply, maybe_start_deq_timer(NState)};
       false -> {noreply, NewState}
    end;
 
@@ -108,12 +109,12 @@ handle_info({'EXIT', MQPid, Reason}, State=#state{channel = MQPid, reconnector =
 
 %% dequeue
 handle_info(deq, State = #state{available = false}) ->
-   lager:warning("deq deliver when not available"),
    {noreply, State};
 handle_info(deq, State = #state{available = true}) ->
    {noreply, next(State)};
 
 handle_info({deliver, Exchange, Key, Payload, Args}, State) ->
+%%   lager:notice("deliver: ~p",[Payload]),
    NewState = deliver({Exchange, Key, Payload, Args}, 1, State),
    {noreply, NewState};
 
@@ -263,7 +264,8 @@ deliver({Exchange, Key, Payload, Args}, QReceipt, State = #state{channel = Chann
                   PenList = maps:put(NextSeqNo, QReceipt, State#state.pending_acks),
 %%            lager:info("put pending tag: ~p", [NextSeqNo]),
                   State#state{pending_acks = PenList};
-               false -> State
+               false ->
+                  State
             end;
          Error ->
             lager:warning("error when calling channel : ~p", [Error]),
@@ -289,13 +291,13 @@ maybe_start_deq_timer(State = #state{deq_interval = Interval}) ->
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %%% MQ Connection functions.
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-start_connection(State = #state{config = Config, reconnector = Recon}) ->
+start_connection(State = #state{config = Config, reconnector = Recon, safe_mode = Safe}) ->
 %%   lager:notice("amqp_params: ~p",[lager:pr(Config, ?MODULE)] ),
    Connection = amqp_connection:start(Config),
    NewState =
    case Connection of
       {ok, Conn} ->
-         Channel = new_channel(Connection),
+         Channel = new_channel(Connection, Safe),
          case Channel of
             {ok, Chan} ->
                NState = State#state{connection = Conn, channel = Chan, available = true,
@@ -313,18 +315,19 @@ start_connection(State = #state{config = Config, reconnector = Recon}) ->
    end,
    NewState.
 
-new_channel({ok, Connection}) ->
+new_channel({ok, Connection}, SafeMode) ->
    amqp_connection:register_blocked_handler(Connection, self()),
-   configure_channel(amqp_connection:open_channel(Connection));
+   configure_channel(amqp_connection:open_channel(Connection), SafeMode);
 
-new_channel(Error) ->
+new_channel(Error, _) ->
    lager:warning("Error connecting to broker: ~p",[Error]),
    Error.
 
-configure_channel({ok, Channel}) ->
-   ok = amqp_channel:register_flow_handler(Channel, self()),
-   ok = amqp_channel:register_confirm_handler(Channel, self()),
-   ok = amqp_channel:register_return_handler(Channel, self()),
+configure_channel({ok, Channel}, false) ->
+   preconfig_channel(Channel),
+   {ok, Channel};
+configure_channel({ok, Channel}, true) ->
+   preconfig_channel(Channel),
 
    case amqp_channel:call(Channel, #'confirm.select'{}) of
       {'confirm.select_ok'} ->
@@ -336,5 +339,10 @@ configure_channel({ok, Channel}) ->
          Error
    end;
 
-configure_channel(Error) ->
+configure_channel(Error, _) ->
    Error.
+
+preconfig_channel(Channel) ->
+   ok = amqp_channel:register_flow_handler(Channel, self()),
+   ok = amqp_channel:register_confirm_handler(Channel, self()),
+   ok = amqp_channel:register_return_handler(Channel, self()).
