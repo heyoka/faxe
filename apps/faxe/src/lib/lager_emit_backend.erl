@@ -123,7 +123,6 @@ code_change(_, State, _) ->
 publish(_F, undefined, _, _S) -> ok;
 publish(FlowId, NodeId, Message, #state{publisher = Publisher, topic = T}) ->
    Topic = <<T/binary, "/", FlowId/binary, "/", NodeId/binary>>,
-%%   lager:notice("publish: ~p~n on topic : ~p",[flowdata:to_json(format_data(Message)), Topic]),
    Publisher ! {publish, {Topic, flowdata:to_json(format_data(Message))}}.
 
 
@@ -171,6 +170,9 @@ safe_value(List) when is_list(List) ->
       false ->
          lists:map(fun safe_value/1, List)
    end;
+%% encode {line,char} tuple
+safe_value({V1, V2} = Line) when is_integer(V1) andalso is_integer(V2) ->
+   list_to_binary(lists:flatten(io_lib:format("~p",[Line])));
 safe_value(Val) ->
    Val.
 

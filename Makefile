@@ -22,7 +22,7 @@ dev1:
 	export FAXE_LOG_LOGSTASH_PORT=9125 && \
 	export FAXE_LOG_LOGSTASH_BACKEND_PROTOCOL=udp && \
 	export FAXE_FLOW_AUTO_START=off && \
-	export FAXE_FLOW_AUTO_RELOAD=on && \
+	export FAXE_FLOW_AUTO_RELOAD=off && \
 	export FAXE_ALLOW_ANONYMOUS=true && \
 #	export FAXE_S7POOL_MIN_SIZE=1 && \
 #	export FAXE_CONN_STATUS_HANDLER_MQTT_PORT=9876 && \
@@ -36,7 +36,8 @@ dev1:
 	export FAXE_FLOW_CHANGED_HANDLER_MQTT_ENABLE=off && \
 	export FAXE_FLOW_CHANGED_HANDLER_MQTT_BASE_TOPIC=tgw/sys/faxe/ && \
 #	export FAXE_DEBUG_HANDLER_MQTT_HOST=10.156.15.11 && \
-	export FAXE_DEBUG_HANDLER_MQTT_ENABLE=off && \
+	export FAXE_DEBUG_HANDLER_MQTT_ENABLE=on && \
+	export FAXE_DEBUG_HANDLER_MQTT_BASE_TOPIC=tgw/sys/faxe/ && \
 	export FAXE_HOST=heyoka_local && \
 	export FAXE_S7POOL_ENABLE=on && \
 #	export FAXE_REPORT_DEBUG_MQTT_HOST=10.10.1.102 && \
