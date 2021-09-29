@@ -108,6 +108,8 @@ init(NodeId, _Ins, #{} = Opts) ->
    erlang:send_after(0, self(), connect),
    {ok, all, NewState}.
 
+init_opts([{'_name', _DisplayName}|Opts], State) ->
+   init_opts(Opts, State);
 init_opts([{ip, Ip0}|Opts], State) ->
    init_opts(Opts, State#state{ip = binary_to_list(Ip0)});
 init_opts([{port, Port}|Opts], State) ->

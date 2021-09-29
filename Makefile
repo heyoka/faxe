@@ -1,7 +1,7 @@
 .PHONY: dev1 start dev2 dev3 remsh
 
 dev1:
-	#export FAXE_EXTENSIONS=/home/heyoka/workspace/faxe/ext.config && \
+	export FAXE_EXTENSIONS=/home/heyoka/workspace/faxe/ext.config && \
 	export FAXE_DFS_SCRIPT_PATH=/home/heyoka/workspace/faxe/dfs/ && \
 	export FAXE_PYTHON_SCRIPT_PATH=/home/heyoka/workspace/faxe/python/ && \
 	export FAXE_QUEUE_BASE_DIR=/home/heyoka/esq_data/ && \
@@ -21,7 +21,7 @@ dev1:
 	export FAXE_LOG_LOGSTASH_HOST=10.14.204.17 && \
 	export FAXE_LOG_LOGSTASH_PORT=9125 && \
 	export FAXE_LOG_LOGSTASH_BACKEND_PROTOCOL=udp && \
-	export FAXE_FLOW_AUTO_START=on && \
+	export FAXE_FLOW_AUTO_START=off && \
 	export FAXE_FLOW_AUTO_RELOAD=on && \
 	export FAXE_ALLOW_ANONYMOUS=true && \
 #	export FAXE_S7POOL_MIN_SIZE=1 && \

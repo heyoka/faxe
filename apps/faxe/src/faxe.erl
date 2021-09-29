@@ -59,7 +59,10 @@
    task_to_graph_running/1,
    update_all/1,
    update_by_tags/2,
-   update_by_template/2, start_metrics_trace/2, stop_metrics_trace/1]).
+   update_by_template/2, start_metrics_trace/2, stop_metrics_trace/1,
+   reset_tasks/0,
+   reset_templates/0,
+   stop_all/0]).
 
 start_permanent_tasks() ->
    Tasks = faxe_db:get_permanent_tasks(),
@@ -585,6 +588,10 @@ stop_task_group(TaskGroupName, Permanent) ->
          [do_stop_task(T, Permanent) || T <- TaskList]
    end.
 
+stop_all() ->
+   Tasks = list_running_tasks(),
+   [stop_task(Task) || Task <- Tasks].
+
 do_stop_task(T = #task{pid = Graph, group_leader = _Leader, group = _Group}, Permanent) ->
    case is_task_alive(T) of
       true ->
@@ -657,6 +664,19 @@ delete_template(TaskId) ->
          flow_changed({template, TaskId, delete}),
          Res
    end.
+
+%% @doc stop all tasks running, delete all tasks and tags from the database, keep other data
+reset_tasks() ->
+   stop_all(),
+   {atomic, ok} = faxe_db:reset_tasks(),
+   ok.
+
+%% @doc delete all templates from the database
+reset_templates() ->
+   stop_all(),
+   {atomic, ok} = faxe_db:reset_tasks(),
+   ok.
+
 
 is_task_alive(#task{pid = Graph}) when is_pid(Graph) ->
    is_process_alive(Graph) =:= true;

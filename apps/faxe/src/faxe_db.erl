@@ -26,7 +26,8 @@
    get_permanent_tasks/0,
    get_tasks_by_template/1
    , get_tasks_by_ids/1,
-   get_tasks_by_group/1]).
+   get_tasks_by_group/1,
+   reset_tasks/0]).
 
 -export([
    add_tags/2,
@@ -44,7 +45,7 @@
    delete_user/1,
    save_user/1,
    save_user/2,
-   save_user/3]).
+   save_user/3, reset_templates/0]).
 
 get_all_tasks() ->
    get_all(task).
@@ -143,6 +144,13 @@ delete_template(TId) ->
       T = #template{} -> delete_template(T)
    end
 .
+
+reset_tasks() ->
+   mnesia:clear_table(task),
+   mnesia:clear_table(tag_tasks).
+
+reset_templates() ->
+   mnesia:clear_table(template).
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%% Tags %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %% get a list of all used tags

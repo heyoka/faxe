@@ -19,7 +19,7 @@
   allow_missing_post/2,
   content_types_accepted/2,
   from_import/2,
-  is_authorized/2]).
+  is_authorized/2, reset_json/2]).
 
 
 %%
@@ -28,6 +28,9 @@
 ]).
 
 -record(state, {mode}).
+
+
+-define(REQ_BODY_CONSTRAINTS, #{length => 300000, period => 5000}).
 
 init(Req, [{op, Mode}]) ->
    {cowboy_rest, Req, #state{mode = Mode}}.
@@ -48,6 +51,10 @@ content_types_accepted(Req = #{method := <<"POST">>}, State = #state{mode = impo
   Value = [{{ <<"application">>, <<"x-www-form-urlencoded">>, []}, from_import}],
   {Value, Req, State}.
 
+content_types_provided(Req, State=#state{mode = reset}) ->
+  {[
+    {{<<"application">>, <<"json">>, []}, reset_json}
+  ], Req, State};
 content_types_provided(Req, State) ->
     {[
        {{<<"application">>, <<"json">>, []}, list_json},
@@ -63,8 +70,15 @@ list_json(Req, State=#state{mode = _Mode}) ->
    Maps = [rest_helper:template_to_map(T) || T <- Sorted],
    {jiffy:encode(Maps), Req, State}.
 
+reset_json(Req, State) ->
+  case catch faxe:reset_templates() of
+    ok -> rest_helper:success(Req, State);
+    {error, What} -> rest_helper:error(Req, State, What);
+    _ -> rest_helper:error(Req, State)
+  end.
+
 from_import(Req, State=#state{}) ->
-  {ok, Body, Req1} = cowboy_req:read_urlencoded_body(Req),
+  {ok, Body, Req1} = cowboy_req:read_urlencoded_body(Req, ?REQ_BODY_CONSTRAINTS),
   TemplatesJson = proplists:get_value(<<"templates">>, Body),
   case (catch jiffy:decode(TemplatesJson, [return_maps])) of
     TemplatesList when is_list(TemplatesList) -> do_import(TemplatesList, Req1, State);

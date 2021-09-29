@@ -29,7 +29,7 @@
    allow_missing_post/2,
    content_types_accepted/2,
    from_import/2,
-   is_authorized/2]).
+   is_authorized/2, reset_json/2]).
 
 %%
 %% Additional callbacks
@@ -101,6 +101,10 @@ content_types_provided(Req, State=#state{mode = stop_all}) ->
    {[
       {{<<"application">>, <<"json">>, []}, stop_all_json}
    ], Req, State};
+content_types_provided(Req, State=#state{mode = reset}) ->
+   {[
+      {{<<"application">>, <<"json">>, []}, reset_json}
+   ], Req, State};
 content_types_provided(Req, State) ->
     {[
        {{<<"application">>, <<"json">>, []}, list_json}
@@ -110,11 +114,10 @@ content_types_provided(Req, State) ->
 
 from_import(Req, State=#state{}) ->
    {ok, Body, Req1} = cowboy_req:read_urlencoded_body(Req, ?REQ_BODY_CONSTRAINTS),
-%%   TaskName = proplists:get_value(<<"name">>, Result),
    TasksJson = proplists:get_value(<<"tasks">>, Body),
-%%   lager:notice("import JSON: ~s",[TasksJson]),
    case (catch jiffy:decode(TasksJson, [return_maps])) of
-      TasksList when is_list(TasksList) -> do_import(TasksList, Req1, State);
+      TasksList when is_list(TasksList) ->
+         do_import(TasksList, Req1, State);
       _ -> Req2 = cowboy_req:set_resp_body(
          jiffy:encode(
             #{<<"success">> => false, <<"message">> => <<"Error decoding json, invalid.">>}),
@@ -124,6 +127,7 @@ from_import(Req, State=#state{}) ->
 
 
 do_import(TasksList, Req, State) ->
+   FuseFun = fun({Ok_Res1, Err_Res1}, {Ok_Res2, Err_Res2}) -> {Ok_Res1++Ok_Res2, Err_Res1++Err_Res2} end,
    {Ok, Err} =
       plists:fold(
          fun(TaskMap=#{<<"name">> := TName}, {OkList, ErrList}) ->
@@ -132,6 +136,7 @@ do_import(TasksList, Req, State) ->
                {error, What} -> {OkList, [#{TName => faxe_util:to_bin(What)}|ErrList]}
             end
          end,
+         FuseFun,
          {[],[]},
          TasksList,
       5),
@@ -251,6 +256,13 @@ stop_json(Req, State) ->
 stop_tags_json(Req, State) ->
    Tasks = tasks_by_tags(Req),
    stop_list(Tasks, Req, State).
+
+reset_json(Req, State) ->
+   case catch faxe:reset_tasks() of
+      ok -> rest_helper:success(Req, State);
+      {error, What} -> rest_helper:error(Req, State, What);
+      _ -> rest_helper:error(Req, State)
+   end.
 
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
