@@ -45,7 +45,6 @@ class Faxe:
         classname = clname
         modname = classname.lower()
         module = __import__(modname)
-        print("call info for: classname ", classname, " modname ", modname)
         cls = getattr(module, classname)
         method = getattr(cls, "options")
         outlist = []

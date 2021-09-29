@@ -43,20 +43,17 @@ mqtt_opts(HandlerOpts) ->
   faxe_util:proplists_merge(filter_options(HandlerOpts), faxe_config:get(mqtt, [])).
 
 add_event_handler(<<"conn_status">>, Name, Type, Args) ->
-  lager:notice("add_event_handler: ~p" ,[{<<"conn_status">>, Name, Type, Args}]),
   dataflow:add_conn_status_handler(Name, Type, Args);
 add_event_handler(<<"debug">>, Name, Type, Args) ->
   dataflow:add_trace_handler(Name, Type, Args);
 add_event_handler(<<"metrics">>, Name, Type, Args) ->
   dataflow:add_metrics_handler(Name, Type, Args);
 add_event_handler(<<"flow_changed">>, Name, Type, Args) ->
-  lager:notice("add_event_handler: ~p" ,[{<<"flow_changed">>, Name, Type, Args}]),
   dataflow:add_flowchanged_handler(Name, Type, Args).
 
 
 handler_name(Name, Type) ->
   N = binary_to_atom(<<Name/binary, "_handler_", Type/binary>>, utf8),
-  lager:info("handler_name :~p",[N]),
   N.
 
 filter_options(Proplist) -> faxe_config:filter_empty_options(Proplist).

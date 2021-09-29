@@ -21,7 +21,8 @@ dev1:
 	export FAXE_LOG_LOGSTASH_HOST=10.14.204.17 && \
 	export FAXE_LOG_LOGSTASH_PORT=9125 && \
 	export FAXE_LOG_LOGSTASH_BACKEND_PROTOCOL=udp && \
-#	export FAXE_FLOW_AUTO_START=off && \
+	export FAXE_FLOW_AUTO_START=on && \
+	export FAXE_FLOW_AUTO_RELOAD=on && \
 	export FAXE_ALLOW_ANONYMOUS=true && \
 #	export FAXE_S7POOL_MIN_SIZE=1 && \
 #	export FAXE_CONN_STATUS_HANDLER_MQTT_PORT=9876 && \

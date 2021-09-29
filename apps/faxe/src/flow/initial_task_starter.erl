@@ -55,12 +55,8 @@ start_link() ->
    {ok, State :: #state{}} | {ok, State :: #state{}, timeout() | hibernate} |
    {stop, Reason :: term()} | ignore).
 init([]) ->
-   case faxe_config:get(auto_start_permanent, false) of
-      true ->
-         lager:info("starting tasks marked 'permanent' ... "),
-         erlang:send_after(?START_DELAY_MS, self(), start_tasks);
-      false -> ok
-   end,
+   lager:notice("init reloader and starter ..."),
+   erlang:send_after(?START_DELAY_MS, self(), reload_tasks),
    {ok, #state{}}.
 
 %%--------------------------------------------------------------------
@@ -109,8 +105,21 @@ handle_cast(_Request, State) ->
    {noreply, NewState :: #state{}} |
    {noreply, NewState :: #state{}, timeout() | hibernate} |
    {stop, Reason :: term(), NewState :: #state{}}).
-handle_info(start_tasks, State) ->
+handle_info(reload_tasks, State) ->
    mnesia:wait_for_tables(task, 3000),
+   case faxe_config:get(auto_reload, false) of
+      true ->
+         lager:notice("reloading all tasks ... "),
+         faxe:update_all(true);
+      false -> ok
+   end,
+   case faxe_config:get(auto_start_permanent, false) of
+      true ->
+         erlang:send_after(0, self(), start_tasks);
+      false -> ok
+   end,
+   {noreply, State};
+handle_info(start_tasks, State) ->
    lager:notice("starting permanent tasks ... "),
    faxe:start_permanent_tasks(),
    {noreply, State};

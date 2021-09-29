@@ -112,6 +112,15 @@
 }.
 
 %% @doc --------------------------------------------------------------
+%% AUTO RELOAD faxe flows (tasks)
+%%--------------------------------------------------------------
+
+%% whether to reload all tasks automatically on node startup
+{mapping, "flow_auto_reload", "faxe.auto_reload",
+    [{default, false}, {datatype, flag}, {commented, false}]
+}.
+
+%% @doc --------------------------------------------------------------
 %% DFS
 %%--------------------------------------------------------------
 

@@ -291,7 +291,7 @@ update_by_template(TemplateId, Force) ->
 
 update_list(TaskList, Force) when is_list(TaskList) ->
    F = fun(#task{id = Id, dfs = DfsScript}) -> update_task(DfsScript, Id, Force, data) end,
-   plists:map(F, TaskList, 5).
+   plists:map(F, TaskList, 3).
 
 
 -spec update_file_task(list(), integer()|binary()) -> ok|{error, term()}.
