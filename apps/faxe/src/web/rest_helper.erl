@@ -27,14 +27,17 @@ is_authorized(Req) ->
             false -> lager:notice("user: ~p with pw: ~p is not authorized", [User, Pass]), false
          end;
       {bearer, Token} ->
-         lager:notice("out bearer Token: ~p", [Token]),
          JWTConf = faxe_config:get_sub(http_api, jwt),
          lager:info("jwt config: ~p",[JWTConf]),
          KeyFile = proplists:get_value(public_key_file, JWTConf),
-         {ok, PublcPem} = file:read_file(KeyFile),
-         {ok, #{<<"preferred_username">> := User} = JwtMap} = jwt:decode(Token, PublcPem),
-         lager:notice("decoded: ~p", [JwtMap]),
-         {true, User};
+         case (catch file:read_file(KeyFile)) of
+            {ok, PublcPem} ->  {ok, #{<<"preferred_username">> := User} = JwtMap} = jwt:decode(Token, PublcPem),
+                                 lager:notice("decoded: ~p", [JwtMap]),
+                                 {true, User};
+            _ ->
+               lager:error("could not read JWT public key file at : ~p", [KeyFile]),
+               false
+         end;
       _ ->
          case faxe_config:get(allow_anonymous, false) of
             true ->
