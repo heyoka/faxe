@@ -57,7 +57,7 @@ process(_In, #data_batch{points = Points} = Batch,
    NewState = State#state{values = LastValues, reset_timer = reset_timeout(Time)},
    case NewPoints of
       [] -> {ok, NewState};
-      Es when is_list(Es) -> {emit, Batch#data_batch{points = NewPoints}}
+      Es when is_list(Es) -> {emit, Batch#data_batch{points = NewPoints}, NewState}
    end;
 process(_Inport, #data_point{} = Point,
     State = #state{fields = Fields, values = LastValues, reset_timer = TRef, reset_timeout = Time}) ->

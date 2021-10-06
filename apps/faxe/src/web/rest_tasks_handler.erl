@@ -10,7 +10,8 @@
 
 -include("faxe.hrl").
 
--define(REQ_BODY_CONSTRAINTS, #{length => 300000, period => 5000}).
+-define(MAX_UPLOAD_LENGTH, 300000).
+-define(REQ_BODY_CONSTRAINTS, #{length => ?MAX_UPLOAD_LENGTH, period => 5000}).
 
 %%
 %% Cowboy callbacks
@@ -113,7 +114,8 @@ content_types_provided(Req, State) ->
 
 
 from_import(Req, State=#state{}) ->
-   {ok, Body, Req1} = cowboy_req:read_urlencoded_body(Req, ?REQ_BODY_CONSTRAINTS),
+   Max = faxe_config:get_sub(http_api, max_upload_size, ?MAX_UPLOAD_LENGTH),
+   {ok, Body, Req1} = cowboy_req:read_urlencoded_body(Req, ?REQ_BODY_CONSTRAINTS#{length => Max}),
    TasksJson = proplists:get_value(<<"tasks">>, Body),
    case (catch jiffy:decode(TasksJson, [return_maps])) of
       TasksList when is_list(TasksList) ->

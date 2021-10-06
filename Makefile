@@ -30,6 +30,7 @@ dev1:
 	export FAXE_HTTP_API_SSL_CERTFILE=/home/heyoka/workspace/faxe/certs_tgw/tgw_wildcard.crt && \
 	export FAXE_HTTP_API_SSL_CACERTFILE=/home/heyoka/workspace/faxe/certs_tgw/tgw_wildcard.crt && \
 	export FAXE_HTTP_API_SSL_KEYFILE=/home/heyoka/workspace/faxe/certs_tgw/tgw_wildcard.key && \
+	export FAXE_HTTP_API_JWT_PUBLIC_KEY_FILE=/home/heyoka/workspace/faxe/certs/keycloak_jwt_rsa_public.pem && \
 	export FAXE_CONN_STATUS_HANDLER_MQTT_ENABLE=on && \
 	export FAXE_METRICS_HANDLER_MQTT_ENABLE=on && \
 	export FAXE_METRICS_HANDLER_MQTT_BASE_TOPIC=tgw/sys/faxe/ && \

@@ -152,12 +152,25 @@
 }.
 
 %% @doc ----------------------------------------------------------------
+%% API AUTH with JWT
+%%----------------------------------------------------------------
+%% @doc http-api jwt public key .pem file
+{mapping, "http_api.jwt.public_key_file", "faxe.http_api.jwt.public_key_file",
+    [{default, "/path/to/cacertfile.pem"}, {datatype, file}, {commented, "/path/to/cacertfile.pem"}]
+}.
+
+%% @doc ----------------------------------------------------------------
 %% REST API
 %%----------------------------------------------------------------
 
 %% http port for rest api endpoint
 {mapping, "http_api_port", "faxe.http_api_port",
     [{default, {{http_api_port}} }, {datatype, integer}]
+}.
+
+%% max upload size (import) in bytes
+{mapping, "http_api.max_upload_size", "faxe.http_api.max_upload_size",
+    [{default, 3000000 }, {datatype, integer}]
 }.
 
 %% @doc http-api tls

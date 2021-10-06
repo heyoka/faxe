@@ -34,6 +34,7 @@
    add_function,
    remove_function,
    update,
+   update_state_fun,
    emit_interval,
    fields
    ,keep
@@ -49,6 +50,7 @@ options() -> [
    {add, lambda},
    {remove, lambda},
    {update, any, ?UPDATE_NEVER}, %% 'never', 'always' or lambda expression
+   {update_state, lambda, undefined}, %% 'never', 'always' or lambda expression
    {emit_every, duration, undefined},
    {keep, string_list, undefined}, %% a list of field path to keep for every data_point
    {keep_as, string_list, undefined}, %% rename the kept fields
@@ -71,7 +73,7 @@ wants() -> point.
 emits() -> batch.
 
 init(NodeId, _Ins, #{key_fields := Fields, add := AddFunc, remove := RemFunc, update := Update, type := Type,
-   emit_every := EmitEvery, keep := Keep, keep_as := KeepAs, as := As, max_age := MaxAge0}) ->
+   emit_every := EmitEvery, keep := Keep, keep_as := KeepAs, as := As, max_age := MaxAge0, update_state := UpStateFun}) ->
 
    EmitInterval = case EmitEvery of undefined -> undefined; _ -> faxe_time:duration_to_ms(EmitEvery) end,
    MaxAge = case MaxAge0 of undefined -> undefined; Age -> faxe_time:duration_to_ms(Age) end,
@@ -84,6 +86,7 @@ init(NodeId, _Ins, #{key_fields := Fields, add := AddFunc, remove := RemFunc, up
          add_function = AddFunc,
          remove_function = RemFunc,
          update = Update,
+         update_state_fun = UpStateFun,
          emit_interval = EmitInterval,
          keep = Keep,
          keep_as = Aliases,
@@ -98,7 +101,9 @@ process(_Port, #data_point{} = Point, State = #state{fields = _Field}) ->
    lager:info("Took: ~p my",[T]),
    case Res of
       {ok, State} -> {ok, State};
-      {Changed, NewBuffer} -> maybe_emit(Changed, State#state{buffer = NewBuffer})
+      {Changed, NewBuffer} ->
+         maybe_emit(Changed, State#state{buffer = NewBuffer})
+%%            do_emit(State#state{buffer = NewBuffer})
    end.
 
 do_process(#data_point{} = Point, State = #state{buffer = Buffer}) ->
@@ -112,7 +117,8 @@ do_process(#data_point{} = Point, State = #state{buffer = Buffer}) ->
             _ ->
                %% entry with this key is present, so update or remove possible
                %% if update did happen, we do not bother to test if remove should be done
-               {ChangedBool, NewBuffer0} = maybe_update(Point, KeyVal, State),
+               lager:notice("maybe_update_state for: ~p",[KeyVal]),
+               {ChangedBool, NewBuffer0} = maybe_update_state(Point, KeyVal, State),
                case ChangedBool of
                   true -> {true, NewBuffer0};
                   false -> maybe_remove(Point, KeyVal, State#state{buffer = NewBuffer0})
@@ -150,6 +156,19 @@ maybe_update(_Point, _KeyVal, #state{update = ?UPDATE_NEVER, buffer = Buffer}) -
    {false, Buffer};
 maybe_update(Point, KeyVal, State = #state{}) ->
    update(KeyVal, Point, State).
+
+maybe_update_state(_Point, _KeyVal, #state{update_state_fun = undefined, buffer = Buffer}) ->
+   {false, Buffer};
+maybe_update_state(Point, KeyVal, State = #state{update_state_fun = Fun, buffer = Buffer}) ->
+   StatePoint = proplists:get_value(KeyVal, Buffer),
+   FunPoint = flowdata:set_field(Point, <<"__state">>, StatePoint#data_point.fields),
+   lager:notice("FunPoint is: ~p",[FunPoint]),
+   case catch(faxe_lambda:execute(FunPoint, Fun)) of
+      true -> replace(KeyVal, Point, State);
+      _ -> {false, Buffer}
+   end.
+
+
 
 maybe_emit(true, State = #state{emit_interval = undefined}) ->
    do_emit(State);

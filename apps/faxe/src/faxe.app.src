@@ -17,6 +17,7 @@
     emqttc,
     jiffy,
     jsn,
+    jwt,
     modbus,
     msgpack,
     cowboy,
