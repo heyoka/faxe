@@ -586,7 +586,7 @@
 }.
 %% @doc metrics handler mqtt port
 {mapping, "metrics.handler.mqtt.port", "faxe.metrics.handler.mqtt.port",
-    [{default, 1883}, {datatype, integer}, {commented, 1883}]
+    [{datatype, integer}, {commented, 1883}]
 }.
 %% @doc metrics handler mqtt base topic
 %% The mqtt handler will prefix its topic with this value,
@@ -620,7 +620,7 @@
 }.
 %% @doc connection status handler mqtt port
 {mapping, "conn_status.handler.mqtt.port", "faxe.conn_status.handler.mqtt.port",
-    [{default, 1883}, {datatype, integer}, {commented, 1883}]
+    [{datatype, integer}, {commented, 1883}]
 }.
 %% @doc connection status handler mqtt base topic
 {mapping, "conn_status.handler.mqtt.base_topic", "faxe.conn_status.handler.mqtt.base_topic",
@@ -643,7 +643,7 @@
 }.
 %% @doc debug_trace handler mqtt port
 {mapping, "debug.handler.mqtt.port", "faxe.debug.handler.mqtt.port",
-    [{default, 1883}, {datatype, integer}, {commented, 1883}]
+    [{datatype, integer}, {commented, 1883}]
 }.
 %% @doc debug_trace handler mqtt base topic
 {mapping, "debug.handler.mqtt.base_topic", "faxe.debug.handler.mqtt.base_topic",
@@ -672,7 +672,7 @@
 }.
 %% @doc flow_changed handler mqtt port
 {mapping, "flow_changed.handler.mqtt.port", "faxe.flow_changed.handler.mqtt.port",
-    [{default, 1883}, {datatype, integer}, {commented, 1883}]
+    [{datatype, integer}, {commented, 1883}]
 }.
 %% @doc flow_changed handler mqtt base topic
 {mapping, "flow_changed.handler.mqtt.base_topic", "faxe.flow_changed.handler.mqtt.base_topic",
