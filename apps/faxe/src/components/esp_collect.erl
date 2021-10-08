@@ -117,7 +117,7 @@ do_process(#data_point{} = Point, State = #state{buffer = Buffer}) ->
             _ ->
                %% entry with this key is present, so update or remove possible
                %% if update did happen, we do not bother to test if remove should be done
-               lager:notice("maybe_update_state for: ~p",[KeyVal]),
+%%               lager:notice("maybe_update_state for: ~p",[KeyVal]),
                {ChangedBool, NewBuffer0} = maybe_update_state(Point, KeyVal, State),
                case ChangedBool of
                   true -> {true, NewBuffer0};
@@ -142,7 +142,7 @@ keyval(Point, #state{fields = Fields}) ->
 
 maybe_add(Point = #data_point{ts = _Ts}, KeyVal, State = #state{add_function = AddFunc, buffer = Buffer}) ->
    case catch(faxe_lambda:execute(Point, AddFunc)) of
-      true -> add(KeyVal, keep(Point, State), State);
+      true -> add(KeyVal, Point, State);
       _ -> {false, Buffer}
    end.
 
@@ -159,10 +159,11 @@ maybe_update(Point, KeyVal, State = #state{}) ->
 
 maybe_update_state(_Point, _KeyVal, #state{update_state_fun = undefined, buffer = Buffer}) ->
    {false, Buffer};
-maybe_update_state(Point, KeyVal, State = #state{update_state_fun = Fun, buffer = Buffer}) ->
+maybe_update_state(Point=#data_point{fields = Fields}, KeyVal, State = #state{update_state_fun = Fun, buffer = Buffer}) ->
    StatePoint = proplists:get_value(KeyVal, Buffer),
-   FunPoint = flowdata:set_field(Point, <<"__state">>, StatePoint#data_point.fields),
-   lager:notice("FunPoint is: ~p",[FunPoint]),
+   FunPoint = Point#data_point{fields = Fields#{<<"__state">> => StatePoint#data_point.fields}},
+%%      flowdata:set_field(Point, <<"__state">>, StatePoint#data_point.fields),
+%%   lager:notice("FunPoint is: ~p",[FunPoint]),
    case catch(faxe_lambda:execute(FunPoint, Fun)) of
       true -> replace(KeyVal, Point, State);
       _ -> {false, Buffer}
@@ -176,7 +177,7 @@ maybe_emit(_, State = #state{}) ->
    {ok, State}.
 
 do_emit(State = #state{buffer = Buff}) ->
-   Points0 = [Val || {_Key, Val} <- Buff],
+   Points0 = [keep(Val, State) || {_Key, Val} <- Buff],
 %%   lager:notice("emit: ~p", [[Key || {Key, _Val} <- Buff]]),
    %% sort elements by timestamp for data_batch
    Points = lists:keysort(2, Points0),
@@ -191,10 +192,11 @@ maybe_start_emit_timeout(#state{emit_interval = Intv}) ->
 keep(DataPoint, #state{keep = undefined}) ->
    DataPoint;
 keep(DataPoint, #state{keep = FieldNames, keep_as = Aliases}) when is_list(FieldNames) ->
+   lager:notice("keep from: ~p", [DataPoint]),
    Fields = flowdata:fields(DataPoint, FieldNames),
+   lager:notice("want tp keep: ~p :: ~p as ~p",[FieldNames, Fields, Aliases]),
    Point0 = DataPoint#data_point{fields = #{}, tags = # {}},
    NewPoint0 = flowdata:set_fields(Point0, Aliases, Fields),
-%%   flowdata:set_tags(NewPoint0, )
    NewPoint0.
 
 add(Key, Point, #state{buffer = Buffer0, type = ?TYPE_SET}) ->
@@ -224,7 +226,7 @@ update(Key, Point, S = #state{update = ?UPDATE_ALWAYS}) ->
 
 replace(Key, Point, State = #state{buffer = Buffer}) ->
 %%   lager:warning("update: ~p",[Key]),
-   {true, [{Key, keep(Point, State)}|proplists:delete(Key, Buffer)]}.
+   {true, [{Key, Point}|proplists:delete(Key, Buffer)]}.
 
 %%%%%%%%%%%%%%%%%% TESTS %%%%%%%%%%%%%%%%%%%%%%%%%%
 -ifdef(TEST).

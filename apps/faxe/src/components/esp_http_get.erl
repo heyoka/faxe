@@ -143,7 +143,6 @@ build(Ts, Data, #state{payload_type = PType, as = As}) ->
    end.
 
 start_client(State = #state{host = Host, port = Port, tls = Tls}) ->
-   lager:debug("start client: ~n~p",[State]),
    connection_registry:connecting(),
    Opts = #{connect_timeout => 3000},
    Options =

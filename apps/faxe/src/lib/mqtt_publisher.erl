@@ -128,7 +128,11 @@ init_opts([{ssl, false} | R], State) ->
 init_opts([{ssl, true} | R], State) ->
    Opts = faxe_config:get_mqtt_ssl_opts(),
    init_opts(R, State#state{ssl = true, ssl_opts = Opts});
-init_opts([_ | R], State) ->
+init_opts([{ssl, SslOpts} | R], State) when is_list(SslOpts) ->
+   SslEnabled = proplists:get_value(enable, SslOpts, false),
+   init_opts(R++[{ssl, SslEnabled}], State);
+init_opts([O | R], State) ->
+   lager:notice("unknown mqtt opts: ~p", [O]),
    init_opts(R, State).
 
 %%--------------------------------------------------------------------
