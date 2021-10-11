@@ -332,7 +332,7 @@ check_reset(State = #state{topic_last_seen = LastSeen, reset_timeout = Timeout})
       end
    end,
    ResetList = maps:fold(Fun, [], LastSeen),
-   lager:notice("reset list: ~p", [ResetList]),
+%%   lager:notice("reset list: ~p", [ResetList]),
    lists:foldl(fun(T, AccState) -> reset_topic(T, AccState) end, State, ResetList).
 
 reset_topic(Topic,

@@ -94,14 +94,14 @@ process(_In, _B = #data_batch{}, State = #state{}) ->
 
 
 handle_info(query,
-    State = #state{timer = Timer, client = C, stmt = _Q, period = Period, result_type = RType}) ->
+    State = #state{timer = Timer, client = C, stmt = Q, period = Period, result_type = RType}) ->
    QueryMark = Timer#faxe_timer.last_time,
 %%   lager:notice("query: ~p with ~p from: ~p, to :~p",
 %%      [Q, [QueryMark-Period, QueryMark], faxe_time:to_iso8601(QueryMark-Period), faxe_time:to_iso8601(QueryMark)]),
    NewTimer = faxe_time:timer_next(Timer),
    %% do query
    Resp = epgsql:prepared_query(C, ?STMT, [QueryMark-Period, QueryMark]),
-   lager:debug("Resp: ~p",[Resp]),
+%%   lager:debug("Resp: ~p",[Resp]),
    handle_response(Resp, RType, State#state{timer = NewTimer});
 
 handle_info({'EXIT', _C, Reason}, State = #state{timer = Timer}) ->
@@ -120,7 +120,7 @@ shutdown(#state{client = C, stmt = _Stmt}) ->
 
 connect(State = #state{db_opts = Opts, query = Q}) ->
    connection_registry:connecting(),
-   lager:info("db opts: ~p",[Opts]),
+%%   lager:info("db opts: ~p",[Opts]),
    case epgsql:connect(Opts) of
       {ok, C} ->
          connection_registry:connected(),
@@ -183,17 +183,18 @@ init_timer(S = #state{align = Align, every = Every}) ->
 
 handle_response({ok, Columns, Rows}, ResponseType, State) ->
    ColumnNames = columns(Columns, []),
+%%   lager:notice("result ROWS: ~p",[Rows]),
    Batch = handle_result(ColumnNames, Rows, ResponseType),
    node_metrics:metric(?METRIC_ITEMS_IN, 1, State#state.fn_id),
    {emit, {1, Batch}, State};
 handle_response(Other, _RType, State) ->
-   lager:warning("Response from Crate: ", [Other]),
+%%   lager:warning("Response from Crate: ", [Other]),
    {ok, State}.
 
 
 columns([], ColumnNames) ->
    lists:reverse(ColumnNames);
-columns([{column, Name, _Type, _, _, _, _}|RestC], ColumnNames) ->
+columns([{column, Name, _Type, _, _, _, _, _, _}|RestC], ColumnNames) ->
    columns(RestC, [Name|ColumnNames]).
 
 handle_result(Columns, Rows, <<"batch">>) ->
