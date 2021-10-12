@@ -111,10 +111,10 @@ init_opts([{host, Host} | R], State) when is_list(Host) ->
    init_opts(R, State#state{host = Host});
 init_opts([{port, Port} | R], State) when is_integer(Port) ->
    init_opts(R, State#state{port = Port});
-init_opts([{user, User} | R], State) when is_binary(User) ->
-   init_opts(R, State#state{user = User});
-init_opts([{pass, Pass} | R], State) when is_binary(Pass) ->
-   init_opts(R, State#state{pass = Pass});
+init_opts([{user, User} | R], State) ->
+   init_opts(R, State#state{user = faxe_util:to_bin(User)});
+init_opts([{pass, Pass} | R], State) ->
+   init_opts(R, State#state{pass = faxe_util:to_bin(Pass)});
 init_opts([{retained, Ret} | R], State) when is_atom(Ret) ->
    init_opts(R, State#state{retained = Ret});
 init_opts([{qos, Qos} | R], State) when is_integer(Qos) ->
@@ -131,7 +131,7 @@ init_opts([{ssl, true} | R], State) ->
 init_opts([{ssl, SslOpts} | R], State) when is_list(SslOpts) ->
    SslEnabled = proplists:get_value(enable, SslOpts, false),
    init_opts(R++[{ssl, SslEnabled}], State);
-init_opts([O | R], State) ->
+init_opts([_O | R], State) ->
    init_opts(R, State).
 
 %%--------------------------------------------------------------------
