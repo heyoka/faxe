@@ -1,7 +1,7 @@
 .PHONY: dev1 start dev2 dev3 remsh
 
 dev1:
-	export FAXE_EXTENSIONS=/home/heyoka/workspace/faxe/ext.config && \
+	export FAXE_EXTENSIONS=/home/heyoka/workspace/faxe/extensions.config && \
 	export FAXE_DFS_SCRIPT_PATH=/home/heyoka/workspace/faxe/dfs/ && \
 	export FAXE_PYTHON_SCRIPT_PATH=/home/heyoka/workspace/faxe/python/ && \
 	export FAXE_QUEUE_BASE_DIR=/home/heyoka/esq_data/ && \
