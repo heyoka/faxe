@@ -159,7 +159,7 @@ handle_info(connect_mqtt, State) ->
    {ok, State};
 handle_info({mqttc, C, connected}, State=#state{host = Host, reconnector = Recon}) ->
    connection_registry:connected(),
-   lager:notice("mqtt client connected to: ~p !!", [Host]),
+   lager:info("mqtt client connected to: ~p !!", [Host]),
    NewState = State#state{client = C, connected = true, reconnector = faxe_backoff:reset(Recon)},
    subscribe(NewState),
    {ok, NewState};
@@ -197,10 +197,8 @@ handle_info({'DOWN', _MonitorRef, process, Client, _Info}, #state{publisher_to_q
    lager:notice("AMQP-PubWorker ~p is 'DOWN' Info:~p", [Client, _Info]),
    {ok, NewState};
 handle_info({publisher_ack, Ref}, State) ->
-   lager:notice("message acked: ~p",[Ref]),
    {ok, State};
 handle_info(check_reset, State=#state{reset_check_interval = Interval}) ->
-   lager:info("check_reset"),
    NewState = check_reset(State),
    erlang:send_after(Interval, self(), check_reset),
    {ok, NewState};
@@ -250,21 +248,21 @@ data_received(Topic, Payload, S = #state{topic_to_queue = Queues, amqp_exchange 
    node_metrics:metric(?METRIC_ITEMS_OUT, 1, FNId),
    {ok, S#state{topic_last_seen = Last#{Topic => faxe_time:now()}}};
 data_received(Topic, Payload, S = #state{}) ->
-   lager:warning("get new queue and publisher: ~p",[Topic]),
+   lager:info("get new queue and publisher: ~p",[Topic]),
    NewState = new_queue_publisher(Topic, S),
    data_received(Topic, Payload, NewState).
 
 new_queue_publisher(Topic, State = #state{max_publishers = MaxPubs,
    queue_to_topics = QueueTopics}) when map_size(QueueTopics) < MaxPubs ->
-   lager:warning("start new queue and publisher: ~p", [Topic]),
+   lager:info("start new queue and publisher: ~p", [Topic]),
    NewState0 = start_queue(Topic, State),
    start_amqp_connection(Topic, NewState0);
 new_queue_publisher(Topic, State = #state{queue_to_topics = QueueTopics, topic_to_queue = TopicQueue}) ->
-   lager:warning("add topic to existing queue: ~p",[Topic]),
+   lager:info("add topic to existing queue: ~p",[Topic]),
    QTopics = maps:to_list(QueueTopics),
    SortFun = fun({_AQ, ATopics}, {_BQ, BTopics}) -> length(ATopics) =< length(BTopics) end,
    [{Q, Topics} | _] = lists:sort(SortFun, QTopics),
-   lager:notice("add: ~p to q: ~p, (~p)",[Topic, Q, Topics]),
+   lager:debug("add: ~p to q: ~p, (~p)",[Topic, Q, Topics]),
    QueueToTopicsNew = QueueTopics#{Q => [Topic|Topics]},
    State#state{queue_to_topics = QueueToTopicsNew, topic_to_queue = TopicQueue#{Topic => Q}}.
 
@@ -314,7 +312,6 @@ opts_ssl(#state{ssl = true, ssl_opts = SslOpts}, Opts) ->
 
 
 subscribe(#state{qos = Qos, client = C, topic = Topic, topics = undefined}) when is_binary(Topic) ->
-   lager:info("mqtt_client subscribe: ~p", [Topic]),
    ok = emqttc:subscribe(C, Topic, Qos);
 subscribe(#state{qos = Qos, client = C, topics = Topics}) ->
    TQs = [{Top, Qos} || Top <- Topics],

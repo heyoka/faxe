@@ -13,6 +13,8 @@ dev1:
 	export FAXE_MQTT_HOST=10.14.204.20 && \
 	export FAXE_MQTT_SSL_ENABLE=off && \
 	export FAXE_AMQP_HOST=10.14.204.28 && \
+	export FAXE_AMQP_USER=miae && \
+	export FAXE_AMQP_PASS=tgw2019 && \
 	export FAXE_LOG_LOGSTASH_BACKEND_ENABLE=on && \
 	export FAXE_LOG_LOGSTASH_LEVEL=notice && \
 	export FAXE_LOG_LOGSTASH_HOST=10.14.204.17 && \

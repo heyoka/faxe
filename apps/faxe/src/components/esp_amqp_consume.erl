@@ -58,7 +58,9 @@
    topic_key,
    as,
    safe_mode = false,
-   confirm = true
+   confirm = true,
+   dedup_queue :: memory_queue:memory_queue(),
+   last_chan = undefined
 }).
 
 options() -> [
@@ -82,7 +84,8 @@ options() -> [
    {include_topic, bool, true},
    {topic_as, string, <<"topic">>},
    {as, string, undefined},
-   {confirm, boolean, true}
+   {confirm, boolean, true},
+   {dedup_size, integer, 100}
 ].
 
 check_options() ->
@@ -102,7 +105,8 @@ init({_GraphId, _NodeId} = Idx, _Ins,
       topic_as := TopicKey, ack_every := AckEvery0, ack_after := AckTimeout0, as := As
       ,
 %%      use_flow_ack := FlowAck,
-   safe := Safe, confirm := Confirm
+   safe := Safe, confirm := Confirm,
+   dedup_size := DedupSize
    } = Opts0) ->
 
    process_flag(trap_exit, true),
@@ -110,7 +114,7 @@ init({_GraphId, _NodeId} = Idx, _Ins,
    Host = binary_to_list(Host0),
    Opts = Opts0#{host => Host},
    State = #state{
-      include_topic = IncludeTopic, topic_key = TopicKey, as = As,
+      include_topic = IncludeTopic, topic_key = TopicKey, as = As, dedup_queue = memory_queue:new(DedupSize),
       opts = Opts, prefetch = Prefetch, ack_every = AckEvery0, ack_after = AckTimeout,
       dt_field = DTField, dt_format = DTFormat, safe_mode = Safe, flownodeid = Idx, confirm = Confirm},
 
@@ -133,13 +137,24 @@ process(_In, _, State = #state{}) ->
 %%
 %% new queue-message arrives ...
 %%
-handle_info({ {DTag, RKey}, {Payload, _Headers}, _Channel}, State=#state{flownodeid = FNId}) ->
+handle_info({ {DTag, RKey}, {Payload, CorrelationId, _Headers}, Channel},
+    State=#state{flownodeid = FNId, dedup_queue = Dedup}) ->
    node_metrics:metric(?METRIC_BYTES_READ, byte_size(Payload), FNId),
    node_metrics:metric(?METRIC_ITEMS_IN, 1, FNId),
-   DataPoint0 = build_point(Payload, RKey, State),
-   DataPoint = DataPoint0#data_point{dtag = DTag},
-   dataflow:maybe_debug(item_in, 1, DataPoint, FNId, State#state.debug_mode),
-   enq_or_emit(DataPoint, DTag, State);
+
+   NewState = State#state{last_chan = Channel},
+   case memory_queue:member(CorrelationId, Dedup) of
+      true ->
+%%         lager:info("duplicate message found! [~p]",[CorrelationId]),
+         {ok, maybe_ack(DTag, NewState)};
+      false ->
+         %% store correlation_id
+         NewDedup = memory_queue:enq(CorrelationId, Dedup),
+         DataPoint0 = build_point(Payload, RKey, NewState),
+         DataPoint = DataPoint0#data_point{dtag = DTag},
+         dataflow:maybe_debug(item_in, 1, DataPoint, FNId, NewState#state.debug_mode),
+         enq_or_emit(DataPoint, DTag, NewState#state{dedup_queue = NewDedup})
+   end;
 
 handle_info({'DOWN', _MonitorRef, process, Consumer, _Info}, #state{consumer = Consumer} = State) ->
    connection_registry:disconnected(),

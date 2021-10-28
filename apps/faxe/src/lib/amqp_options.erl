@@ -54,6 +54,6 @@ amqp_params(Config) ->
       port = proplists:get_value(port, Config),
       host = proplists:get_value(host, Config),
       heartbeat = proplists:get_value(heartbeat, Config, 80),
-      connection_timeout = proplists:get_value(connection_timeout, Config, 60000),
+      connection_timeout = proplists:get_value(connection_timeout, Config, 7000),
       ssl_options = proplists:get_value(ssl_opts, Config, none)
    }.

@@ -93,10 +93,15 @@ handle_cast(Msg, State) ->
 handle_info(connect, State) ->
    NewState = start_connection(State),
    case NewState#state.available of
-      true -> NState = maybe_redeliver(NewState), {noreply, maybe_start_deq_timer(NState)};
+      true ->
+         NState = maybe_redeliver(NewState), {noreply, maybe_start_deq_timer(NState)};
       false -> {noreply, NewState}
    end;
 
+
+handle_info( {'DOWN', _Ref, process, Conn, _Reason} = _Req, State=#state{connection = Conn}) ->
+   lager:info("RMQ Connection down, waiting for EXIT on channel ..."),
+   {noreply, State};
 handle_info({'EXIT', MQPid, Reason}, State=#state{channel = MQPid, reconnector = Recon} ) ->
    lager:warning("MQ channel DIED: ~p", [Reason]),
    {ok, Reconnector} = faxe_backoff:execute(Recon, connect),
@@ -110,12 +115,17 @@ handle_info({'EXIT', MQPid, Reason}, State=#state{channel = MQPid, reconnector =
 %% dequeue
 handle_info(deq, State = #state{available = false}) ->
    {noreply, State};
-handle_info(deq, State = #state{available = true}) ->
-   {noreply, next(State)};
+handle_info(deq, State = #state{available = true, channel = Channel}) ->
+   case is_process_alive(Channel) of
+      true ->
+         {noreply, next(State)};
+      false ->
+         {noreply, State#state{available = false}}
+   end;
 
-handle_info({deliver, Exchange, Key, Payload, Args}, State) ->
-%%   lager:notice("deliver: ~p",[Payload]),
-   NewState = deliver({Exchange, Key, Payload, Args}, 1, State),
+handle_info({deliver, Exchange, Key, Payload, Args}, State = #state{channel = Ch}) ->
+   Avail = is_pid(Ch) andalso erlang:is_process_alive(Ch),
+   NewState = deliver({Exchange, Key, Payload, Args}, 1, State#state{available = Avail}),
    {noreply, NewState};
 
 %% @doc
@@ -176,8 +186,8 @@ handle_info(report_pendinglist_length, #state{pending_acks = P} = State) ->
    {noreply, State};
 handle_info(stop, State) ->
    {stop, normal, State};
-handle_info(Msg, State) ->
-   lager:notice("Bunny-Worker got unexpected msg: ~p", [Msg]),
+handle_info(Msg, State = #state{channel = Chan}) ->
+   lager:notice("Bunny-Worker got unexpected msg: ~p, my chan is :~p", [Msg, Chan]),
    {noreply, State}.
 
 handle_call(Req, _From, State) ->
@@ -191,31 +201,8 @@ terminate(Reason, #state{channel = Channel, connection = Conn} = State) ->
    catch(close(Channel, Conn, State))
    .
 
-%%collect_ack(_Q, _LastTag, Pending) when map_size(Pending) == 0 -> lager:info("no more pending acks"),ok;
-%%collect_ack(Q, LastTag, Pending) ->
-%%   receive
-%%      #'basic.ack'{delivery_tag = DTag, multiple = Multiple} ->
-%%         Tags =
-%%            case Multiple of
-%%               true -> lager:warning("RabbitMQ confirmed MULTIPLE Tags till ~p",[DTag]),
-%%                  lists:seq(LastTag + 1, DTag);
-%%               false -> lager:notice("RabbitMQ confirmed Tag ~p",[DTag]),
-%%                  [DTag]
-%%            end,
-%%   lager:notice("bunny_worker ~p has pending_acks: ~p~n acks: ~p",[self(), Pending, Tags]),
-%%         [esq:ack(Ack, Q) || {_T, Ack} <- maps:to_list(maps:with(Tags, Pending))],
-%%         collect_ack(Q, DTag, maps:without(Tags, Pending))
-%%
-%%   after 1000 -> lager:info("after 1000 ms"), ok
-%%   end.
-
-
 close(Channel, Conn, #state{queue = _Q, last_confirmed_dtag = _LastTag, pending_acks = _Pending, deq_timer_ref = T}) ->
    catch (erlang:cancel_timer(T)),
-%%   lager:info("close: collect pending acks: ~p", [map_size(Pending)]),
-   %% try to collect pending acks from server
-%%   collect_ack(Q, LastTag, Pending),
-   lager:info("close: channel and connection"),
    amqp_channel:unregister_confirm_handler(Channel),
    amqp_channel:unregister_return_handler(Channel),
    amqp_channel:unregister_flow_handler(Channel),
@@ -249,12 +236,11 @@ deliver({_Exchange, _Key, _Payload, _Args} = M, _QReceipt, State = #state{availa
    NewQ = memory_queue:enq(M, Q),
    State#state{mem_q = NewQ};
 deliver({Exchange, Key, Payload, Args}, QReceipt, State = #state{channel = Channel, delivery_mode = DeliveryMode}) ->
-%%   lager:notice("Channel is: ~p",[Channel]),
    NextSeqNo = amqp_channel:next_publish_seqno(Channel),
 
    Publish = #'basic.publish'{mandatory = false, exchange = Exchange, routing_key = Key},
    Message = #amqp_msg{payload = Payload,
-      props = #'P_basic'{delivery_mode = DeliveryMode, headers = Args}
+      props = #'P_basic'{delivery_mode = DeliveryMode, correlation_id = corr_id(Key, Payload), headers = Args}
    },
    NewState =
       case amqp_channel:call(Channel, Publish, Message) of
@@ -288,18 +274,24 @@ maybe_start_deq_timer(State = #state{deq_interval = Interval}) ->
    TRef = erlang:send_after(Interval, self(), deq),
    State#state{deq_timer_ref = TRef}.
 
+corr_id(Key, Payload) ->
+   integer_to_binary(erlang:phash2([Key, Payload])).
+
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %%% MQ Connection functions.
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 start_connection(State = #state{config = Config, reconnector = Recon, safe_mode = Safe}) ->
 %%   lager:notice("amqp_params: ~p",[lager:pr(Config, ?MODULE)] ),
-   Connection = amqp_connection:start(Config),
+   Connection = maybe_start_connection(State),
    NewState =
    case Connection of
       {ok, Conn} ->
+         erlang:monitor(process, Conn),
          Channel = new_channel(Connection, Safe),
          case Channel of
             {ok, Chan} ->
+               %% we link to the channel, to get the EXIT signal
+               link(Chan),
                NState = State#state{connection = Conn, channel = Chan, available = true,
                   reconnector = faxe_backoff:reset(Recon)},
                NState;
@@ -331,8 +323,6 @@ configure_channel({ok, Channel}, true) ->
 
    case amqp_channel:call(Channel, #'confirm.select'{}) of
       {'confirm.select_ok'} ->
-         %% we link to the channel, to get the EXIT signal
-         link(Channel),
          {ok, Channel};
       Error ->
          lager:error("Could not configure channel: ~p", [Error]),
@@ -346,3 +336,11 @@ preconfig_channel(Channel) ->
    ok = amqp_channel:register_flow_handler(Channel, self()),
    ok = amqp_channel:register_confirm_handler(Channel, self()),
    ok = amqp_channel:register_return_handler(Channel, self()).
+
+maybe_start_connection(#state{connection = Conn, config = Config}) ->
+   case is_pid(Conn) andalso is_process_alive(Conn) of
+      true ->
+         {ok, Conn};
+      false ->
+         amqp_connection:start(Config)
+   end.

@@ -4,7 +4,6 @@
 %% @doc
 %%
 %% @end
-%% @todo how to handle updates ? especially with list type, as there could be duplicate indices
 %% @todo persist collection to disc and decided how to deal with a restart of the node
 %% @todo implement 'as', 'max_age', 'keep_as'
 %% @todo maybe make this node handle multiple collections ?
