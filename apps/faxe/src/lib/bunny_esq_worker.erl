@@ -287,7 +287,6 @@ start_connection(State = #state{config = Config, reconnector = Recon, safe_mode 
    NewState =
    case Connection of
       {ok, Conn} ->
-         erlang:monitor(process, Conn),
          Channel = new_channel(Connection, Safe),
          case Channel of
             {ok, Chan} ->
@@ -344,5 +343,8 @@ maybe_start_connection(#state{connection = Conn, config = Config}) ->
          lager:notice("connection still alive"),
          {ok, Conn};
       false ->
-         amqp_connection:start(Config)
+         case amqp_connection:start(Config) of
+            {ok, NewConn} = Res -> erlang:monitor(process, NewConn), Res;
+            Other -> Other
+         end
    end.

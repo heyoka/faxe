@@ -189,7 +189,7 @@ shutdown(#state{consumer = C, last_dtag = DTag, emitter = Emitter}) ->
       undefined -> ok;
       _ -> carrot:ack_multiple(C, DTag)
    end,
-   catch (rmq_consumer:stop(C)),
+   catch gen_server:stop(C),
    catch (gen_server:stop(Emitter)).
 
 enq_or_emit(Item, DTag, State = #state{safe_mode = false}) ->
