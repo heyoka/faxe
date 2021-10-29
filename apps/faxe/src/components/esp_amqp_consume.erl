@@ -143,7 +143,7 @@ handle_info({ {DTag, RKey}, {Payload, CorrelationId, _Headers}, Channel},
    node_metrics:metric(?METRIC_ITEMS_IN, 1, FNId),
 
    NewState = State#state{last_chan = Channel},
-   case memory_queue:member(CorrelationId, Dedup) of
+   case CorrelationId /= undefined andalso memory_queue:member(CorrelationId, Dedup) of
       true ->
 %%         lager:info("duplicate message found! [~p]",[CorrelationId]),
          {ok, maybe_ack(DTag, NewState)};
