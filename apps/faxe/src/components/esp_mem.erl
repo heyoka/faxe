@@ -39,7 +39,18 @@ options() -> [
 check_options() ->
    [
       {one_of, type, [<<"single">>, <<"set">>, <<"list">>]},
-      {oneplus_of_params, [field, default]}
+      {oneplus_of_params, [field, default]},
+      {func, default,
+         fun
+            (Def, #{default_json := true}) ->
+               case catch(jiffy:decode(Def, [return_maps])) of
+                  MapOrList when is_map(MapOrList) orelse is_list(MapOrList) -> true;
+                  _ -> false
+               end;
+            (_Def, #{default_json := false}) -> true
+         end,
+         <<" seems like invalid json.">>
+      }
    ].
 
 init(_NodeId, _Ins, #{field := Field, key := As0, type := Type, default := Def, default_json := DefJson}) ->
@@ -50,10 +61,23 @@ init(_NodeId, _Ins, #{field := Field, key := As0, type := Type, default := Def, 
       undefined -> Field;
       _ -> As0
    end,
-   Default =
-   case DefJson of true -> jiffy:decode(Def, [return_maps]); false -> Def end,
-   default(Type, As, Default, Tab),
-   {ok, all, #state{field = Field, key = As, type = Type, table_id = Tab}}.
+
+   case prepare_default(Def, DefJson) of
+      {ok, Default} ->
+         default(Type, As, Default, Tab),
+         {ok, all, #state{field = Field, key = As, type = Type, table_id = Tab}};
+      {error, What} ->
+         {error, What}
+   end.
+
+prepare_default(Term, true) when is_binary(Term) ->
+   case catch(jiffy:decode(Term, [return_maps])) of
+      MapOrList when is_map(MapOrList) orelse is_list(MapOrList) ->
+         {ok, MapOrList};
+      _ -> {error, invalid_json}
+   end;
+prepare_default(Term, false) ->
+   {ok, Term}.
 
 %% if field is undefined the node is used as a lookup with initial data in it which should not be overwritten, we assume
 process(_, _Item, State = #state{field = undefined}) ->
