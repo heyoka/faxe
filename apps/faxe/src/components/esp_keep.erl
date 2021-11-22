@@ -37,11 +37,13 @@ process(_Inport, #data_point{} = Point, State = #state{fields = Fs, tags = Ts, a
 rewrite(#data_point{} = Point, FieldNames, TagNames, []) ->
    rewrite(Point, FieldNames, TagNames, FieldNames);
 rewrite(#data_point{} = Point, FieldNames, TagNames, Aliases) ->
-   Fields = flowdata:fields(Point, FieldNames),
-   Tags = flowdata:tags(Point, TagNames),
+   FieldVals = flowdata:fields(Point, FieldNames),
+   TagVals = flowdata:tags(Point, TagNames),
+   NewFields = [{K, V} || {K, V} <- lists:zip(Aliases, FieldVals), V /= undefined],
+   NewTags = [{K, V} || {K, V} <- lists:zip(TagNames, TagVals), V /= undefined],
    Point0 = Point#data_point{fields = #{}, tags = # {}},
-   NewPoint0 = flowdata:set_fields(Point0, Aliases, Fields),
-   flowdata:set_tags(NewPoint0, TagNames, Tags).
+   NewPoint0 = flowdata:set_fields(Point0, NewFields),
+   flowdata:set_tags(NewPoint0, NewTags).
 
 
 -ifdef(TEST).
@@ -61,4 +63,8 @@ rewrite_points_path_alias_path_test() ->
    Point = #data_point{ts = 1234, fields = #{<<"first">> => #{<<"value">> => 2134, <<"val44">> => <<"get">>}}},
    ?assertEqual(#data_point{ts = 1234, fields = #{<<"erster">> => #{<<"val">> => <<"get">>}}},
       rewrite(Point, [<<"first.val44">>], [], [<<"erster.val">>])).
+rewrite_points_no_undefined_test() ->
+   Point = #data_point{ts = 1234, fields = #{<<"first">> => #{<<"value">> => 2134, <<"val44">> => <<"get">>}}},
+   ?assertEqual(#data_point{ts = 1234, fields = #{<<"erster">> => #{<<"val">> => <<"get">>}}},
+      rewrite(Point, [<<"first.val44">>, <<"someother.field">>], [], [<<"erster.val">>, <<"some.field">>])).
 -endif.

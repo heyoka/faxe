@@ -368,3 +368,24 @@ end}.
   {datatype, integer},
   hidden
 ]}.
+
+
+%% @doc --------------------------------------------------------------------------
+%% Erlangs timewarp and time-correction behaviour
+%%
+%% More info: https://www.erlang.org/doc/apps/erts/time_correction.html#Multi_Time_Warp_Mode
+%% ------------------------------------------------------------------------------
+%% What time wrap mode to use for the erlang runtime system
+{mapping, "erlang.time.warp_mode", "vm_args.+C", [
+    {default, "multi_time_warp"},
+    {commented, "multi_time_warp"},
+    {datatype, {enum, ["no_time_warp", "single_time_warp", "multi_time_warp"]}}
+]}.
+
+%% @doc Whether to use time correction
+%%
+{mapping, "erlang.time.correction", "vm_args.+c", [
+    {default, "false"},
+    {commented, "false"},
+    {datatype, {enum, [true, false]}}
+]}.

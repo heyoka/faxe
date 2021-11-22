@@ -89,9 +89,8 @@ handle_info({tcp, Socket, Data0}, State=#state{fn_id = FNId}) ->
 %%  lager:notice("NewData: ~p", [Data]),
   node_metrics:metric(?METRIC_ITEMS_IN, 1, FNId),
   node_metrics:metric(?METRIC_BYTES_READ, faxe_util:bytes(Data), FNId),
-  NewState = maybe_emit(Data, State),
   inet:setopts(Socket, [{active, once}]),
-  {ok, NewState};
+  maybe_emit(Data, State);
 handle_info({tcp_closed, _S}, S=#state{}) ->
   connection_registry:disconnected(),
   try_reconnect(S#state{socket = undefined});
@@ -106,7 +105,9 @@ handle_info(do_reconnect, State=#state{ip = Ip, port = Port, line_delimiter = LD
       connection_registry:connected(),
       inet:setopts(Socket, [{active, once}]),
       {ok, State#state{socket = Socket, reconnector = faxe_backoff:reset(Recon)}};
-    {error, Error} -> lager:warning("[~p] Error connecting to ~p: ~p",[?MODULE, {Ip, Port},Error]), try_reconnect(State)
+    {error, Error} ->
+      lager:warning("[~p] Error connecting to ~p: ~p",[?MODULE, {Ip, Port},Error]),
+      try_reconnect(State)
   end;
 handle_info(_R, S) ->
   {ok, S}.
@@ -140,16 +141,17 @@ maybe_emit(Data, State = #state{changes = true, prev_crc32 = PrevCheckSum}) ->
   NewState = State#state{prev_crc32 = DataCheckSum},
   case  DataCheckSum /= PrevCheckSum of
     true -> do_emit(Data, NewState);
-    false -> NewState
+    false -> {ok, NewState}
   end.
 
 do_emit(Data, State = #state{as = As, parser = Parser, extract = _Extract, fn_id = FNId}) ->
   case (catch binary_msg_parser:convert(Data, As, Parser)) of
     P when is_record(P, data_point) ->
       node_metrics:metric(?METRIC_ITEMS_OUT, 1, FNId),
-      dataflow:emit(P);
-    Err -> lager:warning("Parsing error [~p] ~nmessage ~p",[Parser, Err])
-  end,
-  State.
+      {emit, {1, P}, State};
+    Err ->
+      lager:warning("Parsing error [~p] ~nmessage ~p",[Parser, Err]),
+      {ok, State}
+  end.
 
 

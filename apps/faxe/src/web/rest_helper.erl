@@ -20,7 +20,7 @@
 
 -spec is_authorized(term()) -> {true, Username::binary()} | false.
 is_authorized(Req) ->
-   case cowboy_req:parse_header(<<"authorization">>, Req) of
+   case (catch cowboy_req:parse_header(<<"authorization">>, Req)) of
       {basic, User , Pass} ->
          case faxe_db:has_user_with_pw(User, Pass) of
             true -> rest_audit_server:audit(User, Req), {true, User};

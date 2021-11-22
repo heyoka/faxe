@@ -43,14 +43,16 @@
 .keep('data.code', 'data.message')
 %% collection of type set, so no duplicates
 %.type('set')
-
 .emit_every(10s)
+|debug('warning')
+|keep('added', 'removed')
 |debug('info')
 
-%% make sense of the data-collection in counting the 'data.code' values
-|aggregate()
-.fields('data.code')
-.functions('count_distinct')
-.as('code_count')
 
-%|debug()
+|eval(lambda: if(undefined("removed"), 1, 0), lambda: if((undefined("removed") AND undefined("added")), 1, 0)).as('total', 'state')
+|aggregate()
+.fields('added', 'removed', 'total', 'state')
+.functions('sum', 'sum', 'sum', 'sum')
+.as('sum_added', 'sum_removed', 'sum_total', 'kept')
+
+|debug()

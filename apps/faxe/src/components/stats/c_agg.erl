@@ -10,6 +10,8 @@
 
 
 -spec call(tuple(), atom(), term(), binary()) -> #data_batch{} | #data_point{}.
+call({[], _}, _Module, _MState, _As) ->
+   #data_batch{};
 call({Tss,_Vals}=Data, Module, MState, As) when is_list(Tss) ->
    result(Module:execute(Data, MState), As, Tss).
 

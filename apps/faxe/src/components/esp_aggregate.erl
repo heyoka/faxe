@@ -72,7 +72,7 @@ process(_Inport, #data_batch{points = []}, S) ->
 process(_Inport, #data_batch{points = Points} = Batch,
     State = #state{modules = Mods, module_state = MState, fields = Fields, as = As, keep = KeepFields}) ->
 
-   Ps = [prepare(Batch, F) || F <- Fields],
+   Ps = [flowdata:tss_fields(Batch, F) || F <- Fields],
    MStates = [MState || _F <- Fields],
 
    {Ts, Results} = call(Ps, Mods, MStates, As, {0, []}),
@@ -90,16 +90,17 @@ handle_info(_Request, State) ->
 
 %%%%%%%%%%%%%%%%%%%% internal %%%%%%%%%%%%
 
-%% prepare a data_batch for aggregate execution
-prepare(B=#data_batch{}, Field) ->
-   {flowdata:ts(B), flowdata:field(B, Field)}.
-
 call([], [], [], [], Results) ->
    Results;
 call([Point|Points], [Mod|Modules], [MState|MStates], [As|Aliases], {_Ts, Acc}) ->
    Res = call(Point, Mod, MState, As),
-   Result = {As, flowdata:field(Res, As)},
-   call(Points, Modules, MStates, Aliases, {flowdata:ts(Res), [Result]++Acc}).
+   ResVal =
+   case flowdata:field(Res, As, 0) of
+      [] -> 0;
+      Val -> Val
+   end,
+   Result = {As, ResVal},
+   call(Points, Modules, MStates, Aliases, {flowdata:ts(Res, faxe_time:now()), [Result]++Acc}).
 
 -spec call(tuple(), atom(), term(), binary()) -> #data_batch{} | #data_point{}.
 call({Tss,_Vals}=Data, Module, MState, As) when is_list(Tss) ->

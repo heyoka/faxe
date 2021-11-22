@@ -555,4 +555,96 @@ set_root_present_deep_test() ->
    P = #data_point{fields = #{<<"root">> => #{<<"subroot">> => #{<<"field1">> => 33}}}},
    ?assertEqual(P, flowdata:set_root(P, <<"root.subroot">>)).
 
+
+tss_fields_basic1_test() ->
+   Batch =
+      #data_batch{points = [
+         #data_point{
+            ts=1570286881023,
+            fields = #{<<"datetime">> =>
+            <<"2019-10-05T14:48:01.023Z">>,
+            <<"id-string">> => <<"ioi2u34oiu23oi4u2oi4u2">>,
+            <<"raw">> => <<"01002">>,
+            <<"value1">> => 323424,
+            <<"value2">> =>
+            #{<<"key12">> =>
+            #{<<"anotherkey">> =>
+            <<"somestringvalue">>}}, <<"vsdtg">> => 22}
+         },
+         #data_point{
+            ts=1570286881024,
+            fields = #{<<"datetime">> =>
+            <<"2019-10-05T14:48:01.023Z">>,
+               <<"id-string">> => <<"ioi2u34oiu23oi4u2oi4u2">>,
+               <<"value1">> => 323424,
+               <<"value2">> =>
+               #{<<"key12">> =>
+               #{<<"anotherkey">> =>
+               <<"somestringvalue">>}}, <<"vsdtg">> => 22}
+         },
+         #data_point{
+            ts=1570286881025,
+            fields = #{<<"datetime">> =>
+            <<"2019-10-05T14:48:01.023Z">>,
+               <<"id-string">> => <<"ioi2u34oiu23oi4u2oi4u2">>,
+               <<"raw">> => <<"0100234">>,
+               <<"value1">> => 323424,
+               <<"value2">> =>
+               #{<<"key12">> =>
+               #{<<"anotherkey">> =>
+               <<"somestringvalue">>}}, <<"vsdtg">> => 22}
+         }
+
+      ]
+      },
+   Expected = {[1570286881023, 1570286881025], [<<"01002">>, <<"0100234">>]},
+   ?assertEqual(Expected, flowdata:tss_fields(Batch, <<"raw">>)).
+
+tss_fields_basic_with_undefined_test() ->
+   Batch =
+      #data_batch{points = [
+         #data_point{
+            ts=1570286881023,
+            fields = #{<<"datetime">> =>
+            <<"2019-10-05T14:48:01.023Z">>,
+               <<"id-string">> => <<"ioi2u34oiu23oi4u2oi4u2">>,
+               <<"raw">> => <<"01002">>,
+               <<"value1">> => 323424,
+               <<"value2">> =>
+               #{<<"key12">> =>
+               #{<<"anotherkey">> =>
+               <<"somestringvalue">>}}, <<"vsdtg">> => 22}
+         },
+         #data_point{
+            ts=1570286881024,
+            fields = #{<<"datetime">> =>
+            <<"2019-10-05T14:48:01.023Z">>,
+               <<"id-string">> => <<"ioi2u34oiu23oi4u2oi4u2">>,
+               <<"value1">> => 323424,
+               <<"value2">> =>
+               #{<<"key12">> =>
+               #{<<"anotherkey">> =>
+               <<"somestringvalue">>}}, <<"vsdtg">> => 22}
+         },
+         #data_point{
+            ts=1570286881025,
+            fields = #{<<"datetime">> =>
+            <<"2019-10-05T14:48:01.023Z">>,
+               <<"id-string">> => <<"ioi2u34oiu23oi4u2oi4u2">>,
+               <<"raw">> => <<"0100234">>,
+               <<"value1">> => 323424,
+               <<"value2">> =>
+               #{<<"key12">> =>
+               #{<<"anotherkey">> =>
+               <<"somestringvalue">>}}, <<"vsdtg">> => 22}
+         }
+
+      ]
+      },
+   Expected = {[1570286881023, 1570286881024, 1570286881025], [<<"01002">>, undefined, <<"0100234">>]},
+   ?assertEqual(Expected, prepare(Batch, <<"raw">>)).
+
+prepare(B=#data_batch{}, Field) ->
+   {flowdata:ts(B), flowdata:field(B, Field)}.
+
 -endif.

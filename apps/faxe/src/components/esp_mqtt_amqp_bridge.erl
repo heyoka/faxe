@@ -141,7 +141,7 @@ init(NodeId, _Ins,
       pass = Pass, fn_id = NodeId, ssl_opts = ssl_opts(UseSSL)},
 
    %% start reset interval
-   erlang:send_after(State#state.reset_check_interval, self(), check_reset),
+   %erlang:send_after(State#state.reset_check_interval, self(), check_reset),
 
    {ok, State}.
 

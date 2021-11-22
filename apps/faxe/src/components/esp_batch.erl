@@ -43,7 +43,15 @@ init(_NodeId, _Inputs, #{size := Size, timeout := Timeout0}) ->
 
 process(_, #data_point{} = Point, State=#state{} ) ->
    NewState = accumulate(Point, State),
-   maybe_emit(NewState).
+   maybe_emit(NewState);
+process(_, #data_batch{points = _Points}, _State=#state{} ) ->
+%%   AccFun =
+%%   fun(P=#data_point{}, {State, ResList})
+%%   Results =
+
+%%   NewState = accumulate(Point, State),
+%%   maybe_emit(NewState).
+   erlang:error("process databatch not yet implemented in batch node!").
 
 %% this should not be possible, cause the timer starts on an incoming point
 handle_info(batch_timeout, State=#state{length = 0}) ->
@@ -66,6 +74,8 @@ shutdown(State) ->
 %%%===================================================================
 %%% Internal functions
 %%%===================================================================
+process_batch(Points, State=#state{}) -> ok.
+
 accumulate(Point = #data_point{}, State = #state{window = Win, length = 0}) ->
    NewState = maybe_start_timer(State),
    NewState#state{length = 1, window = queue:in(Point, Win)};

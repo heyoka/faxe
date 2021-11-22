@@ -18,6 +18,10 @@
   timer_ref
 }).
 
+-type faxe_timer() :: #faxe_timer{}.
+-export_type([faxe_timer/0]).
+
+
 -record(mem_queue, {
   q,
   max,

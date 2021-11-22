@@ -6,10 +6,11 @@
 -author("Alexander Minichmair").
 
 -include("faxe.hrl").
+-include("faxe_epgsql_response.hrl").
 
 -behavior(df_component).
 %% API
--export([init/3, process/3, options/0, handle_info/2, to_flowdata/2, check_options/0, shutdown/1, metrics/0]).
+-export([init/3, process/3, options/0, handle_info/2, check_options/0, shutdown/1, metrics/0]).
 
 -record(state, {
    host :: string(),
@@ -27,6 +28,7 @@
    result_type,
    align = false,
    timer,
+   resp_def :: faxe_epgsql_response(),
    fn_id,
    debug_mode = false
 }).
@@ -59,12 +61,14 @@ options() ->
 
 check_options() ->
    [
+      {one_of, result_type, [<<"batch">>, <<"point">>]},
       {func, query, fun faxe_util:check_select_statement/1, <<"seems not to be a valid sql select statement">>}
    ].
 
 metrics() ->
    [
-      {?METRIC_BYTES_READ, meter, []}
+      {?METRIC_BYTES_READ, meter, []},
+      {?METRIC_READING_TIME, histogram, [slide, 30], "The number of milliseconds it took the query-result to return."}
    ].
 
 init(NodeId, _Inputs, #{host := Host0, port := Port, user := User, every := Every, period := Period,
@@ -80,8 +84,9 @@ init(NodeId, _Inputs, #{host := Host0, port := Port, user := User, every := Ever
    Q = faxe_util:clean_query(Q0),
    Query = build_query(Q, TimeGroup, TimeField, GroupBys),
 %%   lager:warning("the QUERY: ~p",[Query]),
+   Response = faxe_epgsql_response:new(TimeField, erlang:binary_to_existing_atom(RType), <<"data">>),
    State = #state{host = Host, port = Port, user = User, pass = Pass, database = DB, query = Query,
-      db_opts = DBOpts, every = Every, period = faxe_time:duration_to_ms(Period),
+      db_opts = DBOpts, every = Every, period = faxe_time:duration_to_ms(Period), resp_def = Response,
       align = Align, result_type = RType, fn_id = NodeId},
    connection_registry:reg(NodeId, Host, Port, <<"pgsql">>),
    erlang:send_after(0, self(), reconnect),
@@ -94,15 +99,32 @@ process(_In, _B = #data_batch{}, State = #state{}) ->
 
 
 handle_info(query,
-    State = #state{timer = Timer, client = C, stmt = Q, period = Period, result_type = RType}) ->
+    State = #state{timer = Timer, client = C, stmt = Q, period = Period, result_type = RType, fn_id = FnId, resp_def = RespDef}) ->
    QueryMark = Timer#faxe_timer.last_time,
 %%   lager:notice("query: ~p with ~p from: ~p, to :~p",
 %%      [Q, [QueryMark-Period, QueryMark], faxe_time:to_iso8601(QueryMark-Period), faxe_time:to_iso8601(QueryMark)]),
    NewTimer = faxe_time:timer_next(Timer),
    %% do query
-   Resp = epgsql:prepared_query(C, ?STMT, [QueryMark-Period, QueryMark]),
+   {TsMy, Resp} = timer:tc(epgsql, prepared_query, [C, ?STMT, [QueryMark-Period, QueryMark]]),
+   %%   lager:info("reading time: ~pms", [round(TsMy/1000)]),
+   node_metrics:metric(?METRIC_READING_TIME, round(TsMy/1000), FnId),
+%%   Resp = epgsql:prepared_query(C, ?STMT, [QueryMark-Period, QueryMark]),
 %%   lager:debug("Resp: ~p",[Resp]),
-   handle_response(Resp, RType, State#state{timer = NewTimer});
+%%   handle_response(Resp, RType, State#state{timer = NewTimer});
+   NewState = State#state{timer = NewTimer},
+   Result = faxe_epgsql_response:handle(Resp, RespDef),
+%%   lager:notice("result: ~p",[Result]),
+   case Result of
+      ok ->
+         {ok, NewState};
+      {ok, Data} ->
+         node_metrics:metric(?METRIC_ITEMS_IN, 1, FnId),
+         {emit, {1, Data}, NewState};
+      {error, Error} ->
+         lager:warning("Error response from Crate: ", [Error]),
+         {ok, NewState}
+   end;
+
 
 handle_info({'EXIT', _C, Reason}, State = #state{timer = Timer}) ->
    lager:warning("EXIT epgsql with reason: ~p",[Reason]),
@@ -140,7 +162,7 @@ connect(State = #state{db_opts = Opts, query = Q}) ->
 
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-build_query(<<"SELECT", Query/binary>>, TimeGroup, TimeField, GroupBys) ->
+build_query(<<_Select:6/binary, Query/binary>>, TimeGroup, TimeField, GroupBys) ->
    GroupTimeStatement = time_group(TimeGroup, TimeField),
    GroupByClause = build_group_bys(GroupBys),
    TimeRangeClause = time_range(TimeField, Query),
@@ -178,50 +200,6 @@ build_group_bys([GroupField|R], GroupClause) ->
 init_timer(S = #state{align = Align, every = Every}) ->
    Timer = faxe_time:init_timer(Align, Every, query),
    S#state{timer = Timer}.
-
-%% result handling
-
-handle_response({ok, Columns, Rows}, ResponseType, State) ->
-   ColumnNames = columns(Columns, []),
-%%   lager:notice("result ROWS: ~p",[Rows]),
-   Batch = handle_result(ColumnNames, Rows, ResponseType),
-   node_metrics:metric(?METRIC_ITEMS_IN, 1, State#state.fn_id),
-   {emit, {1, Batch}, State};
-handle_response(Other, _RType, State) ->
-%%   lager:warning("Response from Crate: ", [Other]),
-   {ok, State}.
-
-
-columns([], ColumnNames) ->
-   lists:reverse(ColumnNames);
-columns([{column, Name, _Type, _, _, _, _, _, _}|RestC], ColumnNames) ->
-   columns(RestC, [Name|ColumnNames]).
-
-handle_result(Columns, Rows, <<"batch">>) ->
-   to_flowdata(Columns, Rows);
-handle_result(Columns, Rows, <<"point">>) ->
-   Batch = to_flowdata(Columns, Rows),
-   FieldsList = [Fields || #data_point{fields = Fields} <- Batch#data_batch.points],
-   #data_point{ts = faxe_time:now(), fields = #{<<"data">> => FieldsList}}.
-
-
-
-to_flowdata(Columns, ValueRows) ->
-   VRows = [tuple_to_list(VRow) || VRow <- ValueRows],
-   to_flowdata(Columns, lists:reverse(VRows), #data_batch{}).
-
-to_flowdata(_C, [], Batch=#data_batch{}) ->
-   Batch;
-to_flowdata([<<"ts_gb">>|Columns]=C, [[Ts|ValRow]|Values], Batch=#data_batch{points = Points}) ->
-   Point = row_to_datapoint(Columns, ValRow,
-      #data_point{ts = faxe_epgsql_codec:decode(Ts, timestamp, nil)}),
-   to_flowdata(C, Values, Batch#data_batch{points = [Point|Points]}).
-
-row_to_datapoint([], [], Point) ->
-   Point;
-row_to_datapoint([C|Columns], [Val|Row], Point) ->
-   P = flowdata:set_field(Point, C, Val),
-   row_to_datapoint(Columns, Row, P).
 
 -spec cancel_timer(#faxe_timer{}|undefined) -> #faxe_timer{}|undefined.
 cancel_timer(Timer) ->

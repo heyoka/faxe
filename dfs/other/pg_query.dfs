@@ -1,6 +1,6 @@
 def host = '127.0.0.1'
 def port = 5432
-def sql = <<< SELECT AVG(data_obj['x']['cur']) as avg_x_cur FROM table WHERE id > 33 >>>
+def sql = <<< SELECT AVG(data_obj['x']['cur']) as avg_x_cur FROM table WHERE id < 33 >>>
 def user = 'crate'
 def database = 'doc'
 
