@@ -2,7 +2,9 @@
 %% Ⓒ 2019 heyoka
 %% @doc
 %% This node takes a list of lambda expressions representing different states.
-%% It will emit values only after each state has evaluated as true in the given order and, for each step in the sequence
+%% It is used to impose a strict sequence of events on the data, that is seen to be valid for further processing.
+%%
+%% The node will emit values only after each state has evaluated as true in the given order and, for each step in the sequence
 %% within the corresponding timeout.
 %% You must define a timeout for every state transition with the 'within' parameter.
 %%
@@ -11,14 +13,16 @@
 %% Note that the sequence timeouts start after the first datapoint has satisfied the first lambda expression.
 %% Therefore, if 3 lambda states are given, only 2 durations for the 'within' parameter can be defined.
 %%
-%% With the 'strict' parameter the sequence of states must be met exactly without any datapoints coming in,
+%% With the 'strict' parameter the sequence of states must be met exactly without any datapoints in between,
 %% that do not satisfy the current state expression.
-%% Normally this would not reset the sequence of evaluation, in this mode, it will.
+%% Without strict mode, this would not reset the sequence of evaluation.
 %%
 %% On a successful evaluation of the whole sequence,
 %% the node will simply output the last value, that completed the sequence.
 %%
 %% The state_sequence node can be used with one or many input nodes.
+%%
+%% @todo implement output mode: ie merge for all output points
 %%
 -module(esp_state_sequence).
 -author("Alexander Minichmair").

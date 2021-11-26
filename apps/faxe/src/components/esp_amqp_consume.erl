@@ -73,6 +73,7 @@ options() -> [
    {routing_key, string, undefined},
    {bindings, string_list, []},
    {queue, string},
+   {consumer_tag, string, undefined},
    {exchange, string},
    {prefetch, integer, 70},
    {ack_every, integer, 10},
@@ -98,11 +99,11 @@ metrics() ->
       {?METRIC_BYTES_READ, meter, []}
    ].
 
-init({_GraphId, _NodeId} = Idx, _Ins,
+init({GraphId, NodeId} = Idx, _Ins,
    #{ host := Host0, port := Port, user := _User, pass := _Pass, vhost := _VHost, queue := _Q,
       exchange := _Ex, prefetch := Prefetch, routing_key := _RoutingKey, bindings := _Bindings,
       dt_field := DTField, dt_format := DTFormat, ssl := _UseSSL, include_topic := IncludeTopic,
-      topic_as := TopicKey, ack_every := AckEvery0, ack_after := AckTimeout0, as := As
+      topic_as := TopicKey, ack_every := AckEvery0, ack_after := AckTimeout0, as := As, consumer_tag := CTag0
       ,
 %%      use_flow_ack := FlowAck,
    safe := Safe, confirm := Confirm,
@@ -111,8 +112,9 @@ init({_GraphId, _NodeId} = Idx, _Ins,
 
    process_flag(trap_exit, true),
    AckTimeout = faxe_time:duration_to_ms(AckTimeout0),
+   CTag = case CTag0 of undefined -> <<"c_", GraphId/binary, "-", NodeId/binary>>; _ -> CTag0 end,
    Host = binary_to_list(Host0),
-   Opts = Opts0#{host => Host},
+   Opts = Opts0#{host => Host, consumer_tag => CTag},
    State = #state{
       include_topic = IncludeTopic, topic_key = TopicKey, as = As, dedup_queue = memory_queue:new(DedupSize),
       opts = Opts, prefetch = Prefetch, ack_every = AckEvery0, ack_after = AckTimeout,
@@ -253,7 +255,7 @@ start_emitter(State = #state{queue = Q}) ->
 
 
 -spec consumer_config(Opts :: map()) -> list().
-consumer_config(Opts = #{vhost := VHost, queue := Q,
+consumer_config(Opts = #{vhost := VHost, queue := Q, consumer_tag := ConsumerTag,
    prefetch := Prefetch, exchange := XChange, bindings := Bindings, routing_key := RoutingKey, confirm := Confirm}) ->
    RMQConfig = faxe_config:get(rabbitmq),
    RootExchange = proplists:get_value(root_exchange, RMQConfig, <<"amq.topic">>),
@@ -265,6 +267,7 @@ consumer_config(Opts = #{vhost := VHost, queue := Q,
          {callback, self()},
          {confirm, Confirm},
          {setup_type, permanent},
+         {consumer_tag, ConsumerTag},
          {prefetch_count, Prefetch},
          {vhost, VHost},
          {setup,

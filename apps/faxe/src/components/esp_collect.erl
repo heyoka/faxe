@@ -19,13 +19,13 @@
 %% API
 -export([init/3, process/3, options/0
 %%   , check_options/0
-   , wants/0, emits/0, handle_info/2, check_options/0, do_process/2]).
+   , wants/0, emits/0, handle_info/2, check_options/0, do_process/2, shutdown/1]).
 
 -define(UPDATE_NEVER, <<"never">>).
 -define(UPDATE_ALWAYS, <<"always">>).
 
--define(TYPE_SET, <<"set">>).
--define(TYPE_LIST, <<"list">>).
+-define(UPDATE_MODE_REPLACE, <<"replace">>).
+-define(UPDATE_MODE_MERGE, <<"merge">>).
 
 -define(TAG_ADDED, <<"added">>).
 -define(TAG_REMOVED, <<"removed">>).
@@ -33,33 +33,39 @@
 -record(state, {
    node_id,
    buffer = undefined, %% holds a proplist with {key, point} -> current collection buffer
-   removed_buffer = undefined, %% holds a proplist with {key, point} of points that were removed since the last emit
 
-   add_function,
-   remove_function,
-   update,
-   update_state_fun,
+   add_function :: function(),
+   remove_function :: undefined | function(),
+   update_function :: undefined | function(),
+   update_mode,
    emit_interval,
    fields
    ,keep
    ,keep_as,
-   type = ?TYPE_SET,
    as,
-   max_age
+   max_age,
+   age_timer :: reference(),
+   %% tagging and output
+   tag_added = false :: true | false,
+   include_removed = false :: true | false,
+   tag_value :: term(),
+   current_batch_start :: faxe_time:timestamp()
 }).
 
 options() -> [
    {key_fields, string_list},
-   {type, string, ?TYPE_SET},
    {add, lambda},
    {remove, lambda},
-   {update, any, ?UPDATE_NEVER}, %% 'never', 'always' or lambda expression
-   {update_state, lambda, undefined}, %% 'never', 'always' or lambda expression
+   {update, lambda, undefined},
+   {update_mode, string, ?UPDATE_MODE_REPLACE}, %% 'replace', 'merge'
    {emit_every, duration, undefined},
+   {tag_added, boolean, false},
+   {include_removed, boolean, false},
    {keep, string_list, []}, %% a list of field path to keep for every data_point
    {keep_as, string_list, []}, %% rename the kept fields
    {as, string, <<"collected">>}, %% rename the whole field construct on output
-   {max_age, duration, undefined}
+   {max_age, duration, <<"3h">>},
+   {tag_value, any, 1}
 ].
 
 check_options() ->
@@ -70,14 +76,19 @@ check_options() ->
             is_function(Val) orelse Val == ?UPDATE_NEVER orelse Val == ?UPDATE_ALWAYS
          end,
          <<" can only be 'never', 'always' or a lambda expression">>},
-      {one_of, type, [?TYPE_SET, ?TYPE_LIST]}
+      {one_of, update_mode, [?UPDATE_MODE_MERGE, ?UPDATE_MODE_REPLACE]}
    ].
 
 wants() -> point.
 emits() -> batch.
 
-init(NodeId, _Ins, #{key_fields := Fields, add := AddFunc, remove := RemFunc, update := Update, type := Type,
-   emit_every := EmitEvery, keep := Keep, keep_as := KeepAs, as := As, max_age := MaxAge0, update_state := UpStateFun}) ->
+init(NodeId, _Ins, #{
+   key_fields := Fields, add := AddFunc, remove := RemFunc, update := UpStateFun,
+   update := UpStateFun, update_mode := UpMode,
+   emit_every := EmitEvery, tag_added := TagAdd, include_removed := InclRem, tag_value := TagVal,
+   keep := Keep, keep_as := KeepAs,
+   as := As, max_age := MaxAge0}
+) ->
 
    EmitInterval = case EmitEvery of undefined -> undefined; _ -> faxe_time:duration_to_ms(EmitEvery) end,
    MaxAge = case MaxAge0 of undefined -> undefined; Age -> faxe_time:duration_to_ms(Age) end,
@@ -86,95 +97,97 @@ init(NodeId, _Ins, #{key_fields := Fields, add := AddFunc, remove := RemFunc, up
       #state{
          node_id = NodeId,
          fields = Fields,
-         type = Type,
          add_function = AddFunc,
          remove_function = RemFunc,
-         update = Update,
-         update_state_fun = UpStateFun,
+         update_function = UpStateFun,
+         update_mode = UpMode,
          emit_interval = EmitInterval,
          keep = Keep,
          keep_as = Aliases,
          as = As,
-         max_age = MaxAge}}.
+         max_age = MaxAge,
+         tag_added = TagAdd,
+         include_removed = InclRem,
+         tag_value = TagVal}}.
 
-process(Port, #data_point{} = Point, State = #state{buffer = undefined}) ->
+process(Port, Item, State = #state{buffer = undefined}) ->
    maybe_start_emit_timeout(State),
-   process(Port, Point, State#state{buffer = []});
+   start_age_timeout(State),
+   process(Port, Item, State#state{buffer = []});
 process(_Port, #data_point{} = Point, State = #state{fields = _Field}) ->
    {T, Res} = timer:tc(?MODULE, do_process, [Point, State]),
-%%   lager:info("Took: ~p my",[T]),
+   lager:info("Took: ~p my",[T]),
    case Res of
       {ok, State} -> {ok, State};
       {Changed, NewState} ->
          maybe_emit(Changed, NewState)
-%%            do_emit(State#state{buffer = NewBuffer})
    end;
 process(Port, Batch = #data_batch{}, State = #state{buffer = undefined}) ->
    process(Port, Batch, State#state{buffer = []});
-process(_Port, #data_batch{points = Points}, State) ->
-
+process(_Port, B = #data_batch{points = Points}, State) ->
+   NewState0 = maybe_get_batch_start(B, State),
    ProcessFun =
    fun(Point, {Changed0, State0}) ->
       {Changed1, NewState} = do_process(Point, State0),
       ChangedNew = (Changed0 == true orelse Changed1 == true),
       {ChangedNew, NewState}
    end,
-   {T, {Changed, ResState}} = timer:tc(lists, foldl, [ProcessFun, {false, State}, Points]),
+   {T, {Changed, ResState}} = timer:tc(lists, foldl, [ProcessFun, {false, NewState0}, Points]),
    lager:notice("it took ~p my to process ~p points (changed: ~p)",[T, length(Points), Changed]),
    maybe_emit(Changed, ResState).
 
-%%do_process(#data_point{} = Point, State = #state{buffer = Buffer}) ->
-%%   case keyval(Point, State) of
-%%      undefined -> {ok, State};
-%%      KeyVal ->
-%%         case proplists:get_value(KeyVal, Buffer) of
-%%            undefined ->
-%%               %% it is not there so only adding will be appropiate
-%%               maybe_add(Point, KeyVal, State);
-%%            _ ->
-%%               %% entry with this key is present, so update or remove possible
-%%               %% if update did happen, we do not bother to test if remove should be done
-%%%%               lager:notice("maybe_update_state for: ~p",[KeyVal]),
-%%               {ChangedBool, NewState} = maybe_update_state(Point, KeyVal, State),
-%%               case ChangedBool of
-%%                  true -> {true, NewState};
-%%                  false -> maybe_remove(Point, KeyVal, NewState)
-%%               end
-%%         end
-%%   end.
+handle_info(emit_timeout, State = #state{}) ->
+   maybe_start_emit_timeout(State),
+   do_emit(State);
+handle_info(age_timeout, State = #state{}) ->
+   start_age_timeout(State),
+   {ok, age_cleanup(State)}.
 
-do_process(#data_point{} = Point, State = #state{buffer = Buffer}) ->
+shutdown(_State) ->
+   ok.
+
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+maybe_get_batch_start(#data_batch{start = undefined}, State) ->
+   State;
+maybe_get_batch_start(#data_batch{start = BatchStart}, State) ->
+   State#state{current_batch_start = BatchStart}.
+
+do_process(#data_point{} = Point, State = #state{buffer = _Buffer}) ->
    case is_in(Point, State) of
-      {undefined, _} -> {ok, State};
-      {false, KeyVal} -> maybe_add(Point, KeyVal, State);
+      {undefined, _} ->
+%%         lager:notice("--- no keyval for ~p",[Point]),
+         {ok, State};
+      {false, KeyVal} ->
+%%         lager:notice("maybe_add: ~p",[Point]),
+         maybe_add(Point, KeyVal, State);
       {true, KeyVal} ->
+%%         lager:notice("maybe_update: ~p",[Point]),
          {ChangedBool, NewState} = maybe_update_state(Point, KeyVal, State),
          case ChangedBool of
             true -> {true, NewState};
-            false -> maybe_remove(Point, KeyVal, NewState)
+            false ->
+%%               lager:notice("maybe_remove: ~p",[Point]),
+               maybe_remove(Point, KeyVal, NewState)
          end
    end.
 
 -spec is_in(#data_point{}, #state{}) -> {undefined|true|false, KeyVal :: term()}.
-is_in(#data_point{} = Point, State = #state{buffer = Buffer}) ->
+is_in(#data_point{} = Point, State = #state{buffer = Buffer, tag_value = TagVal}) ->
    KeyVal = keyval(Point, State),
    R =
-   case KeyVal of
-      undefined -> undefined;
-      _ ->
-         %% get the point
-         case proplists:get_value(KeyVal, Buffer) of
-            undefined -> false;
-            P ->
-               flowdata:field(P, ?TAG_REMOVED) /= true
-         end
-   end,
+      case KeyVal of
+         undefined -> undefined;
+         _ ->
+            %% get the point
+            case buffer_get(KeyVal, Buffer) of
+               undefined -> false;
+               P ->
+                  flowdata:field(P, ?TAG_REMOVED) /= TagVal
+            end
+      end,
 %%   lager:notice("keyval ~p", [KeyVal]),
    {R, KeyVal}.
-
-handle_info(emit_timeout, State = #state{}) ->
-   maybe_start_emit_timeout(State),
-   do_emit(State).
 
 keyval(Point, #state{fields = [Field]}) when is_binary(Field) ->
    flowdata:field(Point, Field);
@@ -189,32 +202,38 @@ keyval(Point, #state{fields = Fields}) ->
 maybe_add(Point = #data_point{ts = _Ts}, KeyVal, State = #state{add_function = AddFunc}) ->
    case catch(faxe_lambda:execute(Point, AddFunc)) of
       true ->
-%%         lager:info("add: ~p",[KeyVal]),
+         %lager:info("add: ~p ~p",[KeyVal, Point]),
          add(KeyVal, Point, State);
       _ -> {false, State}
    end.
 
 maybe_remove(Point = #data_point{ts = _Ts}, KeyVal, State = #state{remove_function = RemFunc}) ->
    case catch(faxe_lambda:execute(Point, RemFunc)) of
-      true -> {true, mark_removed(KeyVal, State)};
+      true ->
+         %lager:info("remove: ~p ~p",[KeyVal, Point]),
+         {true, remove1(KeyVal, State)};
       _ -> {false, State}
    end.
 
-%%maybe_update(_Point, _KeyVal, S = #state{update = ?UPDATE_NEVER, buffer = Buffer}) ->
-%%   {false, S};
-%%maybe_update(Point, KeyVal, State = #state{}) ->
-%%   update(KeyVal, Point, State).
+remove1(Key, State = #state{buffer = Buffer, include_removed = false}) ->
+   State#state{buffer = buffer_delete(Key, Buffer)};
+remove1(Key, State = #state{buffer = Buffer0, include_removed = true, tag_value = Tag}) ->
+   RPoint = buffer_get(Key, Buffer0),
+   State#state{buffer = buffer_update(Key, flowdata:set_field(RPoint, ?TAG_REMOVED, Tag), Buffer0)}.
 
-maybe_update_state(_Point, _KeyVal, S = #state{update_state_fun = undefined}) ->
+
+maybe_update_state(_Point, _KeyVal, S = #state{update_function = undefined}) ->
    {false, S};
-maybe_update_state(Point=#data_point{fields = Fields}, KeyVal, State = #state{update_state_fun = Fun, buffer = Buffer}) ->
-   StatePoint = proplists:get_value(KeyVal, Buffer),
+maybe_update_state(Point=#data_point{fields = Fields}, KeyVal, State = #state{update_function = Fun, buffer = Buffer}) ->
+   StatePoint = buffer_get(KeyVal, Buffer),
    FunPoint = Point#data_point{fields = Fields#{<<"__state">> => StatePoint#data_point.fields}},
 %%      flowdata:set_field(Point, <<"__state">>, StatePoint#data_point.fields),
 %%   lager:notice("FunPoint is: ~p",[FunPoint]),
    case catch(faxe_lambda:execute(FunPoint, Fun)) of
-      true -> {true, replace(KeyVal, Point, State)};
-      _ -> {false, Buffer}
+      true ->
+%%         lager:info("update: ~p ~p",[KeyVal, Point]),
+         {true, do_update(KeyVal, StatePoint, Point, State)};
+      _ -> {false, State}
    end.
 
 
@@ -224,43 +243,77 @@ maybe_emit(true, State = #state{emit_interval = undefined}) ->
 maybe_emit(_, State = #state{}) ->
    {ok, State}.
 
-do_emit(State = #state{buffer = Buff}) ->
-   lager:notice("buffer length before emit: ~p", [length(Buff)]),
-   CFun =
-   fun({_, P}, {Added, Kept, Removed}) ->
-      case flowdata:field(P, ?TAG_ADDED) of
-         1 -> {Added+1, Kept, Removed};
-         _ ->
-            case flowdata:field(P, ?TAG_REMOVED) of
-               1 -> {Added, Kept, Removed+1};
-               _ -> {Added, Kept+1, Removed}
-            end
-      end
-   end,
-   {A, K, R} = lists:foldl(CFun, {0,0,0}, Buff),
-   lager:notice("Added: ~p, Kept: ~p, Removed: ~p",[A, K, R]),
-   Points0 = [keep(Val, State) || {_Key, Val} <- Buff],
-%%   lager:notice("emit: ~p", [[Key || {Key, _Val} <- Buff]]),
+do_emit(State = #state{buffer = Buff, tag_value = TagVal}) ->
+%%   lager:notice("buffer length before emit: ~p", [length(Buff)]),
+%%   CFun =
+%%   fun({_, P, _}, {Added, Removed}) ->
+%%%%      lager:info("~p",[P]),
+%%      NewAdded =
+%%      case flowdata:field(P, ?TAG_ADDED) of
+%%         TagVal -> Added+1;
+%%         _ -> Added
+%%      end,
+%%      case flowdata:field(P, ?TAG_REMOVED) == undefined of
+%%         TagVal -> {NewAdded, Removed+1};
+%%         _ -> {NewAdded, Removed}
+%%      end
+%%   end,
+%%   {A, R} = lists:foldl(CFun, {0,0}, Buff),
+%%   Kept = length(Buff) - A - R,
+%%   lager:notice("Added: ~p, Kept: ~p, Removed: ~p",[A, Kept, R]),
+
+   Points0 = [
+      maybe_rewrite_ts(
+         keep(Val, State),
+         State)
+      || {_Key, Val, _} <- Buff],
+
    %% sort elements by timestamp for data_batch
    Points = lists:keysort(2, Points0),
    Batch = #data_batch{points = Points},
+   %%
    %% now cleanup removed and added tags
+   NewState = buffer_cleanup(State),
+%%   lager:notice("buffer length after emit: ~p",[length(NewState#state.buffer)]),
+   {emit, Batch, NewState#state{current_batch_start = undefined}}.
+
+buffer_cleanup(State = #state{tag_added = false, include_removed = false}) ->
+   State;
+buffer_cleanup(State = #state{buffer = Buff, tag_value = TagVal}) ->
    CleanFun =
-   fun({Key, Point}, Acc) ->
-      Point0 = flowdata:delete_field(Point, ?TAG_ADDED),
-      case flowdata:field(Point0, ?TAG_REMOVED) of
-         1 -> proplists:delete(Key, Acc);
-         _ -> [{Key, Point0}|proplists:delete(Key, Acc)]
-      end
-   end,
+      fun({Key, Point, _Ts}, Acc) ->
+         Point0 = flowdata:delete_field(Point, ?TAG_ADDED),
+         case flowdata:field(Point0, ?TAG_REMOVED) of
+            TagVal -> buffer_delete(Key, Acc);
+            _ -> buffer_update(Key, Point0, Acc)
+         end
+      end,
    CleanedBuffer = lists:foldl(CleanFun, Buff, Buff),
-   lager:notice("buffer length after emit: ~p",[length(CleanedBuffer)]),
-   {emit, Batch, State#state{buffer = CleanedBuffer}}.
+   State#state{buffer = CleanedBuffer}.
+
+age_cleanup(State = #state{buffer = Buffer, max_age = Age}) ->
+   Now = faxe_time:now(),
+   CleanFun =
+      fun({Key, _Point, TimeAdded}, Acc) ->
+         case (TimeAdded + Age) > Now of
+            true -> buffer_delete(Key, Acc);
+            false -> Acc
+         end
+      end,
+   CleanedBuffer = lists:foldl(CleanFun, Buffer, Buffer),
+   lager:notice("aged: ~p", [length(Buffer) - length(CleanedBuffer)]),
+   State#state{buffer = CleanedBuffer}.
+
 
 maybe_start_emit_timeout(#state{emit_interval = undefined}) ->
    ok;
 maybe_start_emit_timeout(#state{emit_interval = Intv}) ->
    erlang:send_after(Intv, self(), emit_timeout).
+
+start_age_timeout(#state{max_age = Age}) ->
+   Interval = erlang:round(Age/2),
+   lager:warning("age_interval = ~p",[Interval]),
+   erlang:send_after(Interval, self(), age_timeout).
 
 keep(DataPoint, #state{keep = []}) ->
    DataPoint;
@@ -274,65 +327,75 @@ keep(DataPoint, #state{keep = FieldNames, keep_as = Aliases}) when is_list(Field
    NewPoint0 = flowdata:set_fields(Point0, SetFields),
    NewPoint0.
 
-add(Key, Point, S = #state{buffer = Buffer0, type = ?TYPE_SET}) ->
-   case proplists:get_value(Key, Buffer0) of
-      undefined ->
-%%         lager:warning("add: ~p", [Key]),
-         case flowdata:field(Point, ?TAG_ADDED) of
-            1 -> lager:info("mark added already when marking remove: ~p",[Key]);
-            _ -> ok
-         end,
-         case flowdata:field(Point, ?TAG_REMOVED) of
-            1 -> lager:info("mark removed already when marking added: ~p",[Key]);
-            _ -> ok
-         end,
-         {true, S#state{buffer = [{Key, flowdata:set_field(Point, ?TAG_ADDED, 1)} | Buffer0]}};
-      _ ->
-%%         lager:info("already exists: ~p", [Key]),
-         {false, S}
-   end;
-add(Key, Point, S = #state{buffer = Buffer0, type = ?TYPE_LIST}) ->
-%%   lager:warning("add: ~p", [Key]),
-   {true, S#state{buffer = [{Key, Point} | Buffer0]}}.
+maybe_rewrite_ts(Point, #state{current_batch_start = undefined}) ->
+   Point;
+maybe_rewrite_ts(Point, #state{current_batch_start = Ts}) ->
+   Point#data_point{ts = Ts}.
 
-mark_removed(Key, S = #state{buffer = Buffer0}) ->
-   RPoint = proplists:get_value(Key, Buffer0),
-   case flowdata:field(RPoint, ?TAG_ADDED) of
-      1 -> lager:info("mark added already when marking remove: ~p",[Key]);
-      _ -> ok
-   end,
-   case flowdata:field(RPoint, ?TAG_REMOVED) of
-      1 -> lager:info("mark removed already when marking remove: ~p",[Key]);
-      _ -> ok
-   end,
-%%   lager:info("mark removed: ~p",[Key]),
-   replace(Key, flowdata:set_field(flowdata:delete_field(RPoint, ?TAG_ADDED), ?TAG_REMOVED, 1), S).
-
-remove(Key, S = #state{buffer = Buffer0, removed_buffer = RBuffer}) ->
-   RPoint = proplists:get_value(Key, Buffer0),
-%%   lager:warning("remove: ~p", [Key]),
-   S#state{buffer = proplists:delete(Key, Buffer0), removed_buffer = [{Key, RPoint}|RBuffer]}.
-
-%%update(Key, Point, State = #state{update = Fun, buffer = Buffer}) when is_function(Fun) ->
-%%   case catch(faxe_lambda:execute(Point, Fun)) of
-%%      true -> replace(Key, Point, State);
-%%      _ -> {false, Buffer}
+add(Key, Point, S = #state{buffer = Buffer0, tag_added = false}) ->
+   {true, S#state{buffer = buffer_add(Key, Point, Buffer0)}};
+add(Key, Point, S = #state{buffer = Buffer0, tag_added = true, tag_value = Tag}) ->
+%%   {true, S#state{buffer = [{Key, flowdata:set_field(Point, ?TAG_ADDED, 1)} | Buffer0]}}.
+   {true, S#state{buffer = buffer_add(Key, flowdata:set_field(Point, ?TAG_ADDED, Tag), Buffer0)}}.
+%%   case buffer_get(Key, Buffer0) of
+%%      undefined ->
+%%%%         lager:warning("add: ~p", [Key]),
+%%         case flowdata:field(Point, ?TAG_ADDED) of
+%%            1 -> lager:warning("marked ADDED already when marking added: ~p",[Key]);
+%%            _ -> ok
+%%         end,
+%%         case flowdata:field(Point, ?TAG_REMOVED) of
+%%            1 -> lager:warning("marked REMOVED already when marking added: ~p",[Key]);
+%%            _ -> ok
+%%         end,
+%%         {true, S#state{buffer = [{Key, flowdata:set_field(Point, ?TAG_ADDED, 1)} | Buffer0]}};
+%%      _ ->
+%%%%         lager:info("already exists: ~p", [Key]),
+%%         {false, S}
 %%   end;
-%%update(Key, Point, S = #state{update = ?UPDATE_ALWAYS}) ->
-%%   replace(Key, Point, S).
+%%add(Key, Point, S = #state{buffer = Buffer0, type = ?TYPE_LIST}) ->
+%%%%   lager:warning("add: ~p", [Key]),
+%%   {true, S#state{buffer = [{Key, Point} | Buffer0]}}.
 
-replace(Key, Point, State = #state{buffer = Buffer}) ->
-%%   lager:warning("update: ~p",[Key]),
-   State#state{buffer = [{Key, Point}|proplists:delete(Key, Buffer)]}.
+do_update(Key, _OldPoint, NewPoint, State = #state{update_mode = ?UPDATE_MODE_REPLACE, buffer = Buff}) ->
+   State#state{buffer = buffer_update(Key, NewPoint, Buff)};
+do_update(Key, OldPoint, NewPoint, State = #state{update_mode = ?UPDATE_MODE_MERGE, buffer = Buff}) ->
+   Point = flowdata:merge_points([OldPoint, NewPoint]),
+%%   lager:warning("~p merged with : ~p",[OldPoint, NewPoint]),
+   State#state{buffer = buffer_update(Key, Point, Buff)}.
 
-%%%%%%%%%%%%%%%%%% TESTS %%%%%%%%%%%%%%%%%%%%%%%%%%
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+buffer_add(Key, Point, Buffer) ->
+   NewBuffer = Buffer ++ [{Key, Point, faxe_time:now()}],
+   NewBuffer.
+
+buffer_delete(Key, Buffer) ->
+   NewBuffer = lists:keydelete(Key, 1, Buffer),
+   NewBuffer.
+
+buffer_update(Key, Point, Buffer) ->
+   {Key, _OldP, Ts} = lists:keyfind(Key, 1, Buffer),
+   NewBuffer = lists:keyreplace(Key, 1, Buffer, {Key, Point, Ts}),
+   NewBuffer.
+
+-spec buffer_get(binary(), list()) -> undefined | #data_point{}.
+buffer_get(Key, Buffer) ->
+   case lists:keyfind(Key, 1, Buffer) of
+      false -> undefined;
+      {Key, Point, _TsAdded} -> Point
+   end.
+
+
+
+
+%%%%%%%%%%%%%%%%%% TESTS %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 -ifdef(TEST).
 
 state() ->
    RemoveFun = lambda_tests:lambda_helper("Data_mode == 0", ["data_mode"]),
    AddFun = lambda_tests:lambda_helper("Data_mode > 0", ["data_mode"]),
    #state{fields = [<<"data_code_id">>], add_function = AddFun, remove_function = RemoveFun,
-      update = ?UPDATE_NEVER, buffer = []}.
+      update_function = ?UPDATE_NEVER, buffer = []}.
 
 point(Idx, Mode) ->
    #data_point{ts = Idx, fields = #{<<"data_code_id">> => Idx, <<"data_mode">> => Mode} }.
@@ -356,5 +419,138 @@ point(Idx, Mode) ->
 %%.
 
 
+tag_buffer(TagVal) ->
+   F = fun(Seq) ->
+      {Seq, #data_point{
+         ts = Seq,
+         fields =
+         #{<<"name">> => iolist_to_binary([<<"point_">>, integer_to_binary(Seq)]),
+            <<"data_code_id">> => Seq
+         }
+      } , Seq}
+       end,
+   [{1, P=#data_point{}, 1} | L] = lists:map(F, lists:seq(1,7)),
+   [{1, flowdata:set_field(P, ?TAG_REMOVED, TagVal), 1} | L].
+
+buffer() ->
+   F = fun(Seq) ->
+      {Seq, #data_point{
+         ts = Seq,
+         fields =
+            #{<<"name">> => iolist_to_binary([<<"point_">>, integer_to_binary(Seq)]),
+               <<"data_code_id">> => Seq
+               }
+      } , Seq}
+         end,
+   lists:map(F, lists:seq(1,7)).
+%%   [{Key, iolist_to_binary([<<"point_">>, integer_to_binary(Key)]), Key} || Key <- lists:seq(1,7)].
+
+buffer_add_test() ->
+   Buffer0 = buffer(),
+   Point = #data_point{ts = 8, fields = #{<<"name">> => <<"point_8">>, <<"data_code_id">> => 8}},
+   Expected = Buffer0 ++ [{8, Point, faxe_time:now()}],
+   ?assertEqual(Expected, buffer_add(8, Point, Buffer0)).
+
+buffer_delete_test() ->
+   Buffer0 = buffer(),
+   [_Hd|Expected] = Buffer0,
+   ?assertEqual(Expected, buffer_delete(1, Buffer0)).
+
+buffer_update_test() ->
+   Buffer = [
+      {1, #data_point{ts=1, fields = #{<<"name">> => <<"eins">>}}, 1},
+      {2, #data_point{ts=2, fields = #{<<"name">> => <<"zwei">>}}, 2}
+   ],
+   NewPoint = #data_point{ts=1, fields = #{<<"name">> => <<"one">>}},
+   Expected = [
+      {1, NewPoint, 1},
+      {2, #data_point{ts=2, fields = #{<<"name">> => <<"zwei">>}}, 2}
+   ],
+   ?assertEqual(Expected, buffer_update(1, NewPoint, Buffer)).
+
+is_in_true_test() ->
+   Buffer = buffer(),
+   State = state(),
+   Point = #data_point{ts = 1, fields = #{<<"name">> => <<"point_1">>, <<"data_code_id">> => 1}},
+   ?assertEqual({true, 1}, is_in(Point, State#state{buffer = Buffer, tag_value = 1})).
+
+is_in_removed_test() ->
+
+   Buffer = [
+      {1, #data_point{ts=1, fields = #{<<"name">> => <<"eins">>, ?TAG_REMOVED => 1}}, 1},
+      {2, #data_point{ts=2, fields = #{<<"name">> => <<"zwei">>}}, 2}
+   ],
+   State = state(),
+   Point = #data_point{ts = 1, fields = #{<<"name">> => <<"point_12">>, <<"data_code_id">> => 1}},
+   ?assertEqual({false, 1}, is_in(Point, State#state{buffer = Buffer, tag_value = 1})).
+
+is_in_false_test() ->
+   Buffer = buffer(),
+   State = state(),
+   Point = #data_point{ts = 12, fields = #{<<"name">> => <<"point_12">>, <<"data_code_id">> => 12}},
+   ?assertEqual({false, 12}, is_in(Point, State#state{buffer = Buffer})).
+
+is_in_undefined_test() ->
+   Buffer = buffer(),
+   State = state(),
+   Point = #data_point{ts = 1, fields = #{<<"name">> => <<"point_1">>}},
+   ?assertEqual({undefined, undefined}, is_in(Point, State#state{buffer = Buffer})).
+
+is_in_tagvalue_test() ->
+   TagValue = <<"ohyeah">>,
+   Buffer = buffer(),
+   io:format("Buffer:~p~n",[Buffer]),
+   State = state(),
+   Point = #data_point{ts = 1, fields = #{<<"name">> => <<"point_1">>, <<"data_code_id">> => 1}},
+   ?assertEqual({true, 1}, is_in(Point, State#state{buffer = Buffer, tag_value = TagValue})).
+
+is_in_tagvalue_false_test() ->
+   TagValue = <<"ohyeah">>,
+   Buffer = tag_buffer(TagValue),
+   io:format("Buffer:~p~n",[Buffer]),
+   State = state(),
+   Point = #data_point{ts = 1, fields = #{<<"name">> => <<"point_1">>, <<"data_code_id">> => 1}},
+   ?assertEqual({false, 1}, is_in(Point, State#state{buffer = Buffer, tag_value = TagValue})).
+
+buffer_cleanup_added_test() ->
+   Buffer = [
+      {1, #data_point{ts=1, fields = #{<<"name">> => <<"eins">>}}, 1},
+      {2, #data_point{ts=2, fields = #{<<"name">> => <<"zwei">>}}, 2},
+      {3, #data_point{ts=3, fields = #{<<"name">> => <<"zwei">>, <<"added">> => 1}}, 3}
+   ],
+   Expected = [
+      {1, #data_point{ts=1, fields = #{<<"name">> => <<"eins">>}}, 1},
+      {2, #data_point{ts=2, fields = #{<<"name">> => <<"zwei">>}}, 2},
+      {3, #data_point{ts=3, fields = #{<<"name">> => <<"zwei">>}}, 3}
+   ],
+   State = #state{buffer = Buffer, tag_added = true, tag_value = 1},
+
+   ?assertEqual(State#state{buffer = Expected}, buffer_cleanup(State)).
+
+buffer_cleanup_removed_test() ->
+   Buffer = [
+      {1, #data_point{ts=1, fields = #{<<"name">> => <<"eins">>}}, 1},
+      {2, #data_point{ts=2, fields = #{<<"name">> => <<"zwei">>}}, 2},
+      {3, #data_point{ts=3, fields = #{<<"name">> => <<"zwei">>, <<"removed">> => 1}}, 3},
+      {4, #data_point{ts=4, fields = #{<<"name">> => <<"zwei">>, <<"added">> => 1}}, 4}
+   ],
+   Expected = [
+      {1, #data_point{ts=1, fields = #{<<"name">> => <<"eins">>}}, 1},
+      {2, #data_point{ts=2, fields = #{<<"name">> => <<"zwei">>}}, 2},
+      {4, #data_point{ts=4, fields = #{<<"name">> => <<"zwei">>}}, 4}
+   ],
+   State = #state{buffer = Buffer, tag_added = true, include_removed = true, tag_value = 1},
+
+   ?assertEqual(State#state{buffer = Expected}, buffer_cleanup(State)).
+
+buffer_cleanup_nope_test() ->
+   Buffer = [
+      {1, #data_point{ts=1, fields = #{<<"name">> => <<"eins">>}}, 1},
+      {2, #data_point{ts=2, fields = #{<<"name">> => <<"zwei">>}}, 2},
+      {3, #data_point{ts=3, fields = #{<<"name">> => <<"zwei1">>, <<"removed">> => 1}}, 3},
+      {4, #data_point{ts=4, fields = #{<<"name">> => <<"zwei2">>, <<"whatever">> => 1}}, 4}
+   ],
+   State = #state{buffer = Buffer, tag_added = false, include_removed = false, tag_value = 1},
+   ?assertEqual(State, buffer_cleanup(State)).
 
 -endif.

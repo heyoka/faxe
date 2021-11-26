@@ -1,0 +1,10 @@
+|value_emitter()
+.every(17s)
+
+|eval(
+    lambda: to_iso8601("ts"),
+    lambda: to_iso8601(time_align("ts", 1m))
+    )
+    .as('datetime', 'datetime_aligned')
+
+|debug()

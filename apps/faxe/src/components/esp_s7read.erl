@@ -198,10 +198,10 @@ handle_info(poll, State=#state{as = Aliases, timer = Timer, byte_size = ByteSize
   TStart = erlang:monotonic_time(microsecond),
   Result = read_vars(State),
   TMs = round((erlang:monotonic_time(microsecond)-TStart)/1000),
-  case Timer /= undefined andalso TMs > Timer#faxe_timer.interval of
-    true -> lager:notice("[~p] Time to read: ~p ms",[self(), TMs]);
-    false -> ok
-  end,
+%%  case Timer /= undefined andalso TMs > Timer#faxe_timer.interval of
+%%    true -> lager:notice("[~p] Time to read: ~p ms",[self(), TMs]);
+%%    false -> ok
+%%  end,
   case Result of
     {ok, Res} ->
       node_metrics:metric(?METRIC_READING_TIME, TMs, FlowIdNodeId),

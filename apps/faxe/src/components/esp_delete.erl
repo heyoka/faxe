@@ -36,14 +36,16 @@ process(_In, Item, State = #state{condition = undefined, fields = Fs, tags = Ts}
    {emit, NewItem, State};
 process(_In, Batch = #data_batch{points = Points}, State) ->
    NewPoints = [process_point(P, State) || P <- Points ],
-   {emit, Batch#data_batch{points = NewPoints}};
+   {emit, Batch#data_batch{points = NewPoints}, State};
 process(_Inport, Item = #data_point{}, State = #state{}) ->
    NewPoint = process_point(Item, State),
    {emit, NewPoint, State}.
 
 process_point(Point, #state{fields = Fs, tags = Ts, condition = Cond}) ->
    case eval(Point, Cond) of
-      true -> do_delete(Fs, Ts, Point);
+      true ->
+%%         lager:info("delete : ~p from :~p",[Fs, Point]),
+         do_delete(Fs, Ts, Point);
       false -> Point
    end.
 

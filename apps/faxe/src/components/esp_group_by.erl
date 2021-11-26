@@ -17,6 +17,7 @@
    lambda_fun,
    groups = #{},
    nodeid,
+   debatch = false,
 
    group_last_seen = #{},
    reset_timeout,
@@ -27,19 +28,24 @@ options() -> [
    {fields, string_list, undefined},
    {lambda, lambda, undefined},
    %% not used yet:
-   {reset_timeout, duration, <<"2m">>}
+   {reset_timeout, duration, <<"2m">>},
+   {debatch, boolean, false}
 ].
 
 check_options() ->
    [{one_of_params, [fields, lambda]}].
 
 
-wants() -> point.
-emits() -> point.
+wants() -> both.
+emits() -> both.
 
-init({_GId, NodeId}, _Ins, #{reset_timeout := RTimeout} = Opts) ->
+init({_GId, NodeId}, _Ins, #{reset_timeout := RTimeout, debatch := Debatch} = Opts) ->
    ResetTimeout = faxe_time:duration_to_ms(RTimeout),
-   State = #state{nodeid = NodeId, reset_timeout = ResetTimeout, groupval_fun = init_groupfun(Opts)},
+   State = #state{
+      nodeid = NodeId,
+      reset_timeout = ResetTimeout,
+      groupval_fun = init_groupfun(Opts),
+      debatch = Debatch},
    %% start reset interval (not used/properly implemented at the moment)
 %%   erlang:send_after(State#state.reset_check_interval, self(), check_reset),
    {ok, all, State}.
@@ -49,12 +55,32 @@ init_groupfun(#{fields := undefined, lambda := Lambda}) ->
 init_groupfun(#{fields := Fields}) ->
    fun(Point) -> flowdata:fields(Point, Fields) end.
 
-process(_In, P = #data_point{},
-    State = #state{groups = Groups, nodeid = NId, group_last_seen = Last, groupval_fun = Fun}) ->
-   Value = Fun(P),
-   NewGroups = ensure_route(Value, Groups, NId),
-   OutPort = maps:get(Value, NewGroups),
-   {emit, {OutPort, P}, State#state{groups = NewGroups, group_last_seen = Last#{Value => faxe_time:now()}}}.
+process(_In, P = #data_point{}, State = #state{}) ->
+   {Out, NewState} = prepare(P, State),
+   {emit, Out, NewState};
+process(_In, #data_batch{points = Points}, State = #state{debatch = false}) ->
+   F =
+      fun(Point, {OutAcc, StateAcc}) ->
+         {{OutPort, P}, NewState} = prepare(Point, StateAcc),
+         BatchGroup = #data_batch{points = Ps} = proplists:get_value(OutPort, OutAcc, #data_batch{}),
+%%         lager:info("old batch group: ~p",[lager:pr(BatchGroup, ?MODULE)]),
+         NewBatch = BatchGroup#data_batch{points = Ps ++ [P]},
+%%         lager:info("new batch group: ~p",[lager:pr(NewBatch, ?MODULE)]),
+         {proplists:delete(OutPort, OutAcc) ++ [{OutPort, NewBatch}], NewState}
+      end,
+   {OutList, LastState} = lists:foldl(F, {[], State}, Points),
+%%   lager:notice("output for batched: ~p",[proplists:get_keys(OutList)]),
+   {emit, OutList, LastState};
+process(_In, #data_batch{points = Points}, State = #state{debatch = true}) ->
+   F =
+      fun(Point, {OutAcc, StateAcc}) ->
+         {Out, NewState} = prepare(Point, StateAcc),
+         {OutAcc ++ [Out], NewState}
+      end,
+   {OutList, LastState} = lists:foldl(F, {[], State}, Points),
+   {emit, OutList, LastState}.
+
+
 
 handle_info(check_reset, State=#state{reset_check_interval = Interval}) ->
    lager:info("check_reset timeout"),
@@ -63,6 +89,13 @@ handle_info(check_reset, State=#state{reset_check_interval = Interval}) ->
    {ok, NewState};
 handle_info(_Req, State) ->
    {ok, State}.
+
+prepare(P = #data_point{}, State = #state{groups = Groups, nodeid = NId, group_last_seen = Last, groupval_fun = Fun}) ->
+   Value = Fun(P),
+   NewGroups = ensure_route(Value, Groups, NId),
+   OutPort = maps:get(Value, NewGroups),
+%%   lager:notice("Port for ~p : ~p",[Value, OutPort]),
+   {{OutPort, P}, State#state{groups = NewGroups, group_last_seen = Last#{Value => faxe_time:now()}}}.
 
 ensure_route(Val, Groups, _NId) when map_size(Groups) == 0 ->
    Groups#{Val => 1};

@@ -28,7 +28,7 @@ handle({ok, Count, Columns, Rows}, _ResponseDef) ->
   lager:notice("count, col, rows response: ~p",[{Count, Columns, Rows}]),
   ok;
 handle({ok, Columns, Rows}=R, ResponseDef = #faxe_epgsql_response{}) ->
-  lager:info("IN: ~p",[length(Rows)]),
+%%  lager:info("IN: ~p",[length(Rows)]),
   ColumnNames = columns(Columns, []),
 %%   lager:notice("result ROWS: ~p",[Rows]),
   Batch = handle_result(ColumnNames, Rows, ResponseDef),
@@ -51,9 +51,9 @@ handle_result(Columns, Rows, ResponseDef = #faxe_epgsql_response{response_type =
   #data_point{ts = faxe_time:now(), fields = #{Root => FieldsList}}.
 
 
-to_flowdata(Columns, ValueRows, ResponseDef = #faxe_epgsql_response{}) ->
+to_flowdata(Columns, ValueRows, ResponseDef = #faxe_epgsql_response{default_timestamp = QueryStart}) ->
   VRows = [tuple_to_list(VRow) || VRow <- ValueRows],
-  to_flowdata(Columns, lists:reverse(VRows), #data_batch{}, ResponseDef).
+  to_flowdata(Columns, lists:reverse(VRows), #data_batch{start = QueryStart}, ResponseDef).
 
 to_flowdata(_Columns, [], Batch=#data_batch{}, _ResponseDef) ->
   Batch;

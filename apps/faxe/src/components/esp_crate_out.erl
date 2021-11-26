@@ -84,7 +84,6 @@ init(NodeId, Inputs,
 process(_In, _DataItem, State = #state{client = undefined}) ->
    {ok, State};
 process(_In, DataItem, State = #state{fn_id = FNId}) ->
-   lager:info("process data-item ..."),
    _NewState = send(DataItem, State),
    dataflow:maybe_debug(item_in, 1, DataItem, FNId, State#state.debug_mode),
    {ok, State}.
@@ -135,7 +134,7 @@ recon(State) ->
 send(Item, State = #state{query = Q, faxe_fields = Fields, remaining_fields_as = RemFieldsAs,
       database = Schema, user = User, pass = Pass}) ->
    Query = build(Item, Q, Fields, RemFieldsAs),
-   lager:info("Query: ~p", [Query]),
+%%   lager:info("Query: ~p", [Query]),
    Headers0 = [{?DEFAULT_SCHEMA_HDR, Schema}, {<<"content-type">>, <<"application/json">>}],
    Headers =
    case Pass of
@@ -211,9 +210,9 @@ build_query(ValueList0, Table, RemFieldsAs) when is_list(ValueList0) ->
 
 get_response(Client, Ref) ->
    {response, _IsFin, Status, Headers} = gun:await(Client, Ref),
-   lager:info("response Status: ~p, Headers: ~p" ,[Status, Headers]),
+%%   lager:info("response Status: ~p, Headers: ~p" ,[Status, Headers]),
    {ok, Message} = gun:await_body(Client, Ref),
-   lager:info("response Message: ~p", [Message]),
+%%   lager:info("response Message: ~p", [Message]),
    handle_response(integer_to_binary(Status), Message).
 
 -spec handle_response(integer(), binary()) -> ok|{error, invalid}|{failed, term()}.
