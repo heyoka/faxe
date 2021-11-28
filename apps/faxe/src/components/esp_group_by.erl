@@ -58,13 +58,13 @@ init_groupfun(#{fields := Fields}) ->
 process(_In, P = #data_point{}, State = #state{}) ->
    {Out, NewState} = prepare(P, State),
    {emit, Out, NewState};
-process(_In, #data_batch{points = Points}, State = #state{debatch = false}) ->
+process(_In, #data_batch{points = Points, start = BatchStart}, State = #state{debatch = false}) ->
    F =
       fun(Point, {OutAcc, StateAcc}) ->
          {{OutPort, P}, NewState} = prepare(Point, StateAcc),
          BatchGroup = #data_batch{points = Ps} = proplists:get_value(OutPort, OutAcc, #data_batch{}),
 %%         lager:info("old batch group: ~p",[lager:pr(BatchGroup, ?MODULE)]),
-         NewBatch = BatchGroup#data_batch{points = Ps ++ [P]},
+         NewBatch = BatchGroup#data_batch{points = Ps ++ [P], start = BatchStart},
 %%         lager:info("new batch group: ~p",[lager:pr(NewBatch, ?MODULE)]),
          {proplists:delete(OutPort, OutAcc) ++ [{OutPort, NewBatch}], NewState}
       end,

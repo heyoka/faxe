@@ -69,7 +69,7 @@ tick(State = #state{at = At, window = Win, period = Interval, ts_list = TsList})
    NewAt = lists:last(KeepTsList),
    case check_emit(NewAt, State, (HasEvicted orelse State#state.has_emitted)) of
       true ->
-         Batch = #data_batch{points = queue:to_list(NewWindow)},
+         Batch = #data_batch{points = queue:to_list(NewWindow), start = At},
 %%         lager:warning("~n ~p emitting: ~p",[?MODULE, length(Batch#data_batch.points)]),
          dataflow:emit(Batch),
          State#state{mark = NewAt, at = NewAt, window = NewWindow,

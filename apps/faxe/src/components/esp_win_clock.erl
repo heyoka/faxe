@@ -109,7 +109,7 @@ emit(State = #state{log = Log, next_emit = NextEmit, period = Interval, window =
    NewState =
       case (Fill == false) orelse (Fill == true andalso (Emitted == true orelse HasEvicted == true)) of
          true ->
-            Batch = #data_batch{points = queue:to_list(NewWindow)},
+            Batch = #data_batch{points = queue:to_list(NewWindow), start = NextEmit},
 %%            lager:warning("~n  period: ~p emitting: ~p",[Interval, length(Batch#data_batch.points)]),
             dataflow:emit(Batch),
             State#state{has_emitted = true};
@@ -127,6 +127,7 @@ evict(Log, Window, At, Interval) ->
    {KeepTimestamps, win_util:sync_q(Window, Evict), length(Evict) > 0}
 .
 
+-spec new_ts(faxe_time:timestamp(), faxe_time:duration()|false) -> faxe_time:timestamp().
 new_ts(Ts, false) ->
    Ts;
 new_ts(Ts, Align) ->
