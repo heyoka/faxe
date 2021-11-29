@@ -24,6 +24,7 @@
 
 -define(UPDATE_MODE_REPLACE, <<"replace">>).
 -define(UPDATE_MODE_MERGE, <<"merge">>).
+-define(UPDATE_MODE_MERGE_REVERSE, <<"merge_reverse">>).
 
 -define(TAG_ADDED, <<"added">>).
 -define(TAG_REMOVED, <<"removed">>).
@@ -74,7 +75,7 @@ check_options() ->
             is_function(Val) orelse Val == undefined
          end,
          <<" can only be a lambda expression or ">>},
-      {one_of, update_mode, [?UPDATE_MODE_MERGE, ?UPDATE_MODE_REPLACE]}
+      {one_of, update_mode, [?UPDATE_MODE_MERGE, ?UPDATE_MODE_MERGE_REVERSE, ?UPDATE_MODE_REPLACE]}
    ].
 
 wants() -> point.
@@ -317,31 +318,18 @@ add(Key, Point, S = #state{buffer = Buffer0, tag_added = false}) ->
 add(Key, Point, S = #state{buffer = Buffer0, tag_added = true, tag_value = Tag}) ->
 %%   {true, S#state{buffer = [{Key, flowdata:set_field(Point, ?TAG_ADDED, 1)} | Buffer0]}}.
    {true, S#state{buffer = buffer_add(Key, flowdata:set_field(Point, ?TAG_ADDED, Tag), Buffer0)}}.
-%%   case buffer_get(Key, Buffer0) of
-%%      undefined ->
-%%%%         lager:warning("add: ~p", [Key]),
-%%         case flowdata:field(Point, ?TAG_ADDED) of
-%%            1 -> lager:warning("marked ADDED already when marking added: ~p",[Key]);
-%%            _ -> ok
-%%         end,
-%%         case flowdata:field(Point, ?TAG_REMOVED) of
-%%            1 -> lager:warning("marked REMOVED already when marking added: ~p",[Key]);
-%%            _ -> ok
-%%         end,
-%%         {true, S#state{buffer = [{Key, flowdata:set_field(Point, ?TAG_ADDED, 1)} | Buffer0]}};
-%%      _ ->
-%%%%         lager:info("already exists: ~p", [Key]),
-%%         {false, S}
-%%   end;
-%%add(Key, Point, S = #state{buffer = Buffer0, type = ?TYPE_LIST}) ->
-%%%%   lager:warning("add: ~p", [Key]),
-%%   {true, S#state{buffer = [{Key, Point} | Buffer0]}}.
 
 do_update(Key, _OldPoint, NewPoint, State = #state{update_mode = ?UPDATE_MODE_REPLACE, buffer = Buff}) ->
    State#state{buffer = buffer_update(Key, NewPoint, Buff)};
-do_update(Key, OldPoint, NewPoint, State = #state{update_mode = ?UPDATE_MODE_MERGE, buffer = Buff}) ->
-   Point = flowdata:merge_points([OldPoint, NewPoint]),
-%%   lager:warning("~p merged with : ~p",[OldPoint, NewPoint]),
+do_update(Key, OldPoint, NewPoint, State = #state{update_mode = ?UPDATE_MODE_MERGE}) ->
+   merge(Key, OldPoint, NewPoint, State);
+do_update(Key, OldPoint, NewPoint, State = #state{update_mode = ?UPDATE_MODE_MERGE_REVERSE}) ->
+   %% flip old and new points
+   merge(Key, NewPoint, OldPoint, State).
+
+merge(Key, P1, P2, State = #state{buffer = Buff}) ->
+   Point = flowdata:merge_points([P1, P2]),
+%%   lager:warning("~n~p ~nmerged with : ~n~p~ngot:~n~p",[P1, P2, Point]),
    State#state{buffer = buffer_update(Key, Point, Buff)}.
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -376,28 +364,6 @@ state() ->
    AddFun = lambda_tests:lambda_helper("Data_mode > 0", ["data_mode"]),
    #state{fields = [<<"data_code_id">>], add_function = AddFun, remove_function = RemoveFun,
       update_function = ?UPDATE_NEVER, buffer = []}.
-
-point(Idx, Mode) ->
-   #data_point{ts = Idx, fields = #{<<"data_code_id">> => Idx, <<"data_mode">> => Mode} }.
-
-%%basic_test() ->
-%%   State = state(),
-%%   {_Changed1, State1} = R1 = do_process(point(1,1), State),
-%%%%   State1 = State#state{buffer = Buffer1},
-%%   ?assertEqual({true, [{1, point(1, 1)}]}, R1)
-%%   ,
-%%   {_Changed2, Buffer2} = R2 = do_process(point(1,1), State1),
-%%   State2 = State#state{buffer = Buffer2},
-%%   ?assertEqual({false, [{1, point(1, 1)}]}, R2)
-%%   ,
-%%   {_, Buffer3} = R3 = do_process(point(2,0), State2),
-%%   State3 = State#state{buffer = Buffer3},
-%%   ?assertEqual({false, [{1, point(1, 1)}]}, R3)
-%%   ,
-%%   R4 = do_process(point(1,0), State3),
-%%   ?assertEqual({true, []}, R4)
-%%.
-
 
 tag_buffer(TagVal) ->
    F = fun(Seq) ->
