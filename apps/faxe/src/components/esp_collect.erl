@@ -140,7 +140,9 @@ handle_info(emit_timeout, State = #state{}) ->
    do_emit(State);
 handle_info(age_timeout, State = #state{}) ->
    start_age_timeout(State),
-   {ok, age_cleanup(State)}.
+   {ok, age_cleanup(State)};
+handle_info(_, State) ->
+   {ok, State}.
 
 shutdown(_State) ->
    ok.
