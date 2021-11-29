@@ -9,7 +9,7 @@
 
 %% @doc
 %% head-drop as many entries in the first list, as there are in the second
-%% return the first, maybe shorthend list
+%% return the first, maybe shortened list
 %% @end
 -spec sync(list(), list()) -> list().
 sync(List, []) ->

@@ -5,8 +5,6 @@
 %%
 %% @end
 %% @todo persist collection to disc and decided how to deal with a restart of the node
-%% @todo implement 'as', 'max_age', 'keep_as'
-%% @todo maybe make this node handle multiple collections ?
 %%
 -module(esp_collect).
 -author("Alexander Minichmair").
@@ -73,9 +71,9 @@ check_options() ->
       {same_length, [keep, keep_as]},
       {func, update,
          fun(Val) ->
-            is_function(Val) orelse Val == ?UPDATE_NEVER orelse Val == ?UPDATE_ALWAYS
+            is_function(Val) orelse Val == undefined
          end,
-         <<" can only be 'never', 'always' or a lambda expression">>},
+         <<" can only be a lambda expression or ">>},
       {one_of, update_mode, [?UPDATE_MODE_MERGE, ?UPDATE_MODE_REPLACE]}
    ].
 
@@ -243,25 +241,7 @@ maybe_emit(true, State = #state{emit_interval = undefined}) ->
 maybe_emit(_, State = #state{}) ->
    {ok, State}.
 
-do_emit(State = #state{buffer = Buff, tag_value = TagVal}) ->
-%%   lager:notice("buffer length before emit: ~p", [length(Buff)]),
-%%   CFun =
-%%   fun({_, P, _}, {Added, Removed}) ->
-%%%%      lager:info("~p",[P]),
-%%      NewAdded =
-%%      case flowdata:field(P, ?TAG_ADDED) of
-%%         TagVal -> Added+1;
-%%         _ -> Added
-%%      end,
-%%      case flowdata:field(P, ?TAG_REMOVED) == undefined of
-%%         TagVal -> {NewAdded, Removed+1};
-%%         _ -> {NewAdded, Removed}
-%%      end
-%%   end,
-%%   {A, R} = lists:foldl(CFun, {0,0}, Buff),
-%%   Kept = length(Buff) - A - R,
-%%   lager:notice("Added: ~p, Kept: ~p, Removed: ~p",[A, Kept, R]),
-
+do_emit(State = #state{buffer = Buff, tag_value = _TagVal}) ->
    Points0 = [
       maybe_rewrite_ts(
          keep(Val, State),
@@ -270,7 +250,7 @@ do_emit(State = #state{buffer = Buff, tag_value = TagVal}) ->
 
    %% sort elements by timestamp for data_batch
    Points = lists:keysort(2, Points0),
-   Batch = #data_batch{points = Points},
+   Batch = #data_batch{points = Points, start = State#state.current_batch_start},
    %%
    %% now cleanup removed and added tags
    NewState = buffer_cleanup(State),
