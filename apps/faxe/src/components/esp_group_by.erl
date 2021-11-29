@@ -1,7 +1,6 @@
 %% Date: 27.03.2021 - 19:41
 %% Ⓒ 2021 heyoka
 %%
-%% @todo implement for data_batches
 -module(esp_group_by).
 -author("Alexander Minichmair").
 
