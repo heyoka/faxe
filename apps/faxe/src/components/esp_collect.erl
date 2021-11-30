@@ -74,7 +74,7 @@ check_options() ->
          fun(Val) ->
             is_function(Val) orelse Val == undefined
          end,
-         <<" can only be a lambda expression or ">>},
+         <<" can only be a lambda expression or undefined">>},
       {one_of, update_mode, [?UPDATE_MODE_MERGE, ?UPDATE_MODE_MERGE_REVERSE, ?UPDATE_MODE_REPLACE]}
    ].
 
@@ -114,8 +114,7 @@ process(Port, Item, State = #state{buffer = undefined}) ->
    start_age_timeout(State),
    process(Port, Item, State#state{buffer = []});
 process(_Port, #data_point{} = Point, State = #state{fields = _Field}) ->
-   {T, Res} = timer:tc(?MODULE, do_process, [Point, State]),
-   lager:info("Took: ~p my",[T]),
+   Res = do_process(Point, State),
    case Res of
       {ok, State} -> {ok, State};
       {Changed, NewState} ->
@@ -148,7 +147,8 @@ shutdown(_State) ->
    ok.
 
 
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%%%%%%%%%%%%%%%%%%%%%%%%% internal %%%%%%%%%%%%%%%%%%%%%%%%
+
 maybe_get_batch_start(#data_batch{start = undefined}, State) ->
    State;
 maybe_get_batch_start(#data_batch{start = BatchStart}, State) ->
@@ -157,18 +157,14 @@ maybe_get_batch_start(#data_batch{start = BatchStart}, State) ->
 do_process(#data_point{} = Point, State = #state{buffer = _Buffer}) ->
    case is_in(Point, State) of
       {undefined, _} ->
-%%         lager:notice("--- no keyval for ~p",[Point]),
          {ok, State};
       {false, KeyVal} ->
-%%         lager:notice("maybe_add: ~p",[Point]),
          maybe_add(Point, KeyVal, State);
       {true, KeyVal} ->
-%%         lager:notice("maybe_update: ~p",[Point]),
          {ChangedBool, NewState} = maybe_update_state(Point, KeyVal, State),
          case ChangedBool of
             true -> {true, NewState};
             false ->
-%%               lager:notice("maybe_remove: ~p",[Point]),
                maybe_remove(Point, KeyVal, NewState)
          end
    end.
@@ -294,8 +290,8 @@ maybe_start_emit_timeout(#state{emit_interval = Intv}) ->
    erlang:send_after(Intv, self(), emit_timeout).
 
 start_age_timeout(#state{max_age = Age}) ->
-   Interval = erlang:round(Age/2),
-   lager:warning("age_interval = ~p",[Interval]),
+   Interval = erlang:round(Age/3),
+%%   lager:warning("age_interval = ~p",[Interval]),
    erlang:send_after(Interval, self(), age_timeout).
 
 keep(DataPoint, #state{keep = []}) ->

@@ -286,8 +286,8 @@ do_query(State = #state{client = C, period = Period, query_mark = QueryMark, res
    NewState0 = State#state{query_mark = NewQueryMark},
    NewTimer = next_query(NewState0),
    NewState = NewState0#state{timer = NewTimer},
-   lager:notice("from: ~p, to :~p (~p sec)",
-      [faxe_time:to_iso8601(QueryMark-Period), faxe_time:to_iso8601(QueryMark), round(Period/1000)]),
+%%   lager:notice("from: ~p, to :~p (~p sec)",
+%%      [faxe_time:to_iso8601(QueryMark-Period), faxe_time:to_iso8601(QueryMark), round(Period/1000)]),
    Result = faxe_epgsql_response:handle(Resp, RespDef#faxe_epgsql_response{default_timestamp = QueryMark-Period}),
 %%   lager:notice("result: ~p",[Result]),
    case Result of
@@ -304,8 +304,8 @@ do_query(State = #state{client = C, period = Period, query_mark = QueryMark, res
 next_query(#state{min_interval = Min, interval = Min}) ->
    erlang:send_after(Min, self(), query);
 next_query(#state{query_mark = NewQueryMark, offset = Offset}) ->
-   lager:info("send at: ~p for new query-mark: ~p",
-      [faxe_time:to_iso8601(NewQueryMark+Offset), faxe_time:to_iso8601(NewQueryMark)]),
+%%   lager:info("send at: ~p for new query-mark: ~p",
+%%      [faxe_time:to_iso8601(NewQueryMark+Offset), faxe_time:to_iso8601(NewQueryMark)]),
    faxe_time:send_at(NewQueryMark+Offset, query).
 
 
