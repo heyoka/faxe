@@ -49,6 +49,7 @@ options() -> [
    {port, integer, {mqtt, port}},
    {user, string, {mqtt, user}},
    {pass, string, {mqtt, pass}},
+   {client_id, string, undefined},
    {qos, integer, 1},
    {topic, binary, undefined},
    {topics, binary_list, undefined},
@@ -70,15 +71,15 @@ metrics() ->
       {?METRIC_BYTES_READ, meter, [], "Size of item sent in kib."}
    ].
 
-init(NodeId, _Ins,
+init({GId, NId}=NodeId, _Ins,
    #{ host := Host0, port := Port, topic := Topic, topics := Topics, dt_field := DTField, as := As,
       dt_format := DTFormat, user := User, pass := Pass, include_topic := IncludeTopic, topic_as := TopicKey,
-      ssl := UseSSL, qos := Qos} = _Opts) ->
+      ssl := UseSSL, qos := Qos, client_id := CId} = _Opts) ->
 
    Host = binary_to_list(Host0),
 
    process_flag(trap_exit, true),
-   ClientId = list_to_binary(faxe_util:uuid_string()),
+   ClientId = case CId of undefined -> <<GId/binary, "_", NId/binary>>; _ -> CId end,
 
    reconnect_watcher:new(10000, 5, io_lib:format("~s:~p ~p",[Host, Port, ?MODULE])),
    Reconnector = faxe_backoff:new({100, 4200}),

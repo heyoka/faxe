@@ -44,7 +44,7 @@ options() -> [
    {port, integer, {mqtt, port}},
    {user, string, {mqtt, user}},
    {pass, string, {mqtt, pass}},
-   {client_id, string, {mqtt, client_id}},
+   {client_id, string, undefined},
    {qos, integer, 1},
    {topic, binary, undefined},
    {topic_lambda, lambda, undefined},
@@ -67,22 +67,25 @@ metrics() ->
 
 %% safe mode with ondisc queuing
 init({_GraphId, _NodeId} = GId, _Ins, #{safe := true, host := Host0}=Opts) ->
-   Host = binary_to_list(Host0),
    QFile = faxe_config:q_file(GId),
    QConf = proplists:delete(ttf, faxe_config:get_esq_opts()),
    {ok, Q} = esq:new(QFile, QConf),
-   {ok, Publisher} = mqtt_publisher:start_link(Opts#{host := Host, node_id => GId}, Q),
-   init_all(Opts#{host := Host}, #state{publisher = Publisher, queue = Q, fn_id = GId});
+   NewOpts = prepare_opts(GId, Opts),
+   {ok, Publisher} = mqtt_publisher:start_link(NewOpts, Q),
+   init_all(NewOpts, #state{publisher = Publisher, queue = Q, fn_id = GId});
 %% direct publish mode
-init(NodeId, _Ins, #{safe := false, host := Host0} = Opts) ->
-   Host = binary_to_list(Host0),
-   {ok, Publisher} = mqtt_publisher:start_link(Opts#{host := Host, node_id => NodeId}),
-   init_all(Opts#{host := Host}, #state{publisher = Publisher, fn_id = NodeId}).
+init(NodeId, _Ins, #{safe := false} = Opts) ->
+   NewOpts = prepare_opts(NodeId, Opts),
+   {ok, Publisher} = mqtt_publisher:start_link(NewOpts),
+   init_all(NewOpts, #state{publisher = Publisher, fn_id = NodeId}).
 
 init_all(#{safe := Safe, topic := Topic, topic_lambda := LTopic} = Opts, State) ->
-%%   lager:notice("mqtt SSLOpts: ~p" ,[SSLOpts]),
    {ok, all, State#state{options = Opts, safe = Safe, topic = Topic, topic_lambda = LTopic}}.
 
+prepare_opts({GId, NId}=GNId, Opts0 = #{client_id := CId, host := Host0}) ->
+   Host = binary_to_list(Host0),
+   ClientId = case CId of undefined -> <<GId/binary, "_", NId/binary>>; _ -> CId end,
+   Opts0#{host => Host, client_id => ClientId, node_id => GNId}.
 
 %% direct state
 process(_In, #data_point{} = Point, State = #state{safe = true, queue = Q, fn_id = FNId}) ->
