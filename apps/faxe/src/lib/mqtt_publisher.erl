@@ -123,9 +123,6 @@ init_opts([{max_mem_queue_size, QLen} | R], State) when is_integer(QLen) andalso
    init_opts(R, State#state{max_mem_queue_len = QLen});
 init_opts([{client_id, ClientId} | R], State) when is_binary(ClientId) ->
    init_opts(R, State#state{client_id = ClientId});
-%%init_opts([{client_id, undefined} | R], State = #state{}) ->
-%%   CId = <<>>
-%%init_opts(R++[{ssl, SslEnabled}], State);
 init_opts([{ssl, false} | R], State) ->
    init_opts(R, State#state{ssl = false});
 init_opts([{ssl, true} | R], State) ->
