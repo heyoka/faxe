@@ -402,6 +402,21 @@
     [{default, "{{rabbitmq_root_exchange}}"}, {datatype, string}]
 }.
 
+%% rabbitmq default prefix for every queue
+%% the amqp_consume node will use this to ensure this prefix is there for every queue
+%% this is mostly to make rabbitmq ha and other policies work automatically
+{mapping, "rabbitmq.queue_prefix", "faxe.rabbitmq.queue_prefix",
+    [{default, "q_"}, {datatype, string}]
+}.
+
+%% rabbitmq default prefix for every exchange
+%% the amqp_consume node will use this to ensure this prefix is there for every exchange
+%% this is mostly to make rabbitmq ha and other policies work automatically
+{mapping, "rabbitmq.exchange_prefix", "faxe.rabbitmq.exchange_prefix",
+    [{default, "x_"}, {datatype, string}]
+}.
+
+
 %% @doc -------------------------------------------------------------------------------
 %% CrateDB defaults (postgreSQL connect)
 %% -------------------------------------------------------------------------------
@@ -652,7 +667,7 @@
 
 %% @doc time debug and node-metric messages will be published to the configured endpoints
 {mapping, "debug.time", "faxe.debug_time",
-    [{default, "30s"}, {datatype, {duration, ms}}]
+    [{default, "3m"}, {datatype, {duration, ms}}]
 }.
 
 

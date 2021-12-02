@@ -22,18 +22,22 @@
 -export([init/3, process/3, options/0]).
 
 -record(state, {
-   node_id,
-   as,
-   last_time
+   node_id :: {binary(), binary()},
+   as :: binary(),
+   default :: term(),
+   last_time :: undefined|faxe_time:timestamp()
 }).
 
-options() -> [{as, binary, <<"elapsed">>}].
+options() -> [
+   {as, binary, <<"elapsed">>},
+   {default, any, 0}
+].
 
-init(NodeId, _Ins, #{as := As}) ->
-   {ok, all, #state{node_id = NodeId, as = As}}.
+init(NodeId, _Ins, #{as := As, default := Default}) ->
+   {ok, all, #state{node_id = NodeId, as = As, default = Default}}.
 
-process(_In, Item, State = #state{last_time = undefined, as = As}) ->
-   {emit, flowdata:set_field(Item, As, -1), State#state{last_time = faxe_time:now()}};
+process(_In, Item, State = #state{last_time = undefined, as = As, default = Def}) ->
+   {emit, flowdata:set_field(Item, As, Def), State#state{last_time = faxe_time:now()}};
 process(_In, Item, State = #state{as = As, last_time = Last}) ->
    Now = faxe_time:now(),
    NewItem = flowdata:set_field(Item, As, Now - Last),

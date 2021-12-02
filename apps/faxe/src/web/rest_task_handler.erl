@@ -43,7 +43,7 @@
 
 -include("faxe.hrl").
 
--record(state, {mode, task_id, task, tags, name, dfs}).
+-record(state, {mode, task_id, task, tags, name, dfs, delete_force = false}).
 
 init(Req, [{op, Mode}]) ->
    TId = cowboy_req:binding(task_id, Req),
@@ -83,6 +83,8 @@ allowed_methods(Req, State=#state{mode = stop}) ->
    {[<<"GET">>], Req, State};
 allowed_methods(Req, State=#state{mode = stop_group}) ->
    {[<<"GET">>], Req, State};
+allowed_methods(Req, State=#state{mode = delete_force}) ->
+   {[<<"DELETE">>], Req, State#state{mode = delete, delete_force = true}};
 allowed_methods(Req, State=#state{mode = delete}) ->
    {[<<"DELETE">>], Req, State};
 allowed_methods(Req, State=#state{mode = delete_group}) ->
@@ -246,16 +248,16 @@ do_delete(Req, State=#state{task_id = undefined}) ->
          {false, Req3, State};
       _Other ->
          RespMap = #{success => true, message =>
-         iolist_to_binary([<<"Task-Group ">>, GroupName, <<" successfully deleted.">>])},
+            iolist_to_binary([<<"Task-Group ">>, GroupName, <<" successfully deleted.">>])},
          Req2 = cowboy_req:set_resp_body(jiffy:encode(RespMap), Req),
          {true, Req2, State}
    end;
 %% delete a single task
-do_delete(Req, State=#state{task_id = TaskId}) ->
-   case faxe:delete_task(TaskId) of
+do_delete(Req, State=#state{task_id = TaskId, delete_force = Force}) ->
+   case faxe:delete_task(TaskId, Force) of
       ok ->
          RespMap = #{success => true, message =>
-         iolist_to_binary([<<"Task ">>, faxe_util:to_bin(TaskId), <<" successfully deleted.">>])},
+            iolist_to_binary([<<"Task ">>, faxe_util:to_bin(TaskId), <<" successfully deleted.">>])},
          Req2 = cowboy_req:set_resp_body(jiffy:encode(RespMap), Req),
          {true, Req2, State};
       {error, Error} ->

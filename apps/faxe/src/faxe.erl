@@ -16,6 +16,7 @@
    stop_task/1,
    stop_task/2,
    delete_task/1,
+   delete_task/2,
    register_template_file/2,
    register_template_string/2,
    task_from_template/3,
@@ -618,29 +619,37 @@ do_stop_task(T = #task{pid = Graph, group_leader = _Leader, group = _Group}, Per
       false -> {error, not_running}
    end.
 
--spec delete_task(term()) -> ok | {error, not_found} | {error, task_is_running}.
+-spec delete_task(binary()) -> ok | {error, not_found} | {error, task_is_running}.
 delete_task(TaskId) ->
-   T = faxe_db:get_task(TaskId),
-   case T of
+   delete_task(TaskId, false).
+-spec delete_task(binary(), true|false) -> ok | {error, not_found} | {error, task_is_running}.
+delete_task(TaskId, Force) ->
+   case faxe_db:get_task(TaskId) of
       {error, not_found} -> {error, not_found};
-      T = #task{} -> do_delete_task(T)
+      T = #task{} ->
+         case is_task_alive(T) of
+            true ->
+               case Force of
+                  true ->
+                     stop_task(T),
+                     do_delete_task(T);
+                  false -> {error, task_is_running}
+               end;
+            false -> do_delete_task(T)
+         end
    end.
 
-do_delete_task(T = #task{id = TaskId, group = Group, group_leader = Leader}) ->
-   case is_task_alive(T) of
-      true -> {error, task_is_running};
-      false ->
-         case faxe_db:delete_task(TaskId) of
-            ok ->
-               case Leader of
-                  true ->
-                     delete_task_group(Group),
-                     flow_changed({flow, TaskId, delete}),
-                     ok;
-                  false -> ok
-               end;
-            Else -> Else
-         end
+do_delete_task(#task{id = TaskId, group = Group, group_leader = Leader}) ->
+   case faxe_db:delete_task(TaskId) of
+      ok ->
+         case Leader of
+            true ->
+               delete_task_group(Group),
+               flow_changed({flow, TaskId, delete}),
+               ok;
+            false -> ok
+         end;
+      Else -> Else
    end.
 
 %% delete all tasks from db with group == TaskGroupName
