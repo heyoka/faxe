@@ -83,7 +83,7 @@ bridge_test() ->
         #{'_name' => <<"debug2">>,level => <<"notice">>}},
       {<<"mqtt_subscribe1">>,esp_mqtt_subscribe,
         #{'_name' => <<"mqtt_subscribe1">>,as => undefined,
-          dt_field => <<"ts">>,
+          client_id => undefined, dt_field => <<"ts">>,
           dt_format => <<"millisecond">>,
           host => <<"10.102.1.102">>,include_topic => true,
           pass => undefined,port => 1883,qos => 1,
@@ -138,7 +138,7 @@ bridge_expr_test() ->
         #{'_name' => <<"debug2">>,level => <<"notice">>}},
       {<<"mqtt_subscribe1">>,esp_mqtt_subscribe,
         #{'_name' => <<"mqtt_subscribe1">>,as => undefined,
-          dt_field => <<"ts">>,
+          client_id => undefined, dt_field => <<"ts">>,
           dt_format => <<"millisecond">>,
           host => <<"10.102.1.102">>,include_topic => true,
           pass => undefined,port => 1883,qos => 1,
@@ -146,6 +146,7 @@ bridge_expr_test() ->
           topic => <<"some/crazy/topic/this/is">>,
           topic_as => <<"topic">>,topics => undefined,
           user => undefined}}]}
+
 
 
   ,
