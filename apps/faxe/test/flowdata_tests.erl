@@ -571,7 +571,8 @@ from_json_list2_test() ->
                   <<"value1">> => 2323422,
                   <<"value2">> => <<"savoi">>},
                #{},undefined,<<>>}],
-         undefined,undefined},
+         undefined,undefined,undefined},
+
    ?assertEqual(Expected, DataBatch).
 
 
@@ -731,7 +732,7 @@ set_root_batch_path_test() ->
                   <<"somestringvalue">>}},
                   <<"vsdtg">> => 22}}},
                #{},undefined,<<>>}],
-         undefined,undefined},
+         undefined,undefined, undefined},
    ?assertEqual(Expected, flowdata:set_root(Batch, <<"my.newroot">>)).
 
 

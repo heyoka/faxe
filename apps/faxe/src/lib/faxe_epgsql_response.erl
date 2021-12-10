@@ -106,21 +106,31 @@ first_test() ->
     },
 
   DataOut =
-    {ok,
-      {data_batch,undefined,
-        [
-          {data_point,1636329690000,
-            #{<<"energy">> => #{<<"ActiveEnergyDelvd">> => 19495.668,<<"ActiveEnergyRcvd">> => 11.375,
-              <<"ApparentEnergyDelvd">> => 33069.973,<<"ApparentEnergyRcvd">> => 53.269,<<"MaximalCurrentValue">> => 4.088959,
-              <<"ReactiveEnergyDelvd">> => 10.527,<<"ReactiveEnergyRcvd">> => 26404.852},
-              <<"id">> => <<"data/556/reg1/em/energy/v1">>},#{},undefined,<<>>},
-          {data_point,1636329660000,
-            #{<<"energy">> => #{<<"ActiveEnergyDelvd">> => 19495.654,<<"ActiveEnergyRcvd">> => 11.375,
-              <<"ApparentEnergyDelvd">> => 33069.95,<<"ApparentEnergyRcvd">> => 53.269,<<"MaximalCurrentValue">> => 4.0775533,
-              <<"ReactiveEnergyDelvd">> => 10.527,<<"ReactiveEnergyRcvd">> => 26404.832},
-              <<"id">> => <<"data/556/reg1/em/energy/v1">>},#{},undefined,<<>>}],
-        undefined,undefined}
-    },
+    {ok,{data_batch,undefined,
+      [{data_point,1636329690000,
+        #{<<"energy">> =>
+        #{<<"ActiveEnergyDelvd">> => 19495.668,
+          <<"ActiveEnergyRcvd">> => 11.375,
+          <<"ApparentEnergyDelvd">> => 33069.973,
+          <<"ApparentEnergyRcvd">> => 53.269,
+          <<"MaximalCurrentValue">> => 4.088959,
+          <<"ReactiveEnergyDelvd">> => 10.527,
+          <<"ReactiveEnergyRcvd">> => 26404.852},
+          <<"id">> => <<"data/556/reg1/em/energy/v1">>},
+        #{},undefined,<<>>},
+        {data_point,1636329660000,
+          #{<<"energy">> =>
+          #{<<"ActiveEnergyDelvd">> => 19495.654,
+            <<"ActiveEnergyRcvd">> => 11.375,
+            <<"ApparentEnergyDelvd">> => 33069.95,
+            <<"ApparentEnergyRcvd">> => 53.269,
+            <<"MaximalCurrentValue">> => 4.0775533,
+            <<"ReactiveEnergyDelvd">> => 10.527,
+            <<"ReactiveEnergyRcvd">> => 26404.832},
+            <<"id">> => <<"data/556/reg1/em/energy/v1">>},
+          #{},undefined,<<>>}],
+      undefined,undefined,undefined}},
+
   Def = #faxe_epgsql_response{time_field = <<"dt_ts">>, response_type = batch},
   ?assertEqual(DataOut, handle(DataIn, Def)).
 
