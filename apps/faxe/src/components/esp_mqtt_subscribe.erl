@@ -143,20 +143,15 @@ data_received(Topic, Payload,
     S = #state{dt_field = DTField, dt_format = DTFormat, include_topic = AddTopic, topic_key = TopicKey, as = As}) ->
    node_metrics:metric(?METRIC_BYTES_READ, byte_size(Payload), S#state.fn_id),
    node_metrics:metric(?METRIC_ITEMS_IN, 1, S#state.fn_id),
-   P0 = flowdata:from_json_struct(Payload, DTField, DTFormat),
-   dataflow:maybe_debug(item_in, 1, P0, S#state.fn_id, S#state.debug_mode),
-   P1 =
+   Item0 = flowdata:from_json_struct(Payload, DTField, DTFormat),
+   dataflow:maybe_debug(item_in, 1, Item0, S#state.fn_id, S#state.debug_mode),
+   Item1 =
    case AddTopic of
-      true -> flowdata:set_field(P0, TopicKey, Topic);
-      false -> P0
+      true -> flowdata:set_field(Item0, TopicKey, Topic);
+      false -> Item0
    end,
-   P =
-   case As of
-      undefined -> P1;
-      Root -> #data_point{fields = Fields} = P1, P1#data_point{fields = #{Root => Fields}}
-   end,
-
-   {emit, {1, P}, S}.
+   Item = flowdata:set_root(Item1, As),
+   {emit, {1, Item}, S}.
 
 connect(State = #state{host = Host, port = Port, client_id = ClientId}) ->
    connection_registry:connecting(),

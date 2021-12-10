@@ -486,6 +486,95 @@ from_json_list_test() ->
       }, flowdata:from_json_struct(JSON, <<"datetime">>, ?TF_ISO8601)
    ).
 
+from_json_list2_test() ->
+   M =
+      [#{<<"data">> =>
+      #{<<"value1">> => 323424,
+         <<"value2">> => <<"somestringvalue">>},
+         <<"df">> => <<"01.002">>,
+         <<"id">> => <<"ioi2u34oiu23oi4u2oi4u2">>,
+         <<"ts">> => 1568029512598,<<"value1">> => 2323422,
+         <<"value2">> => <<"savoi">>},
+         #{<<"data">> =>
+         #{<<"value1">> => 323424,
+            <<"value2">> => <<"somestringvalue">>},
+            <<"df">> => <<"01.002">>,
+            <<"id">> => <<"ioi2u34oiu23oi4u2oi4u2">>,
+            <<"ts">> => 1568029513598,<<"value1">> => 2323422,
+            <<"value2">> => <<"savoi">>},
+         #{<<"data">> =>
+         #{<<"value1">> => 323424,
+            <<"value2">> => <<"somestringvalue">>},
+            <<"df">> => <<"01.002">>,
+            <<"id">> => <<"ioi2u34oiu23oi4u2oi4u2">>,
+            <<"ts">> => 1568029514598,<<"value1">> => 2323422,
+            <<"value2">> => <<"savoi">>},
+         #{<<"data">> =>
+         #{<<"value1">> => 323424,
+            <<"value2">> => <<"somestringvalue">>},
+            <<"df">> => <<"01.002">>,
+            <<"id">> => <<"ioi2u34oiu23oi4u2oi4u2">>,
+            <<"ts">> => 1568029515598,<<"value1">> => 2323422,
+            <<"value2">> => <<"savoi">>},
+         #{<<"data">> =>
+         #{<<"value1">> => 323424,
+            <<"value2">> => <<"somestringvalue">>},
+            <<"df">> => <<"01.002">>,
+            <<"id">> => <<"ioi2u34oiu23oi4u2oi4u2">>,
+            <<"ts">> => 1568029516598,<<"value1">> => 2323422,
+            <<"value2">> => <<"savoi">>}],
+   DataBatch = flowdata:from_json_struct(jiffy:encode(M)),
+   Expected =
+      {data_batch,undefined,
+         [{data_point,1568029512598,
+            #{<<"data">> =>
+            #{<<"value1">> => 323424,
+               <<"value2">> => <<"somestringvalue">>},
+               <<"df">> => <<"01.002">>,
+               <<"id">> => <<"ioi2u34oiu23oi4u2oi4u2">>,
+               <<"value1">> => 2323422,
+               <<"value2">> => <<"savoi">>},
+            #{},undefined,<<>>},
+            {data_point,1568029513598,
+               #{<<"data">> =>
+               #{<<"value1">> => 323424,
+                  <<"value2">> => <<"somestringvalue">>},
+                  <<"df">> => <<"01.002">>,
+                  <<"id">> => <<"ioi2u34oiu23oi4u2oi4u2">>,
+                  <<"value1">> => 2323422,
+                  <<"value2">> => <<"savoi">>},
+               #{},undefined,<<>>},
+            {data_point,1568029514598,
+               #{<<"data">> =>
+               #{<<"value1">> => 323424,
+                  <<"value2">> => <<"somestringvalue">>},
+                  <<"df">> => <<"01.002">>,
+                  <<"id">> => <<"ioi2u34oiu23oi4u2oi4u2">>,
+                  <<"value1">> => 2323422,
+                  <<"value2">> => <<"savoi">>},
+               #{},undefined,<<>>},
+            {data_point,1568029515598,
+               #{<<"data">> =>
+               #{<<"value1">> => 323424,
+                  <<"value2">> => <<"somestringvalue">>},
+                  <<"df">> => <<"01.002">>,
+                  <<"id">> => <<"ioi2u34oiu23oi4u2oi4u2">>,
+                  <<"value1">> => 2323422,
+                  <<"value2">> => <<"savoi">>},
+               #{},undefined,<<>>},
+            {data_point,1568029516598,
+               #{<<"data">> =>
+               #{<<"value1">> => 323424,
+                  <<"value2">> => <<"somestringvalue">>},
+                  <<"df">> => <<"01.002">>,
+                  <<"id">> => <<"ioi2u34oiu23oi4u2oi4u2">>,
+                  <<"value1">> => 2323422,
+                  <<"value2">> => <<"savoi">>},
+               #{},undefined,<<>>}],
+         undefined,undefined},
+   ?assertEqual(Expected, DataBatch).
+
+
 
 from_map_basic_test() ->
    Map = #{<<"df">> => <<"02.005">>,<<"double_val">> => 10.220761769454324,
@@ -554,6 +643,96 @@ set_root_present_test() ->
 set_root_present_deep_test() ->
    P = #data_point{fields = #{<<"root">> => #{<<"subroot">> => #{<<"field1">> => 33}}}},
    ?assertEqual(P, flowdata:set_root(P, <<"root.subroot">>)).
+
+set_root_batch_path_test() ->
+   Batch =
+      #data_batch{points = [
+         #data_point{
+            ts=1570286881023,
+            fields = #{<<"datetime">> =>
+            <<"2019-10-05T14:48:01.023Z">>,
+               <<"id-string">> => <<"ioi2u34oiu23oi4u2oi4u2">>,
+               <<"raw">> => <<"01002">>,
+               <<"value1">> => 323424,
+               <<"value2">> =>
+               #{<<"key12">> =>
+               #{<<"anotherkey">> =>
+               <<"somestringvalue">>}}, <<"vsdtg">> => 22}
+         },
+         #data_point{
+            ts=1570286881024,
+            fields = #{<<"datetime">> =>
+            <<"2019-10-05T14:48:01.023Z">>,
+               <<"id-string">> => <<"ioi2u34oiu23oi4u2oi4u2">>,
+               <<"value1">> => 323424,
+               <<"value2">> =>
+               #{<<"key12">> =>
+               #{<<"anotherkey">> =>
+               <<"somestringvalue">>}}, <<"vsdtg">> => 22}
+         },
+         #data_point{
+            ts=1570286881025,
+            fields = #{<<"datetime">> =>
+            <<"2019-10-05T14:48:01.023Z">>,
+               <<"id-string">> => <<"ioi2u34oiu23oi4u2oi4u2">>,
+               <<"raw">> => <<"0100234">>,
+               <<"value1">> => 323424,
+               <<"value2">> =>
+               #{<<"key12">> =>
+               #{<<"anotherkey">> =>
+               <<"somestringvalue">>}}, <<"vsdtg">> => 22}
+         }
+
+      ]
+      },
+   Expected =
+      {data_batch,undefined,
+         [{data_point,1570286881023,
+            #{<<"my">> =>
+            #{<<"newroot">> =>
+            #{<<"datetime">> =>
+            <<"2019-10-05T14:48:01.023Z">>,
+               <<"id-string">> =>
+               <<"ioi2u34oiu23oi4u2oi4u2">>,
+               <<"raw">> => <<"01002">>,
+               <<"value1">> => 323424,
+               <<"value2">> =>
+               #{<<"key12">> =>
+               #{<<"anotherkey">> =>
+               <<"somestringvalue">>}},
+               <<"vsdtg">> => 22}}},
+            #{},undefined,<<>>},
+            {data_point,1570286881024,
+               #{<<"my">> =>
+               #{<<"newroot">> =>
+               #{<<"datetime">> =>
+               <<"2019-10-05T14:48:01.023Z">>,
+                  <<"id-string">> =>
+                  <<"ioi2u34oiu23oi4u2oi4u2">>,
+                  <<"value1">> => 323424,
+                  <<"value2">> =>
+                  #{<<"key12">> =>
+                  #{<<"anotherkey">> =>
+                  <<"somestringvalue">>}},
+                  <<"vsdtg">> => 22}}},
+               #{},undefined,<<>>},
+            {data_point,1570286881025,
+               #{<<"my">> =>
+               #{<<"newroot">> =>
+               #{<<"datetime">> =>
+               <<"2019-10-05T14:48:01.023Z">>,
+                  <<"id-string">> =>
+                  <<"ioi2u34oiu23oi4u2oi4u2">>,
+                  <<"raw">> => <<"0100234">>,
+                  <<"value1">> => 323424,
+                  <<"value2">> =>
+                  #{<<"key12">> =>
+                  #{<<"anotherkey">> =>
+                  <<"somestringvalue">>}},
+                  <<"vsdtg">> => 22}}},
+               #{},undefined,<<>>}],
+         undefined,undefined},
+   ?assertEqual(Expected, flowdata:set_root(Batch, <<"my.newroot">>)).
 
 
 tss_fields_basic1_test() ->

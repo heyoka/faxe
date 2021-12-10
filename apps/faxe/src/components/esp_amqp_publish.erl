@@ -141,7 +141,9 @@ start_connection(State = #state{opts = Opts, queue = Q}) ->
    connection_registry:connected(),
    State#state{client = Pid}.
 
-key(#data_point{} = _P, #state{rk_lambda = undefined, routing_key = Topic}) ->
+key(_Item, #state{rk_lambda = undefined, routing_key = Topic}) ->
    Topic;
+key(#data_batch{points = [P1 | _]}, #state{rk_lambda = Fun}) ->
+   faxe_lambda:execute(P1, Fun);
 key(#data_point{} = P, #state{rk_lambda = Fun}) ->
    faxe_lambda:execute(P, Fun).

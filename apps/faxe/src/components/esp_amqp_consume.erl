@@ -119,8 +119,8 @@ init({GraphId, NodeId} = Idx, _Ins,
    Host = binary_to_list(Host0),
    Opts = Opts0#{
       host => Host, consumer_tag => CTag,
-      exchange => faxe_util:prefix_binary(XPrefix, Ex),
-      queue => faxe_util:prefix_binary(QPrefix, Q)
+      exchange => faxe_util:prefix_binary(Ex, XPrefix),
+      queue => faxe_util:prefix_binary(Q, QPrefix)
    },
    State = #state{
       include_topic = IncludeTopic, topic_key = TopicKey, as = As, dedup_queue = memory_queue:new(DedupSize),
@@ -159,10 +159,10 @@ handle_info({ {DTag, RKey}, {Payload, CorrelationId, _Headers}, Channel},
       false ->
          %% store correlation_id
          NewDedup = memory_queue:enq(CorrelationId, Dedup),
-         DataPoint0 = build_point(Payload, RKey, NewState),
-         DataPoint = DataPoint0#data_point{dtag = DTag},
-         dataflow:maybe_debug(item_in, 1, DataPoint, FNId, NewState#state.debug_mode),
-         enq_or_emit(DataPoint, DTag, NewState#state{dedup_queue = NewDedup})
+         Item0 = build_item(Payload, RKey, NewState),
+         Item = flowdata:set_dtag(Item0, DTag),
+         dataflow:maybe_debug(item_in, 1, Item, FNId, NewState#state.debug_mode),
+         enq_or_emit(Item, DTag, NewState#state{dedup_queue = NewDedup})
    end;
 
 handle_info({'DOWN', _MonitorRef, process, Consumer, _Info}, #state{consumer = Consumer} = State) ->
@@ -236,18 +236,16 @@ restart_ack_timeout(State = #state{ack_after = Time, ack_timer = Timer}) ->
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %%% internal
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-build_point(Payload, RKey,
-    #state{as = As, include_topic = AddTopic, topic_key = TopicKey, dt_field = DTField, dt_format = DTFormat}) ->
+
+build_item(Payload, RKey,
+        #state{as = As, include_topic = AddTopic, topic_key = TopicKey, dt_field = DTField, dt_format = DTFormat}) ->
    Msg0 = flowdata:from_json_struct(Payload, DTField, DTFormat),
-   P0 =
-   case AddTopic of
-      true -> flowdata:set_field(Msg0, TopicKey, RKey);
-      false -> Msg0
-   end,
-   case As of
-      undefined -> P0;
-      Root -> #data_point{fields = Fields} = P0, P0#data_point{fields = #{Root => Fields}}
-   end.
+   Item0 =
+      case AddTopic of
+         true -> flowdata:set_field(Msg0, TopicKey, RKey);
+         false -> Msg0
+      end,
+   flowdata:set_root(Item0, As).
 
 start_consumer(State = #state{opts = ConsumerOpts}) ->
    connection_registry:connecting(),

@@ -87,19 +87,20 @@ prepare_opts({GId, NId}=GNId, Opts0 = #{client_id := CId, host := Host0}) ->
    ClientId = case CId of undefined -> <<GId/binary, "_", NId/binary>>; _ -> CId end,
    Opts0#{host => Host, client_id => ClientId, node_id => GNId}.
 
-%% direct state
-process(_In, #data_point{} = Point, State = #state{safe = true, queue = Q, fn_id = FNId}) ->
-   ok = esq:enq(build_message(Point, State), Q),
-   dataflow:maybe_debug(item_out, 1, Point, FNId, State#state.debug_mode),
-   {ok, State};
-process(_Inport, #data_point{} = Point, State = #state{safe = false, publisher = Publisher, fn_id = FNId}) ->
-   Publisher ! {publish, build_message(Point, State)},
-   dataflow:maybe_debug(item_out, 1, Point, FNId, State#state.debug_mode),
-   {ok, State};
 %% safe state
-process(In, #data_batch{points = Points}, State = #state{}) ->
-   [process(In, P, State) || P <- Points],
+process(_In, Item, State = #state{safe = true, queue = Q, fn_id = FNId}) ->
+   ok = esq:enq(build_message(Item, State), Q),
+   dataflow:maybe_debug(item_out, 1, Item, FNId, State#state.debug_mode),
+   {ok, State};
+%% direct state
+process(_Inport, Item, State = #state{safe = false, publisher = Publisher, fn_id = FNId}) ->
+   Publisher ! {publish, build_message(Item, State)},
+   dataflow:maybe_debug(item_out, 1, Item, FNId, State#state.debug_mode),
    {ok, State}.
+%% safe state
+%%process(In, #data_batch{points = Points}, State = #state{}) ->
+%%   [process(In, P, State) || P <- Points],
+%%   {ok, State}.
 
 handle_info(start_debug, State) -> {ok, State#state{debug_mode = true}};
 handle_info(stop_debug, State) -> {ok, State#state{debug_mode = false}};
@@ -110,15 +111,18 @@ handle_info(_E, S) ->
 shutdown(#state{publisher = P}) ->
    catch gen_server:stop(P).
 
-build_message(Point, State = #state{fn_id = FNId}) ->
-   Json = flowdata:to_json(Point),
+build_message(Item, State = #state{fn_id = FNId}) ->
+   Json = flowdata:to_json(Item),
 %%   lager:notice("mqtt-message: ~s",[Json]),
    node_metrics:metric(?METRIC_BYTES_SENT, byte_size(Json), FNId),
    node_metrics:metric(?METRIC_ITEMS_OUT, 1, FNId),
-   {get_topic(Point, State), Json}.
+   {get_topic(Item, State), Json}.
 
-get_topic(#data_point{} = _P, # state{topic_lambda = undefined, topic = Topic}) ->
+get_topic(_Item, # state{topic_lambda = undefined, topic = Topic}) ->
    Topic;
 get_topic(#data_point{} = P, #state{topic_lambda = Fun}) ->
-   faxe_lambda:execute(P, Fun).
+   faxe_lambda:execute(P, Fun);
+get_topic(#data_batch{points = [P1|_]}, #state{topic_lambda = Fun}) ->
+   faxe_lambda:execute(P1, Fun).
+
 
