@@ -168,6 +168,10 @@ content_types_provided(Req, State=#state{mode = stop}) ->
       {{<<"application">>, <<"json">>, []}, stop_to_json},
       {{<<"text">>, <<"html">>, []}, stop_to_json}
    ], Req, State};
+%%content_types_provided(Req, State=#state{mode = delete}) ->
+%%   {[
+%%      {{<<"application">>, <<"json">>, []}, do_delete}
+%%   ], Req, State};
 content_types_provided(Req, State=#state{mode = stop_group}) ->
    {[
       {{<<"application">>, <<"json">>, []}, stop_group_to_json}
@@ -245,7 +249,8 @@ do_delete(Req, State=#state{task_id = undefined}) ->
          lager:info("Error occured when deleting group: ~p",[Error]),
          Req3 = cowboy_req:set_resp_body(
             jiffy:encode(#{success => false, error => faxe_util:to_bin(Error)}), Req),
-         {false, Req3, State};
+         Req4 = cowboy_req:reply(409, Req3),
+         {stop, Req4, State};
       _Other ->
          RespMap = #{success => true, message =>
             iolist_to_binary([<<"Task-Group ">>, GroupName, <<" successfully deleted.">>])},
@@ -264,7 +269,8 @@ do_delete(Req, State=#state{task_id = TaskId, delete_force = Force}) ->
          lager:info("Error occured when deleting flow: ~p",[Error]),
          Req3 = cowboy_req:set_resp_body(
             jiffy:encode(#{success => false, error => faxe_util:to_bin(Error)}), Req),
-         {false, Req3, State}
+         Req4 = cowboy_req:reply(409, Req3),
+         {stop, Req4, State}
    end.
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%% costum CALLBACKS %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
