@@ -106,7 +106,7 @@ handle_info(connect, State) ->
    {ok, State};
 handle_info({mqttc, C, connected}, State=#state{host = Host, reconnector = Recon}) ->
    connection_registry:connected(),
-   lager:info("mqtt client connected to ~p",[Host]),
+   lager:debug("mqtt client connected to ~p",[Host]),
    NewState = State#state{client = C, connected = true, reconnector = faxe_backoff:reset(Recon)},
    subscribe(NewState),
    {ok, NewState};
@@ -123,17 +123,16 @@ handle_info({publish, #{payload := Payload, topic := Topic} }, S=#state{}) ->
 handle_info({publish, Topic, Payload }, S=#state{}) ->
    data_received(Topic, Payload, S);
 handle_info({disconnected, shutdown, tcp_closed}=M, State = #state{}) ->
-   lager:warning("emqtt : ~p", [M]),
+   lager:info("emqtt : ~p", [M]),
    {ok, State};
 handle_info({'EXIT', _C, _Reason}, State = #state{reconnector = Recon, host = H, port = P}) ->
    connection_registry:disconnected(),
-   lager:warning("EXIT emqtt: ~p [~p]", [_Reason,{H, P}]),
+   lager:notice("EXIT emqtt: ~p [~p]", [_Reason,{H, P}]),
    {ok, Reconnector} = faxe_backoff:execute(Recon, connect),
    {ok, State#state{connected = false, client = undefined, reconnector = Reconnector}};
 handle_info(start_debug, State) -> {ok, State#state{debug_mode = true}};
 handle_info(stop_debug, State) -> {ok, State#state{debug_mode = false}};
 handle_info(What, State) ->
-   lager:warning("~p handle_info: ~p", [?MODULE, What]),
    {ok, State}.
 
 shutdown(#state{client = C}) ->
@@ -165,7 +164,7 @@ connect(State = #state{host = Host, port = Port, client_id = ClientId}) ->
    ],
    Opts1 = opts_auth(State, Opts0),
    Opts = opts_ssl(State, Opts1),
-   lager:info("connect to mqtt broker with: ~p",[Opts]),
+   lager:debug("connect to mqtt broker with: ~p",[Opts]),
    {ok, _Client} = emqttc:start_link(Opts)
 .
 
@@ -179,7 +178,6 @@ opts_ssl(#state{ssl = true, ssl_opts = SslOpts}, Opts) ->
 
 
 subscribe(#state{qos = Qos, client = C, topic = Topic, topics = undefined}) when is_binary(Topic) ->
-   lager:notice("mqtt_client subscribe: ~p", [Topic]),
    ok = emqttc:subscribe(C, Topic, Qos);
 subscribe(#state{qos = Qos, client = C, topics = Topics}) ->
    TQs = [{Top, Qos} || Top <- Topics],

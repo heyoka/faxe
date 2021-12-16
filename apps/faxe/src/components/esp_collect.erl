@@ -131,7 +131,7 @@ process(_Port, B = #data_batch{points = Points}, State) ->
       {ChangedNew, NewState}
    end,
    {T, {Changed, ResState}} = timer:tc(lists, foldl, [ProcessFun, {false, NewState0}, Points]),
-   lager:notice("it took ~p my to process ~p points (changed: ~p)",[T, length(Points), Changed]),
+%%   lager:notice("it took ~p my to process ~p points (changed: ~p)",[T, length(Points), Changed]),
    maybe_emit(Changed, ResState).
 
 handle_info(emit_timeout, State = #state{}) ->
@@ -280,7 +280,7 @@ age_cleanup(State = #state{buffer = Buffer, max_age = Age}) ->
          end
       end,
    CleanedBuffer = lists:foldl(CleanFun, Buffer, Buffer),
-   lager:notice("aged: ~p", [length(Buffer) - length(CleanedBuffer)]),
+%%   lager:notice("aged: ~p", [length(Buffer) - length(CleanedBuffer)]),
    State#state{buffer = CleanedBuffer}.
 
 

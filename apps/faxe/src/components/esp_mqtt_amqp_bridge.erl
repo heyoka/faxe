@@ -175,11 +175,11 @@ handle_info({publish, #{payload := Payload, topic := Topic} }, S=#state{}) ->
 handle_info({publish, Topic, Payload }, S=#state{}) ->
    data_received(Topic, Payload, S);
 handle_info({disconnected, shutdown, tcp_closed}=M, State = #state{}) ->
-   lager:warning("emqtt : ~p", [M]),
+   lager:info("emqtt : ~p", [M]),
    {ok, State};
 handle_info({'EXIT', C, _Reason}, State = #state{reconnector = Recon, host = H, port = P, client = C}) ->
    connection_registry:disconnected(),
-   lager:warning("EXIT emqtt: ~p [~p]", [_Reason,{H, P}]),
+   lager:notice("EXIT emqtt: ~p [~p]", [_Reason,{H, P}]),
    {ok, Reconnector} = faxe_backoff:execute(Recon, connect_mqtt),
    {ok, State#state{connected = false, client = undefined, reconnector = Reconnector}};
 %% esq process is down

@@ -183,12 +183,12 @@ handle_info({mqttc, C, connected},
    {PendingList, NewQ} = memory_queue:to_list_reset(Q),
    NewState = State#state{client = C, connected = true, mem_queue = NewQ},
    [publish(M, NewState) || M <- PendingList],
-   lager:info("mqtt client connected to ~p",[Host]),
+   lager:debug("mqtt client connected to ~p",[Host]),
    {noreply, NewState};
 %% internal ondisc queue is used
 handle_info({mqttc, C, connected}, State=#state{}) ->
    connection_registry:connected(),
-   lager:info("mqtt client connected!!"),
+   lager:debug("mqtt client connected!!"),
    NewState = next(State#state{client = C, connected = true}),
    {noreply, NewState};
 handle_info({mqttc, _C,  disconnected}, State=#state{client = Client}) ->
@@ -212,11 +212,10 @@ handle_info(reconnect, State = #state{}) ->
    {noreply, NewState};
 handle_info({'EXIT', _Client, Reason}, State = #state{reconnector = Recon, host = H, port = P}) ->
    connection_registry:disconnected(),
-   lager:notice("MQTT Client exit: ~p ~p", [Reason, {H, P}]),
+   lager:info("MQTT Client exit: ~p ~p", [Reason, {H, P}]),
    {ok, Reconnector} = faxe_backoff:execute(Recon, reconnect),
    {noreply, State#state{connected = false, client = undefined, reconnector = Reconnector}};
 handle_info(E, S) ->
-   lager:warning("unexpected: ~p~n", [E]),
    {noreply, S}.
 
 next(State=#state{queue = Q, adapt_interval = AdaptInt}) ->
@@ -276,7 +275,7 @@ do_connect(#state{host = Host, port = Port, client_id = ClientId} = State) ->
    Opts0 = [{host, Host}, {port, Port}, {keepalive, 30}, {client_id, ClientId}],
    Opts1 = opts_auth(State, Opts0),
    Opts = opts_ssl(State, Opts1),
-   lager:info("connect to mqtt broker with: ~p",[Opts]),
+   lager:debug("connect to mqtt broker with: ~p",[Opts]),
    {ok, _Client} = emqttc:start_link(Opts),
    State.
 
