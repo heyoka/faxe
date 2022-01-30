@@ -20,10 +20,10 @@
 -export([init/3, process/3, handle_info/2, options/0, wants/0, emits/0, shutdown/1]).
 
 -record(state, {
-   size,
+   size :: non_neg_integer(), %% batch size,
    timeout,
-   window,
-   length = 0,
+   window :: queue:queue(), %% buffer
+   length = 0 :: non_neg_integer(), %% buffer length
    timer_ref
 }).
 
@@ -33,7 +33,7 @@ options() ->
       {timeout, duration, <<"1h">>}
    ].
 
-wants() -> point.
+wants() -> both.
 emits() -> batch.
 
 init(_NodeId, _Inputs, #{size := Size, timeout := Timeout0}) ->
@@ -44,19 +44,28 @@ init(_NodeId, _Inputs, #{size := Size, timeout := Timeout0}) ->
 process(_, #data_point{} = Point, State=#state{} ) ->
    NewState = accumulate(Point, State),
    maybe_emit(NewState);
-process(_, #data_batch{points = _Points}, _State=#state{} ) ->
-%%   AccFun =
-%%   fun(P=#data_point{}, {State, ResList})
-%%   Results =
+process(_, #data_batch{points = Points}, State=#state{} ) ->
+   batch_accum(Points, State).
 
-%%   NewState = accumulate(Point, State),
-%%   maybe_emit(NewState).
-   erlang:error("process databatch not yet implemented in batch node!").
+batch_accum(PointList, State = #state{size = Size}) ->
+   ResState = lists:foldr(
+      fun(Point, CState) ->
+         NewState = accumulate(Point, CState),
+         %% maybe_emit
+         case NewState of
+            #state{size = Size, length = Size} ->
+               {Batch, NewState1} = prepare_batch(NewState),
+               dataflow:emit(Batch),
+               NewState1;
+            _ -> NewState
+         end
+      end, State, PointList),
+   {ok, ResState}.
 
 %% this should not be possible, cause the timer starts on an incoming point
-handle_info(batch_timeout, State=#state{length = 0}) ->
+handle_info(batch_timeout, _State=#state{length = 0}) ->
 %%   lager:warning("timeout when Q is empty!!"),
-   {ok, State#state{timer_ref = undefined}};
+   erlang:error("batch timeout with no data in batch node!");
 handle_info(batch_timeout, State) ->
    {Batch, NewState} = prepare_batch(State),
    {emit, {1, Batch}, NewState};
@@ -74,7 +83,6 @@ shutdown(State) ->
 %%%===================================================================
 %%% Internal functions
 %%%===================================================================
-process_batch(Points, State=#state{}) -> ok.
 
 accumulate(Point = #data_point{}, State = #state{window = Win, length = 0}) ->
    NewState = maybe_start_timer(State),
@@ -88,7 +96,7 @@ maybe_emit(State = #state{size = Length, length = Length}) ->
 maybe_emit(State = #state{}) ->
    {ok, State}.
 
-prepare_batch(State=#state{window = Win}) ->
+prepare_batch(State=#state{window = Win, length = _Len}) ->
    NewState = cancel_timer(State),
    Batch = #data_batch{points = queue:to_list(Win)},
    {Batch, NewState#state{window = queue:new(), length = 0}}.
