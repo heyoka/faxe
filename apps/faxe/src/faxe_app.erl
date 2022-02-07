@@ -68,10 +68,10 @@ print_started(HttpPort) ->
    {ok, Vsn} = application:get_key(vsn),
    {ok, CurrentDir} = file:get_cwd(),
 
-   io:format("* Configuration file: ~p - ~p~n",
+   io:format("~n* Configuration file: ~p - ~p~n",
       ["./etc/faxe.conf", CurrentDir ++ "/etc/faxe.conf"]),
-   io:format("* REST Api listening on port: ~p ~n~n", [HttpPort]),
-   io:format("** ~s ~s is running now!~n~n", [?APP, Vsn]).
+   io:format("** REST Api listening on port: ~p ~n~n", [HttpPort]),
+   io:format("*** ~s ~s is running now!~n~n", [?APP, Vsn]).
 
 
 %%====================================================================

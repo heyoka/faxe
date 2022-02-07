@@ -572,7 +572,7 @@
 %%
 %%
 %% account-url
-{mapping, "azure_blob.account_url", "faxe.azureblob.account_url",
+{mapping, "azure_blob.account_url", "faxe.azure_blob.account_url",
     [{default, "https://someblob.blob.core.windows.net"}, {datatype, string}]
 }.
 

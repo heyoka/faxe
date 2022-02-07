@@ -23,6 +23,7 @@
    table,
    table_field,
    query,
+   query_from_lambda = false :: true|false,
    db_fields,
    faxe_fields,
    remaining_fields_as,
@@ -85,12 +86,14 @@ init(NodeId, Inputs,
 
    Host = binary_to_list(Host0),
    erlang:send_after(0, self(), start_client),
-   Query = maybe_build_query(DBFields, Table, RemFieldsAs),
+%%   Query = maybe_build_query(DBFields, Table, RemFieldsAs),
    connection_registry:reg(NodeId, Host, Port, <<"http">>),
-   {ok, all, #state{host = Host, port = Port, database = DB, user = User, pass = Pass,
+   State = #state{host = Host, port = Port, database = DB, user = User, pass = Pass,
       failed_retries = MaxRetries, remaining_fields_as = RemFieldsAs, tls = Tls,
-      table = Table, query = Query, db_fields = DBFields, faxe_fields = FaxeFields,
-      fn_id = NodeId, flow_inputs = Inputs}}.
+      table = Table, db_fields = DBFields, faxe_fields = FaxeFields,
+      fn_id = NodeId, flow_inputs = Inputs},
+   NewState = query_init(State),
+   {ok, all, NewState}.
 
 %%% DATA IN
 %% not connected -> drop message
@@ -99,8 +102,8 @@ process(_In, _DataItem, State = #state{client = undefined}) ->
    {ok, State};
 %% we do not have a prepare query yet
 process(In, DataItem,
-    State = #state{query = undefined, table = Table, db_fields = DbFields, remaining_fields_as = RemFields}) ->
-   Point = get_datapoint(DataItem),
+    State = #state{query_from_lambda = true, table = Table, db_fields = DbFields, remaining_fields_as = RemFields}) ->
+   Point = get_query_point(DataItem),
    Query = build_query(DbFields, Table, RemFields, Point),
    lager:notice("build query with lambdas: ~p",[Query]),
    process(In, DataItem, State#state{query = Query});
@@ -151,9 +154,9 @@ recon(State) ->
    erlang:send_after(1000, self(), start_client),
    State#state{client = undefined}.
 
-get_datapoint(#data_batch{points = [P|_]}) ->
+get_query_point(#data_batch{points = [P|_]}) ->
    P;
-get_datapoint(#data_point{} = P) ->
+get_query_point(#data_point{} = P) ->
    P.
 
 %%% DATA OUT
@@ -176,6 +179,7 @@ send(Item, State = #state{query = Q, faxe_fields = Fields, remaining_fields_as =
    node_metrics:metric(?METRIC_ITEMS_OUT, 1, State#state.fn_id),
    NewState.
 
+%% bind values to the statement
 -spec build(#data_point{}|#data_batch{}, binary(), list(), binary()) -> iodata().
 build(Item, Query, Fields, RemFieldsAs) ->
    BulkArgs0 = build_value_stmt(Item, Fields, RemFieldsAs),
@@ -220,13 +224,15 @@ build_batch([Point|Points], FieldList, RemFieldsAs, Acc) ->
    NewAcc = [build_value_stmt(Point, FieldList, RemFieldsAs) | Acc],
    build_batch(Points, FieldList, RemFieldsAs, NewAcc).
 
-maybe_build_query(_, Table, _RemFieldsAs) when is_function(Table) ->
-   undefined;
-maybe_build_query(DbFields, Table, RemFieldsAs) ->
-   case lists:any(fun(E) -> is_function(E) end, DbFields) of
-      true -> undefined;
-      false -> build_query(DbFields, Table, RemFieldsAs)
-   end.
+%% build base query
+query_init(State = #state{table = DbTable}) when is_function(DbTable) ->
+   State#state{query_from_lambda = true};
+query_init(State = #state{db_fields = DbFields}) when is_list(DbFields) ->
+   FromLambda = lists:any(fun(F) -> is_function(F) end, DbFields),
+   State#state{query_from_lambda = FromLambda};
+query_init(State = #state{table = Table, db_fields = DbFields, remaining_fields_as = RemF}) ->
+   Query = build_query(DbFields, Table, RemF),
+   State#state{query = Query, query_from_lambda = false}.
 
 %% build the query with lambda funs
 build_query(DbFields0, Table0, RemFieldsAs, P=#data_point{}) when is_list(DbFields0) ->
@@ -276,8 +282,8 @@ handle_response(<<"4", _/binary>> = S,_BodyJSON) ->
    {error, invalid};
 handle_response(<<"503">>, _BodyJSON) ->
    {failed, not_available};
-handle_response(<<"5", _/binary>>,_BodyJSON) ->
-   lager:error("Error 5__: ~p",[_BodyJSON]),
+handle_response(<<"5", _/binary>> = S,_BodyJSON) ->
+   lager:error("Error ~p with body ~p",[S, _BodyJSON]),
    {failed, server_error};
 handle_response({error, What}, {error, Reason}) ->
    {failed, {What, Reason}}.

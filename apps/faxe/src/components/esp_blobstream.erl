@@ -5,7 +5,10 @@
 %%% the blob is expected to be a comma separated file (CSV) or a text file with one json string per line
 %%%
 %%% this node can be fed with a data_point to change options and start a file stream
-%%%
+%%% @todo remove the date_field, once it is converted to the inner ts
+%%% @todo set batch_size to reasonable value (120)
+%%% @todo why is a line missing from the test file ?
+%%% @todo memoize chunk and line number, in case python fails in the middle of processing
 
 -module(esp_blobstream).
 -author("Alexander Minichmair").
@@ -45,15 +48,9 @@
 }).
 
 
-%% python method calls
--define(PYTHON_INFO_CALL, info).
--define(PYTHON_INIT_CALL, init).
--define(PYTHON_BATCH_CALL, batch).
--define(PYTHON_POINT_CALL, point).
+%% python funs
 -define(PYTHON_PREPARE_CALL, prepare).
 -define(PYTHON_MODULE, azblobstream).
--define(PYTHON_PREPARE_START_CALL, prepare_and_start).
--define(PYTHON_START_STREAM_CALL, start).
 
 -define(CALLBACK_MODULE, azblobstream).
 %%-define(CALLBACK_MODULE, azfilestream).
@@ -82,7 +79,7 @@ options() -> [
    {date_format, string, <<"Y-m-D H:M:s:c">>},
    {line_separator, string, <<"\n">>},
    {column_separator, string, <<",">>},
-   {batch_size, integer, 10},
+   {batch_size, integer, 100},
 
    %% cannot be set with data_point values
    {opts_field, string, undefined},
@@ -93,6 +90,7 @@ init(NodeId, Inputs,
     #{date_field := DtField, date_format := DtFormat, format := Format, opts_field := OptField, retries := Tries}
        = Args0) ->
 
+   lager:notice("Args: ~p",[Args0]),
    Args = maps:fold(fun(K, V, Acc) -> Acc#{atom_to_binary(K) => V} end, #{}, Args0),
    process_flag(trap_exit, true),
 
@@ -248,7 +246,7 @@ convert_data(DataMap, S=#state{format = ?FORMAT_JSON}) ->
 %%   lager:info("python map data: ~p", [DataMap]),
    build_point(DataMap, S);
 convert_data(DataMap, S=#state{}) ->
-   lager:info("python map data: ~p", [DataMap]),
+%%   lager:info("python map data: ~p", [DataMap]),
    NewPoint = build_point(DataMap, S),
    flowdata:to_num(NewPoint).
 
