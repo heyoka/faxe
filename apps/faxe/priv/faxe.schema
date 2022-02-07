@@ -566,6 +566,20 @@
     [{default, "/home/user/template.html"}, {datatype, string}]
 }.
 
+%% @doc --------------------------------------------------------------------------
+%% AZURE BLOB
+%% -------------------------------------------------------------------------------
+%%
+%%
+%% account-url
+{mapping, "azure_blob.account_url", "faxe.azureblob.account_url",
+    [{default, "https://someblob.blob.core.windows.net"}, {datatype, string}]
+}.
+
+%% account secret
+{mapping, "azure_blob.account_secret", "faxe.azure_blob.account_secret",
+    [{datatype, string}, {default, "azblob-secret"}]
+}.
 
 
 %% @doc

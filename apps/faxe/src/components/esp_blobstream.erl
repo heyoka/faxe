@@ -70,10 +70,10 @@
    {atom(), df_types:option_name(), df_types:option_value()}
 ).
 options() -> [
-   {account_url, string, <<"https://azureblobconndhq.blob.core.windows.net">>},
-   {az_sec, string, <<"wxdZsFspxKv5RSdjt0eJ1eFFPpRc7gy9bS26PUOnyBOeQAHjPxy+tIQldmmWmPH+AXeK+8dAzfZPETm27vZXSw==">>},
-   {container, string, <<"cdh-test">>},
-   {blob_name, string, <<"c7807655-ab57-48b0-bcac-4ed182c6eb9e">>},
+   {account_url, string, {azure_blob, account_url}},
+   {az_sec, string, {azure_blob, account_secret}},
+   {container, string, <<"test">>},
+   {blob_name, string, <<"4ed182c6eb9e">>},
    {chunk_size, integer, 4096},
    {format, string, ?FORMAT_CSV},
    {header_row, integer, 1},
