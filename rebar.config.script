@@ -2,6 +2,7 @@ case os:getenv("FAXE_EXTENSIONS") of
     false -> CONFIG; % env var not defined
     []    -> CONFIG; % env var set to empty string
     Path ->
+    io:format("path: ~p", [Path]),
         {ok, [AddDeps]} = file:consult(Path),
         NewDeps = proplists:get_value(deps, CONFIG) ++ AddDeps,
         NewCONFIG = lists:keystore(deps, 1, CONFIG, {deps, NewDeps}),

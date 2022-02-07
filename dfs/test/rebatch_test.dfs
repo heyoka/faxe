@@ -1,0 +1,9 @@
+|value_emitter()
+.mode('monotonic_int')
+.every(300ms)
+
+|batch(16)
+|batch(3)
+|batch(8)
+
+%|debug()
