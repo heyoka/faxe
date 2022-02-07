@@ -38,6 +38,7 @@
    vhost,
    queue,
    exchange,
+   root_exchange,
    routing_key = false,
    bindings = false,
    prefetch,
@@ -76,11 +77,12 @@ options() -> [
    {queue_prefix, string, {rabbitmq, queue_prefix}},
    {consumer_tag, string, undefined},
    {exchange, string},
+   {root_exchange, string, {rabbitmq, root_exchange}},
    {exchange_prefix, string, {rabbitmq, exchange_prefix}},
    {prefetch, integer, 70},
    {ack_every, integer, 10},
    {ack_after, duration, <<"5s">>},
-%%   {use_flow_ack, bool, false},
+   {use_flow_ack, bool, false},
    {safe, boolean, false},
    {dt_field, string, <<"ts">>},
    {dt_format, string, ?TF_TS_MILLI},
@@ -106,9 +108,8 @@ init({GraphId, NodeId} = Idx, _Ins,
       exchange := Ex, prefetch := Prefetch, routing_key := _RoutingKey, bindings := _Bindings,
       dt_field := DTField, dt_format := DTFormat, ssl := _UseSSL, include_topic := IncludeTopic,
       topic_as := TopicKey, ack_every := AckEvery0, ack_after := AckTimeout0, as := As, consumer_tag := CTag0,
-      queue_prefix := QPrefix, exchange_prefix := XPrefix
-      ,
-%%      use_flow_ack := FlowAck,
+      queue_prefix := QPrefix, root_exchange := RExchange, exchange_prefix := XPrefix
+      , use_flow_ack := FlowAck,
    safe := Safe, confirm := Confirm,
    dedup_size := DedupSize
    } = Opts0) ->
@@ -120,11 +121,12 @@ init({GraphId, NodeId} = Idx, _Ins,
    Opts = Opts0#{
       host => Host, consumer_tag => CTag,
       exchange => faxe_util:prefix_binary(Ex, XPrefix),
+      root_exchange => faxe_util:prefix_binary(RExchange, XPrefix),
       queue => faxe_util:prefix_binary(Q, QPrefix)
    },
    State = #state{
       include_topic = IncludeTopic, topic_key = TopicKey, as = As, dedup_queue = memory_queue:new(DedupSize),
-      opts = Opts, prefetch = Prefetch, ack_every = AckEvery0, ack_after = AckTimeout,
+      opts = Opts, prefetch = Prefetch, ack_every = AckEvery0, ack_after = AckTimeout, flow_ack = FlowAck,
       dt_field = DTField, dt_format = DTFormat, safe_mode = Safe, flownodeid = Idx, confirm = Confirm},
 
    NewState = maybe_init_q(State),
@@ -193,11 +195,11 @@ handle_ack(Mode, DTag, State=#state{consumer = Consumer}) ->
    carrot:Func(Consumer, DTag),
    {ok, State}.
 
-shutdown(#state{consumer = C, last_dtag = DTag, emitter = Emitter}) ->
-   case DTag of
-      undefined -> ok;
-      _ -> carrot:ack_multiple(C, DTag)
-   end,
+shutdown(#state{consumer = C, last_dtag = _DTag, emitter = Emitter}) ->
+%%   case DTag of
+%%      undefined -> ok;
+%%      _ -> carrot:ack_multiple(C, DTag)
+%%   end,
    catch gen_server:stop(C),
    catch (gen_server:stop(Emitter)).
 
@@ -261,40 +263,36 @@ start_emitter(State = #state{queue = Q}) ->
 
 -spec consumer_config(Opts :: map()) -> list().
 consumer_config(Opts = #{vhost := VHost, queue := Q, consumer_tag := ConsumerTag,
-   prefetch := Prefetch, exchange := XChange, bindings := Bindings, routing_key := RoutingKey, confirm := Confirm}) ->
-   RMQConfig = faxe_config:get(rabbitmq),
-   RootExchange = proplists:get_value(root_exchange, RMQConfig, <<"amq.topic">>),
-%%   HostParams = %% connection parameters
+   prefetch := Prefetch, exchange := XChange, root_exchange := RootEx, bindings := Bindings,
+   routing_key := RoutingKey, confirm := Confirm}) ->
+
+   % Number of connections not relevant here,
+   % because we start the consumer monitored not pooled
    Config =
       [
-         {workers, 1},  % Number of connections, but not relevant here,
-         % because we start the consumer monitored
+         {workers, 1},
          {callback, self()},
          {confirm, Confirm},
          {setup_type, permanent},
          {consumer_tag, ConsumerTag},
          {prefetch_count, Prefetch},
          {vhost, VHost},
-         {setup,
-            [
+         {setup, [
                {queue, [
                   {queue, Q},
                   {exchange, XChange},
                   {routing_key, RoutingKey},
                   {bindings, Bindings}
-
                ]},
                {exchange, [
                          {exchange, XChange},
                          {type, <<"topic">>},
-                         {source, faxe_util:to_bin(RootExchange)}
-                         ]
-                      }
-            ]
-         }
-
+                         {source, RootEx}
+                         ]}
+         ]}
       ],
-   Props = carrot_util:proplists_merge(maps:to_list(Opts) ++ [{ssl_opts, faxe_config:get_amqp_ssl_opts()}], Config),
+   Props = carrot_util:proplists_merge(
+      maps:to_list(Opts) ++ [{ssl_opts, faxe_config:get_amqp_ssl_opts()}], Config),
 %%   lager:warning("giving carrot these Configs: ~p", [Props]),
    Props.
 

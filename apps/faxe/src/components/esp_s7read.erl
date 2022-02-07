@@ -134,15 +134,15 @@ init({_, _NId}=NodeId, _Ins,
 %%  lager:notice("after: ~p ~n",[As1]),
 %%  lager:notice("before: ~p ~n",[Addresses]),
   Addresses1 = translate_vars(Addresses, Vars_Prefix),
-%%  lager:notice("after: ~p ~n",[Addresses1]),
+  lager:notice("after: ~s ~n",[jiffy:encode(Addresses1)]),
   {Parts, AliasesList} = build_addresses(Addresses1, As1, Offset),
   ByteSize = bit_count(Parts)/8,
 
   connection_registry:reg(NodeId, Ip, Port, <<"s7">>),
   S7Client = setup_connection(Opts),
   connection_registry:connecting(),
-
-  %%  lager:info("~p VARS reduced to : ~p  with byte-size: ~p",[length(Addresses), length(Parts), bit_count(Parts)/8]),
+lager:info("all parts: ~s",[jiffy:encode(Parts)]),
+    lager:info("~p VARS reduced to : ~p  with byte-size: ~p",[length(Addresses), length(Parts), bit_count(Parts)/8]),
   %%  [lager:notice("Partition: ~p", [Part]) || Part <- Parts],
   %%  [lager:notice("Aliases: ~p", [Part]) || Part <- AliasesList],
 

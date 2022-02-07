@@ -53,7 +53,7 @@ init(NodeId, _Inputs,
    JSONs = [jiffy:decode(JsonString, [return_maps]) || JsonString <- JS],
    State = #state{node_id = NodeId, every = EveryMs, ejson = JSONs, as = As,
       json_string = JS, align = NUnit, jitter = JT},
-
+   lager:notice("~p State: ~p",[?MODULE, lager:pr(State, ?MODULE)]),
    erlang:send_after(JT, self(), emit),
    rand:seed(exs1024s),
    {ok, none, State}.
@@ -74,7 +74,8 @@ handle_info(_Request, State) ->
 do_emit(Next, State=#state{ejson = JS, as = As}) ->
    erlang:send_after(Next, self(), emit),
    JsonMap = lists:nth(rand:uniform(length(JS)), JS),
-   Msg = flowdata:set_field(#data_point{ts = faxe_time:now()}, As, JsonMap),
+%%   Msg = flowdata:set_field(#data_point{ts = faxe_time:now()}, As, JsonMap),
+   Msg = flowdata:set_root(#data_point{ts = faxe_time:now(), fields = JsonMap}, As),
    {emit,{1, Msg}, State}.
 
 

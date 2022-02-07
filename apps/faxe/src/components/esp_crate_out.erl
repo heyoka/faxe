@@ -9,7 +9,7 @@
 
 -behavior(df_component).
 %% API
--export([init/3, process/3, options/0, handle_info/2, do_send/5, shutdown/1, metrics/0]).
+-export([init/3, process/3, options/0, handle_info/2, do_send/5, shutdown/1, metrics/0, check_options/0]).
 
 -record(state, {
    host :: string(),
@@ -21,6 +21,7 @@
    client,
    database,
    table,
+   table_field,
    query,
    db_fields,
    faxe_fields,
@@ -50,14 +51,27 @@ options() ->
       {host, string, {crate_http, host}},
       {port, integer, {crate_http, port}},
       {tls, is_set, {crate_http, tls, enable}},
-      {table, string},
+      {table, any},
       {user, string, {crate_http, user}},
       {pass, string, {crate_http, pass}},
       {database, string, <<"doc">>},
-      {db_fields, string_list},
+      {db_fields, list},
       {faxe_fields, string_list},
       {remaining_fields_as, string, undefined},
-      {max_retries, integer, ?FAILED_RETRIES}].
+      {max_retries, integer, ?FAILED_RETRIES}
+   ].
+
+check_options() ->
+   [
+      {func, table, fun(E) -> is_function(E) orelse is_binary(E) end, <<" must be either a string or a lambda function">>},
+      {func, db_fields,
+         fun(Fields) ->
+            lists:all(fun(E) -> is_function(E) orelse is_binary(E) end, Fields)
+            end,
+            <<" list may only contain strings and lambda functions">>}
+
+
+   ].
 
 metrics() ->
    [
@@ -71,7 +85,7 @@ init(NodeId, Inputs,
 
    Host = binary_to_list(Host0),
    erlang:send_after(0, self(), start_client),
-   Query = build_query(DBFields, Table, RemFieldsAs),
+   Query = maybe_build_query(DBFields, Table, RemFieldsAs),
    connection_registry:reg(NodeId, Host, Port, <<"http">>),
    {ok, all, #state{host = Host, port = Port, database = DB, user = User, pass = Pass,
       failed_retries = MaxRetries, remaining_fields_as = RemFieldsAs, tls = Tls,
@@ -83,6 +97,13 @@ init(NodeId, Inputs,
 %% @todo buffer these messages when not connected
 process(_In, _DataItem, State = #state{client = undefined}) ->
    {ok, State};
+%% we do not have a prepare query yet
+process(In, DataItem,
+    State = #state{query = undefined, table = Table, db_fields = DbFields, remaining_fields_as = RemFields}) ->
+   Point = get_datapoint(DataItem),
+   Query = build_query(DbFields, Table, RemFields, Point),
+   lager:notice("build query with lambdas: ~p",[Query]),
+   process(In, DataItem, State#state{query = Query});
 process(_In, DataItem, State = #state{fn_id = FNId}) ->
    _NewState = send(DataItem, State),
    dataflow:maybe_debug(item_in, 1, DataItem, FNId, State#state.debug_mode),
@@ -129,6 +150,11 @@ start_client(State = #state{host = Host, port = Port, tls = Tls}) ->
 recon(State) ->
    erlang:send_after(1000, self(), start_client),
    State#state{client = undefined}.
+
+get_datapoint(#data_batch{points = [P|_]}) ->
+   P;
+get_datapoint(#data_point{} = P) ->
+   P.
 
 %%% DATA OUT
 send(Item, State = #state{query = Q, faxe_fields = Fields, remaining_fields_as = RemFieldsAs,
@@ -194,6 +220,33 @@ build_batch([Point|Points], FieldList, RemFieldsAs, Acc) ->
    NewAcc = [build_value_stmt(Point, FieldList, RemFieldsAs) | Acc],
    build_batch(Points, FieldList, RemFieldsAs, NewAcc).
 
+maybe_build_query(_, Table, _RemFieldsAs) when is_function(Table) ->
+   undefined;
+maybe_build_query(DbFields, Table, RemFieldsAs) ->
+   case lists:any(fun(E) -> is_function(E) end, DbFields) of
+      true -> undefined;
+      false -> build_query(DbFields, Table, RemFieldsAs)
+   end.
+
+%% build the query with lambda funs
+build_query(DbFields0, Table0, RemFieldsAs, P=#data_point{}) when is_list(DbFields0) ->
+   lager:warning("building query with lambdas maybe: (~p, ~p, ~p)",[DbFields0, Table0, flowdata:field(P, <<"meta">>)]),
+   Table =
+   case is_function(Table0) of
+      true -> faxe_lambda:execute(P, Table0);
+      false -> Table0
+   end,
+   FieldsFun =
+   fun(E) ->
+      case is_function(E) of
+         true -> faxe_lambda:execute(P, E);
+         false -> E
+      end
+   end,
+   DbFields = lists:map(FieldsFun, DbFields0),
+   build_query(DbFields, Table, RemFieldsAs).
+
+
 build_query(ValueList0, Table, RemFieldsAs) when is_list(ValueList0) ->
    Q0 = <<"INSERT INTO ", Table/binary>>,
    ValueList1 = [<<"ts">>|ValueList0],
@@ -209,7 +262,7 @@ build_query(ValueList0, Table, RemFieldsAs) when is_list(ValueList0) ->
    Q.
 
 get_response(Client, Ref) ->
-   {response, _IsFin, Status, Headers} = gun:await(Client, Ref),
+   {response, _IsFin, Status, _Headers} = gun:await(Client, Ref),
 %%   lager:info("response Status: ~p, Headers: ~p" ,[Status, Headers]),
    {ok, Message} = gun:await_body(Client, Ref),
 %%   lager:info("response Message: ~p", [Message]),

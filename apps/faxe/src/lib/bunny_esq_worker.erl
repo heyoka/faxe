@@ -91,7 +91,7 @@ handle_cast(Msg, State) ->
 
 -spec handle_info(term(), state()) -> {noreply, state()}.
 handle_info(connect, State) ->
-   lager:notice("[~p] connect to rmq",[?MODULE]),
+   lager:debug("[~p] connect to rmq",[?MODULE]),
    NewState = start_connection(State),
    case NewState#state.available of
       true ->
@@ -101,10 +101,10 @@ handle_info(connect, State) ->
 
 
 handle_info( {'DOWN', _Ref, process, Conn, _Reason} = _Req, State=#state{connection = Conn}) ->
-   lager:info("RMQ Connection down, waiting for EXIT on channel ..."),
+   lager:debug("RMQ Connection down, waiting for EXIT on channel ..."),
    {noreply, State};
 handle_info({'EXIT', MQPid, Reason}, State=#state{channel = MQPid, reconnector = Recon} ) ->
-   lager:warning("MQ channel DIED: ~p", [Reason]),
+   lager:notice("MQ channel DIED: ~p", [Reason]),
    {ok, Reconnector} = faxe_backoff:execute(Recon, connect),
    {noreply, State#state{
       reconnector = Reconnector,
@@ -282,7 +282,7 @@ corr_id(Key, Payload) ->
 %%% MQ Connection functions.
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 start_connection(State = #state{config = Config, reconnector = Recon, safe_mode = Safe}) ->
-   lager:notice("amqp_params: ~p",[lager:pr(Config, ?MODULE)] ),
+%%   lager:notice("amqp_params: ~p",[lager:pr(Config, ?MODULE)] ),
    Connection = maybe_start_connection(State),
    NewState =
    case Connection of
@@ -340,7 +340,6 @@ preconfig_channel(Channel) ->
 maybe_start_connection(#state{connection = Conn, config = Config}) ->
    case is_pid(Conn) andalso is_process_alive(Conn) of
       true ->
-         lager:notice("connection still alive"),
          {ok, Conn};
       false ->
          case amqp_connection:start(Config) of
