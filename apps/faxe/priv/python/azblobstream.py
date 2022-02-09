@@ -1,13 +1,11 @@
 from azure.storage.blob import BlobServiceClient
 from azure.storage.blob import ContainerClient
-from uaclient.clouds import azure
-
 import erlport
 import erlport.erlang
 import erlport.erlterms
 import faxe
-import json
 from decode_dict import DecodeDict
+import json
 import sys
 
 # this is a pointer to the module object instance itself.
