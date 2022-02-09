@@ -8,6 +8,7 @@ paho-mqtt
 requests
 ujson
 opencv-python-headless
+azure-storage-blob
 #
 ###### Requirements with Version Specifiers ######
 #   See https://www.python.org/dev/peps/pep-0440/#version-specifiers
