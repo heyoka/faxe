@@ -5,9 +5,6 @@
 %%% the blob is expected to be a comma separated file (CSV) or a text file with one json string per line
 %%%
 %%% this node can be fed with a data_point to change options and start a file stream
-%%% @todo remove the date_field, once it is converted to the inner ts
-%%% @todo set batch_size to reasonable value (120)
-%%% @todo why is a line missing from the test file ?
 %%% @todo memoize chunk and line number, in case python fails in the middle of processing
 
 -module(esp_blobstream).
@@ -31,7 +28,6 @@
    python_instance :: pid()|undefined,
    python_args :: map(),
    initial_args :: map(),
-   cb_object :: term(),
    as = <<"data">> :: binary(),
    dt_field :: binary(),
    dt_format :: binary(),
@@ -62,6 +58,9 @@
 -define(META_FIELD, <<"meta">>).
 -define(DATA_FIELD, <<"data">>).
 
+-define(META_CHUNK, <<"chunk">>).
+-define(META_LINE, <<"line">>).
+
 -spec options() -> list(
    {atom(), df_types:option_name()} |
    {atom(), df_types:option_name(), df_types:option_value()}
@@ -76,10 +75,10 @@ options() -> [
    {header_row, integer, 1},
    {data_start_row, integer, 2},
    {date_field, string, <<"date">>},
-   {date_format, string, <<"Y-m-D H:M:s:c">>},
+   {date_format, string, <<"Y-m-D H:M:s">>},
    {line_separator, string, <<"\n">>},
    {column_separator, string, <<",">>},
-   {batch_size, integer, 100},
+   {batch_size, integer, 120},
 
    %% cannot be set with data_point values
    {opts_field, string, undefined},
@@ -90,7 +89,6 @@ init(NodeId, Inputs,
     #{date_field := DtField, date_format := DtFormat, format := Format, opts_field := OptField, retries := Tries}
        = Args0) ->
 
-   lager:notice("Args: ~p",[Args0]),
    Args = maps:fold(fun(K, V, Acc) -> Acc#{atom_to_binary(K) => V} end, #{}, Args0),
    process_flag(trap_exit, true),
 
@@ -137,7 +135,6 @@ handle_info(startstream, State=#state{max_retries = Max, tried = Max, item = Poi
    {ok, next(NewState)};
 handle_info(startstream, State=#state{python_args = Args, tried = Tried}) ->
    State0 = setup_python(State),
-   lager:info("after python setup try: ~p",[Tried]),
    NewState =
    case pythra:pythra_call(State0#state.python_instance, ?PYTHON_MODULE, ?PYTHON_PREPARE_CALL, [Args]) of
       true ->
@@ -154,21 +151,25 @@ handle_info({emit_data, #{<<"header">> := _H}}, State=#state{}) ->
    {ok, State};
 %% python is done with the current download
 handle_info({emit_data, #{<<"done">> := _True}}, State=#state{item = Point}) ->
-   lager:warning("we are DONE with this file, stop the port to python"),
+   lager:info("we are DONE with this file, stop the port to python"),
    %% lets ack to upstream nodes (dataflow acknowledge)
    dataflow:ack(Point, State#state.flow_inputs),
-   NewState = stop_python(State),
+   NewState = reset_state(stop_python(State)),
    {ok, next(NewState)};
 handle_info({emit_data, Data0}, State=#state{}) when is_map(Data0) ->
-   Point = convert_data(Data0, State),
-   {emit, {1, Point}, State};
+   {Chunk, Line, Point} = convert_data(Data0, State),
+   {emit, {1, Point}, State#state{current_chunk = Chunk, current_line = Line}};
 handle_info({emit_data, Data}, State=#state{}) when is_list(Data) ->
-%%   lager:info("python list data: ~p",[Data]),
-   Points = [convert_data(D, State) || D <- Data],
-   Batch = #data_batch{points = Points},
-   {emit, {1, Batch}, State};
+   Fun =
+      fun(P, Acc=#{points := PointList}) ->
+         {Ch, L, NewP} = convert_data(P, State),
+         Acc#{points => PointList ++ [NewP], chunk => Ch, line => L}
+      end,
+   #{points := ResPoints, chunk := CChunk, line := CLine} = lists:foldl(Fun, #{points => []}, Data),
+   Batch = #data_batch{points = ResPoints},
+   {emit, {1, Batch}, State#state{current_chunk = CChunk, current_line = CLine}};
 handle_info({emit_data, {"Map", Data}}, State) when is_list(Data) ->
-   lager:info("python data: ~p",[Data]),
+%%   lager:info("python data: ~p",[Data]),
 %%   lager:notice("got point data from python: ~p", [Data]),
    {emit, {1, Data}, State};
 handle_info({python_error, ErrBin}, State) ->
@@ -186,9 +187,10 @@ handle_info({'EXIT', _P,
    return_exit(State);
 handle_info({'EXIT', _Who, normal}, State = #state{python_instance = _Py}) ->
    return_exit(State);
-handle_info({'EXIT', Who, Reason}, State = #state{python_instance = Py}) ->
-   %% @todo look if any work is still to be done
+handle_info({'EXIT', Who, Reason}, State = #state{python_instance = Py, in_progress = true}) ->
    lager:warning("Python exited (~p / ~p), reason: ~p",[Who, Py, Reason]),
+   %% retry
+   erlang:send_after(1000, self(), startstream),
    return_exit(State);
 handle_info(_Request, State) ->
    lager:notice("got from python: ~p", [_Request]),
@@ -206,14 +208,12 @@ next(State=#state{waiting = []}) ->
 return_exit(State=#state{}) ->
    {ok,
       State#state{
-         python_instance = undefined,
-         cb_object = undefined
+         python_instance = undefined
       }}.
 
 reset_state(State=#state{}) ->
    State#state{
       python_instance = undefined,
-      cb_object = undefined,
       tried = 1,
       current_chunk = 0,
       current_line = 0,
@@ -243,29 +243,27 @@ map_point_data(PointData) ->
 
 
 convert_data(DataMap, S=#state{format = ?FORMAT_JSON}) ->
-%%   lager:info("python map data: ~p", [DataMap]),
    build_point(DataMap, S);
-convert_data(DataMap, S=#state{}) ->
-%%   lager:info("python map data: ~p", [DataMap]),
-   NewPoint = build_point(DataMap, S),
-   flowdata:to_num(NewPoint).
+convert_data(DataMap, S=#state{format = ?FORMAT_CSV}) ->
+   {C, L, NewPoint} = build_point(DataMap, S),
+   {C, L, flowdata:to_num(NewPoint)}.
 
 build_point(DataMap, #state{dt_field = DtField, dt_format = DtFormat, python_args = PMeta}) ->
    Meta0 = maps:get(?META_FIELD, DataMap, #{}),
-   Meta = maps:merge(Meta0, PMeta),
-   flowdata:point_from_json_map(DataMap#{?META_FIELD => Meta}, <<?DATA_FIELD/binary, ".", DtField/binary>>, DtFormat).
-
+   Meta = #{?META_CHUNK := CChunk, ?META_LINE := CLine} = maps:merge(Meta0, PMeta),
+   DtPath = <<?DATA_FIELD/binary, ".", DtField/binary>>,
+   P = flowdata:point_from_json_map(DataMap#{?META_FIELD => Meta}, DtPath, DtFormat),
+   POut = flowdata:delete_field(P, DtPath),
+%%   lager:info("~p",[faxe_time:to_iso8601(flowdata:ts(POut))]),
+   {CChunk, CLine, POut}.
 
 setup_python(State = #state{}) ->
    PInstance = get_python(),
-   %% create an instance of the callback class
-%%   ClassInstance =
-%%      pythra:init(PInstance, ?CALLBACK_MODULE, ?CALLBACK_CLASS, [self()]),
    State#state{python_instance = PInstance}.%, cb_object = ClassInstance}.
 
 stop_python(State = #state{python_instance = Py}) ->
    catch pythra:stop(Py),
-   State#state{python_instance = undefined, cb_object = undefined}.
+   State#state{python_instance = undefined}.
 
 get_python() ->
    {ok, PythonParams} = application:get_env(faxe, python),

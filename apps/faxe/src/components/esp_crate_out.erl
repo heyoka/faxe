@@ -93,6 +93,7 @@ init(NodeId, Inputs,
       table = Table, db_fields = DBFields, faxe_fields = FaxeFields,
       fn_id = NodeId, flow_inputs = Inputs},
    NewState = query_init(State),
+   lager:warning("QUERY INIT: ~p",[{NewState#state.query, NewState#state.query_from_lambda}]),
    {ok, all, NewState}.
 
 %%% DATA IN
@@ -101,13 +102,16 @@ init(NodeId, Inputs,
 process(_In, _DataItem, State = #state{client = undefined}) ->
    {ok, State};
 %% we do not have a prepare query yet
-process(In, DataItem,
+process(_In, DataItem=#data_batch{points = Points},
     State = #state{query_from_lambda = true, table = Table, db_fields = DbFields, remaining_fields_as = RemFields}) ->
+%%   lager:warning("last point: ~p",[lager:pr(lists:last(Points), ?MODULE)]),
    Point = get_query_point(DataItem),
    Query = build_query(DbFields, Table, RemFields, Point),
-   lager:notice("build query with lambdas: ~p",[Query]),
-   process(In, DataItem, State#state{query = Query});
-process(_In, DataItem, State = #state{fn_id = FNId}) ->
+   do_process(DataItem, State#state{query = Query});
+process(_In, DataItem, State) ->
+   do_process(DataItem, State).
+
+do_process(DataItem, State = #state{fn_id = FNId}) ->
    _NewState = send(DataItem, State),
    dataflow:maybe_debug(item_in, 1, DataItem, FNId, State#state.debug_mode),
    {ok, State}.
@@ -163,7 +167,6 @@ get_query_point(#data_point{} = P) ->
 send(Item, State = #state{query = Q, faxe_fields = Fields, remaining_fields_as = RemFieldsAs,
       database = Schema, user = User, pass = Pass}) ->
    Query = build(Item, Q, Fields, RemFieldsAs),
-%%   lager:info("Query: ~p", [Query]),
    Headers0 = [{?DEFAULT_SCHEMA_HDR, Schema}, {<<"content-type">>, <<"application/json">>}],
    Headers =
    case Pass of
@@ -204,6 +207,7 @@ do_send(Item, Body, Headers, Retries, S = #state{client = Client}) ->
          S;
 
       O ->
+         lager:info("sending gun post: ~p",[O]),
          do_send(Item, Body, Headers, Retries+1, S#state{last_error = O})
    end.
 
@@ -227,16 +231,20 @@ build_batch([Point|Points], FieldList, RemFieldsAs, Acc) ->
 %% build base query
 query_init(State = #state{table = DbTable}) when is_function(DbTable) ->
    State#state{query_from_lambda = true};
-query_init(State = #state{db_fields = DbFields}) when is_list(DbFields) ->
-   FromLambda = lists:any(fun(F) -> is_function(F) end, DbFields),
-   State#state{query_from_lambda = FromLambda};
 query_init(State = #state{table = Table, db_fields = DbFields, remaining_fields_as = RemF}) ->
-   Query = build_query(DbFields, Table, RemF),
-   State#state{query = Query, query_from_lambda = false}.
+   FromLambda = lists:any(fun(F) -> is_function(F) end, DbFields),
+   case FromLambda of
+      false ->
+         Query = build_query(DbFields, Table, RemF),
+         State#state{query = Query, query_from_lambda = false};
+      true ->
+         State#state{query_from_lambda = FromLambda}
+   end.
+
 
 %% build the query with lambda funs
 build_query(DbFields0, Table0, RemFieldsAs, P=#data_point{}) when is_list(DbFields0) ->
-   lager:warning("building query with lambdas maybe: (~p, ~p, ~p)",[DbFields0, Table0, flowdata:field(P, <<"meta">>)]),
+%%   lager:warning("building query with lambdas maybe: (~p, ~p, ~p)",[DbFields0, Table0, flowdata:field(P, <<"meta">>)]),
    Table =
    case is_function(Table0) of
       true -> faxe_lambda:execute(P, Table0);
@@ -269,7 +277,7 @@ build_query(ValueList0, Table, RemFieldsAs) when is_list(ValueList0) ->
 
 get_response(Client, Ref) ->
    {response, _IsFin, Status, _Headers} = gun:await(Client, Ref),
-%%   lager:info("response Status: ~p, Headers: ~p" ,[Status, Headers]),
+%%   lager:info("response Status: ~p, Headers: ~p" ,[Status, _Headers]),
    {ok, Message} = gun:await_body(Client, Ref),
 %%   lager:info("response Message: ~p", [Message]),
    handle_response(integer_to_binary(Status), Message).

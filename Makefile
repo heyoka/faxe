@@ -31,6 +31,8 @@ dev1:
 	export FAXE_DEBUG_HANDLER_MQTT_BASE_TOPIC=tgw/sys/faxe/ && \
 	export FAXE_HOST=heyoka_local && \
 	export FAXE_S7POOL_ENABLE=on && \
+	export FAXE_AZURE_BLOB_ACCOUNT_URL=https://azureblobconndhq.blob.core.windows.net && \
+	export FAXE_AZURE_BLOB_ACCOUNT_SECRET=wxdZsFspxKv5RSdjt0eJ1eFFPpRc7gy9bS26PUOnyBOeQAHjPxy+tIQldmmWmPH+AXeK+8dAzfZPETm27vZXSw== && \
 	rebar3 as dev1 release && _build/dev1/rel/faxe/bin/faxe console
 
 start:
