@@ -61,7 +61,7 @@ options() -> [
    {tag_added, boolean, false},
    {include_removed, boolean, false},
    {keep, string_list, []}, %% a list of field path to keep for every data_point
-   {keep_as, string_list, []}, %% rename the kept fields
+   {keep_as, string_list, undefined}, %% rename the kept fields
    {as, string, <<"collected">>}, %% rename the whole field construct on output
    {max_age, duration, <<"3h">>},
    {tag_value, any, 1}
@@ -296,12 +296,17 @@ start_age_timeout(#state{max_age = Age}) ->
 
 keep(DataPoint, #state{keep = []}) ->
    DataPoint;
-keep(DataPoint, #state{keep = FieldNames, keep_as = Aliases}) when is_list(FieldNames) ->
+keep(DataPoint, #state{keep = FieldNames, keep_as = As0}) when is_list(FieldNames) ->
+   As =
+      case As0 of
+         undefined -> FieldNames;
+         _ -> As0
+   end,
 %%   lager:notice("keep from: ~p", [DataPoint]),
    Fields = flowdata:fields(DataPoint, FieldNames++[?TAG_REMOVED, ?TAG_ADDED]),
 %%   lager:notice("want tp keep: ~p :: ~p as ~p",[FieldNames, Fields, Aliases]),
    Point0 = DataPoint#data_point{fields = #{}, tags = #{}},
-   Zipped = lists:zip(Aliases++[?TAG_REMOVED, ?TAG_ADDED], Fields),
+   Zipped = lists:zip( As  ++ [?TAG_REMOVED, ?TAG_ADDED], Fields),
    SetFields = [{K, V} || {K, V} <- Zipped, V /= undefined],
    NewPoint0 = flowdata:set_fields(Point0, SetFields),
    NewPoint0.
