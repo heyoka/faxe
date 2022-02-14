@@ -21,7 +21,7 @@ header_field: bytes = b'header'
 eof_field: bytes = b'done'
 chunk_field: bytes = b'chunk'
 
-empty: str = ''
+empty: bytes = b''
 
 
 def bytes2string(byte_string):
@@ -39,18 +39,18 @@ def prepare(args):
     this.line_format = this.args['format']
     this.container = bytes2string(this.args['container'])
     this.blob_name = bytes2string(this.args['blob_name'])
-    this.encoding = bytes2string(this.args['encoding'])
-    this.header_row = int(this.args['header_row'])
-    this.data_row = int(this.args['data_start_row'])
+    this.header_row = this.args['header_row']
+    this.data_row = this.args['data_start_row']
     this.line_separator = this.args['line_separator']
-    this.column_separator = bytes2string(this.args['column_separator'])
-    this.batch_size = int(this.args['batch_size'])
+    this.column_seperator = this.args['column_separator']
+    this.batch_size = this.args['batch_size']
 
     this.current_chunk = 0
     this.current = empty
     this.current_batch = []
     this.current_row = 0
     this.header = dict()
+    this.maybe_last_part = empty
 
     # this.line_format = b'joeh'
     if this.line_format not in [format_csv, format_json]:
@@ -99,13 +99,13 @@ def prepare(args):
 def start(_arg):
     stream = this.blob_client.download_blob()
     for chunk in stream.chunks():
-        this.current += chunk.decode(this.encoding)
+        this.current += chunk
         this.current_chunk += 1
         extract_rows()
     # output the rest
-    if this.current != empty:
+    if this.maybe_last_part != empty:
         this.current_row += 1
-        export(this.current)
+        export(this.maybe_last_part)
 
     if len(this.current_batch) > 0:
         emit(this.current_batch)
@@ -114,13 +114,21 @@ def start(_arg):
 
 
 def extract_rows():
-    splitted = this.current.splitlines()
-    last = splitted.pop()
-    for line in splitted:
-        this.current_row += 1
-        export(line)
+    (part, sep, rest) = this.current.partition(this.line_separator)
+    # not the last part
+    this.maybe_last_part = empty
 
-    this.current = last
+    if sep != empty:
+        if part == empty:
+            this.current = rest
+            # return row, rest
+        else:
+            this.current_row += 1
+            export(part)
+            this.current = rest
+            extract_rows()
+    else:
+        this.maybe_last_part = part
 
 
 def export(row):
@@ -130,26 +138,25 @@ def export(row):
     else:
         if this.line_format == format_json:
             converted = handle_json(row)
-            # print("json converted", converted)
         else:
             error('unknown file format ' + this.line_format)
 
     if converted is not None:
         this.current_batch.append(converted)
         if len(this.current_batch) >= this.batch_size:
-            # print("batch", this.current_batch)
             emit(this.current_batch)
             this.current_batch = []
 
 
 def handle_csv(row):
     if this.current_row == this.header_row:
-        this.header = row.split(this.column_separator)
+        this.header = row.split(this.column_seperator)
         emit({header_field: this.header})
         return None
+        # print('header', row.split(self.column_seperator))
     else:
         if this.current_row >= this.data_row:
-            row_list = row.split(this.column_separator)
+            row_list = row.split(this.column_seperator)
             resdata = dict(zip(this.header, row_list))
             meta = {line_field: this.current_row, chunk_field: this.current_chunk}
             return {meta_dict: meta, data_dict: resdata}

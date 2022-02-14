@@ -43,14 +43,10 @@
 
 }).
 
-
 %% python funs
 -define(PYTHON_PREPARE_CALL, prepare).
 -define(PYTHON_MODULE, azblobstream).
-
--define(CALLBACK_MODULE, azblobstream).
-%%-define(CALLBACK_MODULE, azfilestream).
--define(CALLBACK_CLASS, 'AzFileStream').
+%% no "start" call here, because we cast a message to the python runtime, see handle_info(startstream, ....
 
 -define(FORMAT_CSV, <<"csv">>).
 -define(FORMAT_JSON, <<"json">>).
@@ -70,7 +66,8 @@ options() -> [
    {az_sec, string, {azure_blob, account_secret}},
    {container, string, <<"test">>},
    {blob_name, string, <<"4ed182c6eb9e">>},
-   {chunk_size, integer, 4096},
+   {encoding, string, <<"utf-8">>},
+   {chunk_size, integer, 8192},
    {format, string, ?FORMAT_CSV},
    {header_row, integer, 1},
    {data_start_row, integer, 2},
@@ -148,6 +145,7 @@ handle_info(startstream, State=#state{python_args = Args, tried = Tried}) ->
 %% python sends us data
 %% skip header for now
 handle_info({emit_data, #{<<"header">> := _H}}, State=#state{}) ->
+   lager:info("header: ~p", [_H]),
    {ok, State};
 %% python is done with the current download
 handle_info({emit_data, #{<<"done">> := _True}}, State=#state{item = Point}) ->
@@ -160,6 +158,7 @@ handle_info({emit_data, Data0}, State=#state{}) when is_map(Data0) ->
    {Chunk, Line, Point} = convert_data(Data0, State),
    {emit, {1, Point}, State#state{current_chunk = Chunk, current_line = Line}};
 handle_info({emit_data, Data}, State=#state{}) when is_list(Data) ->
+%%   lager:info("got data list from python: ~p",[Data]),
    Fun =
       fun(P, Acc=#{points := PointList}) ->
          {Ch, L, NewP} = convert_data(P, State),
@@ -242,20 +241,22 @@ map_point_data(PointData) ->
    maps:fold(Fold, #{}, PointData).
 
 
-convert_data(DataMap, S=#state{format = ?FORMAT_JSON}) ->
-   build_point(DataMap, S);
-convert_data(DataMap, S=#state{format = ?FORMAT_CSV}) ->
-   {C, L, NewPoint} = build_point(DataMap, S),
-   {C, L, flowdata:to_num(NewPoint)}.
+convert_data(DataMap, S=#state{format = ?FORMAT_JSON, dt_field = DtField}) ->
+   build_point(DataMap, DtField, S);
+convert_data(DataMap, S=#state{format = ?FORMAT_CSV, dt_field = DtField}) ->
+   DateTimeField = <<?DATA_FIELD/binary, ".", DtField/binary>>,
+   {C, L, NewPoint0} = build_point(DataMap, DateTimeField, S),
+%%   lager:notice("flowdata to  num: ~p",[lager:pr(flowdata:to_num(NewPoint), ?MODULE)]),
+   NewPoint = flowdata:delete_field(NewPoint0, DateTimeField),
+   {C, L, flowdata:to_num(NewPoint, ?DATA_FIELD)}.
 
-build_point(DataMap, #state{dt_field = DtField, dt_format = DtFormat, python_args = PMeta}) ->
+build_point(DataMap, DateTimeField, #state{dt_format = DtFormat, python_args = PMeta}) ->
    Meta0 = maps:get(?META_FIELD, DataMap, #{}),
    Meta = #{?META_CHUNK := CChunk, ?META_LINE := CLine} = maps:merge(Meta0, PMeta),
-   DtPath = <<?DATA_FIELD/binary, ".", DtField/binary>>,
-   P = flowdata:point_from_json_map(DataMap#{?META_FIELD => Meta}, DtPath, DtFormat),
-   POut = flowdata:delete_field(P, DtPath),
+%%   DtPath = <<?DATA_FIELD/binary, ".", DtField/binary>>,
+   P = flowdata:point_from_json_map(DataMap#{?META_FIELD => Meta}, DateTimeField, DtFormat),
 %%   lager:info("~p",[faxe_time:to_iso8601(flowdata:ts(POut))]),
-   {CChunk, CLine, POut}.
+   {CChunk, CLine, P}.
 
 setup_python(State = #state{}) ->
    PInstance = get_python(),
