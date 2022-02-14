@@ -13,25 +13,32 @@
 
 -include("faxe.hrl").
 %% API
--export([init/3, process/3, options/0]).
+-export([init/3, process/3, options/0, check_options/0]).
 
 -record(state, {
    node_id,
    fields,
    tags,
-   condition
+   condition,
+   when_val
 }).
 
 options() -> [
    {fields, binary_list, []},
    {tags, binary_list, []},
-   {where, lambda, undefined} %% for conditional delete
+   {where, lambda, undefined}, %% for conditional delete
+   {when_value, any, undefined}
 ].
 
-init(NodeId, _Ins, #{fields := Fields, tags := Tags, where := Condition}) ->
-   {ok, all, #state{fields = Fields, node_id = NodeId, tags = Tags, condition = Condition}}.
+check_options() ->
+   [
+%%      {one_of_params, [where, when_value]}
+   ].
 
-process(_In, Item, State = #state{condition = undefined, fields = Fs, tags = Ts}) ->
+init(NodeId, _Ins, #{fields := Fields, tags := Tags, where := Condition, when_value := When}) ->
+   {ok, all, #state{fields = Fields, node_id = NodeId, tags = Tags, condition = Condition, when_val = When}}.
+
+process(_In, Item, State = #state{condition = undefined, when_val = undefined, fields = Fs, tags = Ts}) ->
    NewItem = do_delete(Fs, Ts, Item),
    {emit, NewItem, State};
 process(_In, Batch = #data_batch{points = Points}, State) ->
@@ -41,6 +48,8 @@ process(_Inport, Item = #data_point{}, State = #state{}) ->
    NewPoint = process_point(Item, State),
    {emit, NewPoint, State}.
 
+process_point(Point, #state{fields = Fs, tags = _Ts, when_val = When, condition = undefined}) ->
+   eval_when(Point, Fs, When);
 process_point(Point, #state{fields = Fs, tags = Ts, condition = Cond}) ->
    case eval(Point, Cond) of
       true ->
@@ -59,4 +68,15 @@ do_delete(Fields, Tags, Item) ->
 
 eval(_Point, undefined) -> true;
 eval(Point, Fun) when is_function(Fun) -> faxe_lambda:execute_bool(Point, Fun).
+
+eval_when(P, [], _WhenVal) ->
+   P;
+eval_when(P, [F|R], WhenVal) ->
+   NewP =
+   case flowdata:field(P, F) of
+      WhenVal -> flowdata:delete_field(P, F);
+      _ -> P
+   end,
+   eval_when(NewP, R, WhenVal).
+
 

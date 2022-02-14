@@ -1,0 +1,13 @@
+|json_emitter()
+.every(3s)
+.json(
+    '{"sometimes": "", "live": "is", "hard": "no", "val": 4}',
+    '{"sometimes": "", "live": "is", "hard": "", "val": 0}',
+    '{"sometimes": "he", "live": "", "hard": "no", "val": 0}'
+)
+
+|delete('data.sometimes', 'data.live', 'data.hard')
+%.when_value('')
+%.where(lambda: val > 0)
+
+|debug()
