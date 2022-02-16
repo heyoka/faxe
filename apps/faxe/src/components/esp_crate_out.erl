@@ -102,7 +102,7 @@ init(NodeId, Inputs,
 process(_In, _DataItem, State = #state{client = undefined}) ->
    {ok, State};
 %% we do not have a prepare query yet
-process(_In, DataItem=#data_batch{points = Points},
+process(_In, DataItem=#data_batch{points = _Points},
     State = #state{query_from_lambda = true, table = Table, db_fields = DbFields, remaining_fields_as = RemFields}) ->
 %%   lager:warning("last point: ~p",[lager:pr(lists:last(Points), ?MODULE)]),
    Point = get_query_point(DataItem),
@@ -207,7 +207,7 @@ do_send(Item, Body, Headers, Retries, S = #state{client = Client}) ->
          S;
 
       O ->
-         lager:info("sending gun post: ~p",[O]),
+         lager:warning("sending gun post: ~p",[O]),
          do_send(Item, Body, Headers, Retries+1, S#state{last_error = O})
    end.
 
@@ -294,4 +294,5 @@ handle_response(<<"5", _/binary>> = S,_BodyJSON) ->
    lager:error("Error ~p with body ~p",[S, _BodyJSON]),
    {failed, server_error};
 handle_response({error, What}, {error, Reason}) ->
+   lager:error("Other err: ~p",[{What, Reason}]),
    {failed, {What, Reason}}.

@@ -7,6 +7,9 @@ import faxe
 from decode_dict import DecodeDict
 import json
 import sys
+from io import BytesIO
+import pandas as pd
+import numpy as np
 
 # this is a pointer to the module object instance itself.
 this = sys.modules[__name__]
@@ -46,7 +49,7 @@ def prepare(args):
     this.column_separator = bytes2string(this.args['column_separator'])
     this.batch_size = int(this.args['batch_size'])
 
-    this.encoding = 'utf-8'
+    # this.encoding = 'utf-8'
 
     this.current_chunk = 0
     this.current = empty
@@ -71,6 +74,8 @@ def prepare(args):
               bytes2string(this.args['account_url']))
         return False
 
+
+    prepare_meta()
     # this.container = 'somebullshit'
     container_client = blob_service_client.get_container_client(this.container)
     if not isinstance(container_client, ContainerClient):
@@ -99,21 +104,25 @@ def prepare(args):
 
 
 def start(_arg):
-    stream = this.blob_client.download_blob()
-    for chunk in stream.chunks():
-        this.current += chunk.decode(this.encoding)
-        this.current_chunk += 1
-        extract_rows()
-    # output the rest
-    # this.current.removesuffix('\n')
-    if this.current.endswith('\n'):
-        this.current = this.current[:-1]
-    if this.current != empty:
-        this.current_row += 1
-        export(this.current)
+    if this.line_format == format_csv:
+        handle_csv()
+    else:
+        # json
+        stream = this.blob_client.download_blob()
+        for chunk in stream.chunks():
+            this.current += chunk.decode(this.encoding)
+            this.current_chunk += 1
+            extract_rows()
 
-    if len(this.current_batch) > 0:
-        emit(this.current_batch)
+        if this.current.endswith('\n'):
+            this.current = this.current[:-1]
+        if this.current != empty:
+            this.current_row += 1
+            exportjson(this.current)
+
+        if len(this.current_batch) > 0:
+            emit(this.current_batch)
+
     # we are done
     emit({eof_field: True})
 
@@ -124,28 +133,19 @@ def extract_rows():
         print("**************** endswith newline")
         addnl = '\n'
     splitted = this.current.splitlines()
-    print(splitted)
+
     last = splitted.pop()
     for line in splitted:
         this.current_row += 1
-        export(line)
+        exportjson(line)
         # print(line)
 
-    # print("last", last)
+    print("last", last+addnl)
     this.current = last+addnl
 
 
-def export(row):
-    converted = None
-    if this.line_format == format_csv:
-        converted = handle_csv(row)
-    else:
-        if this.line_format == format_json:
-            converted = handle_json(row)
-            # print("json converted", converted)
-        else:
-            error('unknown file format ' + this.line_format)
-
+def exportjson(row):
+    converted = handle_json(row)
     if converted is not None:
         this.current_batch.append(converted)
         if len(this.current_batch) >= this.batch_size:
@@ -154,29 +154,49 @@ def export(row):
             this.current_batch = []
 
 
-def handle_csv(row):
-    if this.current_row == this.header_row:
-        this.header = row.split(this.column_separator)
-        emit({header_field: this.header})
-        return None
-    else:
-        if this.current_row >= this.data_row:
-            row_list = row.split(this.column_separator)
-            resdata = dict(zip(this.header, row_list))
-            meta = {line_field: this.current_row, chunk_field: this.current_chunk}
-            return {meta_dict: meta, data_dict: resdata}
-            # res[meta_dict] = meta
-            # return res
-        else:
-            print('skip row', this.current_row)
-            return None
+def handle_csv():
+    print("start file download...")
+    with BytesIO() as input_blob:
+        this.blob_client.download_blob().readinto(input_blob)
+        input_blob.seek(0)
+        # this.batch_size = this.batch_size
+        for chunk in pd.read_csv(
+                input_blob,
+                header=this.header_row-1,
+                encoding=this.encoding,
+                sep=this.column_separator,
+                chunksize=this.batch_size,
+                keep_default_na=False):
+            this.current_chunk += 1
+            retlist = chunk.to_dict(orient='records')
+            outlist = []
+            for entry in retlist:
+                this.current_row += 1
+                outlist.append({meta_dict: get_meta(), data_dict: entry})
+
+            emit(outlist)
+            # print(chunk.to_dict(orient='records'))
 
 
 def handle_json(row):
     therow = json.loads(row)
-    meta = {line_field: this.current_row, chunk_field: this.current_chunk}
-    therow[meta_dict] = meta
+    therow[meta_dict] = get_meta()
+    print(therow)
     return therow
+
+
+def get_meta():
+    meta = this.args.copy()
+    meta[line_field] = this.current_row
+    meta[chunk_field] = this.current_chunk
+    return meta
+
+
+def prepare_meta():
+    del this.args['account_url']
+    del this.args['erl']
+    del this.args['az_sec']
+    this.args = dict(this.args)
 
 
 def emit(emit_data):

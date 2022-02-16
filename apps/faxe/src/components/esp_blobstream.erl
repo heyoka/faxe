@@ -45,7 +45,7 @@
 
 %% python funs
 -define(PYTHON_PREPARE_CALL, prepare).
--define(PYTHON_MODULE, azblobstream).
+-define(PYTHON_MODULE, azblobstreampd).
 %% no "start" call here, because we cast a message to the python runtime, see handle_info(startstream, ....
 
 -define(FORMAT_CSV, <<"csv">>).
@@ -67,13 +67,13 @@ options() -> [
    {container, string, <<"test">>},
    {blob_name, string, <<"4ed182c6eb9e">>},
    {encoding, string, <<"utf-8">>},
-   {chunk_size, integer, 8192},
+   {chunk_size, integer, 4096},
    {format, string, ?FORMAT_CSV},
    {header_row, integer, 1},
    {data_start_row, integer, 2},
    {date_field, string, <<"date">>},
    {date_format, string, <<"Y-m-D H:M:s">>},
-   {line_separator, string, <<"\n">>},
+%%   {line_separator, string, <<"\n">>},
    {column_separator, string, <<",">>},
    {batch_size, integer, 120},
 
@@ -89,14 +89,16 @@ init(NodeId, Inputs,
    Args = maps:fold(fun(K, V, Acc) -> Acc#{atom_to_binary(K) => V} end, #{}, Args0),
    process_flag(trap_exit, true),
 
+   PArgs = maps:without([<<"_name">>, <<"retries">>, <<"opts_field">>], Args),
+
    State = #state{
       flow_inputs = Inputs,
       format = Format,
       dt_field = DtField,
       dt_format = DtFormat,
       node_id = NodeId,
-      python_args = Args,
-      initial_args = Args#{<<"erl">> => self()},
+      python_args = PArgs,
+      initial_args = PArgs#{<<"erl">> => self()},
       options_path = OptField,
       max_retries = Tries},
 
@@ -161,6 +163,7 @@ handle_info({emit_data, Data}, State=#state{}) when is_list(Data) ->
 %%   lager:info("got data list from python: ~p",[Data]),
    Fun =
       fun(P, Acc=#{points := PointList}) ->
+%%         lager:notice("from python: ~p",[P]),
          {Ch, L, NewP} = convert_data(P, State),
          Acc#{points => PointList ++ [NewP], chunk => Ch, line => L}
       end,
@@ -238,29 +241,31 @@ map_point_data(PointData) ->
             false -> Acc
          end
       end,
-   maps:fold(Fold, #{}, PointData).
+   maps:fold(Fold, #{}, maps:without([<<"broker">>, <<"url">>],PointData)).
 
 
 convert_data(DataMap, S=#state{format = ?FORMAT_JSON, dt_field = DtField}) ->
-   build_point(DataMap, DtField, S);
+   {C, L, P=#data_point{fields = #{?META_FIELD := Meta}=Fields}} = build_point(DataMap, DtField, S),
+   DataPoint=#data_point{fields = NFields} =
+      flowdata:set_root(P#data_point{fields = maps:without([?META_FIELD], Fields)}, ?DATA_FIELD),
+   DP = DataPoint#data_point{fields = NFields#{?META_FIELD=>Meta}},
+   {C, L, DP};
 convert_data(DataMap, S=#state{format = ?FORMAT_CSV, dt_field = DtField}) ->
    DateTimeField = <<?DATA_FIELD/binary, ".", DtField/binary>>,
-   {C, L, NewPoint0} = build_point(DataMap, DateTimeField, S),
+   {C, L, NewPoint} = build_point(DataMap, DateTimeField, S),
 %%   lager:notice("flowdata to  num: ~p",[lager:pr(flowdata:to_num(NewPoint), ?MODULE)]),
-   NewPoint = flowdata:delete_field(NewPoint0, DateTimeField),
    {C, L, flowdata:to_num(NewPoint, ?DATA_FIELD)}.
 
-build_point(DataMap, DateTimeField, #state{dt_format = DtFormat, python_args = PMeta}) ->
-   Meta0 = maps:get(?META_FIELD, DataMap, #{}),
-   Meta = #{?META_CHUNK := CChunk, ?META_LINE := CLine} = maps:merge(Meta0, PMeta),
-%%   DtPath = <<?DATA_FIELD/binary, ".", DtField/binary>>,
-   P = flowdata:point_from_json_map(DataMap#{?META_FIELD => Meta}, DateTimeField, DtFormat),
-%%   lager:info("~p",[faxe_time:to_iso8601(flowdata:ts(POut))]),
-   {CChunk, CLine, P}.
+build_point(DataMap = #{?META_FIELD := #{?META_CHUNK := CChunk, ?META_LINE := CLine}},
+    DateTimeField, #state{dt_format = DtFormat}) ->
+   P = flowdata:point_from_json_map(DataMap , DateTimeField, DtFormat),
+%%   lager:info("chunk: ~p, line: ~p",[CChunk, CLine]),
+   {CChunk, CLine, flowdata:delete_field(P, DateTimeField)}.
+
 
 setup_python(State = #state{}) ->
    PInstance = get_python(),
-   State#state{python_instance = PInstance}.%, cb_object = ClassInstance}.
+   State#state{python_instance = PInstance}.
 
 stop_python(State = #state{python_instance = Py}) ->
    catch pythra:stop(Py),
@@ -290,3 +295,120 @@ decode_from_python(Map) ->
       NewMap#{NewKey => NewValue}
          end,
    maps:fold(Dec, #{}, Map).
+
+-ifdef(TEST).
+
+test_meta() ->
+   #{?META_CHUNK => 14, ?META_LINE => 156}.
+
+convert_json_1_test() ->
+   Map0 = #{<<"data">> => #{
+      <<"add">> => <<"/FlashLoop/World15">>,
+      <<"dur">> => 5050.0,
+      <<"ts">> => <<"2021-11-17T16:08:48.527000Z">>}},
+   Map = maps:merge(#{?META_FIELD => test_meta()}, Map0),
+   {14, 156, P} =
+      convert_data(Map, #state{format = ?FORMAT_JSON, dt_field = <<"data.ts">>, dt_format = <<"ISO8601">>}),
+   Expected = #data_point{ts=1637165328527,
+      fields = #{
+         ?META_FIELD => test_meta(),
+         ?DATA_FIELD => #{
+            <<"add">> => <<"/FlashLoop/World15">>,
+            <<"dur">> => 5050.0}
+      }
+   },
+   ?assertEqual(Expected, P).
+
+convert_json_2_test() ->
+   Map0 = #{
+      <<"add">> => <<"/FlashLoop/World15">>,
+      <<"dur">> => 5050.0,
+      <<"datetime">> => <<"1637165328527">>},
+   Map = maps:merge(#{?META_FIELD => test_meta()}, Map0),
+   {14, 156, P} =
+      convert_data(Map, #state{format = ?FORMAT_JSON, dt_field = <<"datetime">>, dt_format = <<"millisecond">>}),
+   Expected = #data_point{ts=1637165328527,
+      fields = #{
+         ?META_FIELD => test_meta(),
+         ?DATA_FIELD => #{
+            <<"add">> => <<"/FlashLoop/World15">>,
+            <<"dur">> => 5050.0}
+      }
+   },
+   ?assertEqual(Expected, P).
+
+convert_json_3_test() ->
+   Map0 = #{<<"data">> => #{
+      <<"add">> => <<"/FlashLoop/World15">>,
+      <<"dur">> => <<"5050">>},
+      <<"datetime">> => <<"1637165328527">>},
+   Map = maps:merge(#{?META_FIELD => test_meta()}, Map0),
+   {14, 156, P} =
+      convert_data(Map, #state{format = ?FORMAT_JSON, dt_field = <<"datetime">>, dt_format = <<"millisecond">>}),
+   Expected = #data_point{ts=1637165328527,
+      fields = #{
+         ?META_FIELD => test_meta(),
+         ?DATA_FIELD => #{
+            <<"add">> => <<"/FlashLoop/World15">>,
+            <<"dur">> => <<"5050">>}
+      }
+   },
+   ?assertEqual(Expected, P).
+
+convert_csv_1_test() ->
+   Map0 = #{<<"data">> => #{
+      <<"add">> => <<"/FlashLoop/World15">>,
+      <<"dur">> => 5050.0,
+      <<"date">> => <<"2021-11-17T16:08:48.527000Z">>}} ,
+   Map = maps:merge(#{?META_FIELD => test_meta()}, Map0),
+   {14, 156, P} =
+      convert_data(Map, #state{format = ?FORMAT_CSV, dt_field = <<"date">>, dt_format = <<"ISO8601">>}),
+   Expected = #data_point{ts = 1637165328527,
+      fields = #{
+         ?META_FIELD => test_meta(),
+         ?DATA_FIELD => #{
+            <<"add">> => <<"/FlashLoop/World15">>,
+            <<"dur">> => 5050.0}
+      }
+   },
+   ?assertEqual(Expected, P).
+
+convert_csv_2_test() ->
+   Map0 = #{<<"data">> => #{
+      <<"add">> => <<"/FlashLoop/World15">>,
+      <<"dur">> => <<"5050.0">>,
+      <<"date">> => <<"2021-11-17T16:08:48.527000Z">>}} ,
+   Map = maps:merge(#{?META_FIELD => test_meta()}, Map0),
+   {14, 156, P} =
+      convert_data(Map, #state{format = ?FORMAT_CSV, dt_field = <<"date">>, dt_format = <<"ISO8601">>}),
+   Expected = #data_point{ts = 1637165328527,
+      fields = #{
+         ?META_FIELD => test_meta(),
+         ?DATA_FIELD => #{
+            <<"add">> => <<"/FlashLoop/World15">>,
+            <<"dur">> => 5050.0}
+      }
+   },
+   ?assertEqual(Expected, P).
+
+
+convert_csv_3_test() ->
+   qdate:start(),
+   Map0 = #{<<"data">> => #{
+      <<"add">> => <<"/FlashLoop/World15">>,
+      <<"dur">> => <<"5050.0">>,
+      <<"date">> => <<"7/18/2019 5:08:43.064000000 PM">>}} ,
+   Map = maps:merge(#{?META_FIELD => test_meta()}, Map0),
+   {14, 156, P} =
+      convert_data(Map, #state{format = ?FORMAT_CSV, dt_field = <<"date">>, dt_format = <<"n/d/Y l:M:S.f p">>}),
+   Expected = #data_point{ts = 1563469723064,
+      fields = #{
+         ?META_FIELD => test_meta(),
+         ?DATA_FIELD => #{
+            <<"add">> => <<"/FlashLoop/World15">>,
+            <<"dur">> => 5050.0}
+      }
+   },
+   ?assertEqual(Expected, P).
+
+-endif.
