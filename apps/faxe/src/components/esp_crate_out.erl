@@ -41,7 +41,7 @@
 -define(ARGS, <<"bulk_args">>).
 -define(DEFAULT_SCHEMA_HDR, <<"Default-Schema">>).
 -define(AUTH_HEADER_KEY, <<"Authorization">>).
--define(QUERY_TIMEOUT, 5000).
+-define(QUERY_TIMEOUT, 15000).
 -define(FAILED_RETRIES, 3).
 
 -define(CONNECT_OPTS, #{connect_timeout => 3000}).
@@ -276,7 +276,7 @@ build_query(ValueList0, Table, RemFieldsAs) when is_list(ValueList0) ->
    Q.
 
 get_response(Client, Ref) ->
-   {response, _IsFin, Status, _Headers} = gun:await(Client, Ref),
+   {response, _IsFin, Status, _Headers} = gun:await(Client, Ref, ?QUERY_TIMEOUT),
 %%   lager:info("response Status: ~p, Headers: ~p" ,[Status, _Headers]),
    {ok, Message} = gun:await_body(Client, Ref),
 %%   lager:info("response Message: ~p", [Message]),
