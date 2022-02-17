@@ -164,7 +164,7 @@ handle_info(startstream, State=#state{python_args = Args, tried = Tried, blobs_s
          lager:notice("start downloading ~p",[BlobName]),
          pythra:cast(State0#state.python_instance, <<"go">>),
          SeenList = memory_queue:enq(BlobName, Mem),
-         lager:notice("seen sofar: ~p",[SeenList]),
+%%         lager:notice("seen sofar: ~p",[SeenList]),
          %% call timeout
          start_p_timeout(State0#state{blobs_seen = SeenList});
       false ->
