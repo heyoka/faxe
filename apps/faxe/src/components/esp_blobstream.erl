@@ -37,7 +37,7 @@
    current_line :: non_neg_integer(),
    options_path :: undefined|binary(),
    max_retries :: non_neg_integer(),
-   tried = 1 :: non_neg_integer(),
+   tried = 0 :: non_neg_integer(),
    in_progress = false :: true|false,
    waiting = [] :: list(),
    python_timeout :: undefined|reference(),
@@ -150,7 +150,7 @@ process_point(#data_point{} = Point, State = #state{initial_args = InitArgs, opt
    }.
 
 handle_info(startstream, State=#state{max_retries = Max, tried = Max, item = Point, python_args = Args}) ->
-   lager:warning("max reties ~p reached, flow-ack Point (~p)",[Max, maps:get(<<"blob_name">>, Args, <<"unknown blob?">>)]),
+   lager:warning("max retries ~p reached, flow-ack Point (~p)",[Max, maps:get(<<"blob_name">>, Args, <<"unknown blob?">>)]),
    dataflow:ack(Point, State#state.flow_inputs),
    NewState = reset_state(State),
    {ok, next(NewState)};
@@ -161,7 +161,7 @@ handle_info(startstream, State=#state{python_args = Args, tried = Tried, blobs_s
    NewState =
    case pythra:pythra_call(State0#state.python_instance, ?PYTHON_MODULE, ?PYTHON_PREPARE_CALL, [Args]) of
       true ->
-         lager:notice("start downloading ~p (try: ~p)",[BlobName, Tried]),
+         lager:notice("start downloading ~p (try: ~p)",[BlobName, Tried+1]),
          pythra:cast(State0#state.python_instance, <<"go">>),
          SeenList = memory_queue:enq(BlobName, Mem),
 %%         lager:notice("seen sofar: ~p",[SeenList]),
