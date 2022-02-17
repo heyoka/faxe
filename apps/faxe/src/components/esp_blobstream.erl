@@ -150,12 +150,12 @@ process_point(#data_point{} = Point, State = #state{initial_args = InitArgs, opt
    }.
 
 handle_info(startstream, State=#state{max_retries = Max, tried = Max, item = Point, python_args = Args}) ->
-   lager:warning("max retries ~p reached, flow-ack Point (~p)",[Max, maps:get(<<"blob_name">>, Args, <<"unknown blob?">>)]),
+   lager:warning("max retries ~p reached, flow-ack Point (~p)",[Max, blob_name(Args)]),
    dataflow:ack(Point, State#state.flow_inputs),
    NewState = reset_state(State),
    {ok, next(NewState)};
 handle_info(startstream, State=#state{python_args = Args, tried = Tried, blobs_seen = Mem}) ->
-   BlobName = maps:get(<<"blob_name">>, Args, <<"unknown blob?">>),
+   BlobName = blob_name(Args),
    State0 = setup_python(State),
    lager:info("prepare download ~p",[BlobName]),
    NewState =
@@ -184,7 +184,7 @@ handle_info({emit_data, #{<<"header">> := _H}}, State=#state{}) ->
 %% python is done with the current download
 handle_info({emit_data, #{<<"done">> := _True}}, State=#state{item = Point, python_args = Args}) ->
    lager:notice("DONE downloading file ~p, emitted ~p lines",
-      [maps:get(<<"blob_name">>, Args, <<"unknown blob?">>), State#state.current_line]),
+      [blob_name(Args), State#state.current_line]),
    %% lets ack to upstream nodes (dataflow acknowledge)
    dataflow:ack(Point, State#state.flow_inputs),
    NewState = reset_state(stop_python(State)),
@@ -192,7 +192,7 @@ handle_info({emit_data, #{<<"done">> := _True}}, State=#state{item = Point, pyth
 handle_info({emit_data, Data0}, State=#state{}) when is_map(Data0) ->
    {Chunk, Line, Point} = convert_data(Data0, State),
    {emit, {1, Point}, State#state{current_chunk = Chunk, current_line = Line}};
-handle_info({emit_data, Data}, State=#state{}) when is_list(Data) ->
+handle_info({emit_data, Data}, State=#state{python_args = Args}) when is_list(Data) ->
 %%   lager:info("got data list from python: ~p",[Data]),
    Fun =
       fun(P, Acc=#{points := PointList}) ->
@@ -200,9 +200,14 @@ handle_info({emit_data, Data}, State=#state{}) when is_list(Data) ->
          {Ch, L, NewP} = convert_data(P, State),
          Acc#{points => PointList ++ [NewP], chunk => Ch, line => L}
       end,
-   #{points := ResPoints, chunk := CChunk, line := CLine} = lists:foldl(Fun, #{points => []}, Data),
-   Batch = #data_batch{points = ResPoints},
-   {emit, {1, Batch}, State#state{current_chunk = CChunk, current_line = CLine}};
+   case catch lists:foldl(Fun, #{points => []}, Data) of
+      #{points := ResPoints, chunk := CChunk, line := CLine} ->
+         Batch = #data_batch{points = ResPoints},
+         {emit, {1, Batch}, State#state{current_chunk = CChunk, current_line = CLine}};
+      Err -> lager:warning("Error converting data_batch for blob ~p batch dropped, Reason: ~p",[blob_name(Args), Err]),
+         {ok, State}
+   end;
+
 handle_info({emit_data, {"Map", Data}}, State) when is_list(Data) ->
 %%   lager:info("python data: ~p",[Data]),
 %%   lager:notice("got point data from python: ~p", [Data]),
@@ -236,6 +241,11 @@ shutdown(S=#state{}) ->
    stop_python(S).
 
 %%%%%%%%%%%%%%%%%%%% internal %%%%%%%%%%%%
+blob_name(#{<<"blob_name">> := B}) ->
+   B;
+blob_name(_) ->
+   <<"unknown_blob">>.
+
 blob_seen(P = #data_point{}, State = #state{blobs_seen = Seen}) ->
    BlobName = flowdata:field(P, <<"blob_name">>),
    case memory_queue:member(BlobName, Seen) of
