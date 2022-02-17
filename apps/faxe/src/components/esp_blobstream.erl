@@ -265,7 +265,7 @@ return_exit(State=#state{}) ->
 reset_state(State=#state{}) ->
    State#state{
       python_instance = undefined,
-      tried = 1,
+      tried = 0,
       current_chunk = 0,
       current_line = 0,
       in_progress = false
