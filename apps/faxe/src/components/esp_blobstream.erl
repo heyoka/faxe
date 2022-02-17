@@ -39,7 +39,9 @@
    max_retries :: non_neg_integer(),
    tried = 1 :: non_neg_integer(),
    in_progress = false :: true|false,
-   waiting = [] :: list()
+   waiting = [] :: list(),
+   python_timeout :: undefined|reference(),
+   blobs_seen = #mem_queue{}
 
 }).
 
@@ -56,6 +58,8 @@
 
 -define(META_CHUNK, <<"chunk">>).
 -define(META_LINE, <<"line">>).
+
+-define(PYTHON_TIMEOUT, 3*60*1000).
 
 -spec options() -> list(
    {atom(), df_types:option_name()} |
@@ -100,22 +104,40 @@ init(NodeId, Inputs,
       python_args = PArgs,
       initial_args = PArgs#{<<"erl">> => self()},
       options_path = OptField,
-      max_retries = Tries},
+      max_retries = Tries,
+      blobs_seen = memory_queue:new(15)},
 
    {ok, all, State}.
 
 
 process(_Inp, #data_point{} = Point, State = #state{in_progress = true, waiting = List}) ->
    lager:warning("incoming point when in progress"),
-   {ok, State#state{waiting = List ++ [Point]}};
+
+   NewState =
+   case blob_seen(Point, State) of
+      true ->
+         State;
+      false ->
+         State#state{waiting = List ++ [Point]}
+   end,
+   {ok, NewState};
 process(_Inp, #data_point{} = Point, State = #state{}) ->
-   {ok, process_point(Point, State)}.
+   NewState =
+   case blob_seen(Point, State) of
+      true ->
+         State;
+      false ->
+         process_point(Point, State)
+   end,
+   {ok, NewState}.
 
 process_point(#data_point{} = Point, State = #state{initial_args = InitArgs, options_path = OPath}) ->
    Mapped = map_point_data(Point, OPath),
+
 %%   lager:notice("mapped point data: ~p", [Mapped]),
    PythonArgs = #{<<"format">> := Format, <<"date_field">> := DtField, <<"date_format">> := DtFormat} =
       maps:merge(InitArgs, Mapped),
+   lager:notice("Process demand: ~p",[maps:without([<<"az_sec">>, <<"broker">>, <<"url">>], PythonArgs)]),
 %%   lager:notice("new python args: ~p~nold:~p",[PythonArgs, InitArgs]),
    erlang:send_after(0, self(), startstream),
    State#state{
@@ -127,31 +149,42 @@ process_point(#data_point{} = Point, State = #state{initial_args = InitArgs, opt
       in_progress = true
    }.
 
-handle_info(startstream, State=#state{max_retries = Max, tried = Max, item = Point}) ->
-   lager:warning("max reties ~p reached we are done here",[Max]),
+handle_info(startstream, State=#state{max_retries = Max, tried = Max, item = Point, python_args = Args}) ->
+   lager:warning("max reties ~p reached, flow-ack Point",[Max, maps:get(<<"blob_name">>, Args, <<"unknown blob?">>)]),
    dataflow:ack(Point, State#state.flow_inputs),
    NewState = reset_state(State),
    {ok, next(NewState)};
-handle_info(startstream, State=#state{python_args = Args, tried = Tried}) ->
+handle_info(startstream, State=#state{python_args = Args, tried = Tried, blobs_seen = Mem}) ->
+   BlobName = maps:get(<<"blob_name">>, Args, <<"unknown blob?">>),
    State0 = setup_python(State),
+   lager:info("prepare download ~p",[BlobName]),
    NewState =
    case pythra:pythra_call(State0#state.python_instance, ?PYTHON_MODULE, ?PYTHON_PREPARE_CALL, [Args]) of
       true ->
-         pythra:cast(State0#state.python_instance, <<"let's go!">>),
-         State0;
+         lager:notice("start downloading ~p",[BlobName]),
+         pythra:cast(State0#state.python_instance, <<"go">>),
+         SeenList = memory_queue:enq(BlobName, Mem),
+         lager:notice("seen sofar: ~p",[SeenList]),
+         %% call timeout
+         start_p_timeout(State0#state{blobs_seen = SeenList});
       false ->
-         erlang:send_after(1000, self(), startstream),
+         erlang:send_after(300, self(), startstream),
          stop_python(State0)
    end,
    {ok, NewState#state{tried = Tried + 1}};
 %% python sends us data
 %% skip header for now
+handle_info(ptimeout, State=#state{}) ->
+   lager:notice("timeout python (~p ms), try restarting", [?PYTHON_TIMEOUT]),
+   erlang:send_after(0, self(), startstream),
+   {ok, State};
 handle_info({emit_data, #{<<"header">> := _H}}, State=#state{}) ->
    lager:info("header: ~p", [_H]),
    {ok, State};
 %% python is done with the current download
-handle_info({emit_data, #{<<"done">> := _True}}, State=#state{item = Point}) ->
-   lager:info("we are DONE with this file, stop the port to python"),
+handle_info({emit_data, #{<<"done">> := _True}}, State=#state{item = Point, python_args = Args}) ->
+   lager:notice("DONE downloading file ~p, emitted ~p lines",
+      [maps:get(<<"blob_name">>, Args, <<"unknown blob?">>), State#state.current_line]),
    %% lets ack to upstream nodes (dataflow acknowledge)
    dataflow:ack(Point, State#state.flow_inputs),
    NewState = reset_state(stop_python(State)),
@@ -187,21 +220,34 @@ handle_info({'EXIT', _P,
       {'$erlport.opaque',python, _Bin} }}}, State = #state{}) ->
    lager:warning("ClientAuthenticationError: ~p",[ErrorMsg]),
    return_exit(State);
-handle_info({'EXIT', _Who, normal}, State = #state{python_instance = _Py}) ->
-   return_exit(State);
+handle_info({'EXIT', Who, normal}, State = #state{python_instance = Py}) ->
+   lager:info("EXIT normal (~p/~p)",[Who, Py]),
+   {ok, State};
 handle_info({'EXIT', Who, Reason}, State = #state{python_instance = Py, in_progress = true}) ->
    lager:warning("Python exited (~p / ~p), reason: ~p",[Who, Py, Reason]),
    %% retry
-   erlang:send_after(1000, self(), startstream),
+   erlang:send_after(100, self(), startstream),
    return_exit(State);
 handle_info(_Request, State) ->
-   lager:notice("got from python: ~p", [_Request]),
+   lager:notice("got unknown: ~p", [_Request]),
    {ok, State}.
 
 shutdown(S=#state{}) ->
    stop_python(S).
 
 %%%%%%%%%%%%%%%%%%%% internal %%%%%%%%%%%%
+blob_seen(P = #data_point{}, State = #state{blobs_seen = Seen}) ->
+   BlobName = flowdata:field(P, <<"blob_name">>),
+   case memory_queue:member(BlobName, Seen) of
+      true ->
+         lager:notice("blob ~p already seen before",[BlobName]),
+         %% ack here, we have seen this blob before
+         dataflow:ack(P, State#state.flow_inputs),
+         true;
+      false -> false
+   end.
+
+
 next(State=#state{waiting = [Next|List]}) ->
    process_point(Next, State#state{waiting = List});
 next(State=#state{waiting = []}) ->
@@ -209,9 +255,12 @@ next(State=#state{waiting = []}) ->
 
 return_exit(State=#state{}) ->
    {ok,
-      State#state{
-         python_instance = undefined
-      }}.
+      cancel_p_timeout(
+         State#state{
+            python_instance = undefined
+         }
+      )
+   }.
 
 reset_state(State=#state{}) ->
    State#state{
@@ -269,7 +318,8 @@ setup_python(State = #state{}) ->
 
 stop_python(State = #state{python_instance = Py}) ->
    catch pythra:stop(Py),
-   State#state{python_instance = undefined}.
+   NewState = cancel_p_timeout(State),
+   NewState#state{python_instance = undefined}.
 
 get_python() ->
    {ok, PythonParams} = application:get_env(faxe, python),
@@ -278,6 +328,17 @@ get_python() ->
    {ok, Python} = pythra:start_link([FaxePath, Path]),
    Python.
 
+start_p_timeout(State = #state{}) ->
+   lager:info("start python timeout"),
+   TRef = erlang:send_after(?PYTHON_TIMEOUT, self(), ptimeout),
+   State#state{python_timeout = TRef}.
+
+cancel_p_timeout(State = #state{python_timeout = undefined}) ->
+   State;
+cancel_p_timeout(State = #state{python_timeout = TRef}) ->
+   lager:info("stop python timeout"),
+   catch erlang:cancel_timer(TRef),
+   State#state{python_timeout = undefined}.
 
 decode_from_python(Map) ->
    Dec = fun(K, V, NewMap) ->
