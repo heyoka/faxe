@@ -279,11 +279,12 @@ get_response(Client, Ref) ->
    {response, _IsFin, Status, _Headers} = gun:await(Client, Ref, ?QUERY_TIMEOUT),
 %%   lager:info("response Status: ~p, Headers: ~p" ,[Status, _Headers]),
    {ok, Message} = gun:await_body(Client, Ref),
-%%   lager:info("response Message: ~p", [Message]),
+%%   handle_response_message(Message),
    handle_response(integer_to_binary(Status), Message).
 
 -spec handle_response(integer(), binary()) -> ok|{error, invalid}|{failed, term()}.
-handle_response(<<"200">>, _BodyJSON) ->
+handle_response(<<"200">>, BodyJSON) ->
+   handle_response_message(BodyJSON),
    ok;
 handle_response(<<"4", _/binary>> = S,_BodyJSON) ->
    lager:error("Error ~p: ~p",[S, _BodyJSON]),
@@ -296,3 +297,21 @@ handle_response(<<"5", _/binary>> = S,_BodyJSON) ->
 handle_response({error, What}, {error, Reason}) ->
    lager:error("Other err: ~p",[{What, Reason}]),
    {failed, {What, Reason}}.
+
+handle_response_message(RespMessage) ->
+   Response = jiffy:decode(RespMessage, [return_maps]),
+   case Response of
+      #{<<"results">> := Results} ->
+         %% count where rows := -2
+         NotWritten = lists:foldl(
+            fun
+               (#{<<"rowcount">> := -2}, Acc) -> Acc+1;
+               (_, Acc) -> Acc
+            end, 0, Results),
+         case NotWritten of
+            0 -> ok;
+            _ ->
+%%               lager:info("results ~p",[Results]),
+               lager:notice("CrateDB: ~p of ~p rows not written",[length(Results), NotWritten])
+         end
+      end.
