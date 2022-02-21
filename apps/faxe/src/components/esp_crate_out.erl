@@ -93,7 +93,7 @@ init(NodeId, Inputs,
       table = Table, db_fields = DBFields, faxe_fields = FaxeFields,
       fn_id = NodeId, flow_inputs = Inputs},
    NewState = query_init(State),
-   lager:warning("QUERY INIT: ~p",[{NewState#state.query, NewState#state.query_from_lambda}]),
+%%   lager:warning("QUERY INIT: ~p",[{NewState#state.query, NewState#state.query_from_lambda}]),
    {ok, all, NewState}.
 
 %%% DATA IN
