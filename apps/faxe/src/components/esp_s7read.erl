@@ -22,7 +22,7 @@
 
 -export([
   maybe_emit/6, build_addresses/3,
-  build_point/3, do_build/3]).
+  build_point/3, do_build/3, partition_idx/2]).
 
 -define(MAX_READ_ITEMS, 19).
 -define(DEFAULT_BYTE_LIMIT, 128).
@@ -65,7 +65,7 @@ options() -> [
   {rack, integer, 0},
   {vars, string_list}, %% s7 addressing, ie: DB2024,Int16.1224 | DB2024.DBX12.2
   {vars_prefix, string, undefined},
-  {as, binary_list},
+  {as, binary_list, undefined},
   {as_prefix, string, undefined},
   {diff, is_set},
   {merge_field, string, undefined},
@@ -121,14 +121,21 @@ init({_, _NId}=NodeId, _Ins,
       align := Align,
       slot := Slot,
       rack := Rack,
-      vars := Addresses,
+      vars := Addresses0,
       vars_prefix := Vars_Prefix,
-      as := As,
+      as := As0,
       as_prefix := As_Prefix,
       diff := _Diff,
       merge_field := MergeField,
       byte_offset := Offset}=Opts) ->
 
+  {As, Addresses} =
+  case As0 of
+    undefined ->
+      partition_idx(2, Addresses0);
+    _ ->
+      {As0, Addresses0}
+  end,
 %%  lager:notice("before: ~p ~n",[As]),
   As1 = translate_as(As, As_Prefix),
 %%  lager:notice("after: ~p ~n",[As1]),
@@ -165,6 +172,18 @@ lager:info("all parts: ~s",[jiffy:encode(Parts)]),
       address_offset = Offset
     }
   }.
+
+partition_idx(Div, List) when is_list(List) ->
+  {_, Out} =
+    lists:foldl(
+      fun(E, {I, {As1, Add}}) ->
+        case faxe_time:mod(I, Div) of
+          0 -> {I+1, {As1++[E], Add}};
+          _ -> {I+1, {As1, Add++[E]}}
+        end
+      end, {1, {[], []}}, List),
+  Out.
+
 
 setup_connection(Opts = #{use_pool := true}) ->
   s7pool_manager:connect(Opts),
