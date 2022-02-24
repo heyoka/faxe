@@ -17,12 +17,12 @@
 -export([
   init/3, process/3, options/0,
   handle_info/2, shutdown/1,
-  check_options/0
-  , metrics/0]).
+  check_options/0,
+  metrics/0]).
 
 -export([
   maybe_emit/6, build_addresses/3,
-  build_point/3, do_build/3, partition_idx/2]).
+  build_point/3, do_build/3, split_mod2/2]).
 
 -define(MAX_READ_ITEMS, 19).
 -define(DEFAULT_BYTE_LIMIT, 128).
@@ -76,7 +76,15 @@ options() -> [
 check_options() ->
   [
     {func, vars,
-      fun(List, #{vars_prefix := VarsPrefix}) ->
+      fun(_List0, #{}=Opts) ->
+        {As, Vars} = retrieve_ads(Opts),
+        length(As) == length(Vars)
+      end,
+      <<", different count for addresses and aliases ">>
+    },
+    {func, vars,
+      fun(_List0, #{vars_prefix := VarsPrefix}=Opts) ->
+        {_As, List} = retrieve_ads(Opts),
         List1 = translate_vars(List, VarsPrefix),
         Invalid = lists:filter(fun(A) -> s7addr:parse(A) == {error, invalid} end, List1),
         case Invalid of
@@ -87,7 +95,8 @@ check_options() ->
       <<", invalid address: ">>
     },
     {func, vars,
-      fun(List, #{vars_prefix := VarsPrefix}) ->
+      fun(_List0, #{vars_prefix := VarsPrefix}=Opts) ->
+        {_As, List} = retrieve_ads(Opts),
         List1 = translate_vars(List, VarsPrefix),
         {P, _} = build_addresses(List1, lists:seq(1, length(List1)), 0),
         length(P) =< ?MAX_READ_ITEMS
@@ -95,17 +104,15 @@ check_options() ->
       <<", has to many address items!">>
     },
     {func, vars,
-      fun(List, #{vars_prefix := VarsPrefix}) ->
+      fun(_List0, #{vars_prefix := VarsPrefix}=Opts) ->
+        {_As, List} = retrieve_ads(Opts),
         List1 = translate_vars(List, VarsPrefix),
         {P, _} = build_addresses(List1, lists:seq(1, length(List1)), 0),
-%%        lager:warning("bytes: ~p",[bit_count(P)/8]),
         bit_count(P)/8 =< ?DEFAULT_BYTE_LIMIT
       end,
 
       <<", byte-limit of 128 bytes exceeded!">>
-    },
-
-    {same_length, [vars, as]}
+    }
   ].
 
 metrics() ->
@@ -121,37 +128,23 @@ init({_, _NId}=NodeId, _Ins,
       align := Align,
       slot := Slot,
       rack := Rack,
-      vars := Addresses0,
       vars_prefix := Vars_Prefix,
-      as := As0,
       as_prefix := As_Prefix,
       diff := _Diff,
       merge_field := MergeField,
-      byte_offset := Offset}=Opts) ->
+      byte_offset := Offset} = Opts) ->
 
-  {As, Addresses} =
-  case As0 of
-    undefined ->
-      partition_idx(2, Addresses0);
-    _ ->
-      {As0, Addresses0}
-  end,
-%%  lager:notice("before: ~p ~n",[As]),
+  %% handle aliases and addresses
+  {As, Addresses} = retrieve_ads(Opts),
   As1 = translate_as(As, As_Prefix),
-%%  lager:notice("after: ~p ~n",[As1]),
-%%  lager:notice("before: ~p ~n",[Addresses]),
   Addresses1 = translate_vars(Addresses, Vars_Prefix),
-  lager:notice("after: ~s ~n",[jiffy:encode(Addresses1)]),
   {Parts, AliasesList} = build_addresses(Addresses1, As1, Offset),
   ByteSize = bit_count(Parts)/8,
 
+  %% connection
   connection_registry:reg(NodeId, Ip, Port, <<"s7">>),
   S7Client = setup_connection(Opts),
   connection_registry:connecting(),
-lager:info("all parts: ~s",[jiffy:encode(Parts)]),
-    lager:info("~p VARS reduced to : ~p  with byte-size: ~p",[length(Addresses), length(Parts), bit_count(Parts)/8]),
-  %%  [lager:notice("Partition: ~p", [Part]) || Part <- Parts],
-  %%  [lager:notice("Aliases: ~p", [Part]) || Part <- AliasesList],
 
   {ok, all,
     #state{
@@ -173,8 +166,13 @@ lager:info("all parts: ~s",[jiffy:encode(Parts)]),
     }
   }.
 
-partition_idx(Div, List) when is_list(List) ->
-  {_, Out} =
+retrieve_ads(#{as := undefined, vars := Vars}) ->
+  split_mod2(2, Vars);
+retrieve_ads(#{as := As, vars := Vars}) ->
+  {As, Vars}.
+
+split_mod2(Div, List) when is_list(List) ->
+  {_, {_As, _Ads}=Out} =
     lists:foldl(
       fun(E, {I, {As1, Add}}) ->
         case faxe_time:mod(I, Div) of
@@ -183,7 +181,6 @@ partition_idx(Div, List) when is_list(List) ->
         end
       end, {1, {[], []}}, List),
   Out.
-
 
 setup_connection(Opts = #{use_pool := true}) ->
   s7pool_manager:connect(Opts),
@@ -573,5 +570,39 @@ build_addresses_test() ->
   {S7Addrs, Aliases} = build_addresses(L, As, 0),
   ?assertEqual(Res, S7Addrs),
   ?assertEqual(AliasesList, Aliases).
+
+divide_list_test() ->
+  L = [
+    <<"DB11132.DBX30.0">>,<<"data.DcrgZo1Occ">>,
+    <<"DB11132.DBX30.1">>,<<"data.DcrgZo2Occ">>,
+    <<"DB11132.DBX30.2">>,<<"data.ChZZo2Occ">>,
+    <<"DB11132.DBX30.3">>,<<"data.GapChkRear">>,
+    <<"DB11132.DBX30.4">>,<<"data.MtSw">>,
+    <<"DB11132.DBX30.5">>,<<"data.CcRdy">>,
+    <<"DB11132.DBX30.6">>,<<"data.DcrgZo1">>,
+    <<"DB11132.DBX30.7">>,<<"data.DcrgZo2">>,
+    <<"DB11132.DBX31.0">>,<<"data.TrspFrontP2toP1">>,
+    <<"DB11132.DBX31.1">>,<<"data.TrspFront">>,
+    <<"DB11132.DBW78">>,<<"data.Vel">>,
+    <<"DB11132.DBW80">>,<<"data.Acc">>,
+    <<"DB11132.DBW82">>,<<"data.Fill">>],
+  E = {
+    [<<"data.DcrgZo1Occ">>,<<"data.DcrgZo2Occ">>,
+      <<"data.ChZZo2Occ">>,<<"data.GapChkRear">>,
+      <<"data.MtSw">>,<<"data.CcRdy">>,
+      <<"data.DcrgZo1">>,<<"data.DcrgZo2">>,
+      <<"data.TrspFrontP2toP1">>,<<"data.TrspFront">>,
+      <<"data.Vel">>,<<"data.Acc">>,
+      <<"data.Fill">>],
+    [<<"DB11132.DBX30.0">>,<<"DB11132.DBX30.1">>,
+      <<"DB11132.DBX30.2">>,<<"DB11132.DBX30.3">>,
+      <<"DB11132.DBX30.4">>,<<"DB11132.DBX30.5">>,
+      <<"DB11132.DBX30.6">>,<<"DB11132.DBX30.7">>,
+      <<"DB11132.DBX31.0">>,<<"DB11132.DBX31.1">>,
+      <<"DB11132.DBW78">>,<<"DB11132.DBW80">>,
+      <<"DB11132.DBW82">>]
+  },
+  ?assertEqual(E, split_mod2(2, L)).
+
 
 -endif.
