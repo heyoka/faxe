@@ -10,7 +10,7 @@ dev1:
 	export FAXE_DEQUEUE_MIN_INTERVAL=1ms && \
 	export FAXE_DEQUEUE_MAX_INTERVAL=600ms && \
 	export FAXE_CRATE_HTTP_TLS_ENABLE=off && \
-	export FAXE_MQTT_HOST=10.14.204.20 && \
+	export FAXE_MQTT_HOST=10.10.1.102 && \
 	export FAXE_MQTT_SSL_ENABLE=off && \
 	export FAXE_AMQP_HOST=10.14.204.28 && \
 	export FAXE_AMQP_USER=miae && \
