@@ -30,6 +30,7 @@
    exchange,
    routing_key = false,
    rk_lambda = undefined,
+   rk_field = undefined,
    ssl = false,
    opts,
    queue = undefined,
@@ -47,6 +48,7 @@ options() -> [
    {vhost, string, <<"/">>},
    {routing_key, string, undefined},
    {routing_key_lambda, lambda, undefined},
+   {routing_key_field, string, undefined},
    {exchange, string, {rabbitmq, root_exchange}},
    {ssl, is_set, false},
    {persistent, bool, false},
@@ -55,7 +57,7 @@ options() -> [
 ].
 
 check_options() ->
-   [{one_of_params, [routing_key, routing_key_lambda]},
+   [{one_of_params, [routing_key, routing_key_lambda, routing_key_field]},
       {one_of, qos, [0, 1, 2]}].
 
 metrics() ->
@@ -65,7 +67,7 @@ metrics() ->
 
 init({_GraphId, _NodeId} = Idx, _Ins,
    #{ host := Host0, port := Port, user := _User, pass := _Pass, vhost := _VHost, exchange := Ex,
-      routing_key := RoutingKey, routing_key_lambda := RkLambda, ssl := _UseSSL,
+      routing_key := RoutingKey, routing_key_lambda := RkLambda, routing_key_field := RkField, ssl := _UseSSL,
       persistent := _Persist} = Opts0) ->
 
    Opts1 = #{safe_mode := SafeMode, use_queue := UseInternalQueue} = eval_qos(Opts0),
@@ -74,8 +76,8 @@ init({_GraphId, _NodeId} = Idx, _Ins,
    Host = binary_to_list(Host0),
    Opts = Opts1#{host => Host},
 
-   State0 = #state{opts = Opts, exchange = Ex, routing_key = RoutingKey, flowid_nodeid = Idx,
-      rk_lambda = RkLambda, safe_mode = SafeMode, use_internal_queue = UseInternalQueue},
+   State0 = #state{opts = Opts, exchange = Ex, routing_key = RoutingKey, rk_field = RkField,
+      rk_lambda = RkLambda, safe_mode = SafeMode, use_internal_queue = UseInternalQueue, flowid_nodeid = Idx},
 
    State1 = maybe_start_queue(State0),
 
@@ -141,6 +143,10 @@ start_connection(State = #state{opts = Opts, queue = Q}) ->
    connection_registry:connected(),
    State#state{client = Pid}.
 
+key(#data_batch{points = [P1 | _]}, #state{rk_lambda = undefined, routing_key = undefined, rk_field = Field}) ->
+   flowdata:field(P1, Field);
+key(#data_point{} = P, #state{rk_lambda = undefined, routing_key = undefined, rk_field = Field}) ->
+   flowdata:field(P, Field);
 key(_Item, #state{rk_lambda = undefined, routing_key = Topic}) ->
    Topic;
 key(#data_batch{points = [P1 | _]}, #state{rk_lambda = Fun}) ->

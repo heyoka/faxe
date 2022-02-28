@@ -465,7 +465,7 @@ parse_fun(S) ->
          {ok, Exprs} = erl_parse:parse_exprs(Ts),
          {value, Fun, _} = erl_eval:exprs(Exprs, []),
          Fun;
-         {error, ErrorInfo, _ErrorLocation} ->
+      {error, ErrorInfo, _ErrorLocation} ->
             Msg = io_lib:format("Error scanning lambda expression: ~p location:~p",
                [ErrorInfo, _ErrorLocation]),
             throw(Msg)

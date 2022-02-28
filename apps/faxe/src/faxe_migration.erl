@@ -15,7 +15,8 @@
 -export([migrate/0]).
 
 migrate() ->
-  maybe_migrate_task_table()
+  ok
+%%  maybe_migrate_task_table()
 .
 
 
