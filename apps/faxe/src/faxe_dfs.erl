@@ -194,7 +194,10 @@ component_options(?USER_COMPONENT, NOpts, _N) ->
       true ->
          {_, atom, Callb} = lists:keyfind(?USER_COMPONENT_MODULE, 1, NOpts),
          {_, atom, ClassName} = lists:keyfind(?USER_COMPONENT_CLASS, 1, NOpts),
-         ?USER_COMPONENT:call_options(Callb, ClassName);
+         case ?USER_COMPONENT:call_options(Callb, ClassName) of
+            {error, What} -> throw(What);
+            Result -> Result
+         end;
       false -> []
    end;
 component_options(Component, _NOpts, NodeName) ->

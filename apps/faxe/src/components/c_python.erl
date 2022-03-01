@@ -58,10 +58,17 @@ options() -> [{cb_module, atom}, {cb_class, atom}].
 %% @doc get the options required for the python callback class
 -spec call_options(atom(), atom()) -> list(tuple()).
 call_options(Module, Class) ->
+   process_flag(trap_exit, true),
    P = get_python(),
    ModClass = list_to_atom(atom_to_list(Module)++"."++atom_to_list(Class)),
-   Res = pythra:func(P, ModClass, ?PYTHON_INFO_CALL, [Class]),
-%%   lager:info("python info call to ~p gives ~p",[{Module, Class}, Res]),
+   Res =
+      try pythra:func(P, ModClass, ?PYTHON_INFO_CALL, [Class]) of
+         B when is_list(B) -> B
+      catch
+         _:{python,'builtins.ModuleNotFoundError', Reason,_}:_Stack ->
+            Err = lists:flatten(io_lib:format("python module not found: ~s",[Reason])),
+            {error, Err}
+      end,
    python:stop(P),
    Res.
 
