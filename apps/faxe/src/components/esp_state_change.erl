@@ -35,10 +35,7 @@
    left_as,
    entered_keep = [],
    left_keep = [],
-   entered_keep_as = [],
-   left_keep_as = [],
    keep = [],
-   keep_as = [],
    unit,
    state_change,
    prefix
@@ -52,10 +49,7 @@ options() -> [
    {leave, is_set, undefined},
    {enter_keep, string_list, []},
    {leave_keep, string_list, []},
-   {enter_keep_as, string_list, []},
-   {leave_keep_as, string_list, []},
    {keep, string_list, []},
-   {keep_as, string_list, []},
    {prefix, string, <<"">>},
    {unit, duration, <<"1s">>}
 ].
@@ -68,20 +62,9 @@ check_options() ->
 wants() -> point.
 emits() -> point.
 
-init(_NodeId, _Ins, #{lambda := Lambda, enter_as := EnteredAs, leave_as := LeftAs,
-   enter := EmitEntered,
-   leave := EmitLeft,
-   enter_keep := KeepFieldsEntered, enter_keep_as := KeepFieldsEnteredAliases,
-   leave_keep := KeepFieldsLeft, leave_keep_as := KeepFieldsLeftAliases,
-   prefix := Prefix,
-   keep := Keep, keep_as := KeepAliases}) ->
-
+init(_NodeId, _Ins, #{lambda := Lambda, enter_as := EnteredAs, leave_as := LeftAs, enter := EmitEntered,
+   leave := EmitLeft, enter_keep := KeepFieldsEntered, leave_keep := KeepFieldsLeft, prefix := Prefix, keep := Keep}) ->
    StateTracker = state_change:new(Lambda),
-
-   EnteredKeepAs = aliased(KeepFieldsEntered, KeepFieldsEnteredAliases),
-   LeftKeepAs = aliased(KeepFieldsLeft, KeepFieldsLeftAliases),
-   KeepAs = aliased(Keep, KeepAliases),
-
    State = #state{
       state_lambda = Lambda,
       emit_entered = EmitEntered,
@@ -89,36 +72,18 @@ init(_NodeId, _Ins, #{lambda := Lambda, enter_as := EnteredAs, leave_as := LeftA
       entered_as = EnteredAs,
       left_as = LeftAs,
       entered_keep = KeepFieldsEntered,
-      entered_keep_as = EnteredKeepAs,
       left_keep = KeepFieldsLeft,
-      left_keep_as = LeftKeepAs,
       keep = Keep,
-      keep_as = KeepAs,
       state_change = StateTracker,
       prefix = Prefix
    },
    NewState = eval_keep(State),
-   lager:notice("State: ~p",[lager:pr(NewState, ?MODULE)]),
    {ok, all, NewState}.
 
 
-aliased(FList, []) ->
-   FList;
-aliased(_FList, Aliases) ->
-   Aliases.
-
-
-eval_keep(State = #state{
-      entered_keep = EKeep, left_keep = LKeep,
-      entered_keep_as = EnteredAs, left_keep_as = LeftAs,
-      keep = KeepAll, keep_as = KeepAllAs}) ->
-
-   EnteredKeepFields = lists:zip(EKeep, EnteredAs),
-   LeftKeepFields = lists:zip(LKeep, LeftAs),
-   AllKeepField = lists:zip(KeepAll, KeepAllAs),
-
-   EnteredKeep = sets:to_list(sets:from_list(EnteredKeepFields++AllKeepField)),
-   LeftKeep = sets:to_list(sets:from_list(LeftKeepFields++AllKeepField)),
+eval_keep(State = #state{entered_keep = EKeep, left_keep = LKeep, keep = KeepAll}) ->
+   EnteredKeep = sets:to_list(sets:from_list(EKeep++KeepAll)),
+   LeftKeep = sets:to_list(sets:from_list(LKeep++KeepAll)),
    State#state{
       entered_keep = EnteredKeep,
       left_keep = LeftKeep
@@ -138,27 +103,31 @@ process(_Inport, #data_point{} = Point, State = #state{state_change = StateChang
 
 handle(entered, StateState, State=#state{emit_entered = true, entered_as = As, entered_keep = Keep}) ->
    P = state_change:get_last_point(StateState),
-   emit_point_data(P, Keep, [{As, 1}], State);
+   emit_point_data(P, Keep, [As], [1], State);
 handle(left, StateState, State=#state{emit_left = true, left_as = As, left_keep = Keep}) ->
    P = state_change:get_last_point(StateState),
+   AddFNames = [
+      As,
+      <<"state_start_ts">>,
+      <<"state_end_ts">>,
+      <<"state_duration">>,
+      <<"state_count">>],
    AddFields = [
-      {As, 1},
-      {<<"state_start_ts">>, state_change:get_last_enter_time(StateState)},
-      {<<"state_end_ts">>, P#data_point.ts},
-      {<<"state_duration">>, state_change:get_last_duration(StateState)},
-      {<<"state_count">>, state_change:get_last_count(StateState)}
-   ],
-   emit_point_data(P, Keep, AddFields, State);
+      1,
+      state_change:get_last_enter_time(StateState),
+      P#data_point.ts,
+      state_change:get_last_duration(StateState),
+      state_change:get_last_count(StateState)],
+
+   emit_point_data(P, Keep, AddFNames, AddFields, State);
 handle(_, _StateState, State=#state{}) ->
    {ok, State}.
 
-emit_point_data(P, Keep, AddFields, State = #state{prefix = Prefix}) ->
-   {KeepFieldNames, KeepFieldAliases} = lists:unzip(Keep),
-   FieldValues = flowdata:fields(P, KeepFieldNames),
-   PrefixedFieldNames = [<<Prefix/binary, F/binary>> || F <- KeepFieldAliases],
-   Fields = lists:zip(PrefixedFieldNames, FieldValues),
+emit_point_data(P, Keep, AddFieldNames, AddFieldVals, State = #state{prefix = Prefix}) ->
+   Fields = flowdata:fields(P, Keep),
    NewPoint = P#data_point{fields = #{}, tags = #{}},
-   {emit, flowdata:set_fields(NewPoint, Fields++AddFields), State}.
+   FieldNames = [<<Prefix/binary, F/binary>> || F <- AddFieldNames],
+   {emit, flowdata:set_fields(NewPoint, FieldNames++Keep, AddFieldVals++Fields), State}.
 
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%% TESTS %%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -166,12 +135,10 @@ emit_point_data(P, Keep, AddFields, State = #state{prefix = Prefix}) ->
 
 eval_keep_1_test() ->
    EKeep = [],
-   LKeep0 = [<<"data.err.SysNo">>],
-   Keep0 = [<<"data.err.Mod">>],
-   Keep = lists:zip(Keep0, Keep0),
-   LKeep = lists:zip(LKeep0, LKeep0),
-   S = #state{keep = Keep0, entered_keep = EKeep, left_keep = LKeep0},
-   Ex = S#state{entered_keep = Keep, left_keep = LKeep++Keep},
+   LKeep = [<<"data.err.SysNo">>],
+   Keep = [<<"data.err.Mod">>],
+   S = #state{keep = Keep, entered_keep = EKeep, left_keep = LKeep},
+   Ex = S#state{entered_keep = Keep, left_keep = [<<"data.err.SysNo">>,<<"data.err.Mod">>]},
    ?assertEqual(Ex, eval_keep(S)).
 
 eval_keep_2_test() ->
@@ -187,7 +154,6 @@ eval_keep_3_test() ->
    LKeep = [<<"data.err.SysNo">>, <<"data.err.ErrCode">>],
    Keep = [<<"data.err.Mod">>],
    S = #state{keep = Keep, entered_keep = EKeep, left_keep = LKeep},
-
    Ex = S#state{
       entered_keep = [<<"data.err.SysNo">>, <<"data.err.Mod">>],
       left_keep = [<<"data.err.ErrCode">>, <<"data.err.SysNo">>, <<"data.err.Mod">>]},
