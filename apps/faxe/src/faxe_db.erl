@@ -311,7 +311,16 @@ check_dir() ->
       ok ->
          case filelib:is_dir(Dir) of
             false -> mnesia_dir_failed(Dir, "is not there and creation failed");
-            true -> ok
+            true ->
+               case file:list_dir_all(Dir) of
+                  {ok, _} ->
+                     case file:open(filename:join(Dir, "_write_check.txt"), write) of
+                        {ok, FileHandle} -> file:close(FileHandle), ok;
+                        {error, Reason} ->
+                           mnesia_dir_failed(Dir, io_lib:format("is not writeable - posix: ~s", [Reason]))
+                     end;
+                  {error, E} -> mnesia_dir_failed(Dir, E)
+               end
          end;
       {error, Reason} ->
          mnesia_dir_failed(Dir, Reason)

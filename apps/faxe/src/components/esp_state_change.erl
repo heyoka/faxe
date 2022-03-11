@@ -35,6 +35,7 @@
    left_as,
    entered_keep = [],
    left_keep = [],
+   keep = [],
    unit,
    state_change,
    prefix
@@ -48,6 +49,7 @@ options() -> [
    {leave, is_set, undefined},
    {enter_keep, string_list, []},
    {leave_keep, string_list, []},
+   {keep, string_list, []},
    {prefix, string, <<"">>},
    {unit, duration, <<"1s">>}
 ].
@@ -61,20 +63,31 @@ wants() -> point.
 emits() -> point.
 
 init(_NodeId, _Ins, #{lambda := Lambda, enter_as := EnteredAs, leave_as := LeftAs, enter := EmitEntered,
-   leave := EmitLeft, enter_keep := KeepFieldsEntered, leave_keep := KeepFieldsLeft, prefix := Prefix}) ->
+   leave := EmitLeft, enter_keep := KeepFieldsEntered, leave_keep := KeepFieldsLeft, prefix := Prefix, keep := Keep}) ->
    StateTracker = state_change:new(Lambda),
-   {ok, all,
-      #state{
-         state_lambda = Lambda,
-         emit_entered = EmitEntered,
-         emit_left = EmitLeft,
-         entered_as = EnteredAs,
-         left_as = LeftAs,
-         entered_keep = KeepFieldsEntered,
-         left_keep = KeepFieldsLeft,
-         state_change = StateTracker,
-         prefix = Prefix
-         }}.
+   State = #state{
+      state_lambda = Lambda,
+      emit_entered = EmitEntered,
+      emit_left = EmitLeft,
+      entered_as = EnteredAs,
+      left_as = LeftAs,
+      entered_keep = KeepFieldsEntered,
+      left_keep = KeepFieldsLeft,
+      keep = Keep,
+      state_change = StateTracker,
+      prefix = Prefix
+   },
+   NewState = eval_keep(State),
+   {ok, all, NewState}.
+
+
+eval_keep(State = #state{entered_keep = EKeep, left_keep = LKeep, keep = KeepAll}) ->
+   EnteredKeep = sets:to_list(sets:from_list(EKeep++KeepAll)),
+   LeftKeep = sets:to_list(sets:from_list(LKeep++KeepAll)),
+   State#state{
+      entered_keep = EnteredKeep,
+      left_keep = LeftKeep
+   }.
 
 process(_In, #data_batch{points = _Points} = _Batch, _State = #state{state_lambda = _Lambda}) ->
    {error, not_implemented};
@@ -115,3 +128,53 @@ emit_point_data(P, Keep, AddFieldNames, AddFieldVals, State = #state{prefix = Pr
    NewPoint = P#data_point{fields = #{}, tags = #{}},
    FieldNames = [<<Prefix/binary, F/binary>> || F <- AddFieldNames],
    {emit, flowdata:set_fields(NewPoint, FieldNames++Keep, AddFieldVals++Fields), State}.
+
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%% TESTS %%%%%%%%%%%%%%%%%%%%%%%%%%
+-ifdef(TEST).
+
+eval_keep_1_test() ->
+   EKeep = [],
+   LKeep = [<<"data.err.SysNo">>],
+   Keep = [<<"data.err.Mod">>],
+   S = #state{keep = Keep, entered_keep = EKeep, left_keep = LKeep},
+   Ex = S#state{entered_keep = Keep, left_keep = [<<"data.err.SysNo">>,<<"data.err.Mod">>]},
+   ?assertEqual(Ex, eval_keep(S)).
+
+eval_keep_2_test() ->
+   EKeep = [<<"data.err.SysNo">>],
+   LKeep = [<<"data.err.SysNo">>],
+   Keep = [],
+   S = #state{keep = Keep, entered_keep = EKeep, left_keep = LKeep},
+   Ex = S#state{entered_keep = [<<"data.err.SysNo">>], left_keep = [<<"data.err.SysNo">>]},
+   ?assertEqual(Ex, eval_keep(S)).
+
+eval_keep_3_test() ->
+   EKeep = [<<"data.err.SysNo">>],
+   LKeep = [<<"data.err.SysNo">>, <<"data.err.ErrCode">>],
+   Keep = [<<"data.err.Mod">>],
+   S = #state{keep = Keep, entered_keep = EKeep, left_keep = LKeep},
+   Ex = S#state{
+      entered_keep = [<<"data.err.SysNo">>, <<"data.err.Mod">>],
+      left_keep = [<<"data.err.ErrCode">>, <<"data.err.SysNo">>, <<"data.err.Mod">>]},
+   ?assertEqual(Ex, eval_keep(S)).
+
+eval_keep_4_test() ->
+   EKeep = [],
+   LKeep = [],
+   Keep = [<<"data.err.SysNo">>, <<"data.err.ErrCode">>, <<"data.err.Mod">>],
+   ExAll = [<<"data.err.ErrCode">>, <<"data.err.SysNo">>, <<"data.err.Mod">>],
+   S = #state{keep = Keep, entered_keep = EKeep, left_keep = LKeep},
+   Ex = S#state{entered_keep = ExAll, left_keep = ExAll},
+   ?assertEqual(Ex, eval_keep(S)).
+
+eval_keep_unique_test() ->
+   EKeep = [<<"data.err.SysNo">>],
+   LKeep = [<<"data.err.Mod">>],
+   Keep = [<<"data.err.SysNo">>, <<"data.err.ErrCode">>, <<"data.err.Mod">>],
+   ExAll = [<<"data.err.ErrCode">>, <<"data.err.SysNo">>, <<"data.err.Mod">>],
+   S = #state{keep = Keep, entered_keep = EKeep, left_keep = LKeep},
+   Ex = S#state{entered_keep = ExAll, left_keep = ExAll},
+   ?assertEqual(Ex, eval_keep(S)).
+
+-endif.
