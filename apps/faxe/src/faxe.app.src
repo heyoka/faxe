@@ -7,6 +7,7 @@
    [kernel,
     stdlib,
     lager,
+    datestring,
     lager_logstash_backend,
     inets,
     faxe_common,

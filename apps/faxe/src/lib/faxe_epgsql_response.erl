@@ -64,6 +64,9 @@ to_flowdata(Columns, [ValRow|Values], Batch=#data_batch{points = Points},
 
 row_to_datapoint([], [], Point, _TimeField) ->
   Point;
+%% ignore rows where ts is 'null'
+row_to_datapoint([TimeField|Columns], [null|Row], Point, TimeField) ->
+  row_to_datapoint(Columns, Row, Point, TimeField);
 row_to_datapoint([TimeField|Columns], [Ts|Row], Point, TimeField) ->
 %%  lager:info("got ts: ~p",[Ts]),
   P = Point#data_point{ts = decode_ts(Ts)},

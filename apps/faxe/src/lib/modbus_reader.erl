@@ -21,6 +21,7 @@
   client,
   connected,
   parent,
+  requests = [],
   last_request
 }).
 
@@ -50,8 +51,7 @@ handle_info({modbus, _From, connected}, S = #state{parent = Parent, last_request
   Parent ! {modbus, self(), connected},
   case LR of
     {Reference, ReadReq} ->
-      Res = read(ReadReq, S),
-      Parent ! {modbus_data, self(), Reference, Res};
+      erlang:send_after(0, self(), {read, Reference, ReadReq});
     undefined -> ok
   end,
   NewState = S#state{connected = true, last_request = undefined},
@@ -59,15 +59,41 @@ handle_info({modbus, _From, connected}, S = #state{parent = Parent, last_request
 %% if disconnected, we just wait for a connected message and stop polling in the mean time
 handle_info({modbus, _From, disconnected}, State=#state{parent = Parent}) ->
   Parent ! {modbus, self(), disconnected},
-  {noreply, State#state{connected = false}};
-handle_info({read, Ref, ReadReq}, State = #state{parent = P}) ->
+  {noreply, State#state{connected = false, requests = []}};
+handle_info({modbusdata, {error, TId, What}}, State=#state{parent = Parent}) ->
+  lager:warning("~~~~~~~~~~~~~~~~~~~~~ modbusdata error for TId: ~p :~p",[TId, What]),
+  NewState =
+  case lists:keytake(TId, 1, State#state.requests) of
+    false ->
+      lager:warning("transaction-reference ~p not found when error state", [TId]),
+      State;
+    {value, {TId, {Ref, #{aliases := _Aliases}}}, Reqs} ->
+      Parent ! {modbus_data, self(), Ref, {error, What}},
+      State#state{requests = Reqs}
+  end,
+  {noreply, NewState};
+handle_info({modbusdata, {ok, TId, Data}}, State=#state{parent = Parent}) ->
+  NewState =
+  case lists:keytake(TId, 1, State#state.requests) of
+    false ->
+      logger:warning("transaction-reference ~p not found when ok response", [TId]),
+      State;
+    {value, {TId, {Ref, _Opts = #{aliases := Aliases}}}, Reqs} ->
+      Parent ! {modbus_data, self(), Ref, {ok, lists:zip(Aliases, Data)}},
+      State#state{requests = Reqs}
+  end,
+  {noreply, NewState};
+handle_info({read, Ref, ReadReq}, State = #state{requests = Reqs}) ->
   Res = read(ReadReq, State),
   NewState =
   case Res of
+    {ok, TId} ->
+      NewRequests = [{TId, {Ref, ReadReq}}|Reqs],
+      State#state{requests = NewRequests};
     {error, disconnected} -> %% save the Req for later
       State#state{last_request = {Ref, ReadReq}};
-    _D ->
-      P ! {modbus_data, self(), Ref, Res},
+    {error, What} ->
+      lager:warning("error reading from modbus: ~p",[What]),
       State
   end,
   {noreply, NewState};
@@ -88,7 +114,7 @@ connect(State = #state{}) ->
   erlang:monitor(process, Modbus),
   State#state{client = Modbus, connected = false}.
 
-read(#{function := Fun, start := Start, amount := Amount, opts := Opts, aliases := Aliases} = Req,
+read(#{function := Fun, start := Start, amount := Amount, opts := Opts} = Req,
     _State = #state{client = Client}) ->
   Res = modbus:Fun(Client, Start, Amount, Opts),
   case Res of
@@ -99,7 +125,6 @@ read(#{function := Fun, start := Start, amount := Amount, opts := Opts, aliases 
     {error, _Reason} ->
       lager:error("error reading from modbus: ~p (~p)",[_Reason, Req]),
       {error, _Reason};
-    Data ->
-%%      lager:info("got data: ~p",[Data]),
-      {ok, lists:zip(Aliases, Data)}
+    {ok, TId} ->
+      {ok, TId}
   end.

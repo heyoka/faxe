@@ -45,6 +45,7 @@
 -record(state, {
    ip,
    port,
+   reader_processes = [],
    readers = [],
    num_readers = 1,
    device_address,
@@ -66,7 +67,7 @@
 -define(FUNCTIONS, [<<"coils">>, <<"hregs">>, <<"iregs">>, <<"inputs">>, <<"memory">>]).
 -define(OUT_TYPES, [<<"int16">>, <<"int32">>, <<"float32">>, <<"double">>, <<"coils">>,<<"ascii">>, <<"binary">>]).
 -define(FUNCTION_PREFIX, <<"read_">>).
--define(READ_TIMEOUT, 5000).
+-define(READ_TIMEOUT, 4000).
 
 -spec options() -> list().
 options() -> [
@@ -150,7 +151,6 @@ handle_info(connect, State = #state{}) ->
    {ok, NewState};
 
 handle_info(poll, State = #state{readers = Readers, requests = Requests, timer = Timer, fn_id = Id}) ->
-
    Ts =
       case is_record(Timer, faxe_timer) of
          true -> Timer#faxe_timer.last_time;
@@ -181,13 +181,12 @@ handle_info(poll, State = #state{readers = Readers, requests = Requests, timer =
          NewOutPoint = maybe_round(OutPoint, State),
          {emit, {1, NewOutPoint}, State#state{timer = faxe_time:timer_next(Timer)}}
    end;
-handle_info({'EXIT', Pid, Why}, State = #state{}) ->
-   lager:warning("Modbus Reader exited with reason: ~p",[Why]),
-   _NewReader = modbus_reader:start_link(State#state.ip, State#state.port, State#state.device_address),
-   handle_disconnect(Pid, State);
+handle_info({'EXIT', Pid, Why}, State = #state{reader_processes = Procs}) ->
+   lager:notice("Modbus Reader exited with reason: ~p",[Why]),
+   NewReader = modbus_reader:start_link(State#state.ip, State#state.port, State#state.device_address),
+   handle_disconnect(Pid, State#state{reader_processes = [NewReader|Procs]});
 handle_info({modbus, Reader, connected}, S = #state{readers = []}) ->
    connection_registry:connected(),
-   lager:info("Modbus is connected, lets start polling ..."),
    Timer = faxe_time:init_timer(S#state.align, S#state.interval, poll),
    {ok, S#state{timer = Timer, connected = true, readers = [Reader]}};
 handle_info({modbus, Reader, connected}, S = #state{readers = Readers}) ->
@@ -206,7 +205,6 @@ maybe_round(Point, #state{round = undefined}) ->
    Point;
 maybe_round(Point, #state{round = Precision, as = Aliases, outputs = OutTypes}) ->
    AsTypes = lists:zip(Aliases, OutTypes),
-   lager:notice("As-Types: ~p",[AsTypes]),
    RoundFn =
    fun
       ({As, DType}, Point0) when DType =:= <<"float32">> orelse DType =:= <<"double">> ->
@@ -229,7 +227,7 @@ handle_disconnect(Reader, State = #state{readers = Readers, timer = Timer}) ->
          {ok, State#state{timer = faxe_time:timer_next(Timer), readers = Readers0}}
    end.
 
-shutdown(#state{readers = Modbuss, timer = Timer}) ->
+shutdown(#state{reader_processes = Modbuss, timer = Timer}) ->
    catch (faxe_time:timer_cancel(Timer)),
    catch ([gen_server:stop(Modbus) || Modbus <- Modbuss]).
 
@@ -354,6 +352,7 @@ start_connections(State = #state{ip = Ip, port = Port, device_address = Dev, req
          _ when is_integer(Num) andalso length(Req) > Num -> Num;
          _ -> length(Req)
       end,
+   Procs =
    lists:map(
       fun(_E) ->
          {ok, Reader} = modbus_reader:start_link(Ip, Port, Dev),
@@ -361,8 +360,8 @@ start_connections(State = #state{ip = Ip, port = Port, device_address = Dev, req
       end,
       lists:seq(1, ConnNum)
    ),
-%%   lager:info("started ~p reader connections",[ConnNum]),
-   State#state{num_readers = ConnNum}.
+   lager:info("started ~p reader connections -> ~p",[ConnNum, Procs]),
+   State#state{num_readers = ConnNum, reader_processes = Procs}.
 
 unique(List) when is_list(List) ->
    sets:to_list(sets:from_list(List)).
