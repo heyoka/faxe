@@ -90,6 +90,8 @@ WORKDIR faxe
 #ARG remove_list=""
 
 ENV FAXE_EXTENSIONS="ext.config"
+# debug for rebar3
+ENV DEBUG=1
 
 # install git, build release and cleanup deps
 RUN apt-get update && apt-get install -y --no-install-recommends gcc g++ make git-all curl jq \
