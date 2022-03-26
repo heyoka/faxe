@@ -83,6 +83,7 @@ process(Inport, #data_point{ts = Ts} = Point, State = #state{buffer = undefined,
    {ok, State#state{buffer = NewBuffer, timers = NewList}};
 process(Inport, #data_point{ts = Ts} = Point, State = #state{buffer = Buffer, timers = TList,
       m_timeout = MTimeout, tolerance = Tolerance}) ->
+
    TsList = orddict:fetch_keys(Buffer),
    LookupTs = nearest_ts(Ts, TsList),
 

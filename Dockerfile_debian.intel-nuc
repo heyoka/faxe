@@ -97,9 +97,8 @@ ENV DEBUG=1
 RUN apt-get update && apt-get install -y --no-install-recommends gcc g++ make git-all curl jq \
 	#&& apt --only-upgrade --no-install-recommends install ${update_list} -y  \
     #&& apt remove  --auto-remove ${remove_list} -y  \
-    # customization start
+    # tell git to use https instead of git protocol (faxe dependencies)
     && git config --global url."https://".insteadOf git:// \
-    # customization end
     && apt upgrade -y \
     && apt autoremove -y \
     && rebar3 as balena release \

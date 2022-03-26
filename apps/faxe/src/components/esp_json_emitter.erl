@@ -9,6 +9,10 @@
 -include("faxe.hrl").
 %% API
 -export([init/3, process/3, handle_info/2, options/0, params/0, check_options/0, check_json/1]).
+
+-define(RAND, <<"rand">>).
+-define(SEQ, <<"seq">>).
+
 -record(state, {
    node_id           :: term(),
    every             :: non_neg_integer(),
@@ -16,22 +20,30 @@
    align             :: atom(),
    json_string       :: binary(),
    ejson             :: map()|list(),
-   as                :: binary()
+   as                :: binary(),
+   select            :: binary(),
+   idx = 1           :: non_neg_integer()
 }).
 
 params() -> [].
 
 options() ->
-   [{every, duration, <<"3s">>},
+   [
+      {every, duration, <<"3s">>},
       {jitter, duration, <<"0ms">>},
       {align, is_set},
       {json, binary_list, undefined},
       {rand_fields, binary_list, []},
-      {as, string, <<"data">>}].
+      {select, string, ?RAND}, %% 'rand' or 'seq'
+      {as, string, <<"data">>}
+   ].
 
 
 check_options() ->
-   [{func, json, fun check_json/1, <<", invalid json">>}].
+   [
+      {func, json, fun check_json/1, <<", invalid json">>},
+      {one_of, select, [?RAND, ?SEQ]}
+   ].
 
 check_json(Jsons) when is_list(Jsons) ->
    lists:all(fun check_json/1, Jsons);
@@ -42,7 +54,7 @@ check_json(Json) when is_binary(Json) ->
    end.
 
 init(NodeId, _Inputs,
-    #{every := Every, align := Unit, jitter := Jitter, json := JS, as := As}) ->
+    #{every := Every, align := Unit, jitter := Jitter, json := JS, as := As, select := Sel}) ->
    NUnit =
       case Unit of
          false -> false;
@@ -51,9 +63,13 @@ init(NodeId, _Inputs,
    JT = faxe_time:duration_to_ms(Jitter),
    EveryMs = faxe_time:duration_to_ms(Every),
    JSONs = [jiffy:decode(JsonString, [return_maps]) || JsonString <- JS],
-   State = #state{node_id = NodeId, every = EveryMs, ejson = JSONs, as = As,
-      json_string = JS, align = NUnit, jitter = JT},
-   lager:notice("~p State: ~p",[?MODULE, lager:pr(State, ?MODULE)]),
+   State =
+      #state{
+         node_id = NodeId, every = EveryMs,
+         ejson = JSONs, as = As, json_string = JS,
+         align = NUnit, jitter = JT, select = Sel
+      },
+
    erlang:send_after(JT, self(), emit),
    rand:seed(exs1024s),
    {ok, none, State}.
@@ -73,61 +89,23 @@ handle_info(_Request, State) ->
 
 do_emit(Next, State=#state{ejson = JS, as = As}) ->
    erlang:send_after(Next, self(), emit),
-   JsonMap = lists:nth(rand:uniform(length(JS)), JS),
-%%   Msg = flowdata:set_field(#data_point{ts = faxe_time:now()}, As, JsonMap),
-   Msg = flowdata:set_root(#data_point{ts = faxe_time:now(), fields = JsonMap}, As),
-   {emit,{1, Msg}, State}.
+   {NextIndex, NewState} = next_index(State),
+   Json = lists:nth(NextIndex, JS),
+   Msg = build(Json, As),
+   {emit,{1, Msg}, NewState}.
 
+next_index(S = #state{select = ?RAND, ejson = JS}) ->
+   {rand:uniform(length(JS)), S};
+next_index(S = #state{select = ?SEQ, ejson = JS, idx = Index}) when Index > length(JS) ->
+   {1, S#state{idx = 2}};
+next_index(S = #state{select = ?SEQ, ejson = _JS, idx = Index}) ->
+   {Index, S#state{idx = Index+1}}.
 
-obj_from_array(Point) ->
-   Res = obj_from_array(Point, <<"data.sections">>, <<>>, <<"name">>),
-   obj_from_array(Res, <<"data.sections">>, <<"inventoryLine">>, <<"sku">>).
-
-obj_from_array(Point = #data_point{}, Path, SubPath, Key) ->
-   Array0 = flowdata:field(Point, Path),
-   lager:notice("THE FIELD: ~p",[Array0]),
-   {Arrays, BasePaths} =
-   case is_list(Array0) of
-      true -> {[Array0], [Path]};
-      false -> %% its a map
-         PathList = [<<AKey/binary, ".", SubPath/binary>> || AKey <- maps:keys(Array0)],
-         lager:info("pathlist: ~p",[PathList]),
-         As = jsn:get_list(PathList, Array0),
-         lager:notice("ArraYs: ~p", [As]),
-         BPaths = [<<Path/binary, ".", SFix/binary>> || SFix <- PathList],
-         {As, BPaths}
-   end,
-
-   lager:info("array: ~p",[Arrays]),
-   lager:info("basepaths: ~p",[BasePaths]),
-   lists:foldl(
-      fun
-         %% if we have not found an array, skip the transfrom
-         ({_, undefined}, Point) -> Point;
-
-         ({BasePath, ArrayEntry}, Point) ->
-         transform(Point, ArrayEntry, BasePath, Key)
-      end,
-      Point,
-      lists:zip(BasePaths, Arrays)
-   ).
-
-transform(Point, Array, Path, Key) ->
-   %% get the new subobject keys and the array entries (objects)
-   lager:info("path is: ~p",[Path]),
-   lager:warning("array is : ~p",[Array]),
-   Selected = jsn:select([{value, Key}, identity], Array),
-   lager:notice("Selections: ~p",[Selected]),
-   OutPrep =
-      lists:map(fun([KeyVal, Contents0]) ->
-
-         SelPath = <<Path/binary, ".", KeyVal/binary>>,
-         {SelPath, jsn:delete(Key, Contents0)}
-                end,
-         Selected),
-   NewPoint = flowdata:delete_field(Point, Path),
-   flowdata:set_fields(NewPoint, OutPrep).
-
+build(JsonMap, As) when is_map(JsonMap) ->
+   flowdata:set_root(#data_point{ts = faxe_time:now(), fields = JsonMap}, As);
+build(JsonList, As) when is_list(JsonList) ->
+   Points = [build(JsonMap, As) || JsonMap <- JsonList],
+   #data_batch{points = Points}.
 
 
 

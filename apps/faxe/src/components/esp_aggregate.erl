@@ -31,12 +31,13 @@
 ).
 
 -record(state, {
-   node_id,
-   fields,
+   node_id :: binary(),
+   fields :: list(),
    modules :: list(),
    module_state,
-   as,
-   keep
+   as :: binary(),
+   keep :: list(),
+   default_ts :: non_neg_integer()
 }).
 
 options() -> [
@@ -69,30 +70,43 @@ init_as(#{as := As}) ->
 %%% databatch only
 process(_Inport, #data_batch{points = []}, S) ->
    {ok, S};
-process(_Inport, #data_batch{points = Points} = Batch,
+process(_Inport, #data_batch{points = Points, start = BatchStart} = Batch,
     State = #state{modules = Mods, module_state = MState, fields = Fields, as = As, keep = KeepFields}) ->
 
    Ps = [flowdata:tss_fields(Batch, F) || F <- Fields],
    MStates = [MState || _F <- Fields],
 
-   {Ts, Results} = call(Ps, Mods, MStates, As, {0, []}),
    KeepPoint = lists:last(Points),
+   DefaultTs = faxe_time:now(),
+
+   %% if there is no timestamp present in the result, we use the ts field form the last point from incoming data_batch
+   {Ts, Results} =
+   case call(Ps, Mods, MStates, As, {0, []}, DefaultTs) of
+      {Ts1, Results1} when is_integer(Ts1) -> {Ts1, Results1};
+      {_, Results2} -> {DefaultTs, Results2}
+   end,
+   TsBatch =
+   case BatchStart of
+      undefined -> Ts;
+      _ when is_integer(BatchStart) -> BatchStart
+   end,
+   %% handle keep fields
    KeepKV = lists:zip(KeepFields, flowdata:fields(KeepPoint, KeepFields)),
-   NewPoint0 = flowdata:set_fields(#data_point{ts = Ts}, KeepKV),
+   NewPoint0 = flowdata:set_fields(#data_point{ts = TsBatch}, KeepKV),
    NewPoint = flowdata:set_fields(NewPoint0, Results),
+   %% emit
    {emit, NewPoint, State};
 process(_, #data_point{}, _State) ->
    {error, datapoint_not_supported}.
 
 handle_info(_Request, State) ->
-%%   lager:warning("~p request: ~p~n", [State, Request]),
    {ok, State}.
 
 %%%%%%%%%%%%%%%%%%%% internal %%%%%%%%%%%%
 
-call([], [], [], [], Results) ->
+call([], [], [], [], Results, _DefaultTs) ->
    Results;
-call([Point|Points], [Mod|Modules], [MState|MStates], [As|Aliases], {_Ts, Acc}) ->
+call([Point|Points], [Mod|Modules], [MState|MStates], [As|Aliases], {_Ts, Acc}, DefaultTs) ->
    Res = call(Point, Mod, MState, As),
    ResVal =
    case flowdata:field(Res, As, 0) of
@@ -100,7 +114,7 @@ call([Point|Points], [Mod|Modules], [MState|MStates], [As|Aliases], {_Ts, Acc}) 
       Val -> Val
    end,
    Result = {As, ResVal},
-   call(Points, Modules, MStates, Aliases, {flowdata:ts(Res, faxe_time:now()), [Result]++Acc}).
+   call(Points, Modules, MStates, Aliases, {flowdata:ts(Res, DefaultTs), [Result]++Acc}, DefaultTs).
 
 -spec call(tuple(), atom(), term(), binary()) -> #data_batch{} | #data_point{}.
 call({Tss,_Vals}=Data, Module, MState, As) when is_list(Tss) ->

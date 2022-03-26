@@ -184,7 +184,7 @@ handle_info(poll, State = #state{readers = Readers, requests = Requests, timer =
 handle_info({'EXIT', Pid, Why}, State = #state{reader_processes = Procs}) ->
    lager:notice("Modbus Reader exited with reason: ~p",[Why]),
    NewReader = modbus_reader:start_link(State#state.ip, State#state.port, State#state.device_address),
-   handle_disconnect(Pid, State#state{reader_processes = [NewReader|Procs]});
+   handle_disconnect(Pid, State#state{reader_processes = [NewReader|lists:delete(Pid, Procs)]});
 handle_info({modbus, Reader, connected}, S = #state{readers = []}) ->
    connection_registry:connected(),
    Timer = faxe_time:init_timer(S#state.align, S#state.interval, poll),
@@ -223,7 +223,7 @@ handle_disconnect(Reader, State = #state{readers = Readers, timer = Timer}) ->
          lager:warning("All Modbus readers are disconnected!!, stop polling ....", []),
          {ok, State#state{timer = faxe_time:timer_cancel(Timer), connected = false, readers = Readers0}};
       [_R|_] ->
-         lager:notice("Modbus reader ~p disconnected!!, ~p readers left ....", [Reader, length(Readers0)]),
+         lager:info("Modbus reader ~p disconnected!!, readers left ~p", [Reader, length(Readers0)]),
          {ok, State#state{timer = faxe_time:timer_next(Timer), readers = Readers0}}
    end.
 

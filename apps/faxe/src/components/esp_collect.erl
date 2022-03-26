@@ -38,6 +38,7 @@
    update_function :: undefined | function(),
    update_mode,
    emit_interval,
+   emit_unchanged = false :: true|false,
    fields
    ,keep
    ,keep_as,
@@ -53,12 +54,14 @@
 
 options() -> [
    {key_fields, string_list},
-   {add, lambda},
-   {remove, lambda},
+   {add, lambda, undefined},
+   {remove, lambda, undefined},
    {update, lambda, undefined},
    {update_mode, string, ?UPDATE_MODE_REPLACE}, %% 'replace', 'merge'
    {emit_every, duration, undefined},
+   {emit_unchanged, boolean, false}, %% emit contents, even if the internal state has not changed
    {tag_added, boolean, false},
+   {tag_removed, boolean, false},
    {include_removed, boolean, false},
    {keep, string_list, []}, %% a list of field path to keep for every data_point
    {keep_as, string_list, undefined}, %% rename the kept fields
@@ -83,8 +86,8 @@ emits() -> batch.
 
 init(NodeId, _Ins, #{
    key_fields := Fields, add := AddFunc, remove := RemFunc, update := UpStateFun,
-   update := UpStateFun, update_mode := UpMode,
-   emit_every := EmitEvery, tag_added := TagAdd, include_removed := InclRem, tag_value := TagVal,
+   update := UpStateFun, update_mode := UpMode, emit_unchanged := EmitAlways,
+   emit_every := EmitEvery, tag_added := TagAdd, tag_removed := TagRem, include_removed := InclRem0, tag_value := TagVal,
    keep := Keep, keep_as := KeepAs,
    as := As, max_age := MaxAge0}
 ) ->
@@ -92,6 +95,7 @@ init(NodeId, _Ins, #{
    EmitInterval = case EmitEvery of undefined -> undefined; _ -> faxe_time:duration_to_ms(EmitEvery) end,
    MaxAge = case MaxAge0 of undefined -> undefined; Age -> faxe_time:duration_to_ms(Age) end,
    Aliases = case KeepAs of [] -> Keep; _ -> KeepAs end,
+   InclRem = case TagRem /= false of true -> true; _ -> InclRem0 end,
    {ok, all,
       #state{
          node_id = NodeId,
@@ -101,6 +105,7 @@ init(NodeId, _Ins, #{
          update_function = UpStateFun,
          update_mode = UpMode,
          emit_interval = EmitInterval,
+         emit_unchanged = EmitAlways,
          keep = Keep,
          keep_as = Aliases,
          as = As,
@@ -196,6 +201,8 @@ keyval(Point, #state{fields = Fields}) ->
    end.
 
 
+maybe_add(Point = #data_point{ts = _Ts}, KeyVal, State = #state{add_function = undefined}) ->
+   add(KeyVal, Point, State);
 maybe_add(Point = #data_point{ts = _Ts}, KeyVal, State = #state{add_function = AddFunc}) ->
    case catch(faxe_lambda:execute(Point, AddFunc)) of
       true ->
@@ -204,6 +211,8 @@ maybe_add(Point = #data_point{ts = _Ts}, KeyVal, State = #state{add_function = A
       _ -> {false, State}
    end.
 
+maybe_remove(_Point = #data_point{ts = _Ts}, _KeyVal, State = #state{remove_function = undefined}) ->
+   {false, State};
 maybe_remove(Point = #data_point{ts = _Ts}, KeyVal, State = #state{remove_function = RemFunc}) ->
    case catch(faxe_lambda:execute(Point, RemFunc)) of
       true ->
@@ -235,6 +244,8 @@ maybe_update_state(Point=#data_point{fields = Fields}, KeyVal, State = #state{up
 
 
 
+maybe_emit(_, State = #state{emit_interval = undefined, emit_unchanged = true}) ->
+   do_emit(State);
 maybe_emit(true, State = #state{emit_interval = undefined}) ->
    do_emit(State);
 maybe_emit(_, State = #state{}) ->
@@ -280,7 +291,7 @@ age_cleanup(State = #state{buffer = Buffer, max_age = Age}) ->
          end
       end,
    CleanedBuffer = lists:foldl(CleanFun, Buffer, Buffer),
-%%   lager:notice("aged: ~p", [length(Buffer) - length(CleanedBuffer)]),
+   lager:notice("aged: ~p", [length(Buffer) - length(CleanedBuffer)]),
    State#state{buffer = CleanedBuffer}.
 
 

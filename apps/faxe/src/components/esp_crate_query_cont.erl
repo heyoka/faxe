@@ -295,7 +295,7 @@ do_query(State = #state{client = C, period = Period, query_mark = QueryMark, res
          {ok, NewState};
       {ok, Data} ->
          node_metrics:metric(?METRIC_ITEMS_IN, 1, FnId),
-         {emit, {1, Data}, NewState};
+         {emit, {1, Data#data_batch{start = QueryMark}}, NewState};
       {error, Error} ->
          lager:warning("Error response from Crate: ~p", [Error]),
          {ok, NewState}

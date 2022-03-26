@@ -36,9 +36,8 @@ RUN set -xe \
 	' \
 	&& apt-get install -y --no-install-recommends $runtimeDeps \
 	&& apt-get install -y --no-install-recommends $buildDeps \
-	# customization start
+	# tell git to use https instead of git protocol (faxe dependencies)
 	&& git config --global url."https://".insteadOf git:// \
-	# customization end
 	&& export ERL_TOP="/usr/src/otp_src_${OTP_VERSION%%@*}" \
 	&& mkdir -vp $ERL_TOP \
 	&& tar -xzf otp-src.tar.gz -C $ERL_TOP --strip-components=1 \
@@ -100,7 +99,9 @@ RUN apt-get update && apt-get install -y --no-install-recommends gcc g++ make gi
     #&& apt --only-upgrade --no-install-recommends install ${update_list} -y  \
     #&& apt remove  --auto-remove ${remove_list} -y  \
     && apt upgrade -y \
-    && apt autoremove -y \	
+    && apt autoremove -y \
+    # tell git to use https instead of git protocol (faxe dependencies)
+    && git config --global url."https://".insteadOf git:// \
     && rebar3 as prod release \
     && apt-get purge -y --auto-remove gcc g++ make git-all \
     && rm -rf /var/lib/apt/lists/*

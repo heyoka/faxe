@@ -27,7 +27,7 @@ handle({ok, Count}, _ResponseDef) ->
 handle({ok, Count, Columns, Rows}, _ResponseDef) ->
   lager:notice("count, col, rows response: ~p",[{Count, Columns, Rows}]),
   ok;
-handle({ok, Columns, Rows}=R, ResponseDef = #faxe_epgsql_response{}) ->
+handle({ok, Columns, Rows}=_R, ResponseDef = #faxe_epgsql_response{}) ->
 %%  lager:info("IN: ~p",[length(Rows)]),
   ColumnNames = columns(Columns, []),
 %%   lager:notice("result ROWS: ~p",[Rows]),
