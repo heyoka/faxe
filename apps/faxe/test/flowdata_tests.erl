@@ -90,6 +90,22 @@ delete_field_undefined_test() ->
    NewPoint = flowdata:delete_field(P, Path),
    ?assertEqual(NewPoint#data_point.fields, P#data_point.fields).
 
+
+delete_field_empty_object_test() ->
+   P = #data_point{ts = 1234567891234, id = <<"324392i09i329i2df4">>,
+      fields = #{<<"var">> => 44, <<"data">> => #{}}},
+   Path = <<"data">>,
+   NewPoint = flowdata:delete_field(P, Path),
+   ?assertEqual(#{<<"var">> => 44}, NewPoint#data_point.fields).
+
+%% what for fix in jsn library
+%%delete_field_empty_object_deep_test() ->
+%%   P = #data_point{ts = 1234567891234, id = <<"324392i09i329i2df4">>,
+%%      fields = #{<<"var">> => 44, <<"data">> => #{<<"var1">> => #{}}}},
+%%   Path = <<"data.var1">>,
+%%   NewPoint = flowdata:delete_field(P, Path),
+%%   ?assertEqual(#{<<"var">> => 44, <<"data">> => #{}}, NewPoint#data_point.fields).
+
 delete_fields_test() ->
    P = #data_point{ts = 1234567891234, id = <<"324392i09i329i2df4">>,
       fields = #{<<"val">> => deep_val(), <<"var">> => 44}},

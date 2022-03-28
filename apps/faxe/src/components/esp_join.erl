@@ -58,7 +58,7 @@ options() -> [
    %% timestamp tolerance in ms
    {tolerance, duration, <<"2s">>},
    %% missing-value handling
-   {fill,   any,     null} %% none, null, any value
+   {fill,   any,     none} %% none, null, any value
 ].
 
 init(NodeId, Ins,
@@ -91,11 +91,15 @@ process(Inport, #data_point{ts = Ts} = Point, State = #state{buffer = Buffer, ti
    case abs(LookupTs - Ts) > Tolerance of
       true ->
          %% new ts in buffer
+%%         lager:info("incoming point (~p) resulting in new row: ~p",[Point, {Ts, Inport}]),
          {Ts , [{Inport, Point}]};
       false ->
          %% add point to buffer
+%%         lager:info("incoming point (~p) added to: ~p",[Point, {LookupTs, Inport}]),
          {LookupTs, [{Inport, Point}| orddict:fetch(LookupTs, Buffer)]}
    end,
+
+
 
    {NewBuffer, NewTimerList} =
    case is_full_row(NewRow, State) of
@@ -212,7 +216,7 @@ fill(<<"none">>) -> none;
 fill(<<"null">>) -> null;
 fill(Any) -> Any.
 
-is_full_row(Row, #state{row_list = RowList}) ->
+is_full_row(Row, #state{row_list = RowList, row_length = _RowLen}) ->
    case RowList -- proplists:get_keys(Row) of
       [] -> true;
       _  -> false

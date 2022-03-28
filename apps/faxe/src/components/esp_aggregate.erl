@@ -73,11 +73,11 @@ process(_Inport, #data_batch{points = []}, S) ->
 process(_Inport, #data_batch{points = Points, start = BatchStart} = Batch,
     State = #state{modules = Mods, module_state = MState, fields = Fields, as = As, keep = KeepFields}) ->
 
+   DefaultTs = faxe_time:now(),
    Ps = [flowdata:tss_fields(Batch, F) || F <- Fields],
    MStates = [MState || _F <- Fields],
 
    KeepPoint = lists:last(Points),
-   DefaultTs = faxe_time:now(),
 
    %% if there is no timestamp present in the result, we use the ts field form the last point from incoming data_batch
    {Ts, Results} =

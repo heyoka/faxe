@@ -38,7 +38,7 @@
    update_function :: undefined | function(),
    update_mode,
    emit_interval,
-   emit_unchanged = false :: true|false,
+   emit_unchanged = true :: true|false,
    fields
    ,keep
    ,keep_as,
@@ -59,7 +59,7 @@ options() -> [
    {update, lambda, undefined},
    {update_mode, string, ?UPDATE_MODE_REPLACE}, %% 'replace', 'merge'
    {emit_every, duration, undefined},
-   {emit_unchanged, boolean, false}, %% emit contents, even if the internal state has not changed
+   {emit_unchanged, boolean, true}, %% emit contents, even if the internal state has not changed
    {tag_added, boolean, false},
    {tag_removed, boolean, false},
    {include_removed, boolean, false},
