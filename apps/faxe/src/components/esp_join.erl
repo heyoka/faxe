@@ -33,7 +33,7 @@
    lookup = [] :: list(), %% buffer-keys
    buffer, %% orddict with timstamps as keys
    prefix,
-   fill,
+   full,
    field_merge,
    tolerance,
    m_timeout,
@@ -58,11 +58,17 @@ options() -> [
    %% timestamp tolerance in ms
    {tolerance, duration, <<"2s">>},
    %% missing-value handling
-   {fill,   any,     none} %% none, null, any value
+   {fill,   any,     none}, %% deprecated, use 'full' instead
+   {full, boolean, true} %% replaces 'fill'
 ].
 
 init(NodeId, Ins,
-    #{prefix := Prefix, missing_timeout := MTimeOut, tolerance := Tol, merge_field := FMerge, fill := Fill}) ->
+    #{
+       prefix := Prefix, missing_timeout := MTimeOut, full := Full,
+       tolerance := Tol, merge_field := FMerge, fill := Fill}) ->
+
+   FullFill = case Full of false -> false; true -> not fill(Fill) end,
+   lager:info("fullfill ~p",[FullFill]),
    RowList = proplists:get_keys(Ins),
    RowLength = length(Ins),
    Prefix1 =
@@ -72,9 +78,9 @@ init(NodeId, Ins,
    end,
 
    {ok, all,
-      #state{node_id = NodeId, prefix = Prefix1, field_merge = FMerge, row_length = RowLength, fill = fill(Fill),
+      #state{node_id = NodeId, prefix = Prefix1, field_merge = FMerge, row_length = RowLength,
       tolerance = faxe_time:duration_to_ms(Tol), row_list = RowList,
-      m_timeout = faxe_time:duration_to_ms(MTimeOut)}}.
+      m_timeout = faxe_time:duration_to_ms(MTimeOut), full = FullFill}}.
 
 process(Inport, #data_point{ts = Ts} = Point, State = #state{buffer = undefined, m_timeout = M, timers = TList}) ->
    Buffer = orddict:new(),
@@ -138,11 +144,11 @@ handle_info(_R, State) ->
    {ok, State}.
 
 
-maybe_emit(NewRow, NewTs, State = #state{fill = none}) ->
+maybe_emit(NewRow, NewTs, State = #state{full = true}) ->
 %%   lager:info("maybe_emit [fill=none]: ~p",[{NewRow, NewTs}]),
    case is_full_row(NewRow, State) of
       true -> do_emit(NewRow, NewTs, State);
-      false -> ok
+      false -> lager:warning("row not filled"), ok
    end;
 maybe_emit(NewRow, NewTs, State = #state{}) ->
 %%   lager:info("maybe_emit: ~p",[{NewRow, NewTs}]),
@@ -212,9 +218,10 @@ clear_timeout(Ts, TimerList) ->
    end
    .
 
-fill(<<"none">>) -> none;
-fill(<<"null">>) -> null;
-fill(Any) -> Any.
+fill(<<"none">>) -> false;
+fill(none) -> false;
+fill(false) -> false;
+fill(_) -> true.
 
 is_full_row(Row, #state{row_list = RowList, row_length = _RowLen}) ->
    case RowList -- proplists:get_keys(Row) of

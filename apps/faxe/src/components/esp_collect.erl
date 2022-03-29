@@ -22,6 +22,7 @@
 -define(UPDATE_NEVER, <<"never">>).
 -define(UPDATE_ALWAYS, <<"always">>).
 
+-define(PREVIOUS_POINT_ROOT, <<"__state">>).
 -define(UPDATE_MODE_REPLACE, <<"replace">>).
 -define(UPDATE_MODE_MERGE, <<"merge">>).
 -define(UPDATE_MODE_MERGE_REVERSE, <<"merge_reverse">>).
@@ -132,6 +133,7 @@ process(_Port, B = #data_batch{points = Points}, State) ->
    ProcessFun =
    fun(Point, {Changed0, State0}) ->
       {Changed1, NewState} = do_process(Point, State0),
+%%      lager:notice("Buffer after processing: ~p",[NewState#state.buffer]),
       ChangedNew = (Changed0 == true orelse Changed1 == true),
       {ChangedNew, NewState}
    end,
@@ -216,7 +218,7 @@ maybe_remove(_Point = #data_point{ts = _Ts}, _KeyVal, State = #state{remove_func
 maybe_remove(Point = #data_point{ts = _Ts}, KeyVal, State = #state{remove_function = RemFunc}) ->
    case catch(faxe_lambda:execute(Point, RemFunc)) of
       true ->
-         %lager:info("remove: ~p ~p",[KeyVal, Point]),
+%%         lager:info("remove: ~p ~p",[KeyVal, Point]),
          {true, remove1(KeyVal, State)};
       _ -> {false, State}
    end.
@@ -232,7 +234,7 @@ maybe_update_state(_Point, _KeyVal, S = #state{update_function = undefined}) ->
    {false, S};
 maybe_update_state(Point=#data_point{fields = Fields}, KeyVal, State = #state{update_function = Fun, buffer = Buffer}) ->
    StatePoint = buffer_get(KeyVal, Buffer),
-   FunPoint = Point#data_point{fields = Fields#{<<"__state">> => StatePoint#data_point.fields}},
+   FunPoint = Point#data_point{fields = Fields#{?PREVIOUS_POINT_ROOT => StatePoint#data_point.fields}},
 %%      flowdata:set_field(Point, <<"__state">>, StatePoint#data_point.fields),
 %%   lager:notice("FunPoint is: ~p",[FunPoint]),
    case catch(faxe_lambda:execute(FunPoint, Fun)) of
@@ -254,7 +256,7 @@ maybe_emit(_, State = #state{}) ->
 do_emit(State = #state{buffer = Buff, tag_value = _TagVal}) ->
    Points0 = [
       maybe_rewrite_ts(
-         keep(Val, State),
+         Val,
          State)
       || {_Key, Val, _} <- Buff],
 
@@ -291,7 +293,7 @@ age_cleanup(State = #state{buffer = Buffer, max_age = Age}) ->
          end
       end,
    CleanedBuffer = lists:foldl(CleanFun, Buffer, Buffer),
-   lager:notice("aged: ~p", [length(Buffer) - length(CleanedBuffer)]),
+%%   lager:notice("aged: ~p", [length(Buffer) - length(CleanedBuffer)]),
    State#state{buffer = CleanedBuffer}.
 
 
@@ -305,22 +307,17 @@ start_age_timeout(#state{max_age = Age}) ->
 %%   lager:warning("age_interval = ~p",[Interval]),
    erlang:send_after(Interval, self(), age_timeout).
 
+-spec keep(#data_point{}, #state{}) -> #data_point{}.
 keep(DataPoint, #state{keep = []}) ->
    DataPoint;
 keep(DataPoint, #state{keep = FieldNames, keep_as = As0}) when is_list(FieldNames) ->
-   As =
-      case As0 of
-         undefined -> FieldNames;
-         _ -> As0
+   P0 = flowdata:with(DataPoint, FieldNames++[?TAG_ADDED, ?TAG_REMOVED]),
+   Out =
+   case As0 of
+      undefined -> P0;
+      _ -> flowdata:rename_fields(P0, FieldNames, As0)
    end,
-%%   lager:notice("keep from: ~p", [DataPoint]),
-   Fields = flowdata:fields(DataPoint, FieldNames++[?TAG_REMOVED, ?TAG_ADDED]),
-%%   lager:notice("want tp keep: ~p :: ~p as ~p",[FieldNames, Fields, Aliases]),
-   Point0 = DataPoint#data_point{fields = #{}, tags = #{}},
-   Zipped = lists:zip( As  ++ [?TAG_REMOVED, ?TAG_ADDED], Fields),
-   SetFields = [{K, V} || {K, V} <- Zipped, V /= undefined],
-   NewPoint0 = flowdata:set_fields(Point0, SetFields),
-   NewPoint0.
+   Out.
 
 maybe_rewrite_ts(Point, #state{current_batch_start = undefined}) ->
    Point;
@@ -328,18 +325,17 @@ maybe_rewrite_ts(Point, #state{current_batch_start = Ts}) ->
    Point#data_point{ts = Ts}.
 
 add(Key, Point, S = #state{buffer = Buffer0, tag_added = false}) ->
-   {true, S#state{buffer = buffer_add(Key, Point, Buffer0)}};
+   {true, S#state{buffer = buffer_add(Key, keep(Point, S), Buffer0)}};
 add(Key, Point, S = #state{buffer = Buffer0, tag_added = true, tag_value = Tag}) ->
-%%   {true, S#state{buffer = [{Key, flowdata:set_field(Point, ?TAG_ADDED, 1)} | Buffer0]}}.
-   {true, S#state{buffer = buffer_add(Key, flowdata:set_field(Point, ?TAG_ADDED, Tag), Buffer0)}}.
+   {true, S#state{buffer = buffer_add(Key, keep(flowdata:set_field(Point, ?TAG_ADDED, Tag), S), Buffer0)}}.
 
 do_update(Key, _OldPoint, NewPoint, State = #state{update_mode = ?UPDATE_MODE_REPLACE, buffer = Buff}) ->
-   State#state{buffer = buffer_update(Key, NewPoint, Buff)};
+   State#state{buffer = buffer_update(Key, keep(NewPoint, State), Buff)};
 do_update(Key, OldPoint, NewPoint, State = #state{update_mode = ?UPDATE_MODE_MERGE}) ->
-   merge(Key, OldPoint, NewPoint, State);
+   merge(Key, OldPoint, keep(NewPoint, State), State);
 do_update(Key, OldPoint, NewPoint, State = #state{update_mode = ?UPDATE_MODE_MERGE_REVERSE}) ->
    %% flip old and new points
-   merge(Key, NewPoint, OldPoint, State).
+   merge(Key, keep(NewPoint, State), OldPoint, State).
 
 merge(Key, P1, P2, State = #state{buffer = Buff}) ->
    Point = flowdata:merge_points([P1, P2]),

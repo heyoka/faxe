@@ -41,7 +41,7 @@ rewrite(#data_point{} = Point, FieldNames, TagNames, Aliases) ->
    TagVals = flowdata:tags(Point, TagNames),
    NewFields = [{K, V} || {K, V} <- lists:zip(Aliases, FieldVals), V /= undefined],
    NewTags = [{K, V} || {K, V} <- lists:zip(TagNames, TagVals), V /= undefined],
-   Point0 = Point#data_point{fields = #{}, tags = # {}},
+   Point0 = Point#data_point{fields = #{}, tags = #{}},
    NewPoint0 = flowdata:set_fields(Point0, NewFields),
    flowdata:set_tags(NewPoint0, NewTags).
 
