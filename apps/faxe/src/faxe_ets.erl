@@ -74,6 +74,8 @@ init([]) ->
    %% stores graph pid to component-pid list
    ok = new_table(graph_to_nodes, set),
 
+   ok = new_table(decoded_json, set),
+
    {ok, #state{}}.
 
 

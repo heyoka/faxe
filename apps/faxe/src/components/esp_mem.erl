@@ -31,9 +31,9 @@
 options() -> [
    {field, string, undefined},
    {type, string, <<"single">>},
-   {key, string, undefined},
+   {key, string, <<"StreamLookup">>},
    {default, any, undefined},
-   {default_json, is_set, false}
+   {default_json, is_set, true}
 ].
 
 check_options() ->

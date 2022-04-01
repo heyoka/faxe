@@ -32,7 +32,9 @@ options() ->
       {align, is_set},
       {fields, binary_list, [<<"val">>]},
       {format, atom, undefined},
-      {mode, string, <<"random">>}].
+      {mode, string, <<"random">>},
+      {tuple, tuple, {}}
+   ].
 
 init(NodeId, _Inputs,
     #{every := Every, type := Type, batch_size := BatchSize, align := Unit,

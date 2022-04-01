@@ -46,14 +46,17 @@ unregister_graph_nodes(GraphPid, ComponentPids) when is_pid(GraphPid), is_list(C
 
 get_graph_table() ->
   % get graph pid
-  {ok, GraphPid} = get_graph(self()),
-  case ets:lookup(graph_ets, GraphPid) of
-    [] ->
-      TableId = ets:new(graph_ets_table, [set, public,{read_concurrency,true},{write_concurrency,true}]),
-      ets:insert(graph_ets, {GraphPid, TableId}),
-      TableId;
-    [{GraphPid, Table}] ->
-      Table
+  case get_graph(self()) of
+    {ok, GraphPid} ->
+      case ets:lookup(graph_ets, GraphPid) of
+        [] ->
+          TableId = ets:new(graph_ets_table, [set, public,{read_concurrency,true},{write_concurrency,true}]),
+          ets:insert(graph_ets, {GraphPid, TableId}),
+          TableId;
+        [{GraphPid, Table}] ->
+          Table
+      end;
+    {error, What} -> {error, What}
   end.
 
 get_graph(ComponentPid) when is_pid(ComponentPid) ->

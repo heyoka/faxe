@@ -443,6 +443,8 @@ cparam(_, {_Type, Val}) -> Val;
 cparam(_, V) -> V.
 
 make_lambda_fun(LambdaString, FunParams, BinRefs) ->
+   lager:info("LambdaString: ~p",[LambdaString]),
+   lager:info("PArams+BinRefs: ~p",[{FunParams, BinRefs}]),
    {Bindings, _Index} = lists:foldl(
       fun(P, {Bindings, Index}) ->
          Bind = bind_lambda_param(lists:nth(Index, FunParams), P),
@@ -452,7 +454,7 @@ make_lambda_fun(LambdaString, FunParams, BinRefs) ->
       BinRefs
    ),
    F =  "fun(Point) -> " ++ Bindings ++ " fun() -> " ++ LambdaString ++ " end end.",
-%%   lager:notice("+++ lambda: ~p",[F]),
+   lager:notice("+++ lambda: ~p",[F]),
    Fun = parse_fun(F),
    Fun
 .

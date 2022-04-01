@@ -34,17 +34,17 @@
 wants() -> point.
 
 options() -> [
-   {from_address, binary, {email, from_address}},
-   {smtp_relay, binary, {email, smtp_relay}},
-   {smtp_user, any, {email, smtp_user}},
-   {smtp_pass, any, {email, smtp_pass}},
-   {smtp_port, integer, {email, smtp_port}},
-   {smtp_tls, is_set, {email, smtp_tls}},
-   {template, binary, {email, template}},
-   {to, string_list},
-   {subject, string},
-   {body, string_template, undefined},
-   {body_field, string, undefined}
+   {from_address, binary,           {email, from_address}},
+   {smtp_relay,   binary,           {email, smtp_relay}  },
+   {smtp_user,    any,              {email, smtp_user}   },
+   {smtp_pass,    any,              {email, smtp_pass}   },
+   {smtp_port,    integer,          {email, smtp_port}   },
+   {smtp_tls,     is_set,           {email, smtp_tls}    },
+   {template,     binary,           {email, template}    },
+   {to,           string_list                            },
+   {subject,      string                                 },
+   {body,         string_template,  undefined            },
+   {body_field,   string, undefined                      }
 ].
 
 check_options() ->
@@ -57,7 +57,6 @@ check_email(Address) when is_list(Address) ->
    lists:all(fun(A) -> email_address:is_valid(A) end, Address);
 check_email(Address) when is_binary(Address) ->
    email_address:is_valid(Address).
-
 
 
 init({FId, _N} = NodeId, _Ins, #{

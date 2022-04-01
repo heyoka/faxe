@@ -405,8 +405,19 @@ build_node_subscriptions(Graph, Node, Nodes, FlowMode) ->
    {Inports, Subscriptions}.
 
 -spec start_async(list({binary(), atom(), pid()}), list(), push|pull, binary()) -> ok.
-start_async(Nodes, Subscriptions, RunMode, Id) ->
+start_async(Nodes0, Subscriptions, RunMode, Id) ->
    %% start the nodes with subscriptions
+   %% do we have mem nodes present ? then sync start them first
+   {Mems, Others} = lists:partition(fun(#node{component = Comp}) -> Comp =:= esp_mem end, Nodes0),
+   %% mem nodes first
+   lists:foreach(
+      fun(#node{id = NodeId, component = Comp, pid = NPid}) ->
+         {Inputs, Subs} = proplists:get_value(NodeId, Subscriptions),
+         df_subscription:save_subscriptions({Id, NodeId}, Subs),
+         node_metrics:setup(Id, NodeId, Comp),
+         df_component:start_node(NPid, Inputs, RunMode)
+      end,
+      Mems),
    lists:foreach(
       fun(#node{id = NodeId, component = Comp, pid = NPid}) ->
          {Inputs, Subs} = proplists:get_value(NodeId, Subscriptions),
@@ -414,9 +425,9 @@ start_async(Nodes, Subscriptions, RunMode, Id) ->
          node_metrics:setup(Id, NodeId, Comp),
          df_component:start_async(NPid, Inputs, RunMode)
       end,
-      Nodes),
+      Others),
    %% if in pull mode, initially let all components send requests to their producers
-   maybe_initial_pull(RunMode, Nodes).
+   maybe_initial_pull(RunMode, Nodes0).
 
 clone_and_start_subgraph(FromVertex, State = #state{subgraphs = Subgraphs, graph = G, nodes = Nodes})
       when not is_map_key(FromVertex, Subgraphs) ->

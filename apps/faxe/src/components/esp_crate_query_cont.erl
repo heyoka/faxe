@@ -61,7 +61,7 @@ options() ->
       {user, string, {crate, user}},
       {pass, string, {crate, user}},
       {database, string, {crate, database}},
-      {query, string},
+      {query, any},
       {filter_time_field, string, <<"ts">>},
       {result_time_field, string, undefined},
       {offset, duration, <<"20s">>},
@@ -77,14 +77,18 @@ check_options() ->
    [
       {one_of, result_type, [<<"batch">>, <<"point">>]},
       %% check for valid select statement
-      {func, query, fun faxe_util:check_select_statement/1, <<" seems not to be a valid sql select statement">>},
+      {func, query,
+         fun
+            (SF) when is_function(SF) -> true;
+            (S)->  faxe_util:check_select_statement(S)
+         end,
+         <<" seems not to be a valid sql select statement">>},
       %% check if timefilter key is used in query
       {func, query,
-         fun(Select) ->
-            case binary:match(Select, ?TIMEFILTER_KEY) of
-               nomatch -> false;
-               _ -> true
-            end
+         fun
+            (Select) when is_binary(Select) ->
+               check_timefilter(Select);
+            (SF) when is_function(SF) -> true
          end,
          <<" timefilter key '", ?TIMEFILTER_KEY/binary, "' missing in query">>
       },
@@ -113,6 +117,9 @@ check_options() ->
          <<" seems not to be a ISO8601 datetime string">>
       }
    ].
+
+check_timefilter(Query) ->
+   binary:match(Query, ?TIMEFILTER_KEY) /= nomatch.
 
 metrics() ->
    [
@@ -245,10 +252,18 @@ prepare_start(State = #state{start = Start0, period = Period0, stop = Stop0}) ->
    State#state{start = Start, stop = Stop, period = Period, query_mark = QueryMark}.
 
 
+setup_query(#{query := Q0, filter_time_field := _FilterTimeField}=QM, S=#state{}) when is_function(Q0) ->
+   Q1 = faxe_lambda:execute(#data_point{}, Q0),
+   case check_timefilter(Q1) of
+      false -> error("Timefilter not found in statement !");
+      true -> ok
+   end,
+   setup_query(QM#{query => Q1}, S);
 setup_query(#{query := Q0, filter_time_field := FilterTimeField}, S=#state{}) ->
-%%   lager:notice("QUERY: ~p",[Q0]),
+   lager:notice("QUERY: ~p",[Q0]),
    Q = faxe_util:clean_query(Q0),
    Query = build_query(Q, FilterTimeField),
+   lager:notice("FINAL QUERY: ~p",[Query]),
    S#state{query = Query}.
 
 setup_query_start(S=#state{start = Start}) ->

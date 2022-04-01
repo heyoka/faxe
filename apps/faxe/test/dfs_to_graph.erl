@@ -20,25 +20,25 @@ unknown_opt_test() ->
   Expected = {error,"Unknown option 'ls_mem' for node 'debug'"},
   ?assertEqual(Expected, compile_helper("unknown_options_test.dfs")).
 
-batch_test() ->
-  Expected =   #{edges =>
-  [{<<"value_emitter1">>,1,<<"batch2">>,1,[]},
-    {<<"batch2">>,1,<<"debug3">>,1,[]}],
-    nodes =>
-    [{<<"debug3">>,esp_debug,
-      #{'_name' => <<"debug3">>,level => <<"warning">>}},
-      {<<"batch2">>,esp_batch,
-        #{'_name' => <<"batch2">>,size => 5,
-          timeout => <<"5750ms">>}},
-      {<<"value_emitter1">>,esp_value_emitter,
-        #{'_name' => <<"value_emitter1">>,align => false,
-          batch_size => 5,every => <<"8000ms">>,
-          fields => [<<"val">>],
-          format => undefined,jitter => <<"3700ms">>,
-          mode => <<"random">>,type => point}}]}
-
-  ,
-  ?assertEqual(Expected, compile_helper("batch_test.dfs")).
+%%batch_test() ->
+%%  Expected =   #{edges =>
+%%  [{<<"value_emitter1">>,1,<<"batch2">>,1,[]},
+%%    {<<"batch2">>,1,<<"debug3">>,1,[]}],
+%%    nodes =>
+%%    [{<<"debug3">>,esp_debug,
+%%      #{'_name' => <<"debug3">>,level => <<"warning">>}},
+%%      {<<"batch2">>,esp_batch,
+%%        #{'_name' => <<"batch2">>,size => 5,
+%%          timeout => <<"5750ms">>}},
+%%      {<<"value_emitter1">>,esp_value_emitter,
+%%        #{'_name' => <<"value_emitter1">>,align => false,
+%%          batch_size => 5,every => <<"8000ms">>,
+%%          fields => [<<"val">>],
+%%          format => undefined,jitter => <<"3700ms">>,
+%%          mode => <<"random">>,type => point}}]}
+%%
+%%  ,
+%%  ?assertEqual(Expected, compile_helper("batch_test.dfs")).
 
 
 
