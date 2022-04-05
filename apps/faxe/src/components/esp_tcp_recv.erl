@@ -53,10 +53,11 @@
 -define(RECON_MAX_RETRIES, infinity).
 
 options() -> [
-  {ip, binary}, {port, integer},
+  {ip, binary},
+  {port, integer},
   {as, binary, <<"data">>}, %% alias for fieldname
   {extract, is_set}, %% overrides as
-  {parser, atom, undefined}, %% parser module to use
+  {parser, string, undefined}, %% parser module to use
   {changed, is_set, false}, %% only emit, when new data is different to previous
   {packet, integer, 2}
                       %% 1 | 2 | 4
@@ -66,7 +67,11 @@ options() -> [
 ].
 
 check_options() ->
-  [{one_of, packet, [1, 2, 4]}].
+  [{one_of, packet, [1, 2, 4]},
+    {func, parser,
+      fun esp_parser:parser_check/1,
+      <<" has not a valid parser-name">>
+    }].
 
 metrics() ->
   [
@@ -74,9 +79,10 @@ metrics() ->
   ].
 
 init(NodeId, _Ins,
-    #{ip := Ip, port := Port, as := As, parser := Parser, extract := Extract, changed := Changed, packet := Packet}) ->
+    #{ip := Ip, port := Port, as := As, parser := Parser0, extract := Extract, changed := Changed, packet := Packet}) ->
   Reconnector = faxe_backoff:new(
     {?RECON_MIN_INTERVAL, ?RECON_MAX_INTERVAL, ?RECON_MAX_RETRIES}),
+  Parser = faxe_util:save_binary_to_atom(Parser0),
   {ok, Reconnector1} = faxe_backoff:execute(Reconnector, do_reconnect),
   reconnect_watcher:new(20000, 15, io_lib:format("~s:~p ~p",[Ip, Port, ?MODULE])),
   connection_registry:reg(NodeId, Ip, Port, <<"tcp">>),

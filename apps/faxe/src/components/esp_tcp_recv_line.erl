@@ -14,7 +14,7 @@
 
 -include("faxe.hrl").
 %% API
--export([init/3, process/3, options/0, handle_info/2, shutdown/1, metrics/0]).
+-export([init/3, process/3, options/0, handle_info/2, shutdown/1, metrics/0, check_options/0]).
 
 -record(state, {
   ip,
@@ -58,6 +58,14 @@ options() -> [
   {changed, is_set}
 ].
 
+check_options() ->
+  [
+    {func, parser,
+      fun esp_parser:parser_check/1,
+      <<" has not a valid parser-name">>
+    }
+  ].
+
 metrics() ->
   [
     {?METRIC_BYTES_READ, meter, []}
@@ -65,11 +73,12 @@ metrics() ->
 
 init(NodeId, _Ins,
     #{ip := Ip, port := Port, as := As, extract := Extract, changed := Changed,
-      line_delimiter := Delimit, parser := Parser, min_length := MinL}) ->
+      line_delimiter := Delimit, parser := Parser0, min_length := MinL}) ->
   Reconnector = faxe_backoff:new({?RECON_MIN_INTERVAL, ?RECON_MAX_INTERVAL, ?RECON_MAX_RETRIES}),
   {ok, Reconnector1} = faxe_backoff:execute(Reconnector, do_reconnect),
   reconnect_watcher:new(20000, 15, io_lib:format("~s:~p ~p",[Ip, Port, ?MODULE])),
   connection_registry:reg(NodeId, Ip, Port, <<"tcp">>),
+  Parser = faxe_util:save_binary_to_atom(Parser0),
   {ok, all,
     #state{ip = Ip, port = Port, as = As, extract = Extract, parser = Parser, min_length = MinL,
       reconnector = Reconnector1, line_delimiter = Delimit, changes = Changed, fn_id = NodeId}}.
