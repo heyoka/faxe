@@ -362,7 +362,7 @@ convert_options(NodeName, NodeOptions, Params) ->
                C = [convert(N, T, [PV]) || {{N, T}, PV} <- Zipped],
                [{Name, C} | Acc];
             {_Name, _Type} when PVals == {list, []} ->
-%%               lager:info("~nconvert_list(~p, ~p, ~p)",[Name, Type, PVals]),
+%%               lager:info("~nconvert_list(~p, ~p, ~p)",[_Name, _Type, PVals]),
                Acc;
             {Name, Type} ->
 %%               lager:info("~nconvert(~p, ~p, ~p)",[Name, Type, PVals]),
@@ -377,7 +377,7 @@ convert_options(NodeName, NodeOptions, Params) ->
 
 -spec convert(binary(), atom(), list()) -> tuple().
 convert(Name, Type, PVals) ->
-%%   lager:notice("convert(~p,~p,~p)",[Name, Type, PVals]),
+%%   lager:notice("start convert(~p,~p,~p)",[Name, Type, PVals]),
    TName = erlang:atom_to_binary(Type, utf8),
 %%   lager:warning("converted: ~p",[TName]),
    case estr:str_ends_with(TName, <<"list">>) of
@@ -404,6 +404,7 @@ list_params(Type, Vals) ->
    lists:foldl(
       fun
          (Val, Acc) ->
+%%            lager:info("~p lists_params(E) -> ~p",[Type, Val]),
             Acc ++ [list_param(Type, Val)]
       end,
       [],
@@ -428,6 +429,12 @@ list_param(atom_list, Val) ->
    cparam(atom, Val);
 list_param(lambda_list, Val) ->
    cparam(lambda, Val);
+list_param(tuple, Val) ->
+%%   lager:notice("list_param TUPLE: ~p",[Val]),
+   cparam(tuple, Val);
+list_param(tuple_list, Val) ->
+%%   lager:notice("list_param TUPLE_LIST: ~p",[Val]),
+   cparam(tuple, Val);
 list_param(_Type, Val) ->
    cparam(any, Val).
 
@@ -438,13 +445,25 @@ cparam(binary, {string, Val}) -> Val;
 cparam(_, {lambda, Fun, BinRefs, FunRefs}) -> make_lambda_fun(Fun, FunRefs, BinRefs);
 cparam(lambda, Fun) -> Fun;
 cparam(list, {_T, Val}) -> [Val];
+cparam(tuple, {_T, Vals}=_V) when is_list(Vals)->
+%%   lager:notice("cparam tuple: value are: ~p",[Vals]),
+   Res =
+   lists:map(
+      fun
+         ({InnerType, _Line, InnerValue}) when is_list(InnerValue) -> list_params(InnerType, InnerValue);
+         ({InnerType, _Line, InnerValue}) -> cparam(InnerType, InnerValue);
+         ({InnerType, InnerValue}) when is_list(InnerValue) -> list_params(InnerType, InnerValue);
+         ({InnerType, InnerValue}) -> cparam(InnerType, InnerValue)
+      end,
+      Vals
+   ),
+%%   lager:notice("cparam tuple gave:~p",[list_to_tuple(Res)]),
+   list_to_tuple(Res);
 %%cparam(integer, {_T, Val}) -> Val;
 cparam(_, {_Type, Val}) -> Val;
 cparam(_, V) -> V.
 
 make_lambda_fun(LambdaString, FunParams, BinRefs) ->
-   lager:info("LambdaString: ~p",[LambdaString]),
-   lager:info("PArams+BinRefs: ~p",[{FunParams, BinRefs}]),
    {Bindings, _Index} = lists:foldl(
       fun(P, {Bindings, Index}) ->
          Bind = bind_lambda_param(lists:nth(Index, FunParams), P),
@@ -454,7 +473,7 @@ make_lambda_fun(LambdaString, FunParams, BinRefs) ->
       BinRefs
    ),
    F =  "fun(Point) -> " ++ Bindings ++ " fun() -> " ++ LambdaString ++ " end end.",
-   lager:notice("+++ lambda: ~p",[F]),
+%%   lager:notice("+++ lambda: ~p",[F]),
    Fun = parse_fun(F),
    Fun
 .

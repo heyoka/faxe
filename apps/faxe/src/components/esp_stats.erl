@@ -66,7 +66,9 @@ process(_Inport, #data_point{ts = Ts} = Point,
             end,
             %% reset buffer
             State#state{buffer = [{Ts, flowdata:field(Point, F)}], buffer_time = Ts};
-         false -> lager:info("~p TS < BufferTime", [?MODULE]), State
+         false ->
+%%            lager:info("~p TS < BufferTime", [?MODULE]),
+            State
       end,
 %%   lager:info("~p buffer: ~p", [?MODULE, NewState#state.buffer]),
    {ok, NewState}.

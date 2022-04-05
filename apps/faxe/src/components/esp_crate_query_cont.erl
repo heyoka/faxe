@@ -185,7 +185,6 @@ handle_info({'EXIT', _C, Reason}, State = #state{}) ->
 handle_info(reconnect, State) ->
    {ok, connect(State)};
 handle_info(What, State) ->
-   lager:warning("++other info : ~p",[What]),
    {ok, State}.
 
 shutdown(#state{client = C, stmt = _Stmt} = S) ->
@@ -260,10 +259,9 @@ setup_query(#{query := Q0, filter_time_field := _FilterTimeField}=QM, S=#state{}
    end,
    setup_query(QM#{query => Q1}, S);
 setup_query(#{query := Q0, filter_time_field := FilterTimeField}, S=#state{}) ->
-   lager:notice("QUERY: ~p",[Q0]),
    Q = faxe_util:clean_query(Q0),
    Query = build_query(Q, FilterTimeField),
-   lager:notice("FINAL QUERY: ~p",[Query]),
+%%   lager:notice("QUERY: ~p",[Query]),
    S#state{query = Query}.
 
 setup_query_start(S=#state{start = Start}) ->
@@ -280,7 +278,7 @@ start_setup(S=#state{setup_start = false}) ->
 start_setup(S=#state{start = Start, client = Client}) ->
    Res = epgsql:equery(Client, Start),
    {ok,[_TsCol],[{TimeStampString}]} = Res,
-   lager:info("got datetime from db: ~p",[TimeStampString]),
+   lager:debug("got datetime from db: ~p",[TimeStampString]),
    Out = prepare_start(S#state{start = TimeStampString, setup_start = false}),
 %%   lager:notice("after start_setup: ~p",[lager:pr(Out, ?MODULE)]),
    Out

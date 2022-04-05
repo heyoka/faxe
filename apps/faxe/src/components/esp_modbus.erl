@@ -220,10 +220,10 @@ handle_disconnect(Reader, State = #state{readers = Readers, timer = Timer}) ->
    case Readers0 of
       [] ->
          connection_registry:disconnected(),
-         lager:warning("All Modbus readers are disconnected!!, stop polling ....", []),
+         lager:notice("All Modbus readers are disconnected!!, stop polling ....", []),
          {ok, State#state{timer = faxe_time:timer_cancel(Timer), connected = false, readers = Readers0}};
       [_R|_] ->
-         lager:info("Modbus reader ~p disconnected!!, readers left ~p", [Reader, length(Readers0)]),
+%%         lager:info("Modbus reader ~p disconnected!!, readers left ~p", [Reader, length(Readers0)]),
          {ok, State#state{timer = faxe_time:timer_next(Timer), readers = Readers0}}
    end.
 
@@ -360,7 +360,7 @@ start_connections(State = #state{ip = Ip, port = Port, device_address = Dev, req
       end,
       lists:seq(1, ConnNum)
    ),
-   lager:info("started ~p reader connections -> ~p",[ConnNum, Procs]),
+%%   lager:info("started ~p reader connections -> ~p",[ConnNum, Procs]),
    State#state{num_readers = ConnNum, reader_processes = Procs}.
 
 unique(List) when is_list(List) ->

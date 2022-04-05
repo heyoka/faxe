@@ -30,6 +30,8 @@
 -define(TAG_ADDED, <<"added">>).
 -define(TAG_REMOVED, <<"removed">>).
 
+-define(MIN_AGING_INTERVAL, 5*60*1000).
+
 -record(state, {
    node_id,
    buffer = undefined, %% holds a proplist with {key, point} -> current collection buffer
@@ -303,8 +305,7 @@ maybe_start_emit_timeout(#state{emit_interval = Intv}) ->
    erlang:send_after(Intv, self(), emit_timeout).
 
 start_age_timeout(#state{max_age = Age}) ->
-   Interval = erlang:round(Age/3),
-%%   lager:warning("age_interval = ~p",[Interval]),
+   Interval = erlang:min(erlang:round(Age/3), ?MIN_AGING_INTERVAL),
    erlang:send_after(Interval, self(), age_timeout).
 
 -spec keep(#data_point{}, #state{}) -> #data_point{}.

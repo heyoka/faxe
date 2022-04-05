@@ -62,7 +62,7 @@ process(_In, #data_batch{points = _Points} = _Batch, _State = #state{lambdas = _
    {error, not_implemented};
 
 process(_Inport, #data_point{} = Point, State = #state{current_index = Index, lambdas = Lambdas}) ->
-   lager:notice("in on port :~p~n~p",[_Inport, lager:pr(Point, ?MODULE)]),
+%%   lager:notice("in on port :~p~n~p",[_Inport, lager:pr(Point, ?MODULE)]),
    case exec(Point, lists:nth(Index, Lambdas)) of
       true -> eval_true(Point, State);
       false -> eval_false(State)
@@ -70,7 +70,7 @@ process(_Inport, #data_point{} = Point, State = #state{current_index = Index, la
 
 
 handle_info(state_timeout, State = #state{}) ->
-   lager:warning("state_timeout when index: ~p",[State#state.current_index]),
+%%   lager:warning("state_timeout when index: ~p",[State#state.current_index]),
    {ok, reset(State)};
 handle_info(_R, State) ->
    {ok, State}.
@@ -78,19 +78,20 @@ handle_info(_R, State) ->
 exec(Point, LFun) -> faxe_lambda:execute_bool(Point, LFun).
 
 eval_true(Point, State = #state{current_index = Current, tref = TRef, lambdas = Lambdas, durations = DurList}) ->
-   lager:info("ok, go to next state from (~p)" , [Current]),
+%%   lager:info("ok, go to next state from (~p)" , [Current]),
    catch (erlang:cancel_timer(TRef)),
    case Current == length(Lambdas) of
-      true -> lager:notice("done, reset !"),
+      true ->
+%%         lager:notice("done, reset !"),
          {emit, Point, reset(State)};
       false ->
-         lager:notice("start timeout: ~p", [lists:nth(Current, DurList)]),
+%%         lager:notice("start timeout: ~p", [lists:nth(Current, DurList)]),
          Timer = erlang:send_after(lists:nth(Current, DurList), self(), state_timeout),
          {ok, State#state{current_index = Current + 1, tref = Timer}}
    end.
 
 eval_false(State = #state{is_strict = true}) ->
-   lager:notice("strict, no match: reset!"),
+%%   lager:notice("strict, no match: reset!"),
    {ok, reset(State)};
 eval_false(State) ->
    {ok, State}.
