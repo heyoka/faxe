@@ -53,7 +53,7 @@ options() -> [
   {extract, is_set}, %% extract the parsed message into the fields list of data_point{} ?
   %% "extract" will always override "as"
   {line_delimiter, binary, $\n}, %% not used at the moment
-  {parser, atom, undefined}, %% parser module to use
+  {parser, string, undefined}, %% parser module to use
   {min_length, integer, 61}, %% lines shorter than min_length bytes will be ignored
   {changed, is_set}
 ].
@@ -61,7 +61,10 @@ options() -> [
 check_options() ->
   [
     {func, parser,
-      fun esp_parser:parser_check/1,
+      fun
+        (undefined) -> true;
+        (ParserName) -> esp_parser:parser_check(ParserName)
+      end,
       <<" has not a valid parser-name">>
     }
   ].
@@ -78,7 +81,7 @@ init(NodeId, _Ins,
   {ok, Reconnector1} = faxe_backoff:execute(Reconnector, do_reconnect),
   reconnect_watcher:new(20000, 15, io_lib:format("~s:~p ~p",[Ip, Port, ?MODULE])),
   connection_registry:reg(NodeId, Ip, Port, <<"tcp">>),
-  Parser = faxe_util:save_binary_to_atom(Parser0),
+  Parser = case Parser0 of undefined -> undefined; _ -> faxe_util:save_binary_to_atom(Parser0) end,
   {ok, all,
     #state{ip = Ip, port = Port, as = As, extract = Extract, parser = Parser, min_length = MinL,
       reconnector = Reconnector1, line_delimiter = Delimit, changes = Changed, fn_id = NodeId}}.

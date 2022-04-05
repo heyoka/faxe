@@ -29,7 +29,7 @@
 options() -> [
   {field, binary},
   {as, binary, <<"data">>}, %% alias for fieldname
-  {parser, any, undefined}, %% parser module to use
+  {parser, string}, %% parser module to use
   {changed, is_set, false} %% only emit, when new data is different to previous
 ].
 
@@ -47,7 +47,8 @@ parser_check(ParserName) when is_binary(ParserName) ->
     true -> erlang:function_exported(Pars, parse, 1);
     false -> false
   end;
-parser_check(_) -> false.
+parser_check(_) ->
+  false.
 
 wants() -> point.
 emits() -> point.

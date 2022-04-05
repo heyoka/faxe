@@ -69,7 +69,10 @@ options() -> [
 check_options() ->
   [{one_of, packet, [1, 2, 4]},
     {func, parser,
-      fun esp_parser:parser_check/1,
+      fun
+        (undefined) -> true;
+        (ParserName) -> esp_parser:parser_check(ParserName)
+      end,
       <<" has not a valid parser-name">>
     }].
 
@@ -82,7 +85,7 @@ init(NodeId, _Ins,
     #{ip := Ip, port := Port, as := As, parser := Parser0, extract := Extract, changed := Changed, packet := Packet}) ->
   Reconnector = faxe_backoff:new(
     {?RECON_MIN_INTERVAL, ?RECON_MAX_INTERVAL, ?RECON_MAX_RETRIES}),
-  Parser = faxe_util:save_binary_to_atom(Parser0),
+  Parser = case Parser0 of undefined -> undefined; _ -> faxe_util:save_binary_to_atom(Parser0) end,
   {ok, Reconnector1} = faxe_backoff:execute(Reconnector, do_reconnect),
   reconnect_watcher:new(20000, 15, io_lib:format("~s:~p ~p",[Ip, Port, ?MODULE])),
   connection_registry:reg(NodeId, Ip, Port, <<"tcp">>),
