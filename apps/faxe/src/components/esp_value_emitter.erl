@@ -27,13 +27,12 @@ options() ->
    [
       {every, duration, <<"5s">>},
       {jitter, duration, <<"0ms">>},
-      {type, atom, point},
+      {type, any, point},
       {batch_size, integer, 5},
       {align, is_set},
       {fields, binary_list, [<<"val">>]},
       {format, atom, undefined},
-      {mode, string, <<"random">>},
-      {tuple, tuple, {}}
+      {mode, string, <<"random">>}
    ].
 
 init(NodeId, _Inputs,
@@ -47,7 +46,7 @@ init(NodeId, _Inputs,
    JT = faxe_time:duration_to_ms(Jitter),
    EveryMs = faxe_time:duration_to_ms(Every),
    State = #state{node_id = NodeId, every = EveryMs, fields = Fields, mode = Mode,
-      type = Type, batch_size = BatchSize, align = NUnit, format = Fmt, jitter = JT},
+      type = type(Type), batch_size = BatchSize, align = NUnit, format = Fmt, jitter = JT},
 
    erlang:send_after(EveryMs, self(), values),
    rand:seed(exs1024s),
@@ -124,3 +123,9 @@ count(K) ->
    Val = case get(K) of undefined -> 0; V -> V end,
    put(K, Val+1),
    Val.
+
+type(<<"point">>) -> point;
+type(<<"batch">>) -> batch;
+type(point) -> point;
+type(batch) -> batch;
+type(_) -> point.

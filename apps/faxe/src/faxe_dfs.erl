@@ -210,6 +210,7 @@ component_options(Component, _NOpts, NodeName) ->
 eval_options([], Acc) ->
    Acc;
 eval_options([{OptName, OptType, CKey}|Opts], Acc) when is_tuple(CKey) ->
+%%   lager:info("call conf_val with: ~p for: ~p with Acc: ~p", [CKey, {OptName, OptType, CKey}, Acc]),
    OptVal = conf_val(CKey),
    eval_options(Opts, Acc ++ [{OptName, OptType, OptVal}]);
 eval_options([Opt|Opts], Acc) ->
