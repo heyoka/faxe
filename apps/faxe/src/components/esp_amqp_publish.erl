@@ -144,12 +144,12 @@ start_connection(State = #state{opts = Opts, queue = Q}) ->
    State#state{client = Pid}.
 
 key(#data_batch{points = [P1 | _]}, #state{rk_lambda = undefined, routing_key = undefined, rk_field = Field}) ->
-   flowdata:field(P1, Field);
+   faxe_util:to_rkey(flowdata:field(P1, Field));
 key(#data_point{} = P, #state{rk_lambda = undefined, routing_key = undefined, rk_field = Field}) ->
-   flowdata:field(P, Field);
+   faxe_util:to_rkey(flowdata:field(P, Field));
 key(_Item, #state{rk_lambda = undefined, routing_key = Topic}) ->
    Topic;
 key(#data_batch{points = [P1 | _]}, #state{rk_lambda = Fun}) ->
-   faxe_lambda:execute(P1, Fun);
+   faxe_util:to_rkey(faxe_lambda:execute(P1, Fun));
 key(#data_point{} = P, #state{rk_lambda = Fun}) ->
-   faxe_lambda:execute(P, Fun).
+   faxe_util:to_rkey(faxe_lambda:execute(P, Fun)).

@@ -73,10 +73,10 @@ options() -> [
    {vhost, string, <<"/">>},
    {routing_key, string, undefined},
    {bindings, string_list, undefined},
-   {queue, string},
+   {queue, string, undefined},
    {queue_prefix, string, {rabbitmq, queue_prefix}},
    {consumer_tag, string, undefined},
-   {exchange, string},
+   {exchange, string, undefined},
    {root_exchange, string, {rabbitmq, root_exchange}},
    {exchange_prefix, string, {rabbitmq, exchange_prefix}},
    {prefetch, integer, 70},
@@ -104,8 +104,8 @@ metrics() ->
    ].
 
 init({GraphId, NodeId} = Idx, _Ins,
-   #{ host := Host0, port := Port, user := _User, pass := _Pass, vhost := _VHost, queue := Q,
-      exchange := Ex, prefetch := Prefetch, routing_key := RoutingKey0, bindings := Bindings0,
+   #{ host := Host0, port := Port, user := _User, pass := _Pass, vhost := _VHost, queue := Q0,
+      exchange := Ex0, prefetch := Prefetch, routing_key := RoutingKey0, bindings := Bindings0,
       dt_field := DTField, dt_format := DTFormat, ssl := _UseSSL, include_topic := IncludeTopic,
       topic_as := TopicKey, ack_every := AckEvery0, ack_after := AckTimeout0, as := As, consumer_tag := CTag0,
       queue_prefix := QPrefix, root_exchange := RExchange, exchange_prefix := XPrefix
@@ -114,11 +114,13 @@ init({GraphId, NodeId} = Idx, _Ins,
    dedup_size := DedupSize
    } = Opts0) ->
 
+   Q = eval_name(Q0, Opts0),
+   Ex = eval_name(Ex0, Opts0),
    process_flag(trap_exit, true),
    AckTimeout = faxe_time:duration_to_ms(AckTimeout0),
    CTag = case CTag0 of undefined -> <<"c_", GraphId/binary, "-", NodeId/binary>>; _ -> CTag0 end,
    Host = binary_to_list(Host0),
-   lager:info("opts before: ~p",[Opts0]),
+%%   lager:info("opts before: ~p",[Opts0]),
    Opts = Opts0#{
       host => Host, consumer_tag => CTag,
       exchange => faxe_util:prefix_binary(Ex, XPrefix),
@@ -127,7 +129,7 @@ init({GraphId, NodeId} = Idx, _Ins,
       routing_key => faxe_util:to_rkey(RoutingKey0),
       bindings => faxe_util:to_rkey(Bindings0)
    },
-   lager:info("opts: ~p",[Opts]),
+%%   lager:info("opts: ~p",[Opts]),
    State = #state{
       include_topic = IncludeTopic, topic_key = TopicKey, as = As, dedup_queue = memory_queue:new(DedupSize),
       opts = Opts, prefetch = Prefetch, ack_every = AckEvery0, ack_after = AckTimeout, flow_ack = FlowAck,
@@ -136,7 +138,8 @@ init({GraphId, NodeId} = Idx, _Ins,
    NewState = maybe_init_q(State),
 
    connection_registry:reg(Idx, Host, Port, <<"amqp">>),
-   {ok, start_consumer(NewState)}.
+%%   {ok, start_consumer(NewState)}.
+   {ok, NewState}.
 
 maybe_init_q(State = #state{safe_mode = false}) ->
    State;
@@ -299,3 +302,15 @@ consumer_config(Opts = #{vhost := VHost, queue := Q, consumer_tag := ConsumerTag
       maps:to_list(Opts) ++ [{ssl_opts, faxe_config:get_amqp_ssl_opts()}], Config),
 %%   lager:warning("giving carrot these Configs: ~p", [Props]),
    Props.
+
+
+eval_name(undefined, Opts) ->
+   binding_key(Opts);
+eval_name(Name, _Opts) when is_binary(Name) ->
+   Name.
+
+
+binding_key(#{bindings := Bindings, routing_key := undefined}) ->
+   iolist_to_binary(lists:join(<<"-">>, Bindings));
+binding_key(#{bindings := undefined, routing_key := RKey}) ->
+   RKey.
