@@ -105,7 +105,7 @@ metrics() ->
 
 init({GraphId, NodeId} = Idx, _Ins,
    #{ host := Host0, port := Port, user := _User, pass := _Pass, vhost := _VHost, queue := Q,
-      exchange := Ex, prefetch := Prefetch, routing_key := _RoutingKey, bindings := _Bindings,
+      exchange := Ex, prefetch := Prefetch, routing_key := RoutingKey0, bindings := Bindings0,
       dt_field := DTField, dt_format := DTFormat, ssl := _UseSSL, include_topic := IncludeTopic,
       topic_as := TopicKey, ack_every := AckEvery0, ack_after := AckTimeout0, as := As, consumer_tag := CTag0,
       queue_prefix := QPrefix, root_exchange := RExchange, exchange_prefix := XPrefix
@@ -118,12 +118,16 @@ init({GraphId, NodeId} = Idx, _Ins,
    AckTimeout = faxe_time:duration_to_ms(AckTimeout0),
    CTag = case CTag0 of undefined -> <<"c_", GraphId/binary, "-", NodeId/binary>>; _ -> CTag0 end,
    Host = binary_to_list(Host0),
+   lager:info("opts before: ~p",[Opts0]),
    Opts = Opts0#{
       host => Host, consumer_tag => CTag,
       exchange => faxe_util:prefix_binary(Ex, XPrefix),
       root_exchange => faxe_util:prefix_binary(RExchange, XPrefix),
-      queue => faxe_util:prefix_binary(Q, QPrefix)
+      queue => faxe_util:prefix_binary(Q, QPrefix),
+      routing_key => faxe_util:to_rkey(RoutingKey0),
+      bindings => faxe_util:to_rkey(Bindings0)
    },
+   lager:info("opts: ~p",[Opts]),
    State = #state{
       include_topic = IncludeTopic, topic_key = TopicKey, as = As, dedup_queue = memory_queue:new(DedupSize),
       opts = Opts, prefetch = Prefetch, ack_every = AckEvery0, ack_after = AckTimeout, flow_ack = FlowAck,
@@ -295,5 +299,3 @@ consumer_config(Opts = #{vhost := VHost, queue := Q, consumer_tag := ConsumerTag
       maps:to_list(Opts) ++ [{ssl_opts, faxe_config:get_amqp_ssl_opts()}], Config),
 %%   lager:warning("giving carrot these Configs: ~p", [Props]),
    Props.
-
-

@@ -76,7 +76,7 @@ init({_GraphId, _NodeId} = Idx, _Ins,
    Host = binary_to_list(Host0),
    Opts = Opts1#{host => Host},
 
-   State0 = #state{opts = Opts, exchange = Ex, routing_key = RoutingKey, rk_field = RkField,
+   State0 = #state{opts = Opts, exchange = Ex, routing_key = faxe_util:to_rkey(RoutingKey), rk_field = RkField,
       rk_lambda = RkLambda, safe_mode = SafeMode, use_internal_queue = UseInternalQueue, flowid_nodeid = Idx},
 
    State1 = maybe_start_queue(State0),
