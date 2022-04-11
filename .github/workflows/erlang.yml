@@ -17,6 +17,6 @@ jobs:
     steps:
     - uses: actions/checkout@v2
     - name: Compile
-      run: rebar3 compile
+      run: git config --global url."https://".insteadOf git:// && rebar3 compile
     - name: Run tests
       run: rebar3 do eunit
