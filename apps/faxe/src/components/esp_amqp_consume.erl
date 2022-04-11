@@ -73,6 +73,7 @@ options() -> [
    {vhost, string, <<"/">>},
    {routing_key, string, undefined},
    {bindings, string_list, undefined},
+   {qx_name, string, undefined},
    {queue, string, undefined},
    {queue_prefix, string, {rabbitmq, queue_prefix}},
    {consumer_tag, string, undefined},
@@ -105,7 +106,7 @@ metrics() ->
 
 init({GraphId, NodeId} = Idx, _Ins,
    #{ host := Host0, port := Port, user := _User, pass := _Pass, vhost := _VHost, queue := Q0,
-      exchange := Ex0, prefetch := Prefetch, routing_key := RoutingKey0, bindings := Bindings0,
+      exchange := Ex0, qx_name := _QxName, prefetch := Prefetch, routing_key := RoutingKey0, bindings := Bindings0,
       dt_field := DTField, dt_format := DTFormat, ssl := _UseSSL, include_topic := IncludeTopic,
       topic_as := TopicKey, ack_every := AckEvery0, ack_after := AckTimeout0, as := As, consumer_tag := CTag0,
       queue_prefix := QPrefix, root_exchange := RExchange, exchange_prefix := XPrefix
@@ -310,7 +311,9 @@ eval_name(Name, _Opts) when is_binary(Name) ->
    Name.
 
 
-binding_key(#{bindings := Bindings, routing_key := undefined}) ->
+binding_key(#{qx_name := QxName, bindings := undefined, routing_key := undefined}) when is_binary(QxName)->
+   QxName;
+binding_key(#{bindings := Bindings, routing_key := undefined}) when is_list(Bindings)->
    iolist_to_binary(lists:join(<<"-">>, Bindings));
-binding_key(#{bindings := undefined, routing_key := RKey}) ->
+binding_key(#{bindings := undefined, routing_key := RKey}) when is_binary(RKey) ->
    RKey.
