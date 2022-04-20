@@ -399,17 +399,20 @@ convert(Name, Type, PVals) ->
    end.
 
 list_params(Type, {list, Vals}) ->
-%%   lager:notice("~n ~p PVals: ~p", [Type, Vals]),
+   lager:notice("~n ~p PVals: ~p", [Type, Vals]),
    list_params(Type, Vals);
 list_params(Type, Vals) ->
-   lists:foldl(
-      fun
-         (Val, Acc) ->
-%%            lager:info("~p lists_params(E) -> ~p",[Type, Val]),
-            Acc ++ [list_param(Type, Val)]
-      end,
-      [],
-      Vals
+   lager:notice("list_params: ~p :: ~p",[Type, Vals]),
+   lists:flatten(
+      lists:foldl(
+         fun
+            (Val, Acc) ->
+   %%            lager:info("~p lists_params(E) -> ~p",[Type, Val]),
+               Acc ++ [list_param(Type, Val)]
+         end,
+         [],
+         Vals
+      )
    )
 .
 list_params({list, Vals}) -> Vals;
@@ -445,7 +448,9 @@ cparam(bool, {identifier, Val}) -> binary_to_atom(Val);
 cparam(binary, {string, Val}) -> Val;
 cparam(_, {lambda, Fun, BinRefs, FunRefs}) -> make_lambda_fun(Fun, FunRefs, BinRefs);
 cparam(lambda, Fun) -> Fun;
+cparam(list, {_T, Val}) when is_list(Val) -> lists:flatten(Val);
 cparam(list, {_T, Val}) -> [Val];
+%%cparam(list, {_T, Val}) -> lists:flatten([Val]);
 cparam(tuple, {_T, Vals}=_V) when is_list(Vals)->
 %%   lager:notice("cparam tuple: value are: ~p",[Vals]),
    Res =
@@ -461,7 +466,7 @@ cparam(tuple, {_T, Vals}=_V) when is_list(Vals)->
 %%   lager:notice("cparam tuple gave:~p",[list_to_tuple(Res)]),
    list_to_tuple(Res);
 %%cparam(integer, {_T, Val}) -> Val;
-cparam(_, {_Type, Val}) -> Val;
+cparam(_, {_Type, Val}) -> lager:notice("cparam _Type: ~p :: ~p",[_Type, Val]),Val;
 cparam(_, V) -> V.
 
 make_lambda_fun(LambdaString, FunParams, BinRefs) ->
