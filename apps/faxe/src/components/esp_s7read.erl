@@ -242,7 +242,6 @@ handle_info({'DOWN', _Mon, process, Client, _Info}, State = #state{client = Clie
   NewClient = setup_connection(Opts),
   {ok, State#state{client = NewClient, timer = NewTimer, connected = false}};
 handle_info(_E, S) ->
-  lager:warning("got unexpected info: ~p",[_E]),
   {ok, S#state{}}.
 
 shutdown(#state{timer = Timer, client = Client}) ->

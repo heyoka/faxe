@@ -399,10 +399,8 @@ convert(Name, Type, PVals) ->
    end.
 
 list_params(Type, {list, Vals}) ->
-   lager:notice("~n ~p PVals: ~p", [Type, Vals]),
    list_params(Type, Vals);
 list_params(Type, Vals) ->
-   lager:notice("list_params: ~p :: ~p",[Type, Vals]),
    lists:flatten(
       lists:foldl(
          fun
@@ -466,7 +464,7 @@ cparam(tuple, {_T, Vals}=_V) when is_list(Vals)->
 %%   lager:notice("cparam tuple gave:~p",[list_to_tuple(Res)]),
    list_to_tuple(Res);
 %%cparam(integer, {_T, Val}) -> Val;
-cparam(_, {_Type, Val}) -> lager:notice("cparam _Type: ~p :: ~p",[_Type, Val]),Val;
+cparam(_, {_Type, Val}) -> Val;
 cparam(_, V) -> V.
 
 make_lambda_fun(LambdaString, FunParams, BinRefs) ->
