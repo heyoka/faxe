@@ -139,8 +139,7 @@ init({GraphId, NodeId} = Idx, _Ins,
    NewState = maybe_init_q(State),
 
    connection_registry:reg(Idx, Host, Port, <<"amqp">>),
-%%   {ok, start_consumer(NewState)}.
-   {ok, NewState}.
+   {ok, start_consumer(NewState)}.
 
 maybe_init_q(State = #state{safe_mode = false}) ->
    State;
