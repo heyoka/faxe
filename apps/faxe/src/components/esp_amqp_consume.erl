@@ -115,11 +115,11 @@ init({GraphId, NodeId} = Idx, _Ins,
    dedup_size := DedupSize
    } = Opts0) ->
 
-   Q = eval_name(Q0, Opts0),
-   Ex = eval_name(Ex0, Opts0),
+   Q = eval_name(Q0, Opts0, Idx),
+   Ex = eval_name(Ex0, Opts0, Idx),
    process_flag(trap_exit, true),
    AckTimeout = faxe_time:duration_to_ms(AckTimeout0),
-   CTag = case CTag0 of undefined -> <<"c_", GraphId/binary, "-", NodeId/binary>>; _ -> CTag0 end,
+   CTag = case CTag0 of undefined -> <<"c_", GraphId/binary, "_", NodeId/binary>>; _ -> CTag0 end,
    Host = binary_to_list(Host0),
 %%   lager:info("opts before: ~p",[Opts0]),
    Opts = Opts0#{
@@ -304,15 +304,7 @@ consumer_config(Opts = #{vhost := VHost, queue := Q, consumer_tag := ConsumerTag
    Props.
 
 
-eval_name(undefined, Opts) ->
-   binding_key(Opts);
-eval_name(Name, _Opts) when is_binary(Name) ->
+eval_name(undefined, _Opts, {GraphId, NodeId}) ->
+   <<GraphId/binary, "_", NodeId/binary>>;
+eval_name(Name, _Opts, _Idx) when is_binary(Name) ->
    Name.
-
-
-binding_key(#{qx_name := QxName, bindings := undefined, routing_key := undefined}) when is_binary(QxName)->
-   QxName;
-binding_key(#{bindings := Bindings, routing_key := undefined}) when is_list(Bindings)->
-   iolist_to_binary(lists:join(<<"-">>, Bindings));
-binding_key(#{bindings := undefined, routing_key := RKey}) when is_binary(RKey) ->
-   RKey.
