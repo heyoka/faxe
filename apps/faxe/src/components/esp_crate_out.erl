@@ -93,7 +93,7 @@ init(NodeId, Inputs,
       table = Table, db_fields = DBFields, faxe_fields = FaxeFields,
       fn_id = NodeId, flow_inputs = Inputs},
    NewState = query_init(State),
-%%   lager:warning("QUERY INIT: ~p",[{NewState#state.query, NewState#state.query_from_lambda}]),
+%   lager:warning("QUERY INIT: ~p",[{NewState#state.query, NewState#state.query_from_lambda}]),
    {ok, all, NewState}.
 
 %%% DATA IN
@@ -113,7 +113,7 @@ process(_In, DataItem, State) ->
 
 do_process(DataItem, State = #state{fn_id = FNId}) ->
    _NewState = send(DataItem, State),
-   dataflow:maybe_debug(item_in, 1, DataItem, FNId, State#state.debug_mode),
+%%   dataflow:maybe_debug(item_in, 1, DataItem, FNId, State#state.debug_mode),
    {ok, State}.
 
 handle_info({'DOWN', _MonitorRef, _Type, Pid, _Info}, State = #state{client = Pid}) ->
@@ -196,19 +196,20 @@ build(Item, Query, Fields, RemFieldsAs) ->
 do_send(_Item, _Body, _Headers, MaxFailedRetries, S = #state{failed_retries = MaxFailedRetries, last_error = Err}) ->
    lager:warning("could not send ~p with ~p retries, last error: ~p", [_Body, MaxFailedRetries, Err]),
    S#state{last_error = undefined};
-do_send(Item, Body, Headers, Retries, S = #state{client = Client}) ->
+do_send(Item, Body, Headers, Retries, State = #state{client = Client, fn_id = FNId}) ->
    Ref = gun:post(Client, ?PATH, Headers, Body),
    case catch(get_response(Client, Ref)) of
       ok ->
-         dataflow:ack(Item, S#state.flow_inputs),
-         S;
+         dataflow:ack(Item, State#state.flow_inputs),
+         dataflow:maybe_debug(item_out, 1, Item, FNId, State#state.debug_mode),
+         State;
       {error, _} ->
          lager:warning("could not send ~p: invalid request", [Body]),
-         S;
+         State;
 
       O ->
          lager:warning("sending gun post: ~p",[O]),
-         do_send(Item, Body, Headers, Retries+1, S#state{last_error = O})
+         do_send(Item, Body, Headers, Retries+1, State#state{last_error = O})
    end.
 
 

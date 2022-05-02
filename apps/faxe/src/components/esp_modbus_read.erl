@@ -32,7 +32,7 @@
 %%% @end
 %%% Created : 27. May 2019 09:00
 %%%-------------------------------------------------------------------
--module(esp_modbus).
+-module(esp_modbus_read).
 -author("heyoka").
 
 %% API
@@ -45,6 +45,7 @@
 -record(state, {
    ip,
    port,
+   client,
    reader_processes = [],
    readers = [],
    num_readers = 1,
@@ -151,32 +152,32 @@ process(_Inport, _Item, State = #state{connected = true}) ->
    handle_info(poll, State).
 
 handle_info(connect, State = #state{}) ->
-   NewState = start_connections(State),
+   NewState = start_connection(State),
    {ok, NewState};
 
-handle_info(poll, State = #state{readers = Readers, requests = Requests,
+handle_info(poll, State = #state{client = Client, requests = Requests,
       timer = Timer, fn_id = Id, read_timeout = Timeout}) ->
    Ts =
       case is_record(Timer, faxe_timer) of
          true -> Timer#faxe_timer.last_time;
          false -> faxe_time:now()
       end,
-   Res = read(Readers, Requests, Ts, Timeout),
+   Res = read(Client, Requests, Ts, Timeout),
 %%   {_Time, Res} = timer:tc(?MODULE, read, [Readers, Requests, Ts, Timeout]),
    case Res of
-      {error, stop, Client} ->
-         NewReaders = lists:delete(Client, Readers),
-         {NewTimer, Connected} =
-            case NewReaders of
-               [] ->
-%%               lager:warning("there is a problem with reading : we stop reading"),
-                  {faxe_time:timer_cancel(Timer), false};
-               [_R|_] ->
-%%               lager:warning("there is a problem with reading, the current request is cancelled,
-%%                  but we have still connections to go"),
-                  {faxe_time:timer_next(Timer), true}
-            end,
-         {ok, State#state{timer = NewTimer, connected = Connected, readers = NewReaders}};
+%%      {error, stop, Client} ->
+%%         NewReaders = lists:delete(Client, Readers),
+%%         {NewTimer, Connected} =
+%%            case NewReaders of
+%%               [] ->
+%%%%               lager:warning("there is a problem with reading : we stop reading"),
+%%                  {faxe_time:timer_cancel(Timer), false};
+%%               [_R|_] ->
+%%%%               lager:warning("there is a problem with reading, the current request is cancelled,
+%%%%                  but we have still connections to go"),
+%%                  {faxe_time:timer_next(Timer), true}
+%%            end,
+%%         {ok, State#state{timer = NewTimer, connected = Connected, readers = NewReaders}};
       {error, _Reason} ->
          lager:warning("error when reading from modbus, request cancelled: ~p",[_Reason]),
          {ok, State#state{timer = faxe_time:timer_next(Timer)}};
@@ -187,28 +188,31 @@ handle_info(poll, State = #state{readers = Readers, requests = Requests,
          NewOutPoint = maybe_round(OutPoint, State),
          {emit, {1, NewOutPoint}, State#state{timer = faxe_time:timer_next(Timer)}}
    end;
-handle_info({'EXIT', Pid, Why}, State = #state{reader_processes = Procs}) ->
-   case lists:member(Pid, Procs) of
-      true ->
-         lager:notice("Modbus Reader exited with reason: ~p",[Why]),
-         NewReader = modbus_reader:start_link(State#state.ip, State#state.port, State#state.device_address),
-         handle_disconnect(Pid, State#state{reader_processes = [NewReader|lists:delete(Pid, Procs)]});
-      false ->
-         %% some other process died, we die also
-         exit(normal)
-   end;
+handle_info({'DOWN', _MonitorRef, process, Object, _Info}, State=#state{client = Object, timer = Timer}) ->
+   erlang:send_after(200, self(), connect),
+   connection_registry:disconnected(),
+   {ok, State#state{client = undefined, connected = false, timer = faxe_time:timer_cancel(Timer)}};
+%%handle_info({'EXIT', Pid, Why}, State = #state{reader_processes = Procs}) ->
+%%   case lists:member(Pid, Procs) of
+%%      true ->
+%%         lager:notice("Modbus Reader exited with reason: ~p",[Why]),
+%%         NewReader = modbus_reader:start_link(State#state.ip, State#state.port, State#state.device_address),
+%%         handle_disconnect(Pid, State#state{reader_processes = [NewReader|lists:delete(Pid, Procs)]});
+%%      false ->
+%%         %% some other process died, we die also
+%%         exit(normal)
+%%   end;
 
-handle_info({modbus, Reader, connected}, S = #state{readers = []}) ->
+handle_info({modbus, Client, connected}, S = #state{client = Client}) ->
    connection_registry:connected(),
    Timer = faxe_time:init_timer(S#state.align, S#state.interval, poll),
-   {ok, S#state{timer = Timer, connected = true, readers = [Reader]}};
-handle_info({modbus, Reader, connected}, S = #state{readers = Readers}) ->
-%%   lager:info("Modbus is connected, already connected ~p other readers ~p",[length(Readers), Readers]),
-   NewReaders = unique([Reader|Readers]),
-   {ok, S#state{readers = NewReaders}};
+   {ok, S#state{timer = Timer, connected = true}};
 %% if disconnected, we just wait for a connected message and stop polling in the mean time
-handle_info({modbus, Reader, disconnected}, State=#state{}) ->
-   handle_disconnect(Reader, State);
+handle_info({modbus, Client, disconnected}, State=#state{timer = Timer, client = Client}) ->
+   connection_registry:disconnected(),
+   lager:notice("Modbus Client is disconnected!!, stop polling ....", []),
+   erlang:send_after(200, self(), connect),
+   {ok, State#state{timer = faxe_time:timer_cancel(Timer), connected = false, client = undefined}};
 
 handle_info(_E, S) ->
 %%   lager:warning("[~p] unexpected info: ~p",[?MODULE, _E]),
@@ -240,9 +244,10 @@ handle_disconnect(Reader, State = #state{readers = Readers, timer = Timer}) ->
          {ok, State#state{timer = faxe_time:timer_next(Timer), readers = Readers0}}
    end.
 
-shutdown(#state{reader_processes = Modbuss, timer = Timer}) ->
+shutdown(#state{client = Client, timer = Timer}) ->
    catch (faxe_time:timer_cancel(Timer)),
-   catch ([gen_server:stop(Modbus) || Modbus <- Modbuss]).
+   catch (modbus:disconnect(Client)).
+%%   catch ([gen_server:stop(Modbus) || Modbus <- Modbuss]).
 
 build_requests(State) ->
    Req0 = build(State),
@@ -312,39 +317,75 @@ find_contiguous(L) ->
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 %% read all prepared requests
-read([], _Reqs, _Ts, _Timeout) ->
-   {error, no_connection};
-read(Readers, Reqs, Ts, Timeout) ->
-   read_all_multi(Readers, #data_point{ts = Ts}, Reqs, Timeout).
+%%read([], _Reqs, _Ts, _Timeout) ->
+%%   {error, no_connection};
+read(Client, Reqs, Ts, Timeout) ->
+   lager:info("read: ~p",[Reqs]),
+%%   read_all(Reqs, Client, #data_point{ts = Ts}, Timeout).
+   ReadReqs = read_all(Reqs, Client, []),
+   lager:info("sent all requests, now start collecting responses for ~p",[[Tid || {Tid, _R} <- ReadReqs]]),
+   collect(ReadReqs, #data_point{ts = Ts}, Timeout).
+
+
+read_all([], _Client, ReadReqs) ->
+   ReadReqs;
+read_all([Request|Reqs], Client, ReadReqs) ->
+   {ok, TId, Req} = do_read(Request, Client),
+   read_all(Reqs, Client, [{TId, Req}|ReadReqs]).
+
+
 
 %% @doc distribute the read requests to all available reader processes
 %% if there are more requests than readers, some reader processes will get more than one request
-read_all_multi(Clients, Point, Reqs, Timeout) ->
-   ReadRef = make_ref(),
-   {Waiting, _} =
-      lists:foldl(
-         fun(Req, {Waits, [Client|ClientList]}) ->
-            Client ! {read, ReadRef, Req},
-            {[Client|Waits], ClientList ++ [Client]}
-         end,
-         {[], Clients},
-         Reqs
-      ),
-   collect(Waiting, ReadRef, Point, Timeout).
+%%read_all_multi(Clients, Point, Reqs, Timeout) ->
+%%   ReadRef = make_ref(),
+%%   {Waiting, _} =
+%%      lists:foldl(
+%%         fun(Req, {Waits, [Client|ClientList]}) ->
+%%            Client ! {read, ReadRef, Req},
+%%            {[Client|Waits], ClientList ++ [Client]}
+%%         end,
+%%         {[], Clients},
+%%         Reqs
+%%      ),
+%%   collect(Waiting, ReadRef, Point, Timeout).
 
-collect([], _Ref, Point, _Timeout) -> Point;
-collect(Waiting, ReadRef, Point, Timeout) ->
+
+do_read(#{function := Fun, start := Start, amount := Amount, opts := Opts} = Req, Client) ->
+   Res = modbus:Fun(Client, Start, Amount, Opts),
+   case Res of
+      {error, disconnected} ->
+         lager:notice("retry reading from modbus: disconnected (~p)",[Req]),
+         %% connect(State),
+         {error, disconnected};
+      {error, _Reason} ->
+         lager:error("error reading from modbus: ~p (~p)",[_Reason, Req]),
+         {error, _Reason};
+      {ok, TId} ->
+
+         {ok, TId, Req}
+   end.
+
+
+
+collect([], Point, _Timeout) ->
+   Point;
+collect(Waiting, Point, Timeout) ->
    receive
-      {modbus_data, Client, ReadRef, {error, stop}} ->
-         {error, stop, Client};
-      {modbus_data, _Client, ReadRef, {error, _Reason}} ->
-         collect(Waiting, ReadRef, Point, Timeout);
-      {modbus_data, Client, ReadRef, {ok, Values}} ->
-         collect(lists:delete(Client, Waiting), ReadRef, flowdata:set_fields(Point, Values), Timeout);
-   %% flush possibly old values from previous read requests, we do not want these anymore
-      {modbus_data, _Client, OldRef, _WhatEver} when OldRef /= ReadRef ->
-         lager:notice("value got for old reference"),
-         collect(Waiting, ReadRef, Point, Timeout)
+      {modbusdata, {ok, TId, Data}} ->
+         lager:notice("got data for TId ~p",[TId]),
+         case lists:keytake(TId, 1, Waiting) of
+            false ->
+               lager:warning("transaction-reference ~p not found when ok response", [TId]),
+               skip;
+            {value, {TId, #{aliases := Aliases}}, Reqs} ->
+               Values = lists:zip(Aliases, Data),
+               lager:notice("value from modbus: ~p",[Values]),
+               collect(Reqs, flowdata:set_fields(Point, Values), Timeout)
+         end;
+      {modbusdata, {error, TId, What}} ->
+         lager:warning("got error for TId: ~p :: ~p",[TId, What]),
+         {error, stop, What}
 
    after Timeout -> {error, timeout}
    end.
@@ -359,25 +400,11 @@ func(BinString) ->
       end,
    F.
 
-start_connections(State = #state{ip = Ip, port = Port, device_address = Dev, requests = Req, num_readers = Num}) ->
-   ConnNum =
-      case Num of
-         _ when is_integer(Num) andalso length(Req) > Num -> Num;
-         _ -> length(Req)
-      end,
-   Procs =
-   lists:map(
-      fun(_E) ->
-         {ok, Reader} = modbus_reader:start_link(Ip, Port, Dev),
-         Reader
-      end,
-      lists:seq(1, ConnNum)
-   ),
-%%   lager:info("started ~p reader connections -> ~p",[ConnNum, Procs]),
-   State#state{num_readers = ConnNum, reader_processes = Procs}.
+start_connection(State = #state{ip = Ip, port = Port, device_address = Dev}) ->
+   {ok, Modbus} = modbus:connect(Ip, Port, Dev),
+   erlang:monitor(process, Modbus),
+   State#state{client = Modbus, connected = false}.
 
-unique(List) when is_list(List) ->
-   sets:to_list(sets:from_list(List)).
 
 -ifdef(TEST).
 
