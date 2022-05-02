@@ -321,37 +321,25 @@ find_contiguous(L) ->
 %%   {error, no_connection};
 read(Client, Reqs, Ts, Timeout) ->
    lager:info("read: ~p",[Reqs]),
-%%   read_all(Reqs, Client, #data_point{ts = Ts}, Timeout).
-   ReadReqs = read_all(Reqs, Client, []),
-   lager:info("sent all requests, now start collecting responses for ~p",[[Tid || {Tid, _R} <- ReadReqs]]),
-   collect(ReadReqs, #data_point{ts = Ts}, Timeout).
+   read_all(Reqs, Client, #data_point{ts = Ts}, Timeout).
 
 
-read_all([], _Client, ReadReqs) ->
-   ReadReqs;
-read_all([Request|Reqs], Client, ReadReqs) ->
-   {ok, TId, Req} = do_read(Request, Client),
-   read_all(Reqs, Client, [{TId, Req}|ReadReqs]).
+read_all([], _Client, Point, _T) ->
+   Point;
+read_all([Request|Reqs], Client, Point, Timeout) ->
+   Res = do_read(Request, Client, Timeout),
+   NewPoint =
+   case Res of
+      {error, What} ->
+         lager:warning("error when reading from modbus: ~p",[What]),
+         Point;
+      _ when is_list(Res) -> flowdata:set_fields(Point, Res)
+   end,
+   read_all(Reqs, Client, NewPoint, Timeout).
 
 
-
-%% @doc distribute the read requests to all available reader processes
-%% if there are more requests than readers, some reader processes will get more than one request
-%%read_all_multi(Clients, Point, Reqs, Timeout) ->
-%%   ReadRef = make_ref(),
-%%   {Waiting, _} =
-%%      lists:foldl(
-%%         fun(Req, {Waits, [Client|ClientList]}) ->
-%%            Client ! {read, ReadRef, Req},
-%%            {[Client|Waits], ClientList ++ [Client]}
-%%         end,
-%%         {[], Clients},
-%%         Reqs
-%%      ),
-%%   collect(Waiting, ReadRef, Point, Timeout).
-
-
-do_read(#{function := Fun, start := Start, amount := Amount, opts := Opts} = Req, Client) ->
+do_read(
+    O=#{function := Fun, start := Start, amount := Amount, opts := Opts, aliases := As} = Req, Client, Timeout) ->
    Res = modbus:Fun(Client, Start, Amount, Opts),
    case Res of
       {error, disconnected} ->
@@ -362,27 +350,18 @@ do_read(#{function := Fun, start := Start, amount := Amount, opts := Opts} = Req
          lager:error("error reading from modbus: ~p (~p)",[_Reason, Req]),
          {error, _Reason};
       {ok, TId} ->
-
-         {ok, TId, Req}
+         lager:info("read for Tid ~p ~p",[TId,O ]),
+         case recv(TId, Timeout) of
+            {ok, Data} -> lists:zip(As, Data);
+            Other -> Other
+         end
    end.
 
 
-
-collect([], Point, _Timeout) ->
-   Point;
-collect(Waiting, Point, Timeout) ->
+recv(TId, Timeout) ->
    receive
       {modbusdata, {ok, TId, Data}} ->
-         lager:notice("got data for TId ~p",[TId]),
-         case lists:keytake(TId, 1, Waiting) of
-            false ->
-               lager:warning("transaction-reference ~p not found when ok response", [TId]),
-               skip;
-            {value, {TId, #{aliases := Aliases}}, Reqs} ->
-               Values = lists:zip(Aliases, Data),
-               lager:notice("value from modbus: ~p",[Values]),
-               collect(Reqs, flowdata:set_fields(Point, Values), Timeout)
-         end;
+         {ok, Data};
       {modbusdata, {error, TId, What}} ->
          lager:warning("got error for TId: ~p :: ~p",[TId, What]),
          {error, stop, What}
