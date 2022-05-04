@@ -69,7 +69,8 @@
    timer,
    align = false,
    connected = false,
-   fn_id
+   fn_id,
+   byte_size_total = 0
 }).
 
 -define(FUNCTIONS, [<<"coils">>, <<"hregs">>, <<"iregs">>, <<"inputs">>, <<"memory">>]).
@@ -112,9 +113,10 @@ init(NodeId, _Ins, #{timeout := Timeout} = Opts) ->
    connection_registry:reg(NodeId, State#state.ip, State#state.port, <<"modbus_tcp">>),
    connection_registry:connecting(),
    ReadRequests = build_requests(State),
-   lager:notice("ReadRequests: ~p",[ReadRequests]),
+   Bytes = lists:foldl(fun(#{amount := ByteSize}, Acc) -> Acc + ByteSize end, 0, ReadRequests),
    ReadTimeout = faxe_time:duration_to_ms(Timeout),
-   NewState = State#state{requests = ReadRequests, fn_id = NodeId, read_timeout = ReadTimeout},
+   NewState =
+      State#state{requests = ReadRequests, fn_id = NodeId, read_timeout = ReadTimeout, byte_size_total = Bytes},
    erlang:send_after(0, self(), connect),
    {ok, all, NewState}.
 
@@ -170,8 +172,7 @@ handle_info(poll, State = #state{client = Client, requests = Requests,
          lager:warning("error when reading from modbus, request cancelled: ~p",[_Reason]),
          {ok, State#state{timer = faxe_time:timer_next(Timer)}};
       OutPoint when is_record(OutPoint, data_point) ->
-         BSize = byte_size(flowdata:to_json(OutPoint)),
-         node_metrics:metric(?METRIC_BYTES_READ, BSize, Id),
+         node_metrics:metric(?METRIC_BYTES_READ, State#state.byte_size_total, Id),
          node_metrics:metric(?METRIC_ITEMS_IN, 1, Id),
          NewOutPoint = maybe_round(OutPoint, State),
          {emit, {1, NewOutPoint}, State#state{timer = faxe_time:timer_next(Timer)}}
