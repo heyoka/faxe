@@ -11,6 +11,7 @@
 
 -define(DELIVERY_MODE_NON_PERSISTENT, 1).
 -define(DEQ_INTERVAL, 15).
+-define(MAX_CHANNEL_NUMBER, 65535).
 
 -record(state, {
    reconnector          = undefined,
@@ -55,6 +56,7 @@ start(Queue, Args) ->
    gen_server:start(?MODULE, [Queue, Args], []).
 
 stop(Server) ->
+%%   gen_server:stop(Server).
    Server ! stop.
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -185,7 +187,8 @@ handle_info(#'connection.unblocked'{}, State = #state{deq_timer_ref = T}) ->
 handle_info(report_pendinglist_length, #state{pending_acks = P} = State) ->
    lager:notice("Bunny-Worker PendingList-length: ~p", [{self(), length(P)}]),
    {noreply, State};
-handle_info(stop, State) ->
+handle_info(stop,  State) ->
+%%   catch(close(Channel, Conn, State)),
    {stop, normal, State};
 handle_info(Msg, State = #state{channel = Chan}) ->
    lager:notice("Bunny-Worker got unexpected msg: ~p, my chan is :~p", [Msg, Chan]),
@@ -197,10 +200,9 @@ handle_call(Req, _From, State) ->
 
 
 -spec terminate(atom(), state()) -> ok.
-terminate(Reason, #state{channel = Channel, connection = Conn} = State) ->
-   lager:notice("~p ~p terminating with reason: ~p",[?MODULE, self(), Reason]),
-   catch(close(Channel, Conn, State))
-   .
+terminate(Reason, State=#state{channel = Channel, connection = Conn}) ->
+   close(Channel, Conn, State),
+   lager:notice("~p ~p terminating with reason: ~p",[?MODULE, self(), Reason]).
 
 close(Channel, Conn, #state{queue = _Q, last_confirmed_dtag = _LastTag, pending_acks = _Pending, deq_timer_ref = T}) ->
    catch (erlang:cancel_timer(T)),
@@ -309,7 +311,11 @@ start_connection(State = #state{config = Config, reconnector = Recon, safe_mode 
 
 new_channel({ok, Connection}, SafeMode) ->
    amqp_connection:register_blocked_handler(Connection, self()),
-   configure_channel(amqp_connection:open_channel(Connection), SafeMode);
+   %% using a random channel number here, because we saw issues with using the same number
+   %% after a crash where it seems like the server did not release the number yet and reports a
+   %% CHANNEL_ERROR - second 'channel.open' seen (this is the case, when a channel-number is used twice)
+   ChannelNumber = rand:uniform(?MAX_CHANNEL_NUMBER),
+   configure_channel(amqp_connection:open_channel(Connection, ChannelNumber), SafeMode);
 
 new_channel(Error, _) ->
    lager:warning("Error connecting to broker: ~p",[Error]),

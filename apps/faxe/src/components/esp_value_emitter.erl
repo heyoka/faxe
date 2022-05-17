@@ -27,7 +27,7 @@ options() ->
    [
       {every, duration, <<"5s">>},
       {jitter, duration, <<"0ms">>},
-      {type, any, point},
+      {type, any, <<"point">>},
       {batch_size, integer, 5},
       {align, is_set},
       {fields, binary_list, [<<"val">>]},

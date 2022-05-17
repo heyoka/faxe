@@ -75,6 +75,7 @@ init([]) ->
    ok = new_table(graph_to_nodes, set),
 
    ok = new_table(decoded_json, set),
+   ok = new_table(select_cache, set),
 
    {ok, #state{}}.
 

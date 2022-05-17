@@ -13,6 +13,8 @@
 -define(RAND, <<"rand">>).
 -define(SEQ, <<"seq">>).
 
+-define(STATE_POINT_FIELD, <<"__state">>).
+
 -record(state, {
    node_id           :: term(),
    every             :: non_neg_integer(),
@@ -22,6 +24,8 @@
    ejson             :: map()|list(),
    as                :: binary(),
    select            :: binary(),
+   transforms        :: list()|undefined,
+   state_point       :: #data_point{}|undefined,
    idx = 1           :: non_neg_integer()
 }).
 
@@ -35,6 +39,8 @@ options() ->
       {json, binary_list, undefined},
       {rand_fields, binary_list, []},
       {select, string, ?RAND}, %% 'rand' or 'seq'
+      {replace, string_list, undefined},
+      {with, lambda_list, undefined},
       {as, string, <<"data">>}
    ].
 
@@ -54,7 +60,8 @@ check_json(Json) when is_binary(Json) ->
    end.
 
 init(NodeId, _Inputs,
-    #{every := Every, align := Unit, jitter := Jitter, json := JS, as := As, select := Sel}) ->
+    #{every := Every, align := Unit, jitter := Jitter, json := JS, as := As, select := Sel, replace := Replace,
+       with := Funs0}) ->
    NUnit =
       case Unit of
          false -> false;
@@ -62,12 +69,15 @@ init(NodeId, _Inputs,
       end,
    JT = faxe_time:duration_to_ms(Jitter),
    EveryMs = faxe_time:duration_to_ms(Every),
+
    JSONs = [jiffy:decode(JsonString, [return_maps]) || JsonString <- JS],
+   TransformList = case Replace of undefined -> undefined; _ -> lists:zip(Replace, Funs0) end,
    State =
       #state{
          node_id = NodeId, every = EveryMs,
          ejson = JSONs, as = As, json_string = JS,
-         align = NUnit, jitter = JT, select = Sel
+         align = NUnit, jitter = JT, select = Sel,
+         transforms = TransformList
       },
 
    erlang:send_after(JT, self(), emit),
@@ -87,12 +97,18 @@ handle_info(emit, State=#state{every = Every, jitter = JT}) ->
 handle_info(_Request, State) ->
    {ok, State}.
 
-do_emit(Next, State=#state{ejson = JS, as = As}) ->
+do_emit(Next, State=#state{ejson = JS, as = As, transforms = Transforms, state_point = SPoint0}) ->
    erlang:send_after(Next, self(), emit),
    {NextIndex, NewState} = next_index(State),
    Json = lists:nth(NextIndex, JS),
-   Msg = build(Json, As),
-   {emit,{1, Msg}, NewState}.
+   SPoint =
+   case SPoint0 of
+      undefined -> flowdata:set_root(#data_point{ts = faxe_time:now(), fields = Json}, As);
+      _ -> SPoint0
+   end,
+   {T, Msg} = timer:tc(fun build/4, [Json, As, Transforms, SPoint]),
+   lager:info("time to build: ~p",[T]),
+   {emit,{1, Msg}, NewState#state{state_point = Msg}}.
 
 next_index(S = #state{select = ?RAND, ejson = JS}) ->
    {rand:uniform(length(JS)), S};
@@ -101,11 +117,25 @@ next_index(S = #state{select = ?SEQ, ejson = JS, idx = Index}) when Index > leng
 next_index(S = #state{select = ?SEQ, ejson = _JS, idx = Index}) ->
    {Index, S#state{idx = Index+1}}.
 
-build(JsonMap, As) when is_map(JsonMap) ->
-   flowdata:set_root(#data_point{ts = faxe_time:now(), fields = JsonMap}, As);
-build(JsonList, As) when is_list(JsonList) ->
-   Points = [build(JsonMap, As) || JsonMap <- JsonList],
+build(JsonMap, As, Transforms, SPoint) when is_map(JsonMap) ->
+   Point =
+    flowdata:set_root(#data_point{ts = faxe_time:now(), fields = JsonMap}, As),
+   maybe_transform(Point, Transforms, SPoint);
+build(JsonList, As, Transforms, SPoint) when is_list(JsonList) ->
+   Points = [build(JsonMap, As, Transforms, SPoint) || JsonMap <- JsonList],
    #data_batch{points = Points}.
+
+maybe_transform(Point, undefined, _SP) ->
+   Point;
+maybe_transform(Point, ReplaceList, SPoint) ->
+   do_transform(ReplaceList, flowdata:set_field(Point, ?STATE_POINT_FIELD, SPoint#data_point.fields)).
+
+do_transform([], Point) ->
+   flowdata:delete_field(Point, ?STATE_POINT_FIELD);
+do_transform([{FieldPath, Lambda}|Transforms], Point) ->
+   NewPoint = faxe_lambda:execute(Point, Lambda, FieldPath),
+   do_transform(Transforms, NewPoint).
+
 
 
 
