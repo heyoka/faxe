@@ -12,7 +12,7 @@
 -export([
    init/2, allowed_methods/2, config_json/2, content_types_provided/2,
    is_authorized/2, content_types_accepted/2, from_validate_dfs/2,
-   malformed_request/2, from_set_loglevel/2, loglevels_json/2, config_all_json/2]).
+   malformed_request/2, from_set_loglevel/2, loglevels_json/2, config_all_json/2, language_definition_json/2]).
 
 %%
 %% Additional callbacks
@@ -28,6 +28,8 @@ is_authorized(Req, State) ->
    rest_helper:is_authorized(Req, State).
 
 allowed_methods(Req, S=#state{mode = loglevels}) ->
+   {[<<"GET">>], Req, S};
+allowed_methods(Req, S=#state{mode = language_definition}) ->
    {[<<"GET">>], Req, S};
 allowed_methods(Req, S=#state{mode = loglevel}) ->
    {[<<"POST">>], Req, S};
@@ -49,6 +51,10 @@ content_types_provided(Req, State = #state{mode = config}) ->
     {[
        {{<<"application">>, <<"json">>, []}, config_json}
     ], Req, State};
+content_types_provided(Req, State = #state{mode = language_definition}) ->
+   {[
+      {{<<"application">>, <<"json">>, []}, language_definition_json}
+   ], Req, State};
 content_types_provided(Req, State = #state{mode = config_all}) ->
    {[
       {{<<"text">>, <<"plain">>, []}, config_all_json}
@@ -123,6 +129,9 @@ from_validate_dfs(Req, State = #state{dfs = DfsScript}) ->
 loglevels_json(Req, State=#state{}) ->
    Out = [{Name, lager:get_loglevel(Module)} || {Module, Name} <- log_backends()],
    {jiffy:encode(maps:from_list(Out), [uescape]), Req, State}.
+
+language_definition_json(Req, State=#state{}) ->
+   {jiffy:encode(graph_builder:node_opts(), [uescape]), Req, State}.
 %% faxe's config hand picked
 config_json(Req, State=#state{mode = config}) ->
    Debug = opts_mqtt(debug, <<"debug">>),

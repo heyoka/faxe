@@ -109,24 +109,27 @@ eval({Nodes, Connections}) ->
             {Component, NOpts} = component(NodeName),
             %% build additional connections from node-options
             {NewConns, ParamOptions} = node_conn_params(N, Params),
-%%            lager:info("~nafter node_conn_params: ~p",[ParamOptions]),
+            lager:info("~nOptions given: ~p",[Options]),
+            lager:info("~nParamOptions given: ~p",[ParamOptions]),
+            lager:info("~nNode Options: ~p",[NOpts]),
             %% get component options
             %% node name
             NodeId = node_id(N),
             %% additional common options
             AdditionalOptions = df_component:add_options(NodeId),
             CompOptions0 = component_options(Component, NOpts, NodeName) ++ AdditionalOptions,
+            lager:info("~nAll Component Options: ~p",[CompOptions0]),
 %%            lager:info("~nafter component_options: ~p",[CompOptions0]),
             %% set default from config
             CompOptions = eval_options(CompOptions0, []),
-%%            lager:info("~nafter eval_options: ~p",[CompOptions]),
+            lager:info("~nafter eval_options: ~p",[CompOptions]),
             %% convert and assimilate options
             {NName, _} = N,
             NOptions = convert_options(NName, CompOptions, lists:flatten(Options ++ ParamOptions)),
 %%            lager:warning("here after convert_options"),
             NodeOptions = NOptions ++ NOpts,
-%%            lager:notice("~n~p wants options : ~p~n has options: ~p~n~n NodeParameters: ~p",
-%%               [Component, CompOptions, Options ++ ParamOptions, NodeOptions]),
+            lager:notice("~n~p wants options : ~p~n has options: ~p~n~n NodeParameters: ~p",
+               [Component, CompOptions, Options ++ ParamOptions, NodeOptions]),
             %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
             %% check options with the components option definition
             %% any errors raised here, would be caught in the surrounding call

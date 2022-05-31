@@ -6,7 +6,25 @@
 -include("faxe.hrl").
 
 %% API
--export([new/0, add_node/3, add_node/4, add_edge/5, add_edge/6, to_graph_def/2]).
+-export([new/0, add_node/3, add_node/4, add_edge/5, add_edge/6, to_graph_def/2, node_opts/0]).
+
+-define(LANG_EXCLUDE_COMPONENTS, [
+   c_python,
+   esp_triggered_timeout,
+   crate_writer,
+   esp_deadman_multi,
+   esp_extract_path,
+   esp_http_post_crate,
+   esp_derivative,
+   esp_jsonsize,
+   esp_kafka_consume,
+   esp_modbus,
+   esp_mqtt_amqp_bridge,
+   esp_jsn_select,
+   esp_postgre_out,
+   esp_statistics,
+   esp_stats,
+   esp_sts_sh_resp]).
 
 new() ->
    digraph:new([acyclic, protected]).
@@ -51,3 +69,57 @@ to_graph_def(Graph, NodeList) ->
    ],
    Out = #{nodes => NodesOut, edges => Edges},
    Out.
+
+node_opts() ->
+   %% get all components
+   All = erlang:loaded(),
+%%   ComponentModules = lists:map(fun(Module) -> code:module_info(Module) end, All),
+   ComponentModules0 =
+      lists:filter(
+         fun(Module) ->
+            code:ensure_loaded(Module),
+            Attrs = Module:module_info(attributes),
+            case proplists:get_value(behaviour, Attrs) of
+               undefined ->
+                  case proplists:get_value(behavior, Attrs) of
+                     undefined -> false;
+                     Behaviors -> Behaviors == [df_component]
+                  end;
+               Behaviours -> Behaviours == [df_component]
+            end
+         end, erlang:loaded()),
+   ComponentModules = lists:filter(fun(E) -> not lists:member(E, ?LANG_EXCLUDE_COMPONENTS) end, ComponentModules0),
+   lager:notice("~p built-in faxe components", [length(ComponentModules)]),
+   lists:map(fun(ModuleAtom) -> node_details(ModuleAtom) end, ComponentModules).
+%%   lager:notice("~s", [jiffy:encode(Out)]).
+
+
+node_details(Module) ->
+   NodeName = binary:replace(atom_to_binary(Module), <<"esp_">>, <<>>),
+   NodeParams0 = #{
+      <<"name">> => NodeName,
+      <<"description">> => <<>>,
+      <<"documentationUrl">> => <<"https://heyoka.github.io/faxe-docs/site/nodes/", NodeName/binary, ".html">>
+   },
+   case erlang:function_exported(Module, options, 0) of
+      true ->
+         ModuleOpts = Module:options(),
+         Options = eval_opts(ModuleOpts,[]),
+         NodeParams0#{<<"parameters">> => Options};
+      false ->
+         NodeParams0
+   end.
+
+eval_opts([], Acc) ->
+   Acc;
+eval_opts([{PName, PType}|ModuleOpts], Acc) ->
+   NewAcc = Acc ++ [#{<<"name">> => PName, <<"dataType">> => PType, <<"description">> => <<>>}],
+   eval_opts(ModuleOpts, NewAcc);
+eval_opts([{PName, PType, DefaultConfig}|ModuleOpts], Acc) when is_tuple(DefaultConfig)->
+   NewAcc = Acc ++ [#{<<"name">> => PName, <<"dataType">> => PType,
+      <<"description">> => <<>>, <<"default">> => <<"from config file">>}],
+   eval_opts(ModuleOpts, NewAcc);
+eval_opts([{PName, PType, Default}|ModuleOpts], Acc) ->
+   NewAcc = Acc ++ [#{<<"name">> => PName, <<"dataType">> => PType,
+      <<"description">> => <<>>, <<"default">> => Default}],
+   eval_opts(ModuleOpts, NewAcc).

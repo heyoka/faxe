@@ -40,6 +40,8 @@ options() ->
       {host, string},
       {port, integer, 80},
       {path, string, <<"/">>},
+      {user, string, undefined},
+      {pass, string, ''},
       {payload_type, string, ?P_TYPE_JSON},
       {param_keys, string_list, []},
       {param_values, string_list, []},
@@ -62,7 +64,8 @@ metrics() ->
 
 init(NodeId, _Inputs,
     #{host := Host0, port := Port, path := Path, tls := Tls, param_keys := _Keys, param_values := _Vals,
-       every := Every, align := Align, retries := Retries, as := As, payload_type := PType}) ->
+       every := Every, align := Align, retries := Retries, as := As, payload_type := PType,
+       user := User, pass := Pass}) ->
 
    Host = binary_to_list(Host0),
    connection_registry:reg(NodeId, Host, Port, <<"http">>),
@@ -72,7 +75,14 @@ init(NodeId, _Inputs,
          _ -> As
       end,
    erlang:send_after(0, self(), start_client),
-   Headers = ?HEADERS ++ [{<<"user-agent">>, http_lib:user_agent()}],
+   Headers0 = ?HEADERS ++ [{<<"user-agent">>, http_lib:user_agent()}],
+   Headers =
+   case User of
+      undefined -> Headers0;
+      _ ->
+         UserPass = base64:encode(iolist_to_binary([User, <<":">>, Pass])),
+         Headers0 ++ [{<<"authorization">>, [<<"Basic ">>, UserPass]}]
+   end,
    {ok, all,
       #state{
          host = Host, port = Port,
@@ -108,6 +118,7 @@ try_request(Ts, State=#state{}) ->
    try_request(Ts, State, 0).
 
 try_request(_Ts, State=#state{retries = Retries}, Retries) ->
+%%   lager:notice("request failed or errored ~p time(s) tried so far",[Retries]),
    {ok, State};
 try_request(Ts, State=#state{fn_id = FNId}, TriedSoFar) ->
    case request(State) of
@@ -116,7 +127,7 @@ try_request(Ts, State=#state{fn_id = FNId}, TriedSoFar) ->
          node_metrics:metric(?METRIC_ITEMS_IN, 1, FNId),
          {emit, build(Ts, Data, State), State};
       {failed, Reason} ->
-         lager:warning("request failed with Reason: ~p, ~p time(s) tried so far",[Reason, TriedSoFar]),
+         lager:notice("request failed with Reason: ~p, ~p time(s) tried so far",[Reason, TriedSoFar]),
          try_request(Ts, State, TriedSoFar + 1);
       {error, Why} ->
          lager:warning("Error on request: ~p", [Why]),
@@ -144,7 +155,7 @@ build(Ts, Data, #state{payload_type = PType, as = As}) ->
 
 start_client(State = #state{host = Host, port = Port, tls = Tls}) ->
    connection_registry:connecting(),
-   Opts = #{connect_timeout => 3000},
+   Opts = #{connect_timeout => 5000},
    Options =
    case Tls of
       true -> Opts#{transport => tls};
@@ -153,7 +164,7 @@ start_client(State = #state{host = Host, port = Port, tls = Tls}) ->
    {ok, C} = gun:open(Host, Port, Options),
    MonitorRef = erlang:monitor(process, C),
    case gun:await_up(C) of
-      {ok, _} ->
+      {ok, What} ->
          connection_registry:connected(),
          NewState = maybe_start_timer(State),
          NewState#state{client = C};

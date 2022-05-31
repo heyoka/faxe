@@ -37,12 +37,19 @@ options() ->
       {jitter, duration, <<"0ms">>},
       {align, is_set},
       {json, binary_list, undefined},
-      {rand_fields, binary_list, []},
       {select, string, ?RAND}, %% 'rand' or 'seq'
       {replace, string_list, undefined},
       {with, lambda_list, undefined},
       {as, string, <<"data">>}
    ].
+
+%%options1() ->
+%%   [
+%%      #{name => every, type => duration, default => <<"3s">>, desc => <<"emit interval">>},
+%%      #{name => jitter, type => duration, default => <<"0ms">>,
+%%         desc => <<"max random value for added time jitter added to every">>},
+%%      #{name => host, type => string, default => {}}
+%%   ].
 
 
 check_options() ->
