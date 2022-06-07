@@ -93,7 +93,7 @@ init(NodeId, Inputs,
       table = Table, db_fields = DBFields, faxe_fields = FaxeFields,
       fn_id = NodeId, flow_inputs = Inputs},
    NewState = query_init(State),
-%   lager:warning("QUERY INIT: ~p",[{NewState#state.query, NewState#state.query_from_lambda}]),
+%%   lager:warning("QUERY INIT Schema:~p ~p",[DB, {NewState#state.query, NewState#state.query_from_lambda}]),
    {ok, all, NewState}.
 
 %%% DATA IN
@@ -203,9 +203,9 @@ do_send(Item, Body, Headers, Retries, State = #state{client = Client, fn_id = FN
          dataflow:ack(Item, State#state.flow_inputs),
          dataflow:maybe_debug(item_out, 1, Item, FNId, State#state.debug_mode),
          State;
-      {error, _} ->
-         lager:warning("could not send ~p: invalid request", [Body]),
-         State;
+      {error, What} ->
+         lager:warning("could not send ~p: error in request", [Body]),
+         do_send(Item, Body, Headers, Retries+1, State#state{last_error = What});
 
       O ->
          lager:warning("sending gun post: ~p",[O]),

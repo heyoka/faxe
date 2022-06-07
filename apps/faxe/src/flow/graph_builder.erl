@@ -112,6 +112,18 @@ node_details(Module) ->
 
 eval_opts([], Acc) ->
    Acc;
+eval_opts([#{name := PName, type := PType, default := Default}=O|ModuleOpts], Acc) when is_tuple(Default) ->
+   NewAcc = Acc ++ [#{<<"name">> => PName, <<"dataType">> => PType,
+      <<"description">> => maps:get(desc, O, <<>>), <<"default">> => <<"from config file">>}],
+   eval_opts(ModuleOpts, NewAcc);
+eval_opts([#{name := PName, type := PType, default := Default}=O|ModuleOpts], Acc) ->
+   NewAcc = Acc ++ [#{<<"name">> => PName, <<"dataType">> => PType,
+      <<"description">> => maps:get(desc, O, <<>>), <<"default">> => Default}],
+   eval_opts(ModuleOpts, NewAcc);
+eval_opts([#{name := PName, type := PType}=O|ModuleOpts], Acc) ->
+   NewAcc = Acc ++ [#{<<"name">> => PName, <<"dataType">> => PType,
+      <<"description">> => maps:get(desc, O, <<>>)}],
+   eval_opts(ModuleOpts, NewAcc);
 eval_opts([{PName, PType}|ModuleOpts], Acc) ->
    NewAcc = Acc ++ [#{<<"name">> => PName, <<"dataType">> => PType, <<"description">> => <<>>}],
    eval_opts(ModuleOpts, NewAcc);
