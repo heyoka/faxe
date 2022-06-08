@@ -11,7 +11,8 @@ dev1:
 	export FAXE_DEQUEUE_MIN_INTERVAL=1ms && \
 	export FAXE_DEQUEUE_MAX_INTERVAL=600ms && \
 	export FAXE_CRATE_HTTP_TLS_ENABLE=off && \
-	export FAXE_CRATE_HOST='10.14.204.10' && \
+	export FAXE_CRATE_HOST='devat-crate-vip1.tgwdev.internal' && \
+	export FAXE_CRATE_HTTP_HOST='devat-crate-vip1.tgwdev.internal' && \
     #export FAXE_CRATE_PORT=4200 && \
     export FAXE_CRATE_USER=faxedevuhw873 && \
     export FAXE_CRATE_PASS=sD7YAu6qrENaYpYzUpZT && \

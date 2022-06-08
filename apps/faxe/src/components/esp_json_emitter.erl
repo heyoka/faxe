@@ -8,7 +8,7 @@
 
 -include("faxe.hrl").
 %% API
--export([init/3, process/3, handle_info/2, options/0, params/0, check_options/0, check_json/1]).
+-export([init/3, process/3, handle_info/2, options/0, check_options/0, check_json/1]).
 
 -define(RAND, <<"rand">>).
 -define(SEQ, <<"seq">>).
@@ -29,27 +29,26 @@
    idx = 1           :: non_neg_integer()
 }).
 
-params() -> [].
 
 options() ->
    [
-      {every, duration, <<"3s">>},
-      {jitter, duration, <<"0ms">>},
-      {align, is_set},
-      {json, binary_list, undefined},
-      {select, string, ?RAND}, %% 'rand' or 'seq'
-      {replace, string_list, undefined},
-      {with, lambda_list, undefined},
-      {as, string, <<"data">>}
+      #{name => every, type => duration, default => <<"3s">>,
+         desc => <<"emit interval">>},
+      #{name => jitter, type => duration, default => <<"0ms">>,
+         desc => <<"max random value for added time jitter added to every">>},
+      #{name => align, type => is_set, default => false,
+         desc => <<"whether to align to full occurencies of the every parameter">>},
+      #{name => json, type => string_list,
+         desc => <<"list of json strings to use">>},
+      #{name => select, type => string, default => ?RAND, values => [?RAND, ?SEQ],
+         desc => <<"how to select the json entries, 'rand' or 'seq'">>},
+      #{name => modify, type => string_list, default => undefined,
+         desc => <<"fields to replace on every interval">>},
+      #{name => modify_with, type => lambda_list, default => undefined,
+         desc => <<"lambda expressions for the replacements">>},
+      #{name => as, type => string, default => <<"data">>,
+         desc => <<"root object for output">>}
    ].
-
-%%options1() ->
-%%   [
-%%      #{name => every, type => duration, default => <<"3s">>, desc => <<"emit interval">>},
-%%      #{name => jitter, type => duration, default => <<"0ms">>,
-%%         desc => <<"max random value for added time jitter added to every">>},
-%%      #{name => host, type => string, default => {}}
-%%   ].
 
 
 check_options() ->
@@ -64,11 +63,13 @@ check_json(Json) when is_binary(Json) ->
    case catch jiffy:decode(Json) of
       {'EXIT', _} -> false;
       _Other -> true
-   end.
+   end;
+check_json(_) -> false.
 
 init(NodeId, _Inputs,
-    #{every := Every, align := Unit, jitter := Jitter, json := JS, as := As, select := Sel, replace := Replace,
-       with := Funs0}) ->
+    #{every := Every, align := Unit, jitter := Jitter, json := JS, as := As, select := Sel, modify := Replace,
+       modify_with := Funs0} = Opts) ->
+   lager:notice("~n~p got options: ~n~p", [?MODULE, Opts]),
    NUnit =
       case Unit of
          false -> false;
@@ -113,8 +114,9 @@ do_emit(Next, State=#state{ejson = JS, as = As, transforms = Transforms, state_p
       undefined -> flowdata:set_root(#data_point{ts = faxe_time:now(), fields = Json}, As);
       _ -> SPoint0
    end,
-   {T, Msg} = timer:tc(fun build/4, [Json, As, Transforms, SPoint]),
-   lager:info("time to build: ~p",[T]),
+   Msg = build(Json, As, Transforms, SPoint),
+%%   {T, Msg} = timer:tc(fun build/4, [Json, As, Transforms, SPoint]),
+%%   lager:info("time to build: ~p",[T]),
    {emit,{1, Msg}, NewState#state{state_point = Msg}}.
 
 next_index(S = #state{select = ?RAND, ejson = JS}) ->

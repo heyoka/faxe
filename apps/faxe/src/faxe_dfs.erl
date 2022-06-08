@@ -109,27 +109,27 @@ eval({Nodes, Connections}) ->
             {Component, NOpts} = component(NodeName),
             %% build additional connections from node-options
             {NewConns, ParamOptions} = node_conn_params(N, Params),
-            lager:info("~nOptions given: ~p",[Options]),
-            lager:info("~nParamOptions given: ~p",[ParamOptions]),
-            lager:info("~nNode Options: ~p",[NOpts]),
+%%            lager:info("~nOptions given: ~p",[Options]),
+%%            lager:info("~nParamOptions given: ~p",[ParamOptions]),
+%%            lager:info("~nNode Options just for custom python nodes at the moment: ~p",[NOpts]),
             %% get component options
             %% node name
             NodeId = node_id(N),
             %% additional common options
             AdditionalOptions = df_component:add_options(NodeId),
             CompOptions0 = component_options(Component, NOpts, NodeName) ++ AdditionalOptions,
-            lager:info("~nAll Component Options: ~p",[CompOptions0]),
+%%            lager:info("~nAll Component Options: ~p",[CompOptions0]),
 %%            lager:info("~nafter component_options: ~p",[CompOptions0]),
             %% set default from config
             CompOptions = eval_options(CompOptions0, []),
-            lager:info("~nafter eval_options: ~p",[CompOptions]),
+%%            lager:info("~nafter eval_options: ~p",[CompOptions]),
             %% convert and assimilate options
             {NName, _} = N,
             NOptions = convert_options(NName, CompOptions, lists:flatten(Options ++ ParamOptions)),
 %%            lager:warning("here after convert_options"),
             NodeOptions = NOptions ++ NOpts,
-            lager:notice("~n~p wants options : ~p~n has options: ~p~n~n NodeParameters: ~p",
-               [Component, CompOptions, Options ++ ParamOptions, NodeOptions]),
+%%            lager:notice("~n~p wants options : ~p~n has options: ~p~n~n NodeParameters: ~p",
+%%               [Component, CompOptions, Options ++ ParamOptions, NodeOptions]),
             %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
             %% check options with the components option definition
             %% any errors raised here, would be caught in the surrounding call
@@ -212,6 +212,8 @@ component_options(Component, _NOpts, NodeName) ->
 %% evaluate default config options
 eval_options([], Acc) ->
    Acc;
+eval_options([#{name := OptName, type := OptType, default := CKey}|Opts], Acc) when is_tuple(CKey) ->
+   eval_options([{OptName, OptType, CKey}|Opts], Acc);
 eval_options([{OptName, OptType, CKey}|Opts], Acc) when is_tuple(CKey) ->
 %%   lager:info("call conf_val with: ~p for: ~p with Acc: ~p", [CKey, {OptName, OptType, CKey}, Acc]),
    OptVal = conf_val(CKey),
@@ -336,6 +338,8 @@ convert_options(NodeName, NodeOptions, Params) ->
       fun
          ({Name, Type, _Def}, O) -> [{erlang:atom_to_binary(Name, utf8), {Name, Type}}|O];
          ({Name, Type}, O)       -> [{erlang:atom_to_binary(Name, utf8), {Name, Type}}|O];
+         %% new version with maps
+         (#{name := Name, type := Type}, O) -> [{erlang:atom_to_binary(Name, utf8), {Name, Type}}|O];
          %% ignore port connectors
          (_, O)                  -> O
       end,
