@@ -198,6 +198,7 @@ do_send(_Item, _Body, _Headers, MaxFailedRetries, S = #state{failed_retries = Ma
    S#state{last_error = undefined};
 do_send(Item, Body, Headers, Retries, State = #state{client = Client, fn_id = FNId}) ->
    Ref = gun:post(Client, ?PATH, Headers, Body),
+   lager:notice("gun post on ~p with headers: ~p",[?PATH, Headers]),
    case catch(get_response(Client, Ref)) of
       ok ->
          dataflow:ack(Item, State#state.flow_inputs),
