@@ -88,6 +88,7 @@ init(NodeId, Inputs,
    erlang:send_after(0, self(), start_client),
 %%   Query = maybe_build_query(DBFields, Table, RemFieldsAs),
    connection_registry:reg(NodeId, Host, Port, <<"http">>),
+   %% use fully qualified table name here, ie. doc."0x23d"
    State = #state{host = Host, port = Port, database = DB, user = User, pass = Pass,
       failed_retries = MaxRetries, remaining_fields_as = RemFieldsAs, tls = Tls,
       table = Table, db_fields = DBFields, faxe_fields = FaxeFields,
@@ -102,16 +103,15 @@ init(NodeId, Inputs,
 process(_In, _DataItem, State = #state{client = undefined}) ->
    {ok, State};
 %% we do not have a prepare query yet
-process(_In, DataItem=#data_batch{points = _Points},
-    State = #state{query_from_lambda = true, table = Table, db_fields = DbFields, remaining_fields_as = RemFields}) ->
-%%   lager:warning("last point: ~p",[lager:pr(lists:last(Points), ?MODULE)]),
+process(_In, DataItem, State = #state{query_from_lambda = true,
+      table = Table, db_fields = DbFields, database = DB, remaining_fields_as = RemFields}) ->
    Point = get_query_point(DataItem),
-   Query = build_query(DbFields, Table, RemFields, Point),
+   Query = build_query(DbFields, DB, Table, RemFields, Point),
    do_process(DataItem, State#state{query = Query});
 process(_In, DataItem, State) ->
    do_process(DataItem, State).
 
-do_process(DataItem, State = #state{fn_id = FNId}) ->
+do_process(DataItem, State = #state{fn_id = _FNId}) ->
    _NewState = send(DataItem, State),
 %%   dataflow:maybe_debug(item_in, 1, DataItem, FNId, State#state.debug_mode),
    {ok, State}.
@@ -165,9 +165,10 @@ get_query_point(#data_point{} = P) ->
 
 %%% DATA OUT
 send(Item, State = #state{query = Q, faxe_fields = Fields, remaining_fields_as = RemFieldsAs,
-      database = Schema, user = User, pass = Pass}) ->
+      user = User, pass = Pass}) ->
    Query = build(Item, Q, Fields, RemFieldsAs),
-   Headers0 = [{?DEFAULT_SCHEMA_HDR, Schema}, {<<"content-type">>, <<"application/json">>}],
+%%   Headers0 = [{?DEFAULT_SCHEMA_HDR, Schema}, {<<"content-type">>, <<"application/json">>}],
+   Headers0 = [{<<"content-type">>, <<"application/json">>}],
    Headers =
    case Pass of
       undefined -> Headers0;
@@ -198,7 +199,6 @@ do_send(_Item, _Body, _Headers, MaxFailedRetries, S = #state{failed_retries = Ma
    S#state{last_error = undefined};
 do_send(Item, Body, Headers, Retries, State = #state{client = Client, fn_id = FNId}) ->
    Ref = gun:post(Client, ?PATH, Headers, Body),
-   lager:notice("gun post on ~p with headers: ~p",[?PATH, Headers]),
    case catch(get_response(Client, Ref)) of
       ok ->
          dataflow:ack(Item, State#state.flow_inputs),
@@ -233,11 +233,12 @@ build_batch([Point|Points], FieldList, RemFieldsAs, Acc) ->
 %% build base query
 query_init(State = #state{table = DbTable}) when is_function(DbTable) ->
    State#state{query_from_lambda = true};
-query_init(State = #state{table = Table, db_fields = DbFields, remaining_fields_as = RemF}) ->
+query_init(State = #state{table = Table, db_fields = DbFields, database = DB, remaining_fields_as = RemF}) ->
    FromLambda = lists:any(fun(F) -> is_function(F) end, DbFields),
    case FromLambda of
       false ->
-         Query = build_query(DbFields, Table, RemF),
+         TableName = <<DB/binary, ".", Table/binary>>,
+         Query = build_query(DbFields, TableName, RemF),
          State#state{query = Query, query_from_lambda = false};
       true ->
          State#state{query_from_lambda = FromLambda}
@@ -245,11 +246,12 @@ query_init(State = #state{table = Table, db_fields = DbFields, remaining_fields_
 
 
 %% build the query with lambda funs
-build_query(DbFields0, Table0, RemFieldsAs, P=#data_point{}) when is_list(DbFields0) ->
-%%   lager:warning("building query with lambdas maybe: (~p, ~p, ~p)",[DbFields0, Table0, flowdata:field(P, <<"meta">>)]),
+build_query(DbFields0, DB, Table0, RemFieldsAs, P=#data_point{}) when is_list(DbFields0) ->
    Table =
    case is_function(Table0) of
-      true -> faxe_lambda:execute(P, Table0);
+      true ->
+         TName = faxe_lambda:execute(P, Table0),
+         <<DB/binary, ".", TName/binary>>;
       false -> Table0
    end,
    FieldsFun =
