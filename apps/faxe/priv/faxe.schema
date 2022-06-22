@@ -151,6 +151,11 @@
     [{default, "pass" }, {datatype, string}, {commented, "pass" }]
 }.
 
+%% clear user table and reinsert default user on startup
+{mapping, "reset_user_on_startup", "faxe.reset_user_on_startup",
+    [{default, false}, {datatype, {flag, true, false}}, {commented, false}]
+}.
+
 %% @doc ----------------------------------------------------------------
 %% API AUTH with JWT
 %%----------------------------------------------------------------

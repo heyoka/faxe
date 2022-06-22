@@ -45,7 +45,7 @@
    delete_user/1,
    save_user/1,
    save_user/2,
-   save_user/3, reset_templates/0]).
+   save_user/3, reset_templates/0, reset_users/0]).
 
 get_all_tasks() ->
    get_all(task).
@@ -282,6 +282,10 @@ has_user_with_pw(User, Pw) ->
       _ -> false
    end.
 
+%% clear user table and create only the default user from config
+reset_users() ->
+   mnesia:clear_table(faxe_user),
+   create_default_user().
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%% table management %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
@@ -292,7 +296,11 @@ db_init() ->
       true 	-> lager:info("schema already there, loading tables from disc"),
          Tables = mnesia:system_info(tables),
          faxe_migration:migrate(),
-         lists:foreach(fun(T) -> mnesia:force_load_table(T) end, Tables)
+         lists:foreach(fun(T) -> mnesia:force_load_table(T) end, Tables),
+         case faxe_config:get(reset_user_on_startup) of
+            true -> reset_users();
+            false -> ok
+         end
       ;
 
       false 	-> lager:info("schema must be created"),
@@ -409,13 +417,15 @@ create() ->
       {disc_copies, [node()]}
    ]),
    %% after creating all the tables, we add the default user
-   DefaultUser = #faxe_user{
-      name = faxe_util:to_bin(faxe_config:get(default_username)),
-      pw = faxe_util:to_bin(faxe_config:get(default_password))},
-   lager:debug("create default user: ~p",[DefaultUser]),
-   save_user(DefaultUser)
+   create_default_user()
 .
 
+create_default_user() ->
+   DefaultUser = #faxe_user{
+      name = faxe_util:to_bin(faxe_config:get(default_username)),
+      pw = faxe_util:to_bin(faxe_config:get(default_password))
+   },
+   save_user(DefaultUser).
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 export(Table) ->
    FileName = atom_to_list(node()) ++ "_export_" ++ atom_to_list(Table) ++ "_" ++

@@ -71,7 +71,6 @@ set_tags(Item = #data_batch{points = Points}, S = #state{tags_root = true}) ->
    NewPoints = [set_tags(P, S) || P <- Points],
    Item#data_batch{points = NewPoints};
 set_tags(Item = #data_point{tags = Tags}, #state{tags_root = true, tag_kvs = TagList}) ->
-   lager:notice("set tags: ~p",[]),
    NewTags = maps:merge(Tags, maps:from_list(TagList)),
    Item#data_point{tags = NewTags};
 set_tags(Item, #state{tag_kvs = TagList}) ->
