@@ -184,7 +184,7 @@ handle_info({'EXIT', _C, Reason}, State = #state{}) ->
    {ok, NewState};
 handle_info(reconnect, State) ->
    {ok, connect(State)};
-handle_info(What, State) ->
+handle_info(_What, State) ->
    {ok, State}.
 
 shutdown(#state{client = C, stmt = _Stmt} = S) ->

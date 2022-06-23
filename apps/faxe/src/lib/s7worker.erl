@@ -8,7 +8,7 @@
 
 -behaviour(gen_server).
 
--export([start_link/1, read/2, start_monitor/1]).
+-export([start_link/1, read/2, start_monitor/1, get_pdu_size/1]).
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2, terminate/2,
   code_change/3]).
 
@@ -36,6 +36,9 @@
 read(Pid, Vars) ->
   gen_server:call(Pid, {read, Vars}).
 
+get_pdu_size(Pid) ->
+  gen_server:call(Pid, {get_pdu_size}).
+
 start_link(#{} = Opts) ->
   gen_server:start_link(?MODULE, Opts#{owner => self()}, []).
 
@@ -61,6 +64,10 @@ init(#{ip := Ip, port := Port, slot := Slot, rack := Rack, owner := Owner}) ->
 
 handle_call({read, Opts}, _From, State = #state{client = Client, ip = _Ip}) ->
   Res = (catch snapclient:read_multi_vars(Client, Opts)),
+  {reply, Res, State};
+handle_call({get_pdu_size}, _From, State = #state{client = Client}) ->
+  Res = (catch snapclient:get_pdu_length(Client)),
+  lager:notice("get_pdu_size gives: ~p",[Res]),
   {reply, Res, State};
 handle_call(_Request, _From, State = #state{}) ->
   {reply, ok, State}.

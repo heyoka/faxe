@@ -43,13 +43,13 @@ mqtt_opts(HandlerOpts) ->
   faxe_util:proplists_merge(filter_options(HandlerOpts), faxe_config:get(mqtt, [])).
 
 add_event_handler(<<"conn_status">>, Name, Type, Args) ->
-  dataflow:add_conn_status_handler(Name, Type, Args);
+  supervisor:start_child(faxe_event_guard_sup, [conn_status, Type, [Name, Args]]);
 add_event_handler(<<"debug">>, Name, Type, Args) ->
-  dataflow:add_trace_handler(Name, Type, Args);
+  supervisor:start_child(faxe_event_guard_sup, [faxe_debug, Type, [Name, Args]]);
 add_event_handler(<<"metrics">>, Name, Type, Args) ->
-  dataflow:add_metrics_handler(Name, Type, Args);
+  supervisor:start_child(faxe_event_guard_sup, [faxe_metrics, Type, [Name, Args]]);
 add_event_handler(<<"flow_changed">>, Name, Type, Args) ->
-  dataflow:add_flowchanged_handler(Name, Type, Args).
+  supervisor:start_child(faxe_event_guard_sup, [flow_changed, Type, [Name, Args]]).
 
 
 handler_name(Name, Type) ->

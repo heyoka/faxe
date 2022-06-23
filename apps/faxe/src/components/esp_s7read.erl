@@ -138,7 +138,13 @@ init({_, _NId}=NodeId, _Ins,
   {As, Addresses} = retrieve_ads(Opts),
   As1 = translate_as(As, As_Prefix),
   Addresses1 = translate_vars(Addresses, Vars_Prefix),
+
+  %% new read optimization
+%%  s7reader:register(Ip, faxe_time:duration_to_ms(Dur), [s7addr:parse(Address, Offset) || Address <- Addresses1]),
+  %%
+
   {Parts, AliasesList} = build_addresses(Addresses1, As1, Offset),
+%%  lager:info("~naddress parts: ~p ~n AliasesList: ~p",[Parts, AliasesList]),
   ByteSize = bit_count(Parts)/8,
 
   %% connection
@@ -196,9 +202,10 @@ process(_Inport, Item, State = #state{connected = true}) ->
   % read now trigger
   handle_info(poll, State#state{port_data = Item}).
 
-handle_info({s7_connected, _Client}, State = #state{align = Align, interval = Dur}) ->
-  lager:debug("s7_connected"),
+handle_info({s7_connected, _Client}, State = #state{align = Align, interval = Dur, opts = #{ip := Ip}}) ->
+%%  lager:alert("s7_connected"),
   connection_registry:connected(),
+  s7pool_manager:get_pdu_size(Ip),
   Timer = faxe_time:init_timer(Align, Dur, poll),
   {ok, State#state{timer = Timer, connected = true}};
 handle_info({s7_disconnected, _Client}, State = #state{timer = Timer}) ->
@@ -290,9 +297,9 @@ translate_vars(Vs, Prefix) ->
 build_addresses(Addresses, As, Offset) ->
   PList = [s7addr:parse(Address, Offset) || Address <- Addresses],
   %% inject Aliases into parameter maps
-
+%%  lager:notice("PList: ~p",[PList]),
   AsAdds = lists:zip(As, PList),
-%%  lager:info("after lists:zip" ,[AsAdds]),
+%%  lager:info("after lists:zip ~p" ,[AsAdds]),
   F = fun({Alias, Params}) -> Params#{as => Alias} end,
   WithAs = lists:map(F, AsAdds),
   %% partition addresses+aliases by data-type
@@ -309,7 +316,7 @@ build_addresses(Addresses, As, Offset) ->
       end
     end,
   Splitted = lists:foldl(PartitionFun, #{}, WithAs),
-%%lager:notice("Splitted: ~p",[Splitted]),
+%%  lager:notice("Splitted: ~p",[Splitted]),
   %% extract bit addresses
   {Bools, NonBools} =
   case maps:take(bool, Splitted) of
@@ -322,7 +329,7 @@ build_addresses(Addresses, As, Offset) ->
   %% build byte addresses for bits
   {BoolParts, BoolAliases} = find_bool_bytes(BoolsSorted),
 
-  %% sort by starts
+  %% sort non bools by start
   ParamsSorted = lists:flatmap(fun({_Type, L}) -> sort_by_start(L) end, maps:to_list(NonBools)),
   %% find contiguous starts
   {NonBoolParts, NonBoolAliases} = find_contiguous(ParamsSorted),
@@ -352,6 +359,7 @@ find_bool_bytes(Bools) ->
     lists:foldl(CFun, {-2, #{aliases => [], amount => 0, db_number => -1, start => -2}, []}, Bools),
 
   All = Parts ++ [Current],
+%%  lager:notice("~nALL bool_bytes: ~p",[All]),
   FAs = fun(#{aliases := Aliases}) -> lists:unzip3(Aliases) end,
   AliasesList = lists:map(FAs, All),
   AddressPartitions = [maps:without([aliases, as, dtype, byte_num, bit_num], M) || M <- All],

@@ -9,8 +9,6 @@
 -include("faxe.hrl").
 
 %% API
--export([start_link/1,
-   add_handler/1]).
 
 %% gen_event callbacks
 -export([init/1,
@@ -38,30 +36,6 @@
 -callback handle_event(Event :: term(), State :: term()) ->
    {ok, State :: term()} | {publish, Topic :: binary(), Data :: term(), NewState :: term()}.
 
-%%%===================================================================
-%%% gen_event callbacks
-%%%===================================================================
-
-%%--------------------------------------------------------------------
-%% @doc
-%% Creates an event manager
-%%
-%% @end
-%%--------------------------------------------------------------------
--spec(start_link(atom()) -> {ok, pid()} | {error, {already_started, pid()}}).
-start_link(RegName) ->
-   Ret = gen_event:start_link({local, RegName}),
-   Ret.
-
-%%--------------------------------------------------------------------
-%% @doc
-%% Adds an event handler
-%%
-%% @end
-%%--------------------------------------------------------------------
--spec(add_handler(EventMgrName :: atom()) -> ok | {'EXIT', Reason :: term()} | term()).
-add_handler(EventMgrName) ->
-   gen_event:add_sup_handler(EventMgrName, ?MODULE, []).
 
 %%%===================================================================
 %%% gen_event callbacks
@@ -157,10 +131,9 @@ handle_call(_Request, State) ->
       Handler2 :: (atom() | {atom(), Id :: term()}), Args2 :: term()} |
    remove_handler).
 handle_info({publish, Topic, Data} = M, State = #state{publisher = Publisher}) ->
-   lager:warning("~p publish:: ~p",[?MODULE, M]),
    publish(Topic, Data, Publisher),
    {ok, State};
-handle_info({'EXIT', Publisher, _Reason}, State = #state{publisher = Publisher, publisher_opts = Opts}) ->
+handle_info({'EXIT', OldPublisher, _Reason}, State = #state{publisher = OldPublisher, publisher_opts = Opts}) ->
    %% publisher died
    {ok, Publisher} = mqtt_publisher:start_link(Opts),
    {ok, State#state{publisher = Publisher}}.

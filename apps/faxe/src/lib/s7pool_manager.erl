@@ -8,7 +8,7 @@
 
 -behaviour(gen_server).
 
--export([start_link/0, connect/1, get_connection/1, read_vars/2]).
+-export([start_link/0, connect/1, get_connection/1, read_vars/2, get_pdu_size/1]).
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2, terminate/2,
   code_change/3]).
 
@@ -28,6 +28,15 @@
 %%%===================================================================
 connect(Opts) ->
   ?SERVER ! {ensure_pool, Opts, self()}.
+
+get_pdu_size(Ip) ->
+  case s7pool_con_handler:get_connection(Ip) of
+    {ok, Worker} ->
+%%      lager:notice("got connection ~p ",[Worker]),
+      s7worker:get_pdu_size(Worker);
+    Other ->
+      Other
+  end.
 
 read_vars(_Opts=#{ip := Ip}, Vars) ->
 %%  case get_connection(Opts) of

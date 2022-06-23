@@ -47,6 +47,10 @@ init([]) ->
             {faxe_metrics_sup, start_link, []},
             permanent, infinity, supervisor, [faxe_metrics_sup]}
         ,
+        {faxe_event_sup,
+            {faxe_event_sup, start_link, []},
+            permanent, infinity, supervisor, [faxe_event_sup]}
+        ,
         {dataflow_sup,
             {dataflow_sup, start_link, []},
             permanent, infinity, supervisor, [dataflow_sup]},
@@ -63,10 +67,10 @@ init([]) ->
         {s7pool_sup,
             {s7pool_sup, start_link, []},
             permanent, infinity, supervisor, [s7pool_sup]}
-%%        ,
-%%        {s7reader_sup,
-%%            {s7reader_sup, start_link, []},
-%%            permanent, infinity, supervisor, [s7reader_sup]}
+        ,
+        {s7reader_sup,
+            {s7reader_sup, start_link, []},
+            permanent, infinity, supervisor, [s7reader_sup]}
         ,
         {initial_task_starter,
             {initial_task_starter, start_link, []},
