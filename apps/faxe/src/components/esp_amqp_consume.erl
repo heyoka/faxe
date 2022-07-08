@@ -78,7 +78,7 @@ options() -> [
    {queue_prefix, string, {rabbitmq, queue_prefix}},
    {consumer_tag, string, undefined},
    {exchange, string, undefined},
-   {root_exchange, string, {rabbitmq, root_exchange}},
+   {root_exchange, string, undefined},
    {exchange_prefix, string, {rabbitmq, exchange_prefix}},
    {prefetch, integer, 70},
    {ack_every, integer, 10},
@@ -125,7 +125,7 @@ init({GraphId, NodeId} = Idx, _Ins,
    Opts = Opts0#{
       host => Host, consumer_tag => CTag,
       exchange => faxe_util:prefix_binary(Ex, XPrefix),
-      root_exchange => faxe_util:prefix_binary(RExchange, XPrefix),
+      root_exchange => case RExchange of undefined -> undefined; _ -> faxe_util:prefix_binary(RExchange, XPrefix) end,
       queue => faxe_util:prefix_binary(Q, QPrefix),
       routing_key => faxe_util:to_rkey(RoutingKey0),
       bindings => faxe_util:to_rkey(Bindings0)
@@ -275,7 +275,7 @@ consumer_config(Opts = #{vhost := VHost, queue := Q, consumer_tag := ConsumerTag
 
    % Number of connections not relevant here,
    % because we start the consumer monitored not pooled
-   Config =
+   Config0 =
       [
          {workers, 1},
          {callback, self()},
@@ -283,24 +283,32 @@ consumer_config(Opts = #{vhost := VHost, queue := Q, consumer_tag := ConsumerTag
          {setup_type, permanent},
          {consumer_tag, ConsumerTag},
          {prefetch_count, Prefetch},
-         {vhost, VHost},
-         {setup, [
-               {queue, [
-                  {queue, Q},
-                  {exchange, XChange},
-                  {routing_key, RoutingKey},
-                  {bindings, Bindings}
-               ]},
-               {exchange, [
-                         {exchange, XChange},
-                         {type, <<"topic">>},
-                         {source, RootEx}
-                         ]}
-         ]}
+         {vhost, VHost}
       ],
+   SetupQ =
+         [{queue, [
+            {queue, Q},
+            {exchange, XChange},
+            {routing_key, RoutingKey},
+            {bindings, Bindings}
+         ]}],
+   SetupEx =
+      case RootEx of
+         undefined -> [];
+         _ ->
+            [{exchange, [
+               {exchange, XChange},
+               {type, <<"topic">>},
+               {source, RootEx}
+            ]}]
+      end,
+   Setup0 = SetupQ ++ SetupEx,
+   Setup = [{setup, Setup0}],
+   Config = Config0++Setup,
+   erlang:display(Config),
+   lager:warning("giving carrot these Configs: ~p", [Config]),
    Props = carrot_util:proplists_merge(
       maps:to_list(Opts) ++ [{ssl_opts, faxe_config:get_amqp_ssl_opts()}], Config),
-%%   lager:warning("giving carrot these Configs: ~p", [Props]),
    Props.
 
 

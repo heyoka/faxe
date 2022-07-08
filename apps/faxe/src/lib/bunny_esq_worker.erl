@@ -28,7 +28,8 @@
    deq_timer_ref,
    delivery_mode        = ?DELIVERY_MODE_NON_PERSISTENT,
    safe_mode            = false, %% whether to work with ondisc queue acks
-   mem_q                            :: memory_queue:mem_queue()
+   mem_q                            :: memory_queue:mem_queue(),
+   exchange :: binary()
 }).
 
 -type state():: #state{}.
@@ -70,6 +71,7 @@ init([Queue, Config]) ->
    {ok, Reconnector1} = faxe_backoff:execute(Reconnector, connect),
    AmqpParams = amqp_options:parse(Config),
    SafeMode = maps:get(safe_mode, Config, false),
+   Exchange = maps:get(exchange, Config),
    DeliveryMode = case maps:get(persistent, Config, false) of true -> 2; false -> 1 end,
    MemQ = case Queue of undefined -> memory_queue:new(); _ -> undefined end,
    AdaptInt = adaptive_interval:new(),
@@ -82,7 +84,8 @@ init([Queue, Config]) ->
       adaptive_interval = AdaptInt,
       delivery_mode = DeliveryMode,
       safe_mode = SafeMode,
-      mem_q = MemQ}}.
+      mem_q = MemQ,
+      exchange = Exchange}}.
 
 -spec handle_cast(term(), state()) -> {noreply, state()}.
 handle_cast(Msg, State) ->
@@ -294,6 +297,8 @@ start_connection(State = #state{config = Config, reconnector = Recon, safe_mode 
             {ok, Chan} ->
                %% we link to the channel, to get the EXIT signal
                link(Chan),
+               %% ensure our exchange
+               ensure_exchange(Chan, State#state.exchange),
                NState = State#state{connection = Conn, channel = Chan, available = true,
                   reconnector = faxe_backoff:reset(Recon)},
                NState;
@@ -342,6 +347,13 @@ preconfig_channel(Channel) ->
    ok = amqp_channel:register_flow_handler(Channel, self()),
    ok = amqp_channel:register_confirm_handler(Channel, self()),
    ok = amqp_channel:register_return_handler(Channel, self()).
+
+ensure_exchange(Channel, Name) ->
+   XDec =
+      #'exchange.declare'{exchange = Name, type = <<"topic">>, ticket = 0, arguments = [],
+         durable = true, auto_delete = false},
+   #'exchange.declare_ok'{} = amqp_channel:call(Channel, XDec).
+
 
 maybe_start_connection(#state{connection = Conn, config = Config}) ->
    case is_pid(Conn) andalso is_process_alive(Conn) of
