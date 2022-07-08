@@ -13,7 +13,7 @@
 
 %% API
 -export([
-  new/1, process/2, get_duration/1, get_count/1, get_state/1,
+  new/1, new/2, process/2, get_duration/1, get_count/1, get_state/1,
   get_last_point/1, get_last_duration/1, get_last_count/1, get_last_enter_time/1]).
 
 %%%%%%%%%%% known states %%%%%%%
@@ -34,13 +34,16 @@
   state_count = -1,
   state_fun,
   last_duration = -1,
-  last_state_count = -1
+  last_state_count = -1,
+  field_path
   }).
 
 
 -spec new(function()) -> #state_change{}.
-new(StateFun) ->
-  #state_change{state_fun = StateFun}.
+new(StateFun) when is_function(StateFun) ->
+  new(StateFun, undefined).
+new(StateFun, FieldPath) ->
+  #state_change{state_fun = StateFun, field_path = FieldPath}.
 
 -spec process(#state_change{}, #data_point{}) -> {ok, #state_change{}}.
 process(State, Point = #data_point{}) ->
@@ -85,9 +88,12 @@ get_last_point(#state_change{last_point = P}) ->
   P.
 
 
-execute(State = #state_change{state_fun = Fun}, Point) ->
-  comp((catch exec(Point, Fun)), State, Point).
-exec(Point, LFun) -> faxe_lambda:execute(Point, LFun).
+execute(State = #state_change{}, Point) ->
+  comp((catch exec(Point, State)), State, Point).
+exec(Point, #state_change{state_fun = LFun}) when is_function(LFun) ->
+  faxe_lambda:execute(Point, LFun);
+exec(Point, #state_change{field_path = Field, state_fun = Value}) ->
+  flowdata:field(Point, Field) == Value.
 
 comp({_Error, _Reason}, _State,_P = #data_point{}) ->
   {error, error_evaluating_lambda_fun};

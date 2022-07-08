@@ -33,6 +33,7 @@
    queue,
    topic,
    topic_lambda,
+   topic_field,
    safe = false,
    fn_id,
    debug_mode = false
@@ -47,6 +48,7 @@ options() -> [
    {client_id, string, undefined},
    {qos, integer, 1},
    {topic, binary, undefined},
+   {topic_field, binary, undefined},
    {topic_lambda, lambda, undefined},
    {retained, is_set},
    {ssl, is_set, {mqtt, ssl, enable}},
@@ -56,7 +58,7 @@ options() -> [
 
 check_options() ->
    [
-      {one_of_params, [topic, topic_lambda]}
+      {one_of_params, [topic, topic_lambda, topic_field]}
    ].
 
 metrics() ->
@@ -79,8 +81,8 @@ init(NodeId, _Ins, #{safe := false} = Opts) ->
    {ok, Publisher} = mqtt_publisher:start_link(NewOpts),
    init_all(NewOpts, #state{publisher = Publisher, fn_id = NodeId}).
 
-init_all(#{safe := Safe, topic := Topic, topic_lambda := LTopic} = Opts, State) ->
-   {ok, all, State#state{options = Opts, safe = Safe, topic = Topic, topic_lambda = LTopic}}.
+init_all(#{safe := Safe, topic := Topic, topic_lambda := LTopic, topic_field := TField} = Opts, State) ->
+   {ok, all, State#state{options = Opts, safe = Safe, topic = Topic, topic_lambda = LTopic, topic_field = TField}}.
 
 prepare_opts({GId, NId}=GNId, Opts0 = #{client_id := CId, host := Host0}) ->
    Host = binary_to_list(Host0),
@@ -114,10 +116,17 @@ build_message(Item, State = #state{fn_id = FNId}) ->
    Json = flowdata:to_json(Item),
    node_metrics:metric(?METRIC_BYTES_SENT, byte_size(Json), FNId),
    node_metrics:metric(?METRIC_ITEMS_OUT, 1, FNId),
+   T = get_topic(Item, State),
+   lager:notice("topic is :~p", [T]),
    {get_topic(Item, State), Json}.
 
-get_topic(_Item, # state{topic_lambda = undefined, topic = Topic}) ->
+
+get_topic(_Item, # state{topic_lambda = undefined, topic_field = undefined, topic = Topic}) ->
    Topic;
+get_topic(Item = #data_point{}, # state{topic_lambda = undefined, topic = undefined, topic_field = TField}) ->
+   flowdata:field(Item, TField);
+get_topic(#data_batch{points = [P|_]}, # state{topic_lambda = undefined, topic = undefined, topic_field = TField}) ->
+   flowdata:field(P, TField);
 get_topic(#data_point{} = P, #state{topic_lambda = Fun}) ->
    faxe_lambda:execute(P, Fun);
 get_topic(#data_batch{points = [P1|_]}, #state{topic_lambda = Fun}) ->

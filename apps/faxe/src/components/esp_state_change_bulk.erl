@@ -33,6 +33,7 @@
 -record(state, {
    node_id,
    lambda_pattern,
+   state_value,
    state_lambdas = [],
    emit_entered,
    emit_left,
@@ -48,7 +49,8 @@
 }).
 
 options() -> [
-   {lambda_pattern, string},
+   {lambda_pattern, string, undefined},
+   {state_value, any, undefined},
    {field, string},
    {exclude_fields, string_list, []},
    {enter_as, binary, <<"state_entered">>},
@@ -63,7 +65,8 @@ options() -> [
 
 check_options() ->
    [
-      {oneplus_of_params, [enter, leave]}
+      {oneplus_of_params, [enter, leave]},
+      {one_of_params, [lambda_pattern, state_value]}
    ].
 
 wants() -> point.
@@ -71,13 +74,14 @@ emits() -> point.
 
 init(_NodeId, _Ins, #{lambda_pattern := Lambda_Pattern, enter_as := EnteredAs, leave_as := LeftAs, enter := EmitEntered,
    leave := EmitLeft, enter_keep := KeepFieldsEntered, leave_keep := KeepFieldsLeft, prefix := Prefix, field := Field,
-   exclude_fields := Excluded}) ->
+   exclude_fields := Excluded, state_value := StateValue}) ->
 
    {ok, all,
       #state{
          field = Field,
          excluded = Excluded,
          lambda_pattern = Lambda_Pattern,
+         state_value = StateValue,
          state_lambdas = [],
          emit_entered = EmitEntered,
          emit_left = EmitLeft,
@@ -97,19 +101,24 @@ process(_Inport, #data_point{} = Point, State = #state{field = Field}) ->
    F = fun({FieldName, StateChange}, UpdatedStateChanges) ->
       case state_change:process(StateChange, Point) of
          {ok, NewStateChange} ->
-            handle(state_change:get_state(NewStateChange), FieldName, NewStateChange, State),
-            [{FieldName, NewStateChange} | UpdatedStateChanges];
+            Handeled = handle(state_change:get_state(NewStateChange), FieldName, NewStateChange, State),
+            [{{FieldName, NewStateChange}, Handeled} | UpdatedStateChanges];
          {error, Error} ->
             lager:error("Error evaluating lambda: ~p",[Error]),
-            [{FieldName, StateChange} | UpdatedStateChanges]
+            [{FieldName, StateChange, undefined} | UpdatedStateChanges]
       end
       end,
-   NewStates = lists:foldl(F, [], StateTrackers),
+   Results = plists:fold(F, [], StateTrackers, {processes, schedulers}),
+   {NewStates, Emits} = lists:unzip(Results),
+   lists:foreach(fun
+                    (P=#data_point{}) -> dataflow:emit(P);
+                    (undefined) -> ok
+                 end, Emits),
    {ok, State#state{state_changes = NewStates}}.
 
 handle(entered, FieldName, StateState, State=#state{emit_entered = true, entered_as = As, entered_keep = Keep}) ->
    P = state_change:get_last_point(StateState),
-   emit_point_data(P, Keep, [As, <<"field">>], [1, FieldName], State);
+   prepare_point_data(P, Keep, [As, <<"field">>], [1, FieldName], State);
 handle(left, FieldName, StateState, State=#state{emit_left = true, left_as = As, left_keep = Keep}) ->
    P = state_change:get_last_point(StateState),
    AddFNames = [
@@ -127,41 +136,43 @@ handle(left, FieldName, StateState, State=#state{emit_left = true, left_as = As,
       state_change:get_last_count(StateState),
       FieldName],
 
-   emit_point_data(P, Keep, AddFNames, AddFields, State);
+   prepare_point_data(P, Keep, AddFNames, AddFields, State);
 handle(_, _F, _StateState, State=#state{}) ->
-   {ok, State}.
+   undefined.
 
-emit_point_data(P, Keep, AddFieldNames, AddFieldVals, _State = #state{prefix = Prefix}) ->
+prepare_point_data(P, Keep, AddFieldNames, AddFieldVals, _State = #state{prefix = Prefix}) ->
    Fields = flowdata:fields(P, Keep),
    NewPoint = P#data_point{fields = #{}, tags = #{}},
    FieldNames = [<<Prefix/binary, F/binary>> || F <- AddFieldNames],
-   dataflow:emit(flowdata:set_fields(NewPoint, FieldNames++Keep, AddFieldVals++Fields)).
+   flowdata:set_fields(NewPoint, FieldNames++Keep, AddFieldVals++Fields).
 
 
-get_states(FieldMap, #state{lambda_pattern = Pattern, state_changes = States, field = ParentField, excluded = Ex}) ->
+get_states(FieldMap, S=#state{state_changes = States, field = ParentField, excluded = Ex}) ->
    Fields = maps:keys(FieldMap),
-   lists:foldl(
+   plists:fold(
       fun
          (FieldName0, CurrentStates) ->
             FieldName = <<ParentField/binary, ".", FieldName0/binary>>,
-%%            lager:notice("fieldname: ~p",[FieldName]),
             case lists:member(FieldName, Ex) of
                true ->
                   CurrentStates;
                false ->
                   case proplists:get_value(FieldName, States) of
                      undefined ->
-                        Fun = build_fun(Pattern, FieldName),
-                        [{FieldName, state_change:new(Fun)}|CurrentStates];
+                        Fun = build_fun(S, FieldName),
+                        [{FieldName, state_change:new(Fun, FieldName)}|CurrentStates];
                      _Fun ->
                         CurrentStates
                   end
             end
       end,
       States,
-      Fields).
+      Fields,
+      {processes, schedulers}).
 
-build_fun(PatternString, FieldName) when is_binary(PatternString) ->
+build_fun(#state{lambda_pattern = undefined, state_value = Val}, _FieldName) ->
+   Val;
+build_fun(#state{lambda_pattern = PatternString}, FieldName) when is_binary(PatternString) ->
    Name = clean_param_name(FieldName),
    FunString = binary:replace(PatternString, ?PLACE_HOLDER, string:titlecase(Name), [global]),
    Vars = [string:titlecase(binary_to_list(Name))],
