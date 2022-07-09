@@ -45,7 +45,8 @@
    state_changes = [],
    prefix,
    field,
-   excluded = []
+   excluded = [],
+   last_data
 }).
 
 options() -> [
@@ -96,7 +97,11 @@ process(_In, #data_batch{points = _Points} = _Batch, _State = #state{state_lambd
    {error, not_implemented};
 process(_Inport, #data_point{} = Point, State = #state{field = Field}) ->
    FieldMap = flowdata:field(Point, Field),
-%%   lager:notice("fieldmap is: ~p",[FieldMap]),
+   maybe_process(FieldMap, Point, State).
+
+maybe_process(FieldMap, _Point, State=#state{last_data = FieldMap}) ->
+   {ok, State};
+maybe_process(FieldMap, Point, State = #state{}) ->
    StateTrackers = get_states(FieldMap, State),
    F = fun({FieldName, StateChange}, UpdatedStateChanges) ->
       case state_change:process(StateChange, Point) of
@@ -107,14 +112,14 @@ process(_Inport, #data_point{} = Point, State = #state{field = Field}) ->
             lager:error("Error evaluating lambda: ~p",[Error]),
             [{FieldName, StateChange, undefined} | UpdatedStateChanges]
       end
-      end,
+       end,
    Results = plists:fold(F, [], StateTrackers, {processes, schedulers}),
    {NewStates, Emits} = lists:unzip(Results),
    lists:foreach(fun
                     (P=#data_point{}) -> dataflow:emit(P);
                     (undefined) -> ok
                  end, Emits),
-   {ok, State#state{state_changes = NewStates}}.
+   {ok, State#state{state_changes = NewStates, last_data = FieldMap}}.
 
 handle(entered, FieldName, StateState, State=#state{emit_entered = true, entered_as = As, entered_keep = Keep}) ->
    P = state_change:get_last_point(StateState),
@@ -137,7 +142,7 @@ handle(left, FieldName, StateState, State=#state{emit_left = true, left_as = As,
       FieldName],
 
    prepare_point_data(P, Keep, AddFNames, AddFields, State);
-handle(_, _F, _StateState, State=#state{}) ->
+handle(_, _F, _StateState, #state{}) ->
    undefined.
 
 prepare_point_data(P, Keep, AddFieldNames, AddFieldVals, _State = #state{prefix = Prefix}) ->
