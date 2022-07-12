@@ -68,7 +68,7 @@ check_json(_) -> false.
 
 init(NodeId, _Inputs,
     #{every := Every, align := Unit, jitter := Jitter, json := JS, as := As, select := Sel, modify := Replace,
-       modify_with := Funs0} = Opts) ->
+       modify_with := Funs0} = _Opts) ->
 
    NUnit =
       case Unit of

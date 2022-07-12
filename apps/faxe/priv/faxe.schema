@@ -528,7 +528,7 @@
 
 %% Interval at which vm stats are exposed
 {mapping, "vmstats.interval", "vmstats.interval",
-    [{default, "3s"}, {datatype, {duration, ms}}, hidden]
+    [{default, "15s"}, {datatype, {duration, ms}}, hidden]
 }.
 
 %% Scheduler time

@@ -21,7 +21,7 @@ def state =
 |rename()
 .fields('data')
 .as_fields('data.obj')
-    |debug('info')
+   % |debug('info')
 
 |state_change_bulk()
 %.lambda_pattern(<<<$field == 1>>>)
@@ -33,4 +33,6 @@ def state =
 .leave()
 .leave_keep('data.obj.errcode1', 'data.object.errcode3')
 
-|debug('warning')
+|eval(lambda: "data.obj.errcode1" * 13).as('13nr')
+
+%|debug('warning')

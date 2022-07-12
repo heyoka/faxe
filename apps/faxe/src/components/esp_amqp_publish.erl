@@ -94,12 +94,20 @@ eval_qos(Opts = #{qos := 2}) ->
    Opts#{safe_mode => true, use_queue => true}.
 
 process(_In, Item, State = #state{flowid_nodeid = FNId, debug_mode = Debug}) ->
+   Key = key(Item, State),
+   do_process(Key, Item, State).
+
+do_process(undefined, Item, State) ->
+   lager:error("Routing-key is invalid for item ~p, ignoring message",[Item]),
+   {ok, State};
+do_process(Key, Item, State = #state{flowid_nodeid = FNId, debug_mode = Debug}) ->
    Payload = flowdata:to_json(Item),
    node_metrics:metric(?METRIC_BYTES_SENT, byte_size(Payload), FNId),
    node_metrics:metric(?METRIC_ITEMS_OUT, 1, FNId),
-   handle_data(key(Item, State), Payload, State),
+   handle_data(Key, Payload, State),
    dataflow:maybe_debug(item_out, 1, Item, FNId, Debug),
    {ok, State}.
+
 
 handle_info(start_debug, State) -> {ok, State#state{debug_mode = true}};
 handle_info(stop_debug, State) -> {ok, State#state{debug_mode = false}};
@@ -144,12 +152,18 @@ start_connection(State = #state{opts = Opts, queue = Q}) ->
    State#state{client = Pid}.
 
 key(#data_batch{points = [P1 | _]}, #state{rk_lambda = undefined, routing_key = undefined, rk_field = Field}) ->
-   faxe_util:to_rkey(flowdata:field(P1, Field));
+   check_key(faxe_util:to_rkey(flowdata:field(P1, Field)));
 key(#data_point{} = P, #state{rk_lambda = undefined, routing_key = undefined, rk_field = Field}) ->
-   faxe_util:to_rkey(flowdata:field(P, Field));
+   check_key(faxe_util:to_rkey(flowdata:field(P, Field)));
 key(_Item, #state{rk_lambda = undefined, routing_key = Topic}) ->
    Topic;
 key(#data_batch{points = [P1 | _]}, #state{rk_lambda = Fun}) ->
-   faxe_util:to_rkey(faxe_lambda:execute(P1, Fun));
+   check_key(faxe_util:to_rkey(faxe_lambda:execute(P1, Fun)));
 key(#data_point{} = P, #state{rk_lambda = Fun}) ->
-   faxe_util:to_rkey(faxe_lambda:execute(P, Fun)).
+   check_key(faxe_util:to_rkey(faxe_lambda:execute(P, Fun))).
+
+check_key(K) ->
+   case faxe_lambda_lib:empty(K) of
+      true -> undefined;
+      false -> K
+   end.

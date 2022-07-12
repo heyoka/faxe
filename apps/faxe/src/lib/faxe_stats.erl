@@ -27,7 +27,7 @@
    code_change/3]).
 
 -define(SERVER, ?MODULE).
--define(INTERVAL, 5000).
+-define(INTERVAL, 20000).
 
 -record(state, {
    stats = #{}

@@ -117,7 +117,6 @@ build_message(Item, State = #state{fn_id = FNId}) ->
    node_metrics:metric(?METRIC_BYTES_SENT, byte_size(Json), FNId),
    node_metrics:metric(?METRIC_ITEMS_OUT, 1, FNId),
    T = get_topic(Item, State),
-   lager:notice("topic is :~p", [T]),
    {get_topic(Item, State), Json}.
 
 
