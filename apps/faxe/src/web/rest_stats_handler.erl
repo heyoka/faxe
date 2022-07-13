@@ -49,4 +49,19 @@ stats_json(Req, State=#state{mode = vm}) ->
 %% FAXE STATS
 stats_json(Req, State=#state{mode = faxe}) ->
    Stats = faxe_stats:get_stats(),
-   {jiffy:encode(Stats), Req, State}.
+   {jiffy:encode(Stats), Req, State};
+
+%% Processes by reductions STATS
+stats_json(Req, State=#state{mode = reds}) ->
+  Stats = process_stats:get_top_reds(20),
+  {jiffy:encode(Stats), Req, State};
+
+%% Graph node processes by message-q size STATS
+stats_json(Req, State=#state{mode = msgq}) ->
+  Stats = process_stats:get_top_msgq(20),
+  {jiffy:encode(Stats), Req, State};
+
+%% Graph node processes by reductions STATS
+stats_json(Req, State=#state{mode = nodes}) ->
+  Stats = process_stats:get_top_nodes(20),
+  {jiffy:encode(Stats), Req, State}.
