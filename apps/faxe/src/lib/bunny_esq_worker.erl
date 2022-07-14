@@ -105,9 +105,20 @@ handle_info(connect, State) ->
    end;
 
 
-handle_info( {'DOWN', _Ref, process, Conn, _Reason} = _Req, State=#state{connection = Conn}) ->
-   lager:debug("RMQ Connection down, waiting for EXIT on channel ..."),
-   {noreply, State};
+%%handle_info( {'DOWN', _Ref, process, Conn, _Reason} = _Req, State=#state{connection = Conn}) ->
+%%   lager:notice("RMQ Connection down, waiting for EXIT on channel ..."),
+%%   {noreply, State};
+handle_info({'EXIT', Conn, Reason}, State=#state{connection = Conn, channel = MQPid, reconnector = Recon} ) ->
+   lager:notice("RMQ Connection died with Reason: ~p",[Reason]),
+   catch unlink(MQPid),
+   catch amqp_channel:close(MQPid),
+   {ok, Reconnector} = faxe_backoff:execute(Recon, connect),
+   {noreply, State#state{
+      reconnector = Reconnector,
+      channel = undefined,
+      channel_ref = undefined,
+      available = false
+   }};
 handle_info({'EXIT', MQPid, Reason}, State=#state{channel = MQPid, reconnector = Recon} ) ->
    lager:notice("MQ channel DIED: ~p", [Reason]),
    {ok, Reconnector} = faxe_backoff:execute(Recon, connect),
@@ -208,12 +219,15 @@ terminate(Reason, State=#state{channel = Channel, connection = Conn}) ->
    lager:notice("~p ~p terminating with reason: ~p",[?MODULE, self(), Reason]).
 
 close(Channel, Conn, #state{queue = _Q, last_confirmed_dtag = _LastTag, pending_acks = _Pending, deq_timer_ref = T}) ->
-   catch (erlang:cancel_timer(T)),
-   amqp_channel:unregister_confirm_handler(Channel),
-   amqp_channel:unregister_return_handler(Channel),
-   amqp_channel:unregister_flow_handler(Channel),
-   amqp_channel:close(Channel),
-   amqp_connection:close(Conn).
+   unlink(Conn),
+   unlink(Channel),
+   amqp_connection:close(Conn),
+   catch (erlang:cancel_timer(T)).
+%%   amqp_channel:unregister_confirm_handler(Channel),
+%%   amqp_channel:unregister_return_handler(Channel),
+%%   amqp_channel:unregister_flow_handler(Channel),
+%%   amqp_channel:close(Channel),
+%%   amqp_connection:close(Conn).
 
 -spec code_change(string(), state(), term()) -> {ok, state()}.
 code_change(_OldVsn, State, _Extra) ->
@@ -298,7 +312,7 @@ start_connection(State = #state{config = Config, reconnector = Recon, safe_mode 
                %% we link to the channel, to get the EXIT signal
                link(Chan),
                %% ensure our exchange
-               ensure_exchange(Chan, State#state.exchange),
+%%               ensure_exchange(Chan, State#state.exchange),
                NState = State#state{connection = Conn, channel = Chan, available = true,
                   reconnector = faxe_backoff:reset(Recon)},
                NState;
@@ -361,7 +375,7 @@ maybe_start_connection(#state{connection = Conn, config = Config}) ->
          {ok, Conn};
       false ->
          case amqp_connection:start(Config) of
-            {ok, NewConn} = Res -> erlang:monitor(process, NewConn), Res;
+            {ok, NewConn} = Res -> link(NewConn), Res;
             Other -> Other
          end
    end.
