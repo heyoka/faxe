@@ -125,7 +125,7 @@ init({GraphId, NodeId} = Idx, _Ins,
    Opts = Opts0#{
       host => Host, consumer_tag => CTag,
       exchange => faxe_util:prefix_binary(Ex, XPrefix),
-      root_exchange => case RExchange of undefined -> undefined; _ -> faxe_util:prefix_binary(RExchange, XPrefix) end,
+      root_exchange => case RExchange of undefined -> undefined; _ -> RExchange end,
       queue => faxe_util:prefix_binary(Q, QPrefix),
       routing_key => faxe_util:to_rkey(RoutingKey0),
       bindings => faxe_util:to_rkey(Bindings0)
