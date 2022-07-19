@@ -292,7 +292,8 @@ do_query(State = #state{query_mark = QueryMark, stop = Stop}) when Stop /= undef
    {ok, State};
 do_query(State = #state{client = C, period = Period, query_mark = QueryMark, response_def = RespDef, fn_id = FnId}) ->
    %% do query
-   {TsMy, Resp} = timer:tc(epgsql, prepared_query, [C, ?STMT, [QueryMark-Period, QueryMark]]),
+   FromTs = QueryMark-Period,
+   {TsMy, Resp} = timer:tc(epgsql, prepared_query, [C, ?STMT, [FromTs, QueryMark]]),
    %%   lager:info("reading time: ~pms", [round(TsMy/1000)]),
    node_metrics:metric(?METRIC_READING_TIME, round(TsMy/1000), FnId),
    NewQueryMark = QueryMark+Period,
@@ -301,14 +302,14 @@ do_query(State = #state{client = C, period = Period, query_mark = QueryMark, res
    NewState = NewState0#state{timer = NewTimer},
 %%   lager:notice("from: ~p, to :~p (~p sec)",
 %%      [faxe_time:to_iso8601(QueryMark-Period), faxe_time:to_iso8601(QueryMark), round(Period/1000)]),
-   Result = faxe_epgsql_response:handle(Resp, RespDef#faxe_epgsql_response{default_timestamp = QueryMark-Period}),
+   Result = faxe_epgsql_response:handle(Resp, RespDef#faxe_epgsql_response{default_timestamp = FromTs}),
 %%   lager:notice("result: ~p",[Result]),
    case Result of
       ok ->
          {ok, NewState};
       {ok, Data} ->
          node_metrics:metric(?METRIC_ITEMS_IN, 1, FnId),
-         {emit, {1, Data#data_batch{start = QueryMark}}, NewState};
+         {emit, {1, Data#data_batch{start = FromTs}}, NewState};
       {error, Error} ->
          lager:warning("Error response from Crate: ~p", [Error]),
          {ok, NewState}

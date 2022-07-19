@@ -145,8 +145,8 @@ start_client(State = #state{host = Host, port = Port, tls = Tls}) ->
             {ok, _} ->
                connection_registry:connected(),
                State#state{client = C};
-            _ ->
-               lager:warning("timeout connecting to ~p:~p", [Host, Port]),
+            {error, What} ->
+               lager:warning("error connecting to ~p:~p - ~p", [Host, Port, What]),
                recon(State)
          end;
       {error, Err} ->
