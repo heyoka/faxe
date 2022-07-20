@@ -69,6 +69,7 @@ options() ->
       {min_interval, duration, <<"5s">>}, %% should default to query_timeout (once implemented)
       {query_timeout, duration, <<"15s">>},
       {start, string},
+      {start_delay, duration, undefined},
       {stop, string, undefined},
       {result_type, string, <<"batch">>}
    ].
@@ -128,7 +129,7 @@ metrics() ->
    ].
 
 init(NodeId, _Inputs, Opts = #{
-   host := Host0, port := Port, user := User, pass := Pass, ssl := Ssl, database := DB,
+   host := Host0, port := Port, user := User, pass := Pass, ssl := Ssl, database := DB, start_delay := Delay,
    result_time_field := ResTimeField0, result_type := RType, filter_time_field := FilterTime}) ->
 
    process_flag(trap_exit, true),
@@ -137,24 +138,19 @@ init(NodeId, _Inputs, Opts = #{
       password => binary_to_list(Pass), database => DB},
    DBOpts = maps:merge(?DB_OPTIONS, DBOpts0),
 
-   %% prepare and convert time(r) related options
-   State0 = setup_time(Opts, #state{
-      db_opts = DBOpts, host = Host, port = Port, user = User, pass = Pass, database = DB}),
-
-   State1 = setup_query(Opts, State0),
-
    ResTimeField = case ResTimeField0 of undefined -> FilterTime; _ -> ResTimeField0 end,
    Response = faxe_epgsql_response:new(ResTimeField, erlang:binary_to_existing_atom(RType), <<"data">>),
 
-   NewState = State1#state{
-      host = Host, port = Port, user = User, pass = Pass, database = DB,
-      db_opts = DBOpts,
-      response_def = Response,
-      fn_id = NodeId},
-
    connection_registry:reg(NodeId, Host, Port, <<"pgsql">>),
-   erlang:send_after(0, self(), reconnect),
+
+   StartDelay = case Delay of undefined -> 0; _ -> faxe_time:duration_to_ms(Delay) end,
+   %% init after maybe startdelay
+   erlang:send_after(StartDelay, self(), {init2, Opts}),
+   NewState = #state{
+      host = Host, port = Port, user = User, pass = Pass, database = DB,
+      db_opts = DBOpts, response_def = Response, fn_id = NodeId},
    {ok, all, NewState}.
+
 
 process(_In, _P = #data_point{}, State = #state{}) ->
    {ok, State};
@@ -176,6 +172,13 @@ handle_info(query, State = #state{timer = _Timer, query_mark = QueryMark, offset
       false ->
          do_query(State)
    end;
+
+handle_info({init2, StartOpts}, State = #state{}) ->
+   %% prepare and convert time(r) related options
+   State0 = setup_time(StartOpts, State),
+   State1 = setup_query(StartOpts, State0),
+   erlang:send_after(0, self(), reconnect),
+   {ok, State1};
 
 handle_info({'EXIT', _C, Reason}, State = #state{}) ->
    lager:warning("EXIT epgsql with reason: ~p",[Reason]),

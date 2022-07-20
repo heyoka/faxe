@@ -139,7 +139,8 @@ process(_Port, B = #data_batch{points = Points}, State) ->
       ChangedNew = (Changed0 == true orelse Changed1 == true),
       {ChangedNew, NewState}
    end,
-   {T, {Changed, ResState}} = timer:tc(lists, foldl, [ProcessFun, {false, NewState0}, Points]),
+%%   {T, {Changed, ResState}} = timer:tc(lists, foldl, [ProcessFun, {false, NewState0}, Points]),
+   {Changed, ResState} = lists:foldl(ProcessFun, {false, NewState0}, Points),
 %%   lager:notice("it took ~p my to process ~p points (changed: ~p)",[T, length(Points), Changed]),
    maybe_emit(Changed, ResState).
 
