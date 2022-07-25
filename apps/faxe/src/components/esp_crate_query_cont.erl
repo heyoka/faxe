@@ -28,6 +28,7 @@
    start :: pos_integer(), %% time (in data) at which to start queries
    setup_start :: true|false, %% whether we have get our starttime from an sql query
    stop :: undefined | pos_integer(), %% time (in data) at which to end queries
+   stop_flow :: false | true|false, %% whether to stop the flow, when stop time is reached
    min_interval :: pos_integer(),
    interval :: pos_integer(), %% query interval that is in place
    offset :: non_neg_integer(),
@@ -49,6 +50,7 @@
 %%-define(TIMEOUT_STATEMENT, <<"SET statement_timeout = ">>).
 -define(KEEPALIVE_QUERY, <<"SELECT 1">>).
 -define(KEEPALIVE_INTERVAL, 40000).
+-define(START_QUERY_RETRY_INTERVAL, 4000).
 
 -define(STMT, "stmt").
 
@@ -71,6 +73,7 @@ options() ->
       {start, string},
       {start_delay, duration, undefined},
       {stop, string, undefined},
+      {stop_flow, boolean, false},
       {result_type, string, <<"batch">>}
    ].
 
@@ -130,7 +133,7 @@ metrics() ->
 
 init(NodeId, _Inputs, Opts = #{
    host := Host0, port := Port, user := User, pass := Pass, ssl := Ssl, database := DB, start_delay := Delay,
-   result_time_field := ResTimeField0, result_type := RType, filter_time_field := FilterTime}) ->
+   result_time_field := ResTimeField0, result_type := RType, filter_time_field := FilterTime, stop_flow := StopFlow}) ->
 
    process_flag(trap_exit, true),
    Host = binary_to_list(Host0),
@@ -148,7 +151,7 @@ init(NodeId, _Inputs, Opts = #{
    erlang:send_after(StartDelay, self(), {init2, Opts}),
    NewState = #state{
       host = Host, port = Port, user = User, pass = Pass, database = DB,
-      db_opts = DBOpts, response_def = Response, fn_id = NodeId},
+      db_opts = DBOpts, response_def = Response, fn_id = NodeId, stop_flow = StopFlow},
    {ok, all, NewState}.
 
 
@@ -187,6 +190,8 @@ handle_info({'EXIT', _C, Reason}, State = #state{}) ->
    {ok, NewState};
 handle_info(reconnect, State) ->
    {ok, connect(State)};
+handle_info(start_setup, State) ->
+   {ok, start_setup(State)};
 handle_info(_What, State) ->
    {ok, State}.
 
@@ -202,12 +207,10 @@ connect(State = #state{db_opts = Opts, query = Q}) ->
          connection_registry:connected(),
          case epgsql:parse(C, ?STMT, Q, [int8, int8]) of
             {ok, Statement} ->
-               NewState0 = State#state{client = C, stmt = Statement},
+               erlang:send_after(0, self(), start_setup),
+               State#state{client = C, stmt = Statement};
                %% setup start-time with a query:
 %%               lager:notice("start_setup:~p",[lager:pr(NewState0, ?MODULE)]),
-               NewState = start_setup(NewState0),
-               TRef = next_query(NewState),
-               NewState#state{timer = TRef, setup_start = false};
             Other ->
                lager:error("Can not parse prepared statement: ~p",[Other]),
                %error("parsing prepared statement failed!"),
@@ -277,22 +280,31 @@ setup_query_start(S=#state{start = Start}) ->
    end.
 
 start_setup(S=#state{setup_start = false}) ->
-   S;
+   start(S);
 start_setup(S=#state{start = Start, client = Client}) ->
-   Res = epgsql:equery(Client, Start),
-   {ok,[_TsCol],[{TimeStampString}]} = Res,
-   lager:debug("got datetime from db: ~p",[TimeStampString]),
-   Out = prepare_start(S#state{start = TimeStampString, setup_start = false}),
-%%   lager:notice("after start_setup: ~p",[lager:pr(Out, ?MODULE)]),
-   Out
-%%   lager:notice("got start result: ~p",[Res])
+
+   case catch epgsql:equery(Client, Start) of
+      {ok,[_TsCol],[{TimeStampString}]} ->
+         NewState = prepare_start(S#state{start = TimeStampString, setup_start = false}),
+         start(NewState);
+      W ->
+         lager:info("did not get starttime with query: ~p | ~p",[Start, W]),
+         erlang:send_after(?START_QUERY_RETRY_INTERVAL, self(), start_setup),
+         S
+   end
 .
 
+start(S = #state{}) ->
+   TRef = next_query(S),
+   S#state{timer = TRef}.
 
+%% stop
 do_query(State = #state{query_mark = QueryMark, stop = Stop}) when Stop /= undefined andalso QueryMark > Stop ->
-   lager:notice("stop is reached: ~p > ~p",[QueryMark, Stop]),
-%%   {stop, normal, State};
-   {ok, State};
+   lager:notice("stop is reached: ~p > ~p",[faxe_time:to_iso8601(QueryMark), faxe_time:to_iso8601(Stop)]),
+   case State#state.stop_flow of
+      true -> {stop, normal, State};
+      false -> {ok, State}
+   end;
 do_query(State = #state{client = C, period = Period, query_mark = QueryMark, response_def = RespDef, fn_id = FnId}) ->
    %% do query
    FromTs = QueryMark-Period,
@@ -328,12 +340,6 @@ next_query(#state{query_mark = NewQueryMark, offset = Offset}) ->
 
 build_query(<<_Sel:6/binary, _Query/binary>> = Select, TimeField) ->
    TimeRangeClause = time_range(TimeField),
-%%   Select =
-%%      <<
-%%         "SELECT ",
-%%         TimeField/binary,
-%%         ", ", Query/binary
-%%   >>,
    binary:replace(Select, ?TIMEFILTER_KEY, TimeRangeClause).
 
 time_range(TimeField) ->

@@ -84,7 +84,7 @@ check_options() ->
       {one_of, update_mode, [?UPDATE_MODE_MERGE, ?UPDATE_MODE_MERGE_REVERSE, ?UPDATE_MODE_REPLACE]}
    ].
 
-wants() -> point.
+wants() -> both.
 emits() -> batch.
 
 init(NodeId, _Ins, #{
