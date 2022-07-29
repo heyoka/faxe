@@ -67,7 +67,6 @@ handle_call({read, Opts}, _From, State = #state{client = Client, ip = _Ip}) ->
   {reply, Res, State};
 handle_call({get_pdu_size}, _From, State = #state{client = Client}) ->
   Res = (catch snapclient:get_pdu_length(Client)),
-  lager:notice("get_pdu_size gives: ~p",[Res]),
   {reply, Res, State};
 handle_call(_Request, _From, State = #state{}) ->
   {reply, ok, State}.

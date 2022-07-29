@@ -305,8 +305,7 @@ consumer_config(Opts = #{vhost := VHost, queue := Q, consumer_tag := ConsumerTag
    Setup0 = SetupQ ++ SetupEx,
    Setup = [{setup, Setup0}],
    Config = Config0++Setup,
-   erlang:display(Config),
-   lager:warning("giving carrot these Configs: ~p", [Config]),
+   lager:debug("giving carrot these Configs: ~p", [Config]),
    Props = carrot_util:proplists_merge(
       maps:to_list(Opts) ++ [{ssl_opts, faxe_config:get_amqp_ssl_opts()}], Config),
    Props.

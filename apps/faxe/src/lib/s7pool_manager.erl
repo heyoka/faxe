@@ -87,7 +87,7 @@ handle_cast(_Request, State = #state{}) ->
 handle_info({ensure_pool, #{ip := Ip} = Opts, User},
     State = #state{ips_pools = Ips, pools_ips = Pools, ip_opts = IpOpts, pool_user = PUsers,
       users_waiting = UsersWaiting, pools_up = Up}) ->
-%%  lager:notice("ensure_pool for ip :~p for user: ~p",[Ip, User]),
+  lager:notice("ensure_pool for ip :~p for user: ~p",[Ip, User]),
   erlang:monitor(process, User),
   NewPUsers = add_user(Ip, PUsers, User),
   IpDemand = check_demand(Ip, NewPUsers),
