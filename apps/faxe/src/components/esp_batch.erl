@@ -63,9 +63,10 @@ batch_accum(PointList, State = #state{size = Size}) ->
    {ok, ResState}.
 
 %% this should not be possible, cause the timer starts on an incoming point
-handle_info(batch_timeout, _State=#state{length = 0}) ->
+handle_info(batch_timeout, State=#state{length = 0}) ->
 %%   lager:warning("timeout when Q is empty!!"),
-   erlang:error("batch timeout with no data in batch node!");
+%%   erlang:error("batch timeout with no data in batch node!");
+   {ok, State};
 handle_info(batch_timeout, State) ->
    {Batch, NewState} = prepare_batch(State),
    {emit, {1, Batch}, NewState};
