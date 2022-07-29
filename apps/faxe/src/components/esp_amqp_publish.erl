@@ -53,7 +53,7 @@ options() -> [
    {ssl, is_set, false},
    {persistent, bool, false},
 
-   {qos, integer, 1}
+   {qos, integer, 0}
 ].
 
 check_options() ->
