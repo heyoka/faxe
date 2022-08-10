@@ -107,7 +107,7 @@ build_addresses(Addresses, PDUSize) ->
   {NewBoolParts, {NewBoolRestParts, _NewBoolRestAliases} = BoolRest} = find_bool_bytes(BoolsSorted, PDUSize),
 %%  lager:warning("NEW bool contiguous: ~n",[]),
 %%  lager:warning("NEW BOOL Parts: ~p~n",[NewBoolParts]),
-  lager:warning("NEW BOOL RESTParts: ~p~n",[length(NewBoolRestParts)]),
+%%  lager:warning("NEW BOOL RESTParts: ~p~n",[length(NewBoolRestParts)]),
 %%  lager:warning("NEW BOOL RESTAliases: ~p~n",[NewBoolRestAliases]),
 
   %% sort by starts
@@ -117,7 +117,7 @@ build_addresses(Addresses, PDUSize) ->
   {NewParts, {NewRestParts, NewRestAliases} = NonBoolRest} = find_contiguous(ParamsSorted, PDUSize),
 %%  lager:warning("NEW contiguous: ~n",[]),
 %%  lager:warning("NEW Parts: ~p~n",[NewParts]),
-  lager:warning("NEW RESTParts: ~p~n",[length(NewRestParts)]),
+%%  lager:warning("NEW RESTParts: ~p~n",[length(NewRestParts)]),
 %%  lager:warning("NEW RESTAliases: ~p~n",[NewRestAliases]),
 
   %% merge rest from bool and non bools, if size would allow it
@@ -166,7 +166,7 @@ find_contiguous(ParamList, PDUSize) ->
     case size_exceeded(PDUSize, NewSize, length(CurrentVars)+1) of
 %%    case exceeds_limits(PDUSize, NewSize, length(CurrentVars)) of
       true ->
-        lager:notice("new size of ~p > ~p at:~p",[NewSize, CMaxPayloadSize, E]),
+%%        lager:notice("new size of ~p > ~p at:~p",[NewSize, CMaxPayloadSize, E]),
 %%        %% we need a new request here
 %%        NewCurrent = Current#{amount => CAmount+1, aliases => CAs++[{Clients, DType}]},
         NewCurrentVars = CurrentVars++[Current],
@@ -187,7 +187,7 @@ find_contiguous(ParamList, PDUSize) ->
             end,
             case item_count_exceeded(length(RealCurrentVars)) of
               true ->
-                lager:notice("item count exceeded ~p at ~p, CURRENT is: ~p", [length(RealCurrentVars), E, Current]),
+%%                lager:notice("item count exceeded ~p at ~p, CURRENT is: ~p", [length(RealCurrentVars), E, Current]),
                 AliasesList = lists:map(fun(#{aliases := Aliases}) -> lists:unzip(Aliases) end, CurrentVars),
                 AddressPartitions = [maps:without([aliases, clients, dtype], M) || M <- CurrentVars],
                 {-2, E#{aliases => [{Clients, DType}]}, [Current], Requests ++[{AddressPartitions, AliasesList}], ThisSize};
@@ -203,9 +203,9 @@ find_contiguous(ParamList, PDUSize) ->
 %%    lager:notice("NONBOOL Current ~p~nCurrentVars ~p~nParts ~p",[Current, CurrentVars, Parts]),
   RestVars = [Current|CurrentVars],
 %%  lager:notice("RestVars ~p: ~p",[length(RestVars), RestVars]),
-  [lager:notice("~nnonbool Part: ~p",[Part]) || Part <- Parts],
+%%  [lager:notice("~nnonbool Part: ~p",[Part]) || Part <- Parts],
 
-  FAs = fun(#{aliases := Aliases}) -> lager:notice("rest aliases: ~p",[Aliases]), lists:unzip(Aliases) end,
+  FAs = fun(#{aliases := Aliases}) -> lists:unzip(Aliases) end,
   RestAliasesList = lists:map(FAs, RestVars),
   RestAddressPartitions = [maps:without([aliases, clients, dtype], M) || M <- RestVars],
 %%  lager:notice("REST Addresses ~p",[RestAddressPartitions]),
@@ -234,7 +234,7 @@ find_bool_bytes(Bools, PDUSize) ->
 %%    case exceeds_limits(PDUSize, NewSize, length(CurrentVars)) of
       true ->
         CMaxPayloadSize = max_payload_size(PDUSize, length(CurrentVars)+1),
-        lager:notice("B new size of ~p > ~p at : ~p",[NewSize, CMaxPayloadSize, E]),
+%%        lager:notice("B new size of ~p > ~p at : ~p",[NewSize, CMaxPayloadSize, E]),
         %% we need a new request here
 %%        NewCurrent0 = Current#{aliases => CAs++[{Clients, bool_byte, (Bit+(Byte-CStartByte)*8)}]},
 %%        NewCurrent =
