@@ -71,7 +71,7 @@ handle_cast(_Request, State = #state{}) ->
   {noreply, State}.
 
 handle_info({read, Requests, [{_Intv, #faxe_timer{last_time = Ts}}]=SendTimers},
-    State=#state{slot_timers = SlotTimers, conn_opts = Opts}) ->
+    State=#state{slot_timers = SlotTimers, conn_opts = Opts, s7_ip = Ip}) ->
   lager:warning("read ~p requests ", [length(Requests)]),
   ElFun =
     fun({Vars, Aliases}) ->
@@ -80,9 +80,10 @@ handle_info({read, Requests, [{_Intv, #faxe_timer{last_time = Ts}}]=SendTimers},
         _ -> []
       end
     end,
-  RunWith = 1,%faxe_config:get(s7pool_max_size, 2),
-%%  {Time, [FirstResult |RequestResults]} = timer:tc(plists, map, [ElFun, Requests, {processes, RunWith}]),
-  {Time, [FirstResult |RequestResults]} = timer:tc(lists, map, [ElFun, Requests]),
+  RunWith = s7pool_manager:connection_count(Ip),
+%%    1,%faxe_config:get(s7pool_max_size, 2),
+  {Time, [FirstResult |RequestResults]} = timer:tc(plists, map, [ElFun, Requests, {processes, RunWith}]),
+%%  {Time, [FirstResult |RequestResults]} = timer:tc(lists, map, [ElFun, Requests]),
   lager:alert("Time to read: ~p millis with ~p processes/connections",[erlang:round(Time/1000), RunWith]),
   MergeFun =
   fun

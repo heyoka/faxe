@@ -74,7 +74,7 @@ options() -> [
   {merge_field, string, undefined},
   {byte_offset, integer, 0},
   {use_pool, bool, {s7pool, enable}},
-  {standalone, bool, false}
+  {standalone, bool, true}
 ].
 
 check_options() ->

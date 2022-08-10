@@ -8,7 +8,7 @@
 
 -behaviour(gen_server).
 
--export([start_link/0, connect/1, read_vars/2, get_pdu_size/1]).
+-export([start_link/0, connect/1, read_vars/2, get_pdu_size/1, connection_count/1]).
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2, terminate/2,
   code_change/3]).
 
@@ -49,6 +49,13 @@ read_vars(_Opts=#{ip := Ip}, Vars) ->
       end;
     Other ->
       Other
+  end.
+
+connection_count(Ip) ->
+  case ets:lookup(s7_pools, Ip) of
+    [] -> 0;
+    [{Ip, []}] -> 0;
+    [{Ip, Connections}] -> length(Connections)
   end.
 
 start_link() ->

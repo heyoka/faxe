@@ -158,7 +158,6 @@ find_contiguous(ParamList, PDUSize) ->
   ) ->
     ThisSize = byte_count(E),
     NewSize = ThisSize + CurrentSize,
-    lager:info("at: ~p",[E]),
 %%    lager:info("CurrentSize is ~p",[CurrentSize]),
 %%    lager:info("CurrentVars is ~p",[CurrentVars]),
 %%    lager:info("Current is ~p",[Current]),
