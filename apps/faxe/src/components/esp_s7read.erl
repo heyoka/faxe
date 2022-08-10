@@ -21,7 +21,7 @@
   metrics/0]).
 
 -export([
-  maybe_emit/6, build_addresses/3,
+  maybe_emit/6, build_addresses/2,
   build_point/3, do_build/3, split_mod2/2]).
 
 -define(MAX_READ_ITEMS, 19).
@@ -40,6 +40,8 @@
   interval,
   as :: list(binary()),
   as_prefix :: binary(),
+  %% raw aliases list
+  as_list :: list(binary()),
   align,
   diff,
   timer_ref,
@@ -53,7 +55,8 @@
   connected = false,
   merge_field,
   port_data,
-  address_offset
+  address_offset,
+  standalone = false :: true|false
 }).
 
 options() -> [
@@ -70,7 +73,8 @@ options() -> [
   {diff, is_set},
   {merge_field, string, undefined},
   {byte_offset, integer, 0},
-  {use_pool, bool, {s7pool, enable}}
+  {use_pool, bool, {s7pool, enable}},
+  {standalone, bool, false}
 ].
 
 check_options() ->
@@ -93,26 +97,29 @@ check_options() ->
         end
       end,
       <<", invalid address: ">>
-    },
-    {func, vars,
-      fun(_List0, #{vars_prefix := VarsPrefix}=Opts) ->
-        {_As, List} = retrieve_ads(Opts),
-        List1 = translate_vars(List, VarsPrefix),
-        {P, _} = build_addresses(List1, lists:seq(1, length(List1)), 0),
-        length(P) =< ?MAX_READ_ITEMS
-      end,
-      <<", has to many address items!">>
-    },
-    {func, vars,
-      fun(_List0, #{vars_prefix := VarsPrefix}=Opts) ->
-        {_As, List} = retrieve_ads(Opts),
-        List1 = translate_vars(List, VarsPrefix),
-        {P, _} = build_addresses(List1, lists:seq(1, length(List1)), 0),
-        bit_count(P)/8 =< ?DEFAULT_BYTE_LIMIT
-      end,
-
-      <<", byte-limit of 128 bytes exceeded!">>
     }
+%%    ,
+%%    {func, vars,
+%%      fun(_List0, #{vars_prefix := VarsPrefix}=Opts) ->
+%%        {_As, List} = retrieve_ads(Opts),
+%%        List1 = translate_vars(List, VarsPrefix),
+%%        Parsed = parse_addresses(List1, 0),
+%%        {P, _} = build_addresses(Parsed, lists:seq(1, length(List1))),
+%%        length(P) =< ?MAX_READ_ITEMS
+%%      end,
+%%      <<", has to many address items!">>
+%%    },
+%%    {func, vars,
+%%      fun(_List0, #{vars_prefix := VarsPrefix}=Opts) ->
+%%        {_As, List} = retrieve_ads(Opts),
+%%        List1 = translate_vars(List, VarsPrefix),
+%%        Parsed = parse_addresses(List1, 0),
+%%        {P, _} = build_addresses(Parsed, lists:seq(1, length(List1))),
+%%        bit_count(P)/8 =< ?DEFAULT_BYTE_LIMIT
+%%      end,
+%%
+%%      <<", byte-limit of 128 bytes exceeded!">>
+%%    }
   ].
 
 metrics() ->
@@ -132,45 +139,48 @@ init({_, _NId}=NodeId, _Ins,
       as_prefix := As_Prefix,
       diff := Diff,
       merge_field := MergeField,
-      byte_offset := Offset} = Opts) ->
+      byte_offset := Offset,
+      standalone := Standalone} = Opts) ->
 
   %% handle aliases and addresses
   {As, Addresses} = retrieve_ads(Opts),
   As1 = translate_as(As, As_Prefix),
   Addresses1 = translate_vars(Addresses, Vars_Prefix),
+  Parsed = parse_addresses(Addresses1, Offset),
 
-  %% new read optimization
-%%  s7reader:register(Ip, faxe_time:duration_to_ms(Dur), [s7addr:parse(Address, Offset) || Address <- Addresses1]),
-  %%
+  State = #state{
+    ip = Ip,
+    port = Port,
+    as_list = As1,
+    slot = Slot,
+    rack = Rack,
+    align = Align,
+    interval = Dur,
+    diff = Diff,
+    opts = Opts,
+    node_id = NodeId,
+    merge_field = MergeField,
+    address_offset = Offset,
+    standalone = Standalone
+  },
 
-  {Parts, AliasesList} = build_addresses(Addresses1, As1, Offset),
-%%  lager:info("~naddress parts: ~p ~n AliasesList: ~p",[Parts, AliasesList]),
-  ByteSize = bit_count(Parts)/8,
-
-  %% connection
+%%  %% connection
   connection_registry:reg(NodeId, Ip, Port, <<"s7">>),
-  S7Client = setup_connection(Opts),
   connection_registry:connecting(),
 
-  {ok, all,
-    #state{
-      ip = Ip,
-      port = Port,
-      client = S7Client,
-      as = AliasesList,
-      slot = Slot,
-      rack = Rack,
-      align = Align,
-      interval = Dur,
-      diff = Diff,
-      vars = Parts,
-      opts = Opts,
-      node_id = NodeId,
-      byte_size = ByteSize,
-      merge_field = MergeField,
-      address_offset = Offset
-    }
-  }.
+  {ok, all, init2(Parsed, State)}.
+
+init2(ParsedAddresses, State=#state{standalone = false, interval = Dur, opts = Opts, as_list = As1}) ->
+  lager:info("using optimized read"),
+  s7reader:register(Opts, Dur, lists:zip(As1, ParsedAddresses)),
+  State;
+init2(ParsedAddresses, State=#state{opts = Opts, as_list = As1}) ->
+  {Parts, AliasesList} = build_addresses(ParsedAddresses, As1),
+  lager:info("~n~p address parts: ~p ~n AliasesList: ~p",[?MODULE, Parts, AliasesList]),
+  ByteSize = bit_count(Parts)/8,
+  S7Client = setup_connection(Opts),
+  State#state{client = S7Client, vars = Parts, as = AliasesList, byte_size = ByteSize}.
+
 
 retrieve_ads(#{as := undefined, vars := Vars}) ->
   split_mod2(2, Vars);
@@ -192,6 +202,7 @@ setup_connection(Opts = #{use_pool := true}) ->
   s7pool_manager:connect(Opts),
   undefined;
 setup_connection(Opts = #{use_pool := false}) ->
+  lager:notice("not using pool"),
   {ok, Client} = s7worker:start_monitor(Opts),
   Client.
 
@@ -202,14 +213,22 @@ process(_Inport, Item, State = #state{connected = true}) ->
   % read now trigger
   handle_info(poll, State#state{port_data = Item}).
 
-handle_info({s7_connected, _Client}, State = #state{align = Align, interval = Dur, opts = #{ip := Ip}}) ->
-%%  lager:alert("s7_connected"),
+handle_info({s7_connected, _Client}, State = #state{standalone = false}) ->
+  lager:alert("s7_connected"),
   connection_registry:connected(),
-  s7pool_manager:get_pdu_size(Ip),
+  {ok, State#state{connected = true}};
+handle_info({s7_connected, _Client}, State = #state{align = Align, interval = Dur, opts = #{ip := _Ip}}) ->
+  lager:alert("s7_connected"),
+  connection_registry:connected(),
+%%  s7pool_manager:get_pdu_size(Ip),
   Timer = faxe_time:init_timer(Align, Dur, poll),
   {ok, State#state{timer = Timer, connected = true}};
+handle_info({s7_disconnected, _Client}, State = #state{standalone = false}) ->
+  lager:alert("s7_disconnected"),
+  connection_registry:disconnected(),
+  {ok, State#state{connected = false}};
 handle_info({s7_disconnected, _Client}, State = #state{timer = Timer}) ->
-  lager:debug("s7_disconnected"),
+  lager:alert("s7_disconnected"),
   connection_registry:disconnected(),
   NewTimer = faxe_time:timer_cancel(Timer),
   {ok, State#state{timer = NewTimer, connected = false}};
@@ -242,6 +261,18 @@ handle_info(poll, State=#state{as = Aliases, timer = Timer, byte_size = ByteSize
       lager:warning("Error reading S7 Vars: ~p", [_Other]),
       {ok, State#state{timer = faxe_time:timer_next(Timer)}}
   end;
+handle_info({s7_data, Ts, DataList}, State = #state{diff = Diff, last_values = LastPoint, as_list = As}) ->
+%%  lager:notice("got data: ~p",[DataList]),
+  lager:info("requested ~p items, got ~p",[length(As), length(DataList)]),
+  Missing = lists:filter(fun(AsE) -> not proplists:is_defined(AsE, DataList) end, As),
+  case Missing of
+    [] -> ok;
+    _ -> lager:info("~p data items missing ~p",[length(Missing), Missing])
+  end,
+  NewPoint = #data_point{fields = NewFields} = flowdata:set_fields(#data_point{ts = Ts}, DataList),
+  NewState = State#state{last_values = #data_point{fields = NewFields}},
+%%  lager:warning("got s7 data and built point: ~p",[lager:pr(NewPoint, ?MODULE)]),
+  maybe_emit(Diff, NewPoint, LastPoint, NewState);
 handle_info({'DOWN', _Mon, process, Client, _Info}, State = #state{client = Client, opts = Opts, timer = Timer}) ->
   lager:notice("s7worker is down"),
   connection_registry:disconnected(),
@@ -264,15 +295,9 @@ read_vars(#state{client = Client, vars = Vars}) ->
 -spec maybe_emit(Diff :: true|false, Ts:: non_neg_integer(),
       ResultList :: list(), Aliases :: list(), LastResults :: list(), State :: #state{})
     -> ok | term().
-maybe_emit(false, Ts, Res, Aliases, _, State = #state{merge_field = MField, port_data = PData}) ->
+maybe_emit(false, Ts, Res, Aliases, _, State = #state{}) ->
   Out0 = build_point(Ts, Res, Aliases),
-  Out =
-  case PData == undefined orelse MField == undefined of
-    true -> Out0;
-    _ ->
-      flowdata:merge_points([PData, Out0], MField)
-  end,
-  {emit, {1, Out}, State#state{port_data = undefined}};
+  maybe_merge_emit(Out0, State);
 %%% @doc diff flag and result-list is exactly last list -> no emit
 %% the power and the beauty of pattern matching ...
 maybe_emit(true, _Ts, Result, _, Result, State) ->
@@ -280,6 +305,24 @@ maybe_emit(true, _Ts, Result, _, Result, State) ->
 %%% @doc diff flag -> emit values
 maybe_emit(true, Ts, Result, Aliases, _Last, State) ->
   maybe_emit(false, Ts, Result, Aliases, [], State).
+
+%% emit when using optimized s7reader %%%%%%%%%%%%%%%%%%%
+maybe_emit(false, OutPoint, _, State = #state{}) ->
+  maybe_merge_emit(OutPoint, State);
+maybe_emit(true, #data_point{fields = Fields}, #data_point{fields = Fields}, State) ->
+  {ok, State};
+maybe_emit(true, NewPoint, OldPoint, State) ->
+  maybe_emit(false, NewPoint, OldPoint, State).
+
+
+maybe_merge_emit(NewPoint, State = #state{merge_field = MField, port_data = PData}) ->
+  Out =
+    case PData == undefined orelse MField == undefined of
+      true -> NewPoint;
+      _ ->
+        flowdata:merge_points([PData, NewPoint], MField)
+    end,
+  {emit, {1, Out}, State#state{port_data = undefined}}.
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -293,12 +336,13 @@ translate_vars(Vs, undefined) ->
 translate_vars(Vs, Prefix) ->
   [iolist_to_binary([Prefix, V]) || V <- Vs].
 
+parse_addresses(Addresses, Offset) ->
+  [s7addr:parse(Address, Offset) || Address <- Addresses].
 
-build_addresses(Addresses, As, Offset) ->
-  PList = [s7addr:parse(Address, Offset) || Address <- Addresses],
-  %% inject Aliases into parameter maps
+
+build_addresses(Addresses, As) ->
 %%  lager:notice("PList: ~p",[PList]),
-  AsAdds = lists:zip(As, PList),
+  AsAdds = lists:zip(As, Addresses),
 %%  lager:info("after lists:zip ~p" ,[AsAdds]),
   F = fun({Alias, Params}) -> Params#{as => Alias} end,
   WithAs = lists:map(F, AsAdds),

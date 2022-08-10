@@ -8,7 +8,7 @@
 
 -behaviour(gen_server).
 
--export([start_link/0, connect/1, get_connection/1, read_vars/2, get_pdu_size/1]).
+-export([start_link/0, connect/1, read_vars/2, get_pdu_size/1]).
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2, terminate/2,
   code_change/3]).
 
@@ -39,36 +39,16 @@ get_pdu_size(Ip) ->
   end.
 
 read_vars(_Opts=#{ip := Ip}, Vars) ->
-%%  case get_connection(Opts) of
   case s7pool_con_handler:get_connection(Ip) of
     {ok, Worker} ->
-%%      lager:notice("got connection ~p ",[Worker]),
-      catch gen_server:call(Worker, {read, Vars});
+      case catch gen_server:call(Worker, {read, Vars}) of
+        {ok, _} = R -> R;
+        _Nope ->
+          lager:warning("error when reading : ~p",[_Nope]),
+          {error, read_failed}
+      end;
     Other ->
       Other
-  end.
-
-%% not used any more, but kept for reference; does not work ;)
-%% @deprecated
-get_connection(#{ip := Ip}) ->
-  case ets:lookup(s7_pools, Ip) of
-    [] -> {error, no_pool_found};
-    [{Ip, []}] -> {error, no_connection_in_pool};
-    [{Ip, [Conn]}] -> {ok, Conn};
-    [{Ip, Connections}] ->
-      AllConns =
-      case ets:lookup(s7_pool_last, Ip) of
-        [] -> Connections;
-        [{Ip, Last}] -> lists:delete(Last, Connections)
-      end,
-%%      Fun = fun(Cs) -> [{element(2, erlang:process_info(Con, message_queue_len)), Con} || Con <- Cs] end,
-%%      {T, MsgQs} = timer:tc(Fun, [Connections]),
-      MsgQs = [{element(2, erlang:process_info(Con, message_queue_len)), Con} || Con <- AllConns],
-%%      lager:info("message-Qs in: ~p my: ~p",[nil, MsgQs]),
-      S = lists:sort(fun({MsgQLengthA, _ConA}, {MsgQLengthB, _ConB}) ->  MsgQLengthA < MsgQLengthB end, MsgQs),
-      [{_Q, Worker}=_F|_] = S, %lager:notice("biggest Q for worker: ~p",[lists:last(S)]),
-      ets:insert(s7_pool_last, {Ip, Worker}),
-      {ok, Worker}
   end.
 
 start_link() ->

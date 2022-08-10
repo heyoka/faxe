@@ -17,6 +17,7 @@
 -define(S7_FUNCTION_HEADER_BYTES, 12).
 -define(S7_HEADER_BYTES, ?S7_HEADER_LENGTH_BYTES+?S7_FUNCTION_HEADER_BYTES).
 -define(S7_VAR_OVERHEAD_BYTES, 12).
+%%-define(S7_MAX_REQUEST_VARS, 10).
 -define(S7_MAX_REQUEST_VARS, 19).
 
 
@@ -141,7 +142,7 @@ build_addresses(Addresses, PDUSize) ->
 %%      [lager:notice("All merged REST ~p",[A1]) || A1 <- A],
       A
 end,
-  [lager:notice("request num items: ~p",[length(Req)]) || {Req, _} <- All],
+  [lager:notice("request num items: ~p - ~p byte",[length(Req), byte_count(Req)]) || {Req, _} <- All],
   All.
 
 
@@ -152,37 +153,47 @@ find_contiguous(ParamList, PDUSize) ->
       {LastStart,
         Current = #{aliases := CAs, amount := CAmount, db_number := CDB, dtype := CType},
         CurrentVars,
-        Partitions,
+        Requests,
         CurrentSize}
   ) ->
     ThisSize = byte_count(E),
     NewSize = ThisSize + CurrentSize,
+    lager:info("at: ~p",[E]),
 %%    lager:info("CurrentSize is ~p",[CurrentSize]),
 %%    lager:info("CurrentVars is ~p",[CurrentVars]),
 %%    lager:info("Current is ~p",[Current]),
-    CMaxPayloadSize = max_payload_size(PDUSize, length(CurrentVars)),
-    case exceeds_limits(PDUSize, NewSize, length(CurrentVars)) of
+    CMaxPayloadSize = max_payload_size(PDUSize, length(CurrentVars)+1),
+    case size_exceeded(PDUSize, NewSize, length(CurrentVars)+1) of
+%%    case exceeds_limits(PDUSize, NewSize, length(CurrentVars)) of
       true ->
-%%        lager:notice("new size of ~p > ~p",[NewSize, CMaxPayloadSize]),
+        lager:notice("new size of ~p > ~p at:~p",[NewSize, CMaxPayloadSize, E]),
 %%        %% we need a new request here
 %%        NewCurrent = Current#{amount => CAmount+1, aliases => CAs++[{Clients, DType}]},
         NewCurrentVars = CurrentVars++[Current],
 %%        lager:info("RealByteSize: ~p",[byte_count(NewCurrentVars)]),
         AliasesList = lists:map(fun(#{aliases := Aliases}) -> lists:unzip(Aliases) end, NewCurrentVars),
         AddressPartitions = [maps:without([aliases, clients, dtype], M) || M <- NewCurrentVars],
-        {Start, E#{aliases => [{Clients, DType}]}, [], Partitions++[{AddressPartitions, AliasesList}], ThisSize};
+        {-2, E#{aliases => [{Clients, DType}]}, [], Requests ++[{AddressPartitions, AliasesList}], ThisSize};
       false ->
         case (DType == CType) andalso (DB == CDB) andalso (LastStart + word_len_size(DType) == Start) of
           true ->
             NewCurrent = Current#{amount => CAmount+1, aliases => CAs++[{Clients, DType}]},
-            {Start, NewCurrent, CurrentVars, Partitions, NewSize};
+            {Start, NewCurrent, CurrentVars, Requests, NewSize};
           false ->
             RealCurrentVars =
             case Current of
               #{amount := 0, db_number := -1} -> CurrentVars;
               _ -> CurrentVars++[Current]
             end,
-            {Start, E#{aliases => [{Clients, DType}]}, RealCurrentVars, Partitions, NewSize}
+            case item_count_exceeded(length(RealCurrentVars)) of
+              true ->
+                lager:notice("item count exceeded ~p at ~p, CURRENT is: ~p", [length(RealCurrentVars), E, Current]),
+                AliasesList = lists:map(fun(#{aliases := Aliases}) -> lists:unzip(Aliases) end, CurrentVars),
+                AddressPartitions = [maps:without([aliases, clients, dtype], M) || M <- CurrentVars],
+                {-2, E#{aliases => [{Clients, DType}]}, [Current], Requests ++[{AddressPartitions, AliasesList}], ThisSize};
+              false ->
+                {Start, E#{aliases => [{Clients, DType}]}, RealCurrentVars, Requests, NewSize}
+            end
         end
     end
       end,
@@ -192,9 +203,9 @@ find_contiguous(ParamList, PDUSize) ->
 %%    lager:notice("NONBOOL Current ~p~nCurrentVars ~p~nParts ~p",[Current, CurrentVars, Parts]),
   RestVars = [Current|CurrentVars],
 %%  lager:notice("RestVars ~p: ~p",[length(RestVars), RestVars]),
-%%  [lager:notice("~nnonbool Part: ~p",[Part]) || Part <- Parts],
+  [lager:notice("~nnonbool Part: ~p",[Part]) || Part <- Parts],
 
-  FAs = fun(#{aliases := Aliases}) -> lists:unzip(Aliases) end,
+  FAs = fun(#{aliases := Aliases}) -> lager:notice("rest aliases: ~p",[Aliases]), lists:unzip(Aliases) end,
   RestAliasesList = lists:map(FAs, RestVars),
   RestAddressPartitions = [maps:without([aliases, clients, dtype], M) || M <- RestVars],
 %%  lager:notice("REST Addresses ~p",[RestAddressPartitions]),
@@ -210,18 +221,20 @@ find_bool_bytes(Bools, PDUSize) ->
       {LastByte,
         Current = #{aliases := CAs, db_number := CDB, amount := CAmount, start := CStartByte},
         CurrentVars,
-        Partitions,
+        Requests,
         CurrentSize}
   ) ->
 %%    lager:info("Clients in find_bool_bytes: ~p",[Clients]),
     ThisSize = byte_count(E),
-    NewSize = ThisSize+ CurrentSize,
+    NewSize = ThisSize + CurrentSize,
 %%    lager:info("B CurrentSize is ~p",[CurrentSize]),
-    lager:info("B CurrentVars is ~p ~p",[CurrentVars, length(CurrentVars)]),
+%%    lager:info("B CurrentVars is ~p ~p",[CurrentVars, length(CurrentVars)]),
 %%    lager:info("B Current is ~p",[Current]),
-    case exceeds_limits(PDUSize, NewSize, length(CurrentVars)) of
+    case size_exceeded(PDUSize, NewSize, length(CurrentVars)+1) of
+%%    case exceeds_limits(PDUSize, NewSize, length(CurrentVars)) of
       true ->
-%%        lager:notice("B new size of ~p > ~p",[NewSize, CMaxPayloadSize]),
+        CMaxPayloadSize = max_payload_size(PDUSize, length(CurrentVars)+1),
+        lager:notice("B new size of ~p > ~p at : ~p",[NewSize, CMaxPayloadSize, E]),
         %% we need a new request here
 %%        NewCurrent0 = Current#{aliases => CAs++[{Clients, bool_byte, (Bit+(Byte-CStartByte)*8)}]},
 %%        NewCurrent =
@@ -232,8 +245,9 @@ find_bool_bytes(Bools, PDUSize) ->
         NewCurrentVars = CurrentVars++[Current],
 %%        lager:info("B RealByteSize: ~p",[byte_count(NewCurrentVars)]),
         AliasesList = lists:map(fun(#{aliases := Aliases}) -> lists:unzip3(Aliases) end, NewCurrentVars),
-        AddressPartitions = [maps:without([aliases, clients, dtype], M) || M <- NewCurrentVars],
-        {Byte, E#{aliases => [{Clients, bool_byte, Bit}]}, [], Partitions++[{AddressPartitions, AliasesList}], ThisSize};
+        AddressPartitions = [maps:without([aliases, clients, dtype, byte_num, bit_num], M) || M <- NewCurrentVars],
+        %% reset current byte with -2
+        {-2, E#{aliases => [{Clients, bool_byte, Bit}]}, [], Requests ++[{AddressPartitions, AliasesList}], ThisSize};
       false ->
         case (DB == CDB) andalso (LastByte == Byte orelse (Byte == LastByte + 1 andalso Bit == 0)) of
           true ->
@@ -243,16 +257,25 @@ find_bool_bytes(Bools, PDUSize) ->
                 true -> NewCurrent0#{amount => CAmount+1};
                 false -> NewCurrent0
               end,
-            {Byte, NewCurrent, CurrentVars, Partitions, NewSize};
+            {Byte, NewCurrent, CurrentVars, Requests, NewSize};
           false ->
             RealCurrentVars =
             case Current of
               #{amount := 0, db_number := -1} -> CurrentVars;
               _ -> CurrentVars++[Current]
             end,
-            {Byte,
-              E#{amount => 1, start => Byte, word_len => byte,
-                aliases => [{Clients, bool_byte, Bit}]}, RealCurrentVars, Partitions, NewSize}
+            case item_count_exceeded(length(RealCurrentVars)) of
+              true ->
+                AliasesList = lists:map(fun(#{aliases := Aliases}) -> lists:unzip3(Aliases) end, CurrentVars),
+                AddressPartitions = [maps:without([aliases, clients, dtype, byte_num, bit_num], M) || M <- CurrentVars],
+                %% reset current byte with -2
+                {-2, E#{aliases => [{Clients, bool_byte, Bit}]}, [Current], Requests ++[{AddressPartitions, AliasesList}], ThisSize};
+              false ->
+                {Byte,
+                  E#{amount => 1, start => Byte, word_len => byte,
+                    aliases => [{Clients, bool_byte, Bit}]}, RealCurrentVars, Requests, NewSize}
+            end
+
         end
     end
          end,
@@ -281,7 +304,13 @@ exceeds_limits(PDUSize, VarList) when is_list(VarList) ->
   exceeds_limits(PDUSize, byte_count(VarList), length(VarList)).
 
 exceeds_limits(PDUSize, PayloadSize, VarListCount) ->
-  VarListCount > ?S7_MAX_REQUEST_VARS orelse PayloadSize > max_payload_size(PDUSize, VarListCount).
+  item_count_exceeded(VarListCount) orelse size_exceeded(PDUSize, PayloadSize, VarListCount).
+
+item_count_exceeded(VarListCount) ->
+  VarListCount > ?S7_MAX_REQUEST_VARS.
+
+size_exceeded(PDUSize, PayloadSize, VarListCount) ->
+  PayloadSize >= max_payload_size(PDUSize, VarListCount).
 
 max_payload_size(PDUSize, NumItems) ->
   PDUSize - (?S7_HEADER_LENGTH_BYTES + ?S7_FUNCTION_HEADER_BYTES + (NumItems * ?S7_VAR_OVERHEAD_BYTES)).

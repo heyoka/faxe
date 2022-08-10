@@ -2,6 +2,9 @@
 %%% @author heyoka
 %%% @copyright (C) 2022, <COMPANY>
 %%% @doc
+%%% @todo store clients/addresses in ets and (re)pick these up on startup, ...
+%%% @todo ... this way the client does not have to take care of the process going down
+%%%
 %%% @end
 %%%-------------------------------------------------------------------
 -module(s7reader).
@@ -20,16 +23,18 @@
   s7_ip                           :: binary(),
   port              = 102         :: non_neg_integer(),
   conn_opts         = #{}         :: map(),
-  %% list if clients with their requested addresses and desired read interval
+  %% list of clients with their requested addresses and desired read interval
   clients           = []          :: list(),
   %% all addresses by read interval
   current_addresses = #{}         :: map(),
-  %% ready built (optimized) addresses
+  %% ready built (optimized) addresses / cache
   request_cache     = #{}         :: map(),
   %% timers for every client read interval
   slot_timers       = []          :: list(),
+  %% busy flag
   busy              = false       :: true|false,
   connected         = false       :: true|false,
+  %% protocol PDU size, will be fetched from the slave, once connected
   pdu_size          = 240         :: non_neg_integer(),
   %% read timer
   timer             = undefined   :: undefined|reference()
@@ -70,11 +75,14 @@ handle_info({read, Requests, [{_Intv, #faxe_timer{last_time = Ts}}]=SendTimers},
   lager:warning("read ~p requests ", [length(Requests)]),
   ElFun =
     fun({Vars, Aliases}) ->
-      {ok, Res} = s7pool_manager:read_vars(Opts, Vars),
-      handle_result(Res, Aliases)
-      end,
-  RunWith = faxe_config:get(s7pool_max_size, 2),
-  {Time, [FirstResult |RequestResults]} = timer:tc(plists, map, [ElFun, Requests, {processes, RunWith}]),
+      case s7pool_manager:read_vars(Opts, Vars) of
+        {ok, Res} -> handle_result(Res, Aliases);
+        _ -> []
+      end
+    end,
+  RunWith = 1,%faxe_config:get(s7pool_max_size, 2),
+%%  {Time, [FirstResult |RequestResults]} = timer:tc(plists, map, [ElFun, Requests, {processes, RunWith}]),
+  {Time, [FirstResult |RequestResults]} = timer:tc(lists, map, [ElFun, Requests]),
   lager:alert("Time to read: ~p millis with ~p processes/connections",[erlang:round(Time/1000), RunWith]),
   MergeFun =
   fun
@@ -136,7 +144,7 @@ handle_info({s7_disconnected, _Client}=M, State = #state{timer = Timer}) ->
   lager:alert("~p s7_disconnected",[?MODULE]),
   catch erlang:cancel_timer(Timer),
   send_all_clients(M, State),
-  {noreply, State#state{timer = undefined}};
+  {noreply, State#state{timer = undefined, busy = false}};
 handle_info(Info, State = #state{}) ->
   lager:notice("~p got info: ~p",[?MODULE, Info]),
   {noreply, State}.
