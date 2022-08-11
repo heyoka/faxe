@@ -209,6 +209,8 @@ setup_connection(Opts = #{use_pool := false}) ->
 
 process(_Inport, _Item, State = #state{connected = false}) ->
   {ok, State};
+process(_Inport, Item, State = #state{standalone = false}) ->
+  {ok, State#state{port_data = Item}};
 process(_Inport, Item, State = #state{connected = true}) ->
   % read now trigger
   handle_info(poll, State#state{port_data = Item}).

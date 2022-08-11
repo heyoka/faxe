@@ -44,7 +44,7 @@ read_vars(_Opts=#{ip := Ip}, Vars) ->
       case catch gen_server:call(Worker, {read, Vars}) of
         {ok, _} = R -> R;
         _Nope ->
-          lager:warning("error when reading : ~p",[_Nope]),
+          lager:warning("~p error when reading multivars",[?MODULE]),
           {error, read_failed}
       end;
     Other ->
@@ -112,16 +112,18 @@ handle_info({up, Ip}, State = #state{pools_up = Up, ips_pools = _Pools, users_wa
   case lists:member(Ip, Up) of
     true -> {noreply, State};
     false ->
+      inform_users(Ip, s7_connected, State),
       [U ! {s7_connected, Ip} || U <- maps:get(Ip, UWaiting)],
       {noreply, State#state{pools_up = [Ip|Up]}}
   end;
-handle_info({down, Ip}, State = #state{pools_up = Up, ips_pools = _Pools, pool_user = PoolUsers}) ->
-  case maps:is_key(Ip, PoolUsers) of
-    true ->
-      UsersIp = maps:get(Ip, PoolUsers),
-      [U ! {s7_disconnected, Ip} || U <- sets:to_list(UsersIp)];
-    false -> ok
-  end,
+handle_info({down, Ip}, State = #state{pools_up = Up, ips_pools = _Pools}) ->
+  inform_users(Ip, s7_disconnected, State),
+%%  case maps:is_key(Ip, PoolUsers) of
+%%    true ->
+%%      UsersIp = maps:get(Ip, PoolUsers),
+%%      [U ! {s7_disconnected, Ip} || U <- sets:to_list(UsersIp)];
+%%    false -> ok
+%%  end,
   {noreply, State#state{pools_up = lists:delete(Ip, Up)}};
 handle_info({'EXIT', Pid, Why}, State = #state{pools_ips = Pools, ips_pools = Ips, ip_opts = IpOpts}) ->
   NewState =
@@ -169,6 +171,14 @@ code_change(_OldVsn, State = #state{}, _Extra) ->
 %%%===================================================================
 %%% Internal functions
 %%%===================================================================
+inform_users(Ip, StateMsg, #state{pool_user = PoolUsers}) ->
+  case maps:is_key(Ip, PoolUsers) of
+    true ->
+      UsersIp = maps:get(Ip, PoolUsers),
+      [U ! {StateMsg, Ip} || U <- sets:to_list(UsersIp)];
+    false -> ok
+  end.
+
 add_user(Ip, AllUsers, NewUser) ->
   PoolUsers =
   case maps:is_key(Ip, AllUsers) of
