@@ -100,21 +100,27 @@ handle_info({read, Requests, [{_Intv, #faxe_timer{last_time = Ts}}]=SendTimers},
       end
     end,
   RunWith = s7pool_manager:connection_count(Ip),
-%%    1,%faxe_config:get(s7pool_max_size, 2),
-  {Time, [FirstResult |RequestResults]} = timer:tc(plists, map, [ElFun, Requests, {processes, RunWith}]),
+  case RunWith > 0 of
+    true ->
+      %%    1,%faxe_config:get(s7pool_max_size, 2),
+      {Time, [FirstResult |RequestResults]} = timer:tc(plists, map, [ElFun, Requests, {processes, RunWith}]),
 %%  {Time, [FirstResult |RequestResults]} = timer:tc(lists, map, [ElFun, Requests]),
-  lager:alert("Time to read: ~p millis with ~p processes/connections",[erlang:round(Time/1000), RunWith]),
-  MergeFun =
-  fun
-    (Prev, Val) when is_map(Prev), is_map(Val) -> maps:merge(Prev, Val);
-    (Prev, Val) when is_list(Prev), is_list(Val) -> Prev++Val;
-    (_, Val) -> Val
-  end,
-  TheResult = mapz:deep_merge(MergeFun, FirstResult, RequestResults),
+      lager:alert("Time to read: ~p millis with ~p processes/connections",[erlang:round(Time/1000), RunWith]),
+      MergeFun =
+        fun
+          (Prev, Val) when is_map(Prev), is_map(Val) -> maps:merge(Prev, Val);
+          (Prev, Val) when is_list(Prev), is_list(Val) -> Prev++Val;
+          (_, Val) -> Val
+        end,
+      TheResult = mapz:deep_merge(MergeFun, FirstResult, RequestResults),
 
-  maps:map(fun(ClientPid, Values) ->
-    ClientPid ! {s7_data, Ts, Values}
-           end, TheResult),
+      maps:map(fun(ClientPid, Values) ->
+        ClientPid ! {s7_data, Ts, Values}
+               end, TheResult);
+    false ->
+      lager:warning("~p no connections available!",[?MODULE]),
+      ok
+  end,
 
   %% progress timers used
   NewSlotTimers =
@@ -184,6 +190,9 @@ do_register(ClientPid, Interval, Vars, State = #state{current_addresses = Curren
 send_all_clients(Msg, #state{s7_ip = Ip}) ->
   lists:foreach(fun({ClientPid, _, _}) -> ClientPid ! Msg end, get_clients(Ip)).
 
+maybe_next(State = #state{connected = false}) ->
+  lager:notice("maybe_next when not connected"),
+  {noreply, State};
 maybe_next(State = #state{busy = true}) ->
   lager:notice("maybe_next when busy"),
   {noreply, State};
