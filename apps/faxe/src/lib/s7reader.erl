@@ -2,8 +2,6 @@
 %%% @author heyoka
 %%% @copyright (C) 2022, <COMPANY>
 %%% @doc
-%%% @todo store clients/addresses in ets and (re)pick these up on startup, ...
-%%% @todo ... this way the client does not have to take care of the process going down
 %%%
 %%% @end
 %%%-------------------------------------------------------------------
@@ -16,6 +14,7 @@
   code_change/3]).
 
 -define(SERVER, ?MODULE).
+-define(EMPTY_RETRY_INTERVAL, 300).
 
 -include("faxe.hrl").
 
@@ -23,8 +22,6 @@
   s7_ip                           :: binary(),
   port              = 102         :: non_neg_integer(),
   conn_opts         = #{}         :: map(),
-  %% list of clients with their requested addresses and desired read interval
-  clients           = []          :: list(),
   %% all addresses by read interval
   current_addresses = #{}         :: map(),
   %% ready built (optimized) addresses / cache
@@ -60,15 +57,37 @@ register(Opts = #{ip := Ip}, Interval, Vars) when is_list(Vars) ->
 start_link(Opts) ->
   gen_server:start_link(?MODULE, Opts, []).
 
-init(Opts=#{ip := Ip}) ->
+init(Opts0=#{ip := Ip}) ->
+  Opts = maps:without([vars], Opts0),
+  lager:notice("OPTS are: ~p",[Opts]),
+  %% lets see, if we have clients in ets clients table
+  State = init_clients(Ip, Opts),
+  %% connect pool manager
   s7pool_manager:connect(Opts),
-  {ok, #state{s7_ip = Ip, conn_opts = Opts}}.
+  {ok, State}.
+
+init_clients(Ip, Opts) ->
+  Clients = get_clients(Ip),
+  lists:foldl(
+    fun({ClientPid, Interval, Vars}, StateAcc) ->
+      case is_process_alive(ClientPid) of
+        true ->
+          lager:notice("Client ~p found alive, register", [ClientPid]),
+          do_register(ClientPid, Interval, Vars, StateAcc);
+        false ->
+          lager:notice("Client ~p not alive any more, ignore", [ClientPid]),
+          StateAcc
+      end
+    end,
+    #state{s7_ip = Ip, conn_opts = Opts},
+    Clients).
 
 handle_call(_Request, _From, State = #state{}) ->
   {reply, ok, State}.
 
 handle_cast(_Request, State = #state{}) ->
   {noreply, State}.
+
 
 handle_info({read, Requests, [{_Intv, #faxe_timer{last_time = Ts}}]=SendTimers},
     State=#state{slot_timers = SlotTimers, conn_opts = Opts, s7_ip = Ip}) ->
@@ -112,24 +131,13 @@ handle_info({read, Requests, [{_Intv, #faxe_timer{last_time = Ts}}]=SendTimers},
 
 handle_info(try_read, State) ->
   maybe_next(State);
-handle_info({register, Interval, Vars, ClientPid},
-    State = #state{clients = Clients, current_addresses = CurrentSlots}) ->
-  lager:notice("{client: ~p register, ~p}", [ClientPid, {Interval, length(Vars), ClientPid}]),
-  erlang:monitor(process, ClientPid),
-  NewClient = {ClientPid, Interval, Vars},
-  NewClients = Clients++[NewClient],
-  Current = maps:get(Interval, CurrentSlots, []),
-  NewCurrent = s7_utils:add_client_addresses(ClientPid, Vars, Current),
-%%  {T, _BuiltRequests} = timer:tc(s7_utils, build_addresses, [NewCurrent, 240]),
-%%  lager:alert("Time to build ~p addresses: ~p", [length(NewCurrent), T]),
-%%  _Requests = s7_utils:build_addresses(NewCurrent, 240),
-%%  lager:alert("Byte-Size now: ~p",[s7_utils:bit_count(Parts)/8]),
-%%  lager:warning("BUILT ~p REQUESTS", [length(Requests)]),
-%%  [lager:info("~nREQUEST: ~p ",[Request]) || Request <- Requests],
-%%  lager:info("~naddress parts: ~p ~n AliasesList: ~p",[Parts, AliasesList]),
-%%  lager:notice("new addresses for: ~p :: ~p", [Interval, NewCurrent]),
-  NewSlots = CurrentSlots#{Interval => NewCurrent},
-  {noreply, State#state{clients = NewClients, current_addresses = NewSlots, request_cache = #{}}};
+handle_info({register, Interval, Vars, ClientPid}, State = #state{}) ->
+  NewState =
+    case add_client_ets(ClientPid, Interval, Vars, State) of
+      true -> do_register(ClientPid, Interval, Vars, State);
+      false -> State
+    end,
+  {noreply, NewState};
 handle_info({'DOWN', _MonitorRef, process, Client, _Info}, State = #state{}) ->
   lager:notice("Client: ~p is DOWN",[Client]),
   NewState = remove_client(Client, State),
@@ -140,12 +148,12 @@ handle_info({s7_connected, _Client}=M, State = #state{s7_ip = Ip}) ->
   {ok, PduSize} = s7pool_manager:get_pdu_size(Ip),
   lager:notice("pdu size is ~p bytes",[PduSize]),
   send_all_clients(M, State),
-  maybe_next(State#state{pdu_size = PduSize});
+  maybe_next(State#state{pdu_size = PduSize, connected = true});
 handle_info({s7_disconnected, _Client}=M, State = #state{timer = Timer}) ->
   lager:alert("~p s7_disconnected",[?MODULE]),
   catch erlang:cancel_timer(Timer),
   send_all_clients(M, State),
-  {noreply, State#state{timer = undefined, busy = false}};
+  {noreply, State#state{timer = undefined, busy = false, connected = false}};
 handle_info(Info, State = #state{}) ->
   lager:notice("~p got info: ~p",[?MODULE, Info]),
   {noreply, State}.
@@ -160,13 +168,27 @@ code_change(_OldVsn, State = #state{}, _Extra) ->
 %%%===================================================================
 %%% Internal functions
 %%%===================================================================
-send_all_clients(Msg, #state{clients = Clients}) ->
-  lists:foreach(fun({ClientPid, _, _}) -> ClientPid ! Msg end, Clients).
+do_register(ClientPid, Interval, Vars, State = #state{current_addresses = CurrentSlots, connected = Connected}) ->
+  lager:notice("{client: ~p register, ~p}", [ClientPid, {Interval, length(Vars), ClientPid}]),
+  erlang:monitor(process, ClientPid),
+  Current = maps:get(Interval, CurrentSlots, []),
+  NewCurrent = s7_utils:add_client_addresses(ClientPid, Vars, Current),
+  NewSlots = CurrentSlots#{Interval => NewCurrent},
+  %% inform client
+  Msg = case Connected of true -> s7_connected; false -> s7_disconnected end,
+  ClientPid ! {Msg, undefined},
+  {noreply, NewState} = maybe_next(State#state{current_addresses = NewSlots, request_cache = #{}}),
+  NewState.
+
+
+send_all_clients(Msg, #state{s7_ip = Ip}) ->
+  lists:foreach(fun({ClientPid, _, _}) -> ClientPid ! Msg end, get_clients(Ip)).
 
 maybe_next(State = #state{busy = true}) ->
+  lager:notice("maybe_next when busy"),
   {noreply, State};
 maybe_next(State = #state{current_addresses = Slots}) when map_size(Slots) == 0 ->
-  erlang:send_after(200, self(), try_read),
+  erlang:send_after(?EMPTY_RETRY_INTERVAL, self(), try_read),
   {noreply, State#state{busy = false}};
 maybe_next(State = #state{busy = false, current_addresses = Slots}) ->
   NewSlotTimers = check_slot_timers(Slots, State#state.slot_timers),
@@ -174,10 +196,6 @@ maybe_next(State = #state{busy = false, current_addresses = Slots}) ->
 %%  lager:notice("NEXT~n SlotTimers:~p~n read-intervals: ~p",[NewSlotTimers, ReadIntervals]),
   Intervals = proplists:get_keys(ReadIntervals),
   {ReadRequests, NewState} = get_requests(Intervals, State),
-%%  {Parts, AliasesList} = s7_utils:build_addresses(ReadVars, PDUSize),
-%%  lager:alert("Byte-Size now: ~p",[s7_utils:bit_count(Parts)/8]),
-%%  lager:info("~naddress parts: ~p ~n AliasesList: ~p",[Parts, AliasesList]),
-%%  NewTimer = faxe_time:send_at(At, {read, Parts, AliasesList, ReadIntervals}),
   NewTimer = faxe_time:send_at(At, {read, ReadRequests, ReadIntervals}),
   {noreply, NewState#state{busy = true, slot_timers = NewSlotTimers, timer = NewTimer}}.
 
@@ -236,10 +254,43 @@ build_requests(IntervalList, Addresses, S=#state{pdu_size = PDUSize, request_cac
   {BuiltRequests, S#state{request_cache = Cache#{IntervalList => BuiltRequests}}}.
 
 
-remove_client(Client, State = #state{clients = Clients, current_addresses = AddressSlots, slot_timers = STimers}) ->
-  {NewAddressSlots, NewClients, SlotTimers} =
-  case lists:keytake(Client, 1, Clients) of
-    {value, {Client, Interval, Vars}, Clients2} ->
+add_client_ets(ClientPid, Interval, Vars, #state{s7_ip = Ip}) ->
+  case ets:lookup(s7reader_clients, Ip) of
+    [] ->
+      lager:notice("no clients found, add ~p",[ClientPid]),
+      ets:insert(s7reader_clients, {Ip, [{ClientPid, Interval, Vars}]}),
+      true;
+    [{Ip, Clients}] ->
+      case lists:keymember(ClientPid, 1, Clients) of
+        true ->
+          lager:notice("client ~p is already there",[ClientPid]),
+          false;
+        false ->
+          lager:notice("client ~p not found, add her",[ClientPid]),
+          ets:insert(s7reader_clients, {Ip, [{ClientPid, Interval, Vars}|Clients]}),
+          true
+      end
+  end.
+
+get_clients(Ip) ->
+  case ets:lookup(s7reader_clients, Ip) of
+    [] -> [];
+    [{Ip, Clients}] -> Clients
+  end.
+
+remove_client_ets(ClientPid, #state{s7_ip = Ip}) ->
+  case ets:lookup(s7reader_clients, Ip) of
+    [] -> [];
+    [{Ip, Clients}] ->
+      NewClients = lists:keydelete(ClientPid, 1, Clients),
+      ets:insert(s7reader_clients, {Ip, NewClients})
+  end.
+
+remove_client(Client, State = #state{s7_ip = Ip, current_addresses = AddressSlots, slot_timers = STimers}) ->
+  {NewAddressSlots, SlotTimers} =
+  case lists:keytake(Client, 1, get_clients(Ip)) of
+    {value, {Client, Interval, Vars}, _Clients2} ->
+      remove_client_ets(Client, State),
       case catch maps:take(Interval, AddressSlots) of
         {Addresses, RemainingSlots} when is_list(Addresses) ->
           %% remove client from clients and addresses
@@ -248,16 +299,16 @@ remove_client(Client, State = #state{clients = Clients, current_addresses = Addr
           case Removed of
             [] ->
               %% no more clients/vars left for this timeslot, so we delete the slot-timer also
-              {RemainingSlots, Clients2, proplists:delete(Interval, STimers)};
-            Res when is_list(Res) -> {RemainingSlots#{Interval => Res}, Clients2, STimers}
+              {RemainingSlots, proplists:delete(Interval, STimers)};
+            Res when is_list(Res) -> {RemainingSlots#{Interval => Res}, STimers}
           end;
         _ ->
-          {AddressSlots, Clients2, STimers}
+          {AddressSlots, STimers}
       end;
     false ->
-      {AddressSlots, Clients, STimers}
+      {AddressSlots, STimers}
   end,
-  State#state{clients = NewClients, current_addresses = NewAddressSlots, slot_timers = SlotTimers, request_cache = #{}}.
+  State#state{current_addresses = NewAddressSlots, slot_timers = SlotTimers, request_cache = #{}}.
 
 %%% handle results  -->
 handle_result(ResultList, AliasesList) when is_list(ResultList), is_list(AliasesList) ->
