@@ -125,10 +125,10 @@ build_addresses(Addresses, PDUSize) ->
   All =
   case exceeds_limits(PDUSize, AllRestParts) of
     true ->
-      lager:warning("cannot merge rest parts"),
+%%      lager:warning("cannot merge rest parts"),
       NewBoolParts ++ [BoolRest] ++ NewParts ++ [NonBoolRest];
     false ->
-      lager:warning("merge rest parts"),
+%%      lager:warning("merge rest parts"),
       Rest0 = [BoolRest, NonBoolRest],
 %%      lager:notice("Rests now ~p",[Rest0]),
       Rest = lists:filter(

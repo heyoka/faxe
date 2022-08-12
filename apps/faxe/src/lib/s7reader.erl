@@ -48,9 +48,15 @@ register(Opts = #{ip := Ip}, Interval, Vars) when is_list(Vars) ->
   [Pid || {Name, Pid, _Type, _Modules} <- Children, Name =:= Ip],
   Server =
   case ChildList of
-    [] -> {ok, ServerPid} = s7reader_sup:start_reader(Opts), ServerPid;
-    [C] -> C %lager:notice("child found: ~p",[C]), C
-  end,
+    [C] when is_pid(C) ->
+      C;
+    [undefined] ->
+      {ok, Child} = supervisor:restart_child(s7reader_sup, Ip),
+      Child;
+    _ ->
+      {ok, ServerPid} = s7reader_sup:start_reader(Opts),
+      ServerPid
+end,
 %%  lager:notice("So ~p wants to read: ~p every ~pms from ~p",[self(), Vars, Interval, Ip]),
   Server ! {register, Interval, Vars, self()}.
 
@@ -59,7 +65,6 @@ start_link(Opts) ->
 
 init(Opts0=#{ip := Ip}) ->
   Opts = maps:without([vars], Opts0),
-  lager:notice("OPTS are: ~p",[Opts]),
   %% lets see, if we have clients in ets clients table
   State = init_clients(Ip, Opts),
   %% connect pool manager
@@ -72,12 +77,10 @@ init_clients(Ip, Opts) ->
     fun({ClientPid, Interval, Vars}, StateAcc) ->
       case is_process_alive(ClientPid) of
         true ->
-          lager:notice("Client ~p found alive, register", [ClientPid]),
           do_register(ClientPid, Interval, Vars, StateAcc);
         false ->
           %% delete from ets
           remove_client_ets(ClientPid, Ip),
-          lager:notice("Client ~p not alive any more, ignore", [ClientPid]),
           StateAcc
       end
     end,
