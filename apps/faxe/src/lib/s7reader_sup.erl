@@ -25,7 +25,7 @@ init([]) ->
 
 child(Opts = #{ip := Ip}) ->
   #{id => Ip,
-    start => {  s7reader, start_link, [Opts]},
-    restart => permanent,
+    start => {s7reader, start_link, [Opts]},
+    restart => transient,
     type => worker,
     shutdown => 4000}.
