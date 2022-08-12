@@ -216,21 +216,26 @@ process(_Inport, Item, State = #state{connected = true}) ->
   handle_info(poll, State#state{port_data = Item}).
 
 handle_info({s7_connected, _Client}, State = #state{standalone = false}) ->
-  lager:alert("s7_connected"),
+%%  lager:alert("s7_connected"),
   connection_registry:connected(),
   {ok, State#state{connected = true}};
 handle_info({s7_connected, _Client}, State = #state{align = Align, interval = Dur, opts = #{ip := _Ip}}) ->
-  lager:alert("s7_connected"),
+%%  lager:alert("s7_connected"),
   connection_registry:connected(),
-%%  s7pool_manager:get_pdu_size(Ip),
-  Timer = faxe_time:init_timer(Align, Dur, poll),
-  {ok, State#state{timer = Timer, connected = true}};
+  %% idempotency
+  case State#state.connected of
+    false ->
+      Timer = faxe_time:init_timer(Align, Dur, poll),
+      {ok, State#state{timer = Timer, connected = true}};
+    true ->
+      {ok, State}
+  end;
 handle_info({s7_disconnected, _Client}, State = #state{standalone = false}) ->
-  lager:alert("s7_disconnected"),
+%%  lager:alert("s7_disconnected"),
   connection_registry:disconnected(),
   {ok, State#state{connected = false}};
 handle_info({s7_disconnected, _Client}, State = #state{timer = Timer}) ->
-  lager:alert("s7_disconnected"),
+%%  lager:alert("s7_disconnected"),
   connection_registry:disconnected(),
   NewTimer = faxe_time:timer_cancel(Timer),
   {ok, State#state{timer = NewTimer, connected = false}};

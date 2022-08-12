@@ -73,7 +73,7 @@ options() ->
       {start, string},
       {start_delay, duration, undefined},
       {stop, string, undefined},
-      {stop_flow, boolean, false},
+      {stop_flow, boolean, true},
       {result_type, string, <<"batch">>}
    ].
 

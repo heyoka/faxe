@@ -75,6 +75,8 @@ init_clients(Ip, Opts) ->
           lager:notice("Client ~p found alive, register", [ClientPid]),
           do_register(ClientPid, Interval, Vars, StateAcc);
         false ->
+          %% delete from ets
+          remove_client_ets(ClientPid, Ip),
           lager:notice("Client ~p not alive any more, ignore", [ClientPid]),
           StateAcc
       end
@@ -89,7 +91,7 @@ handle_cast(_Request, State = #state{}) ->
   {noreply, State}.
 
 
-handle_info({read, Requests, [{_Intv, #faxe_timer{last_time = Ts}}]=SendTimers},
+handle_info({read, Requests, [{_Intv, #faxe_timer{last_time = Ts}}] = SendTimers},
     State=#state{slot_timers = SlotTimers, conn_opts = Opts, s7_ip = Ip}) ->
   lager:warning("read ~p requests ", [length(Requests)]),
   ElFun =
@@ -147,8 +149,15 @@ handle_info({register, Interval, Vars, ClientPid}, State = #state{}) ->
 handle_info({'DOWN', _MonitorRef, process, Client, _Info}, State = #state{}) ->
   lager:notice("Client: ~p is DOWN",[Client]),
   NewState = remove_client(Client, State),
-%%  lager:notice("NEW addresses after deleting client :~p  ~p", [Client, NewAddressSlots]),
-  {noreply, NewState};
+  %% stop, if we have no clients left
+  case get_clients(State) of
+    [] -> {stop, normal, NewState};
+    _ -> {noreply, NewState}
+  end;
+handle_info({s7_connected, _Client}=M, State = #state{connected = true}) ->
+  %% alread connected / idempotency
+  send_all_clients(M, State),
+  maybe_next(State);
 handle_info({s7_connected, _Client}=M, State = #state{s7_ip = Ip}) ->
   lager:warning("~p s7_connected",[?MODULE]),
   {ok, PduSize} = s7pool_manager:get_pdu_size(Ip),
@@ -162,7 +171,7 @@ handle_info({s7_disconnected, _Client}=M, State = #state{timer = Timer}) ->
   {noreply, State#state{timer = undefined, busy = false, connected = false}};
 handle_info(Info, State = #state{}) ->
   lager:notice("~p got info: ~p",[?MODULE, Info]),
-  {noreply, State}.
+  maybe_next(State).
 
 terminate(Reason, _State = #state{s7_ip = Ip}) ->
   lager:notice("~p for IP ~p stopping with Reason ~p", [?MODULE, Ip, Reason]),
@@ -187,8 +196,8 @@ do_register(ClientPid, Interval, Vars, State = #state{current_addresses = Curren
   NewState.
 
 
-send_all_clients(Msg, #state{s7_ip = Ip}) ->
-  lists:foreach(fun({ClientPid, _, _}) -> ClientPid ! Msg end, get_clients(Ip)).
+send_all_clients(Msg, S=#state{}) ->
+  lists:foreach(fun({ClientPid, _, _}) -> ClientPid ! Msg end, get_clients(S)).
 
 maybe_next(State = #state{connected = false}) ->
   lager:notice("maybe_next when not connected"),
@@ -202,7 +211,7 @@ maybe_next(State = #state{current_addresses = Slots}) when map_size(Slots) == 0 
 maybe_next(State = #state{busy = false, current_addresses = Slots}) ->
   NewSlotTimers = check_slot_timers(Slots, State#state.slot_timers),
   [{_I, #faxe_timer{last_time = At}}|_] = ReadIntervals = next_read(NewSlotTimers),
-%%  lager:notice("NEXT~n SlotTimers:~p~n read-intervals: ~p",[NewSlotTimers, ReadIntervals]),
+  lager:notice("NEXT~n SlotTimers:~p~n read-intervals: ~p",[NewSlotTimers, ReadIntervals]),
   Intervals = proplists:get_keys(ReadIntervals),
   {ReadRequests, NewState} = get_requests(Intervals, State),
   NewTimer = faxe_time:send_at(At, {read, ReadRequests, ReadIntervals}),
@@ -281,6 +290,8 @@ add_client_ets(ClientPid, Interval, Vars, #state{s7_ip = Ip}) ->
       end
   end.
 
+get_clients(#state{s7_ip = Ip}) ->
+  get_clients(Ip);
 get_clients(Ip) ->
   case ets:lookup(s7reader_clients, Ip) of
     [] -> [];
@@ -288,6 +299,8 @@ get_clients(Ip) ->
   end.
 
 remove_client_ets(ClientPid, #state{s7_ip = Ip}) ->
+  remove_client_ets(ClientPid, Ip);
+remove_client_ets(ClientPid, Ip) ->
   case ets:lookup(s7reader_clients, Ip) of
     [] -> [];
     [{Ip, Clients}] ->
@@ -295,9 +308,9 @@ remove_client_ets(ClientPid, #state{s7_ip = Ip}) ->
       ets:insert(s7reader_clients, {Ip, NewClients})
   end.
 
-remove_client(Client, State = #state{s7_ip = Ip, current_addresses = AddressSlots, slot_timers = STimers}) ->
+remove_client(Client, State = #state{current_addresses = AddressSlots, slot_timers = STimers}) ->
   {NewAddressSlots, SlotTimers} =
-  case lists:keytake(Client, 1, get_clients(Ip)) of
+  case lists:keytake(Client, 1, get_clients(State)) of
     {value, {Client, Interval, Vars}, _Clients2} ->
       remove_client_ets(Client, State),
       case catch maps:take(Interval, AddressSlots) of

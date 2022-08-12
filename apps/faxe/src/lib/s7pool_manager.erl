@@ -118,12 +118,6 @@ handle_info({up, Ip}, State = #state{pools_up = Up, ips_pools = _Pools, users_wa
   end;
 handle_info({down, Ip}, State = #state{pools_up = Up, ips_pools = _Pools}) ->
   inform_users(Ip, s7_disconnected, State),
-%%  case maps:is_key(Ip, PoolUsers) of
-%%    true ->
-%%      UsersIp = maps:get(Ip, PoolUsers),
-%%      [U ! {s7_disconnected, Ip} || U <- sets:to_list(UsersIp)];
-%%    false -> ok
-%%  end,
   {noreply, State#state{pools_up = lists:delete(Ip, Up)}};
 handle_info({'EXIT', Pid, Why}, State = #state{pools_ips = Pools, ips_pools = Ips, ip_opts = IpOpts}) ->
   NewState =
