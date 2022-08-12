@@ -72,13 +72,6 @@ get_connection(Ip, Index) ->
       {ok, Worker, NextI}
   end.
 
-%%check_connection(Conn, Index) when is_pid(Conn) ->
-%%  case is_process_alive(Conn) of
-%%    true -> {ok, Conn, Index};
-%%    false -> {error, not_alive}
-%%  end.
-
-
 next_index(L, I) when I > length(L) -> length(L);
 next_index(L, I) when I == length(L) -> 1;
 next_index(_L, I) -> I + 1.

@@ -92,20 +92,21 @@ handle_info({s7_disconnected, Worker},
 handle_info({demand, Num}, State = #state{pool = Pool, waiting_cons = Waiting, max_size = MAX}) ->
 %%  lager:notice("[~p] demand is: ~p",[?MODULE, Num]),
   Size = length(Pool) + length(Waiting),
-  NewState =
   case Num of
     0 ->
-      remove_all(State);
+      remove_all(State),
+      {stop, normal, State};
     _ ->
+      NState =
       case Size of
         0 -> add_initial(State); %% demand is > 0, but we have no conns in pool yet, start with initial size
         _ when Num == Size -> State;
         _ when Num > Size, Size == MAX -> State;
         _ when Num > Size -> add_worker(State);
         _ when Num < Size -> remove_worker(State)
-      end
-  end,
-  {noreply, NewState};
+      end,
+      {noreply, NState}
+  end;
 handle_info({'DOWN', _, process, _, _}, State = #state{pool = _Pool}) ->
   {noreply, State#state{}};
 handle_info({'EXIT', Pid, Why}, State = #state{pool = Pool, waiting_cons = Waiting}) ->

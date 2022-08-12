@@ -119,17 +119,32 @@ handle_info({up, Ip}, State = #state{pools_up = Up, ips_pools = _Pools, users_wa
 handle_info({down, Ip}, State = #state{pools_up = Up, ips_pools = _Pools}) ->
   inform_users(Ip, s7_disconnected, State),
   {noreply, State#state{pools_up = lists:delete(Ip, Up)}};
+handle_info({'EXIT', Pid, normal}, State = #state{pools_ips = Pools, ips_pools = Ips, ip_opts = IpOpts}) ->
+  lager:warning("Pool-Handler exiting normal, will no restart: ~p",[Pid]),
+  NewState = remove_handler(Pid, State),
+%%  case maps:is_key(Pid, Pools) of
+%%    true ->
+%%      Ip = maps:get(Pid, Pools),
+%%      NewPools = maps:without([Pid], Pools),
+%%      NewIps = maps:without([Ip], Ips),
+%%      State#state{ips_pools = NewIps, pools_ips = NewPools};
+%%    false ->
+%%      State
+%%  end,
+  {noreply, NewState};
 handle_info({'EXIT', Pid, Why}, State = #state{pools_ips = Pools, ips_pools = Ips, ip_opts = IpOpts}) ->
   NewState =
   case maps:is_key(Pid, Pools) of
     true ->
       Ip = maps:get(Pid, Pools),
       lager:warning("Pool-Handler ~p-~p is down: ~p",[Pid, Ip, Why]),
+      NState = do_remove_handler(Pid, Ip, State),
       Opts = maps:get(Ip, IpOpts),
-      NewPools = maps:without([Pid], Pools),
-      NewIps = maps:without([Ip], Ips),
       {ok, NewPid} = s7pool_handler:start_link(Opts),
-      State#state{ips_pools = NewIps#{Ip => NewPid}, pools_ips = NewPools#{NewPid => Ip}};
+      NState#state{
+        ips_pools = (NState#state.ips_pools)#{Ip => NewPid},
+        pools_ips = (NState#state.pools_ips)#{NewPid => Ip}
+      };
     false ->
       State
   end,
@@ -148,7 +163,9 @@ handle_info({'DOWN', _Mon, process, Pid, _Info}, State = #state{pool_user =  Poo
   NewPoolUsers = maps:from_list(NewPoolUsers0),
 %%  lager:info("PoolUsers after: ~p",[NewPoolUsers]),
   case maps:is_key(Ip, Ips) of
-    true -> Handler = maps:get(Ip, Ips), Handler ! {demand, check_demand(Ip, NewPoolUsers)};
+    true ->
+      Handler = maps:get(Ip, Ips),
+      Handler ! {demand, check_demand(Ip, NewPoolUsers)};
     false -> ok
   end,
   {noreply, State#state{pool_user = NewPoolUsers}};
@@ -165,6 +182,20 @@ code_change(_OldVsn, State = #state{}, _Extra) ->
 %%%===================================================================
 %%% Internal functions
 %%%===================================================================
+remove_handler(HandlerPid, State = #state{pools_ips = Pools}) ->
+  case maps:is_key(HandlerPid, Pools) of
+    true ->
+      Ip = maps:get(HandlerPid, Pools),
+      do_remove_handler(HandlerPid, Ip, State);
+    false ->
+      State
+  end.
+
+do_remove_handler(HandlerPid, Ip, State = #state{pools_ips = Pools, ips_pools = Ips}) ->
+  NewPools = maps:without([HandlerPid], Pools),
+  NewIps = maps:without([Ip], Ips),
+  State#state{ips_pools = NewIps, pools_ips = NewPools}.
+
 inform_users(Ip, StateMsg, #state{pool_user = PoolUsers}) ->
   case maps:is_key(Ip, PoolUsers) of
     true ->
