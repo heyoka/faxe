@@ -66,7 +66,7 @@ handle_info({s7_connected, Worker},
   update_ets(NewState),
   case length(NewState#state.pool) == Initial of
     true -> s7pool_manager ! {up, Ip};
-    false -> ok
+    false -> lager:warning("[~p] s7 connection is up, but initial size of ~p not reached yet !!",[?MODULE, Initial]),ok
   end,
 %%  lager:alert("[~p] Pool: ~p, Waiting: ~p",[?MODULE, NewState#state.pool, NewState#state.waiting_cons]),
   {noreply, NewState};
