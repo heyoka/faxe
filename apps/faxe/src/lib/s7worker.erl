@@ -77,6 +77,7 @@ handle_cast(_Request, State = #state{}) ->
 %% client process is down,
 %% we match the Object field from the DOWN message against the current client pid
 handle_info({snap7_connected, Client}, State = #state{client = Client, owner = Owner}) ->
+  lager:info("[~p] s7 (~p) connected",[?MODULE, State#state.ip]),
   Owner ! {s7_connected, self()},
   {noreply, State#state{client = Client}};
 handle_info({'DOWN', _MonitorRef, _Type, Client, Info}, State=#state{client = Client, owner = Owner}) ->

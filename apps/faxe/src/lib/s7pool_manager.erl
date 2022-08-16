@@ -74,10 +74,11 @@ handle_cast(_Request, State = #state{}) ->
 handle_info({ensure_pool, #{ip := Ip} = Opts, User},
     State = #state{ips_pools = Ips, pools_ips = Pools, ip_opts = IpOpts, pool_user = PUsers,
       users_waiting = UsersWaiting, pools_up = Up}) ->
-  lager:notice("ensure_pool for ip :~p for user: ~p",[Ip, User]),
+  lager:notice("ensure_pool for ip :~p for user: ~p, current connection count: ~p",[Ip, User, connection_count(Ip)]),
   erlang:monitor(process, User),
   NewPUsers = add_user(Ip, PUsers, User),
   IpDemand = check_demand(Ip, NewPUsers),
+  lager:info("Demand for IP ~p is ~p",[Ip, IpDemand]),
   {NewState, PoolHandler} =
   case maps:is_key(Ip, Ips) of
     true ->
@@ -109,6 +110,7 @@ handle_info({ensure_pool, #{ip := Ip} = Opts, User},
   {noreply, NewState#state{pool_user = NewPUsers, users_waiting = UWaiting}};
 
 handle_info({up, Ip}, State = #state{pools_up = Up, ips_pools = _Pools, users_waiting = UWaiting}) ->
+  lager:info("pool for ip ~p is UP",[Ip]),
   case lists:member(Ip, Up) of
     true -> {noreply, State};
     false ->
@@ -117,6 +119,7 @@ handle_info({up, Ip}, State = #state{pools_up = Up, ips_pools = _Pools, users_wa
       {noreply, State#state{pools_up = [Ip|Up]}}
   end;
 handle_info({down, Ip}, State = #state{pools_up = Up, ips_pools = _Pools}) ->
+  lager:info("pool for ip ~p is DOWN",[Ip]),
   inform_users(Ip, s7_disconnected, State),
   {noreply, State#state{pools_up = lists:delete(Ip, Up)}};
 handle_info({'EXIT', Pid, normal}, State = #state{pools_ips = Pools, ips_pools = Ips, ip_opts = IpOpts}) ->

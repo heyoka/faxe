@@ -53,14 +53,14 @@ handle_cast(_Request, State = #state{}) ->
 handle_info({s7_connected, Worker},
     State = #state{pool = Pool, waiting_cons = Waiting, opts = #{ip := Ip}, initial_size = Initial}) ->
 
-%%  lager:notice("s7worker is up!"),
+  lager:notice("~p s7worker is up!",[?MODULE]),
   NewState =
   case lists:member(Worker, Waiting) of
     true ->
-%%      lager:warning("found waiting_con now up: ~p",[Worker]),
+      lager:warning("~p found waiting_con now up: ~p",[Worker, ?MODULE]),
       State#state{pool = Pool ++ [Worker], waiting_cons = lists:delete(Worker, Waiting)};
     false ->
-      lager:alert("s7 worker is up, but not waiting for it: ~p",[Worker]),
+      lager:alert("~p s7 worker is up, but not waiting for it: ~p",[Worker, ?MODULE]),
       State#state{pool = Pool ++ [Worker]}
   end,
   update_ets(NewState),
@@ -90,7 +90,7 @@ handle_info({s7_disconnected, Worker},
   end,
   {noreply, NewState};
 handle_info({demand, Num}, State = #state{pool = Pool, waiting_cons = Waiting, max_size = MAX}) ->
-%%  lager:notice("[~p] demand is: ~p",[?MODULE, Num]),
+  lager:notice("[~p] demand is: ~p",[?MODULE, Num]),
   Size = length(Pool) + length(Waiting),
   case Num of
     0 ->

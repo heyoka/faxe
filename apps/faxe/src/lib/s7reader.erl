@@ -51,6 +51,7 @@ register(Opts = #{ip := Ip}, Interval, Vars) when is_list(Vars) ->
     [C] when is_pid(C) ->
       C;
     [undefined] ->
+      %% the child pid is undefined, when it has stopped previously, so we simply restart it
       {ok, Child} = supervisor:restart_child(s7reader_sup, Ip),
       Child;
     _ ->
