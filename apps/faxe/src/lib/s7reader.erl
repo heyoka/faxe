@@ -162,9 +162,13 @@ handle_info({s7_connected, _Client}=M, State = #state{connected = true}) ->
   %% alread connected / idempotency
   send_all_clients(M, State),
   maybe_next(State);
-handle_info({s7_connected, _Client}=M, State = #state{s7_ip = Ip}) ->
+handle_info({s7_connected, _Client}=M, State = #state{s7_ip = Ip, pdu_size = InitialPDUSize}) ->
   lager:warning("~p s7_connected",[?MODULE]),
-  {ok, PduSize} = s7pool_manager:get_pdu_size(Ip),
+  PduSize =
+    case catch s7pool_manager:get_pdu_size(Ip) of
+      {ok, PS} -> PS;
+      _O -> lager:notice("getting pdu size failed: ~p", [_O]), InitialPDUSize
+    end,
   lager:notice("pdu size is ~p bytes",[PduSize]),
   send_all_clients(M, State),
   maybe_next(State#state{pdu_size = PduSize, connected = true});
