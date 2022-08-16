@@ -18,7 +18,7 @@
 %%====================================================================
 
 start(_StartType, _StartArgs) ->
-
+%%   logger:remove_handler(default),
    print_banner(),
    %% Mnesia
    faxe_db:db_init(),
