@@ -64,7 +64,7 @@ handle_info({s7_connected, Worker},
       State#state{pool = Pool ++ [Worker]}
   end,
   update_ets(NewState),
-  case length(NewState#state.pool) == Initial of
+  case length(NewState#state.pool) > 0 of
     true -> s7pool_manager ! {up, Ip};
     false -> lager:warning("[~p] s7 connection is up, but initial size of ~p not reached yet !!",[?MODULE, Initial]),ok
   end,
@@ -84,10 +84,10 @@ handle_info({s7_disconnected, Worker},
   end,
   NewState = State#state{pool = lists:delete(Worker, Pool), waiting_cons = NewWaiting},
   update_ets(NewState),
-  case length(NewState#state.pool) == Initial-1 of
-    true -> s7pool_manager ! {down, Ip};
-    false -> ok
-  end,
+%%  case length(NewState#state.pool) == 0 of
+%%    true -> s7pool_manager ! {down, Ip};
+%%    false -> ok
+%%  end,
   {noreply, NewState};
 handle_info({demand, Num}, State = #state{pool = Pool, waiting_cons = Waiting, max_size = MAX}) ->
   lager:notice("[~p] demand is: ~p",[?MODULE, Num]),
