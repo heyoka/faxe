@@ -89,7 +89,6 @@ handle_info({ensure_pool, #{ip := Ip} = Opts, User},
         ips_pools = Ips#{Ip => Pid},
         pools_ips = Pools#{Pid => Ip},
         ip_opts = IpOpts#{Ip => Opts}},
-
         Pid
       }
   end,
@@ -122,36 +121,24 @@ handle_info({down, Ip}, State = #state{pools_up = Up, ips_pools = _Pools}) ->
   lager:info("pool for ip ~p is DOWN",[Ip]),
   inform_users(Ip, s7_disconnected, State),
   {noreply, State#state{pools_up = lists:delete(Ip, Up)}};
-handle_info({'EXIT', Pid, normal}, State = #state{pools_ips = Pools, ips_pools = Ips, ip_opts = IpOpts}) ->
+handle_info({'EXIT', Pid, normal}, State = #state{}) ->
   lager:warning("Pool-Handler exiting normal, will no restart: ~p",[Pid]),
   NewState = remove_handler(Pid, State),
-%%  case maps:is_key(Pid, Pools) of
-%%    true ->
-%%      Ip = maps:get(Pid, Pools),
-%%      NewPools = maps:without([Pid], Pools),
-%%      NewIps = maps:without([Ip], Ips),
-%%      State#state{ips_pools = NewIps, pools_ips = NewPools};
-%%    false ->
-%%      State
-%%  end,
   {noreply, NewState};
-handle_info({'EXIT', Pid, Why}, State = #state{pools_ips = Pools, ips_pools = Ips, ip_opts = IpOpts}) ->
-  NewState =
-  case maps:is_key(Pid, Pools) of
-    true ->
-      Ip = maps:get(Pid, Pools),
-      lager:warning("Pool-Handler ~p-~p is down: ~p",[Pid, Ip, Why]),
-      NState = do_remove_handler(Pid, Ip, State),
-      Opts = maps:get(Ip, IpOpts),
-      {ok, NewPid} = s7pool_handler:start_link(Opts),
-      NState#state{
-        ips_pools = (NState#state.ips_pools)#{Ip => NewPid},
-        pools_ips = (NState#state.pools_ips)#{NewPid => Ip}
-      };
-    false ->
-      State
-  end,
-  {noreply, NewState};
+%% handler exited
+handle_info({'EXIT', Pid, Why}, State = #state{pools_ips = Pools, ip_opts = IpOpts})  when is_map_key(Pid, Pools) ->
+  Ip = maps:get(Pid, Pools),
+  lager:warning("Pool-Handler ~p-~p is down: ~p",[Pid, Ip, Why]),
+  NState = do_remove_handler(Pid, Ip, State),
+  Opts = maps:get(Ip, IpOpts),
+  {ok, NewPid} = s7pool_handler:start_link(Opts),
+  {noreply, NState#state{
+    ips_pools = (NState#state.ips_pools)#{Ip => NewPid},
+    pools_ips = (NState#state.pools_ips)#{NewPid => Ip}}
+  };
+handle_info({'EXIT', _Pid, _Why}, State = #state{}) ->
+  {noreply, State};
+%% pool-user is DOWN
 handle_info({'DOWN', _Mon, process, Pid, _Info}, State = #state{pool_user =  PoolUsers, ips_pools = Ips}) ->
 %%  lager:notice("[~p] pool-user is down: ~p", [?MODULE, Pid]),
 %%  lager:info("PoolUsers: ~p", [PoolUsers]),
@@ -169,7 +156,9 @@ handle_info({'DOWN', _Mon, process, Pid, _Info}, State = #state{pool_user =  Poo
     true ->
       Handler = maps:get(Ip, Ips),
       Handler ! {demand, check_demand(Ip, NewPoolUsers)};
-    false -> ok
+    false ->
+      lager:warning("no pool handler found for ~p",[Ip]),
+      ok
   end,
   {noreply, State#state{pool_user = NewPoolUsers}};
 handle_info(Req, State) ->
@@ -185,27 +174,23 @@ code_change(_OldVsn, State = #state{}, _Extra) ->
 %%%===================================================================
 %%% Internal functions
 %%%===================================================================
-remove_handler(HandlerPid, State = #state{pools_ips = Pools}) ->
-  case maps:is_key(HandlerPid, Pools) of
-    true ->
-      Ip = maps:get(HandlerPid, Pools),
-      do_remove_handler(HandlerPid, Ip, State);
-    false ->
-      State
-  end.
+remove_handler(HandlerPid, State = #state{pools_ips = Pools}) when is_map_key(HandlerPid, Pools) ->
+  Ip = maps:get(HandlerPid, Pools),
+  do_remove_handler(HandlerPid, Ip, State);
+remove_handler(_HandlerPid, State = #state{}) ->
+  State.
+
 
 do_remove_handler(HandlerPid, Ip, State = #state{pools_ips = Pools, ips_pools = Ips}) ->
   NewPools = maps:without([HandlerPid], Pools),
   NewIps = maps:without([Ip], Ips),
   State#state{ips_pools = NewIps, pools_ips = NewPools}.
 
-inform_users(Ip, StateMsg, #state{pool_user = PoolUsers}) ->
-  case maps:is_key(Ip, PoolUsers) of
-    true ->
-      UsersIp = maps:get(Ip, PoolUsers),
-      [U ! {StateMsg, Ip} || U <- sets:to_list(UsersIp)];
-    false -> ok
-  end.
+inform_users(Ip, StateMsg, #state{pool_user = PoolUsers}) when is_map_key(Ip, PoolUsers) ->
+  UsersIp = maps:get(Ip, PoolUsers),
+  [U ! {StateMsg, Ip} || U <- sets:to_list(UsersIp)];
+inform_users(_Ip, _StateMsg, #state{}) ->
+  ok.
 
 add_user(Ip, AllUsers, NewUser) ->
   PoolUsers =
@@ -218,11 +203,8 @@ add_user(Ip, AllUsers, NewUser) ->
   end,
   AllUsers#{Ip => PoolUsers}.
 
-check_demand(Ip, AllUsers) ->
-  case maps:is_key(Ip, AllUsers) of
-    true ->
-      PUsersSet = maps:get(Ip, AllUsers),
-      sets:size(PUsersSet);
-    false ->
-      0
-  end.
+check_demand(Ip, AllUsers) when is_map_key(Ip, AllUsers) ->
+  PUsersSet = maps:get(Ip, AllUsers),
+  sets:size(PUsersSet);
+check_demand(_Ip, _AllUsers) ->
+  0.
