@@ -24,8 +24,6 @@
   conn_opts         = #{}         :: map(),
   %% all addresses by read interval
   current_addresses = #{}         :: map(),
-  %% ready built (optimized) addresses / cache
-  request_cache     = #{}         :: map(),
   %% timers for every client read interval
   slot_timers       = []          :: list(),
   %% busy flag
@@ -33,6 +31,12 @@
   connected         = false       :: true|false,
   %% protocol PDU size, will be fetched from the slave, once connected
   pdu_size          = 240         :: non_neg_integer(),
+  %% wether to try to get the PDU size on connect
+  retrieve_pdu_size = true        :: true|false,
+  %% ready built (optimized) addresses / cache
+  request_cache     = #{}         :: map(),
+  %% pdu-size of cached addresses
+  cache_pdu_size    = 240         :: non_neg_integer(),
   %% read timer
   timer             = undefined   :: undefined|reference()
 }).
@@ -158,20 +162,29 @@ handle_info({'DOWN', _MonitorRef, process, Client, _Info}, State = #state{}) ->
     [] -> {stop, normal, NewState};
     _ -> {noreply, NewState}
   end;
-handle_info({s7_connected, _Client}=M, State = #state{connected = true}) ->
+handle_info({s7_connected, _Client}=M, State = #state{connected = true, retrieve_pdu_size = false}) ->
   %% alread connected / idempotency
   send_all_clients(M, State),
   maybe_next(State);
-handle_info({s7_connected, _Client}=M, State = #state{s7_ip = Ip, pdu_size = InitialPDUSize}) ->
+handle_info({s7_connected, _Client}=M,
+    State = #state{s7_ip = Ip, cache_pdu_size = CachePDU, request_cache = Cache, pdu_size = InitialPDUSize}) ->
   lager:warning("~p s7_connected",[?MODULE]),
-  PduSize =
+  {PduSize, Retrieve} =
     case catch s7pool_manager:get_pdu_size(Ip) of
-      {ok, PS} -> PS;
-      _O -> lager:notice("getting pdu size failed: ~p", [_O]), InitialPDUSize
+      {ok, PS} -> {PS, false};
+      _O ->
+        lager:notice("getting pdu size failed: ~p", [_O]),
+        {InitialPDUSize, true}
     end,
   lager:notice("pdu size is ~p bytes",[PduSize]),
   send_all_clients(M, State),
-  maybe_next(State#state{pdu_size = PduSize, connected = true});
+  %% clear the cache, if pdu size changed
+  NewCache =
+  case CachePDU == PduSize of
+    true -> Cache;
+    false -> lager:info("s7reader clear cache on connect, cause PDU size changed to ~p",[PduSize]), #{}
+  end,
+  maybe_next(State#state{pdu_size = PduSize, connected = true, retrieve_pdu_size = Retrieve, request_cache = NewCache});
 handle_info({s7_disconnected, _Client}=M, State = #state{timer = Timer}) ->
   lager:alert("~p s7_disconnected",[?MODULE]),
   catch erlang:cancel_timer(Timer),
@@ -277,7 +290,7 @@ get_requests(IntervalList, S = #state{current_addresses = Slots}) ->
 build_requests(IntervalList, Addresses, S=#state{pdu_size = PDUSize, request_cache = Cache}) ->
   {T, BuiltRequests} = timer:tc(s7_utils, build_addresses, [Addresses, PDUSize]),
   lager:alert("Time to build ~p addresses: ~p", [length(Addresses), T]),
-  {BuiltRequests, S#state{request_cache = Cache#{IntervalList => BuiltRequests}}}.
+  {BuiltRequests, S#state{request_cache = Cache#{IntervalList => BuiltRequests}, cache_pdu_size = PDUSize}}.
 
 
 add_client_ets(ClientPid, Interval, Vars, #state{s7_ip = Ip}) ->

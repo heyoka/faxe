@@ -93,12 +93,15 @@ init_all(#{host := Host, port := Port} = Opts, State) ->
    end,
 
    process_flag(trap_exit, true),
+
    reconnect_watcher:new(10000, 5, io_lib:format("~s:~p ~p",[Host, Port, ?MODULE])),
    Reconnector = faxe_backoff:new({100, 4200}),
-   connection_registry:reg(NId, Host, Port, <<"mqtt">>),
    {ok, Reconnector1} = faxe_backoff:execute(Reconnector, reconnect),
-   connection_registry:connecting(),
+
    OptsState = init_opts(Opts, State),
+
+   connection_registry:reg(NId, Host, Port, <<"mqtt">>),
+
    {ok, OptsState#state{reconnector = Reconnector1, node_id = NId }}.
 
 
