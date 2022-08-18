@@ -290,7 +290,7 @@ age_cleanup(State = #state{buffer = Buffer, max_age = Age}) ->
    Now = faxe_time:now(),
    CleanFun =
       fun({Key, _Point, TimeAdded}, Acc) ->
-         case (TimeAdded + Age) > Now of
+         case (Now - Age) > TimeAdded of
             true -> buffer_delete(Key, Acc);
             false -> Acc
          end
