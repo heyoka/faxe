@@ -30,6 +30,17 @@
     [{default, udp}, {datatype, {enum,[udp, tcp]}}, {commented, udp}]
 }.
 
+%% @doc enable/disable tls
+%% enable the use of tls for the logstash handler, if tcp is used
+{mapping, "log.logstash_backend.ssl_enable", "lager.handlers",
+    [{default, off}, {datatype, flag}, {commented, off}]
+}.
+
+%% @doc logstah ssl peer verification
+{mapping, "log.logstash_backend.ssl_verify", "lager.handlers",
+    [{default, verify_none}, {datatype, {enum,[verify_none, verify_peer]}}, hidden]
+}.
+
 %% @doc logstash host name or address
 {mapping, "log.logstash_host", "lager.handlers",
     [{default, "127.0.0.1"}, {datatype, string}, {commented, "127.0.0.1"}]
@@ -64,12 +75,22 @@
     LogstashLevel = cuttlefish:conf_get("log.logstash_level", Conf),
     LogstashHost = cuttlefish:conf_get("log.logstash_host", Conf),
     LogstashPort = cuttlefish:conf_get("log.logstash_port", Conf),
+    LogstashTLSEnable = cuttlefish:conf_get("log.logstash_backend.ssl_enable", Conf),
+    SslOpts =
+    case LogstashTLSEnable of
+        true ->
+        PeerVerify = cuttlefish:conf_get("log.logstash_backend.ssl_verify", Conf),
+        [{verify, PeerVerify}, {versions, ['tlsv1.2','tlsv1.3']}, {fail_if_no_peer_cert, false}];
+        false -> []
+        end,
     LogstashConf =
     case LogstashEnable of
         true ->
             [{lager_logstash_backend,
                   [
                    {protocol,      LogstashProtocol},
+                   {ssl,           LogstashTLSEnable},
+                   {ssl_opts,      SslOpts},
                    {level,         LogstashLevel},
                    {logstash_host, LogstashHost},
                    {logstash_port, LogstashPort},

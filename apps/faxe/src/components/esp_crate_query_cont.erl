@@ -168,8 +168,8 @@ handle_info(query, State = #state{timer = _Timer, query_mark = QueryMark, offset
    %% we are ahead of time
    case QueryMark > Now of
       true ->
-         lager:warning("will not query into future ... send at: ~p for query-mark: ~p",
-            [faxe_time:to_iso8601(QueryMark+Offset), faxe_time:to_iso8601(QueryMark)]),
+%%         lager:warning("will not query into future ... send at: ~p for query-mark: ~p",
+%%            [faxe_time:to_iso8601(QueryMark+Offset), faxe_time:to_iso8601(QueryMark)]),
          faxe_time:send_at(QueryMark+Offset, query),
          {ok, State#state{interval = undefined}};
       false ->
