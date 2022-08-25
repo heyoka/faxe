@@ -38,7 +38,7 @@
 
    add_function :: function(),
    remove_function :: undefined | function(),
-   update_function :: undefined | function(),
+   update_function :: true | false | function(),
    update_mode,
    emit_interval,
    emit_unchanged = true :: true|false,
@@ -52,14 +52,15 @@
    tag_added = false :: true | false,
    include_removed = false :: true | false,
    tag_value :: term(),
-   current_batch_start :: faxe_time:timestamp()
+   current_batch_start :: faxe_time:timestamp(),
+   merge = false :: true|false
 }).
 
 options() -> [
    {key_fields, string_list},
    {add, lambda, undefined},
    {remove, lambda, undefined},
-   {update, lambda, undefined},
+   {update, any, undefined},
    {update_mode, string, ?UPDATE_MODE_REPLACE}, %% 'replace', 'merge'
    {emit_every, duration, undefined},
    {emit_unchanged, boolean, true}, %% emit contents, even if the internal state has not changed
@@ -70,7 +71,8 @@ options() -> [
    {keep_as, string_list, undefined}, %% rename the kept fields
    {as, string, <<"collected">>}, %% rename the whole field construct on output
    {max_age, duration, <<"3h">>},
-   {tag_value, any, 1}
+   {tag_value, any, 1},
+   {merge, boolean, false}
 ].
 
 check_options() ->
@@ -78,7 +80,7 @@ check_options() ->
       {same_length, [keep, keep_as]},
       {func, update,
          fun(Val) ->
-            is_function(Val) orelse Val == undefined
+            is_function(Val) orelse lists:member(Val, [undefined, true, false])
          end,
          <<" can only be a lambda expression or undefined">>},
       {one_of, update_mode, [?UPDATE_MODE_MERGE, ?UPDATE_MODE_MERGE_REVERSE, ?UPDATE_MODE_REPLACE]}
@@ -88,13 +90,14 @@ wants() -> both.
 emits() -> batch.
 
 init(NodeId, _Ins, #{
-   key_fields := Fields, add := AddFunc, remove := RemFunc, update := UpStateFun,
+   key_fields := Fields, add := AddFunc, remove := RemFunc,
    update := UpStateFun, update_mode := UpMode, emit_unchanged := EmitAlways,
    emit_every := EmitEvery, tag_added := TagAdd, tag_removed := TagRem, include_removed := InclRem0, tag_value := TagVal,
-   keep := Keep, keep_as := KeepAs,
+   keep := Keep, keep_as := KeepAs, merge := Merge,
    as := As, max_age := MaxAge0}
 ) ->
 
+   UpdateFun = case UpStateFun of undefined -> false; _ -> UpStateFun end,
    EmitInterval = case EmitEvery of undefined -> undefined; _ -> faxe_time:duration_to_ms(EmitEvery) end,
    MaxAge = case MaxAge0 of undefined -> undefined; Age -> faxe_time:duration_to_ms(Age) end,
    Aliases = case KeepAs of [] -> Keep; _ -> KeepAs end,
@@ -105,7 +108,7 @@ init(NodeId, _Ins, #{
          fields = Fields,
          add_function = AddFunc,
          remove_function = RemFunc,
-         update_function = UpStateFun,
+         update_function = UpdateFun,
          update_mode = UpMode,
          emit_interval = EmitInterval,
          emit_unchanged = EmitAlways,
@@ -115,7 +118,8 @@ init(NodeId, _Ins, #{
          max_age = MaxAge,
          tag_added = TagAdd,
          include_removed = InclRem,
-         tag_value = TagVal}}.
+         tag_value = TagVal,
+         merge = Merge}}.
 
 process(Port, Item, State = #state{buffer = undefined}) ->
    maybe_start_emit_timeout(State),
@@ -233,8 +237,11 @@ remove1(Key, State = #state{buffer = Buffer0, include_removed = true, tag_value 
    State#state{buffer = buffer_update(Key, flowdata:set_field(RPoint, ?TAG_REMOVED, Tag), Buffer0)}.
 
 
-maybe_update_state(_Point, _KeyVal, S = #state{update_function = undefined}) ->
+maybe_update_state(_Point, _KeyVal, S = #state{update_function = false}) ->
    {false, S};
+maybe_update_state(Point=#data_point{}, KeyVal, State = #state{update_function = true, buffer = Buffer}) ->
+   StatePoint = buffer_get(KeyVal, Buffer),
+   {true, do_update(KeyVal, StatePoint, Point, State)};
 maybe_update_state(Point=#data_point{fields = Fields}, KeyVal, State = #state{update_function = Fun, buffer = Buffer}) ->
    StatePoint = buffer_get(KeyVal, Buffer),
    FunPoint = Point#data_point{fields = Fields#{?PREVIOUS_POINT_ROOT => StatePoint#data_point.fields}},
@@ -256,7 +263,7 @@ maybe_emit(true, State = #state{emit_interval = undefined}) ->
 maybe_emit(_, State = #state{}) ->
    {ok, State}.
 
-do_emit(State = #state{buffer = Buff, tag_value = _TagVal}) ->
+do_emit(State = #state{buffer = Buff, tag_value = _TagVal, merge = Merge}) ->
    Points0 = [
       maybe_rewrite_ts(
          Val,
@@ -266,11 +273,16 @@ do_emit(State = #state{buffer = Buff, tag_value = _TagVal}) ->
    %% sort elements by timestamp for data_batch
    Points = lists:keysort(2, Points0),
    Batch = #data_batch{points = Points, start = State#state.current_batch_start},
+   Out =
+   case Merge of
+      true -> flowdata:merge_points(Batch#data_batch.points);
+      false -> Batch
+   end,
    %%
    %% now cleanup removed and added tags
    NewState = buffer_cleanup(State),
 %%   lager:notice("buffer length after emit: ~p",[length(NewState#state.buffer)]),
-   {emit, Batch, NewState#state{current_batch_start = undefined}}.
+   {emit, Out, NewState#state{current_batch_start = undefined}}.
 
 buffer_cleanup(State = #state{tag_added = false, include_removed = false}) ->
    State;

@@ -87,7 +87,7 @@ node_opts() ->
                   end;
                Behaviours -> Behaviours == [df_component]
             end
-         end, erlang:loaded()),
+         end, All),
    ComponentModules = lists:filter(fun(E) -> not lists:member(E, ?LANG_EXCLUDE_COMPONENTS) end, ComponentModules0),
    lager:notice("~p built-in faxe components", [length(ComponentModules)]),
    lists:map(fun(ModuleAtom) -> node_details(ModuleAtom) end, ComponentModules).
