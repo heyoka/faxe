@@ -625,7 +625,8 @@ build_addresses_test() ->
       {[<<"DB8034_DBS66_30">>], [string]}
     ],
 
-  {S7Addrs, Aliases} = build_addresses(L, As, 0),
+  Parsed = parse_addresses(L, 0),
+  {S7Addrs, Aliases} = build_addresses(Parsed, As),
   ?assertEqual(Res, S7Addrs),
   ?assertEqual(AliasesList, Aliases).
 
