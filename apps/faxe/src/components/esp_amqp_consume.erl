@@ -52,6 +52,7 @@
    opts,
    dt_field,
    dt_format,
+   clean_names,
    emitter,
    flownodeid,
    debug_mode = false,
@@ -87,6 +88,7 @@ options() -> [
    {safe, boolean, false},
    {dt_field, string, <<"ts">>},
    {dt_format, string, ?TF_TS_MILLI},
+   {clean_field_names, boolean, false},
    {include_topic, bool, true},
    {topic_as, string, <<"topic">>},
    {as, string, undefined},
@@ -110,7 +112,7 @@ init({GraphId, NodeId} = Idx, _Ins,
       dt_field := DTField, dt_format := DTFormat, ssl := _UseSSL, include_topic := IncludeTopic,
       topic_as := TopicKey, ack_every := AckEvery0, ack_after := AckTimeout0, as := As, consumer_tag := CTag0,
       queue_prefix := QPrefix, root_exchange := RExchange, exchange_prefix := XPrefix
-      , use_flow_ack := FlowAck,
+      , use_flow_ack := FlowAck, clean_field_names := Clean,
    safe := Safe, confirm := Confirm,
    dedup_size := DedupSize
    } = Opts0) ->
@@ -134,7 +136,8 @@ init({GraphId, NodeId} = Idx, _Ins,
    State = #state{
       include_topic = IncludeTopic, topic_key = TopicKey, as = As, dedup_queue = memory_queue:new(DedupSize),
       opts = Opts, prefetch = Prefetch, ack_every = AckEvery0, ack_after = AckTimeout, flow_ack = FlowAck,
-      dt_field = DTField, dt_format = DTFormat, safe_mode = Safe, flownodeid = Idx, confirm = Confirm},
+      dt_field = DTField, dt_format = DTFormat, safe_mode = Safe, flownodeid = Idx, confirm = Confirm,
+      clean_names = Clean},
 
    NewState = maybe_init_q(State),
 
@@ -247,8 +250,9 @@ restart_ack_timeout(State = #state{ack_after = Time, ack_timer = Timer}) ->
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 build_item(Payload, RKey,
-        #state{as = As, include_topic = AddTopic, topic_key = TopicKey, dt_field = DTField, dt_format = DTFormat}) ->
-   Msg0 = flowdata:from_json_struct(Payload, DTField, DTFormat),
+        #state{as = As, include_topic = AddTopic, topic_key = TopicKey, dt_field = DTField, dt_format = DTFormat,
+           clean_names = Clean}) ->
+   Msg0 = flowdata:from_json_struct(Payload, DTField, DTFormat, Clean),
    Item0 =
       case AddTopic of
          true -> flowdata:set_field(Msg0, TopicKey, RKey);
