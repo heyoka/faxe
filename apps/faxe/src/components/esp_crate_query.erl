@@ -99,7 +99,7 @@ process(_In, _B = #data_batch{}, State = #state{}) ->
 
 
 handle_info(query,
-    State = #state{timer = Timer, client = C, stmt = Q, period = Period, result_type = RType, fn_id = FnId, resp_def = RespDef}) ->
+    State = #state{timer = Timer, client = C, period = Period, fn_id = FnId, resp_def = RespDef}) ->
    QueryMark = Timer#faxe_timer.last_time,
 %%   lager:notice("query: ~p with ~p from: ~p, to :~p",
 %%      [Q, [QueryMark-Period, QueryMark], faxe_time:to_iso8601(QueryMark-Period), faxe_time:to_iso8601(QueryMark)]),

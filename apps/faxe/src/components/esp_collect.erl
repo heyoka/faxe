@@ -53,6 +53,8 @@
    include_removed = false :: true | false,
    tag_value :: term(),
    current_batch_start :: faxe_time:timestamp(),
+   %% holds the newest timestamp from a single data_point
+   newest_timestamp :: faxe_time:timestamp(),
    merge = false :: true|false
 }).
 
@@ -69,10 +71,10 @@ options() -> [
    {include_removed, boolean, false},
    {keep, string_list, []}, %% a list of field path to keep for every data_point
    {keep_as, string_list, undefined}, %% rename the kept fields
-   {as, string, <<"collected">>}, %% rename the whole field construct on output
+   {as, string, <<"collected">>}, %% (rename the whole field construct on output, but not implemented)
    {max_age, duration, <<"3h">>},
    {tag_value, any, 1},
-   {merge, boolean, false}
+   {merge, boolean, false} %% condense the buffer into one output data-point, if true
 ].
 
 check_options() ->
@@ -82,12 +84,12 @@ check_options() ->
          fun(Val) ->
             is_function(Val) orelse lists:member(Val, [undefined, true, false])
          end,
-         <<" can only be a lambda expression or undefined">>},
+         <<" can only be a lambda expression, true or false">>},
       {one_of, update_mode, [?UPDATE_MODE_MERGE, ?UPDATE_MODE_MERGE_REVERSE, ?UPDATE_MODE_REPLACE]}
    ].
 
 wants() -> both.
-emits() -> batch.
+emits() -> both.
 
 init(NodeId, _Ins, #{
    key_fields := Fields, add := AddFunc, remove := RemFunc,
@@ -125,28 +127,28 @@ process(Port, Item, State = #state{buffer = undefined}) ->
    maybe_start_emit_timeout(State),
    start_age_timeout(State),
    process(Port, Item, State#state{buffer = []});
-process(_Port, #data_point{} = Point, State = #state{fields = _Field}) ->
-   Res = do_process(Point, State),
+process(_Port, #data_point{ts = Ts} = Point, State = #state{fields = _Field}) ->
+   NewState = State#state{newest_timestamp = Ts},
+   Res = do_process(Point, NewState),
    case Res of
-      {ok, State} -> {ok, State};
-      {Changed, NewState} ->
-         maybe_emit(Changed, NewState)
+      {ok, NewState} -> {ok, NewState};
+      {Changed, ChangedState} ->
+         maybe_emit(Changed, ChangedState)
    end;
 process(Port, Batch = #data_batch{}, State = #state{buffer = undefined}) ->
    process(Port, Batch, State#state{buffer = []});
 process(_Port, B = #data_batch{points = Points}, State) ->
    NewState0 = maybe_get_batch_start(B, State),
    ProcessFun =
-   fun(Point, {Changed0, State0}) ->
+   fun(Point = #data_point{ts = Ts}, {Changed0, State0, CurrentTs}) ->
       {Changed1, NewState} = do_process(Point, State0),
-%%      lager:notice("Buffer after processing: ~p",[NewState#state.buffer]),
       ChangedNew = (Changed0 == true orelse Changed1 == true),
-      {ChangedNew, NewState}
+      {ChangedNew, NewState, max(Ts, CurrentTs)}
    end,
 %%   {T, {Changed, ResState}} = timer:tc(lists, foldl, [ProcessFun, {false, NewState0}, Points]),
-   {Changed, ResState} = lists:foldl(ProcessFun, {false, NewState0}, Points),
+   {Changed, ResState, LatestTs} = lists:foldl(ProcessFun, {false, NewState0, 0}, Points),
 %%   lager:notice("it took ~p my to process ~p points (changed: ~p)",[T, length(Points), Changed]),
-   maybe_emit(Changed, ResState).
+   maybe_emit(Changed, ResState#state{newest_timestamp = LatestTs}).
 
 handle_info(emit_timeout, State = #state{}) ->
    maybe_start_emit_timeout(State),
@@ -263,19 +265,21 @@ maybe_emit(true, State = #state{emit_interval = undefined}) ->
 maybe_emit(_, State = #state{}) ->
    {ok, State}.
 
-do_emit(State = #state{buffer = Buff, tag_value = _TagVal, merge = Merge}) ->
+do_emit(State = #state{buffer = Buff, tag_value = _TagVal, merge = Merge, newest_timestamp = Ts}) ->
    Points0 = [
       maybe_rewrite_ts(
-         Val,
+         Point,
          State)
-      || {_Key, Val, _} <- Buff],
+      || {_Key, Point, _} <- Buff],
 
    %% sort elements by timestamp for data_batch
-   Points = lists:keysort(2, Points0),
+   Points = lists:keysort(2, Points0), %% ???
    Batch = #data_batch{points = Points, start = State#state.current_batch_start},
    Out =
    case Merge of
-      true -> flowdata:merge_points(Batch#data_batch.points);
+      true ->
+         OutTs = case Ts of undefined -> faxe_time:now(); _Ts -> Ts end,
+         P = flowdata:merge_points(Batch#data_batch.points), P#data_point{ts = OutTs};
       false -> Batch
    end,
    %%

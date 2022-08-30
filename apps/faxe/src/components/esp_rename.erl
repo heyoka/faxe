@@ -66,7 +66,7 @@ process(_Inport, #data_point{} = Point,
    NewPoint = eval_funs(NewPoint0, State),
    {emit, NewPoint, State}.
 
-eval_funs(Point = #data_point{}, State = #state{fields_as_funs = []}) ->
+eval_funs(Point = #data_point{}, #state{fields_as_funs = []}) ->
    Point;
 eval_funs(Point = #data_point{}, #state{fields_as_funs = Funs, fields_funs = Fields}) ->
    do_eval_funs(Funs, Fields, Point, [], []).

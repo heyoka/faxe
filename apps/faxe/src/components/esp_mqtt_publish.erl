@@ -68,7 +68,7 @@ metrics() ->
    ].
 
 %% safe mode with ondisc queuing
-init({_GraphId, _NodeId} = GId, _Ins, #{safe := true, host := Host0}=Opts) ->
+init({_GraphId, _NodeId} = GId, _Ins, #{safe := true}=Opts) ->
    QFile = faxe_config:q_file(GId),
    QConf = proplists:delete(ttf, faxe_config:get_esq_opts()),
    {ok, Q} = esq:new(QFile, QConf),
@@ -116,7 +116,6 @@ build_message(Item, State = #state{fn_id = FNId}) ->
    Json = flowdata:to_json(Item),
    node_metrics:metric(?METRIC_BYTES_SENT, byte_size(Json), FNId),
    node_metrics:metric(?METRIC_ITEMS_OUT, 1, FNId),
-   T = get_topic(Item, State),
    {get_topic(Item, State), Json}.
 
 

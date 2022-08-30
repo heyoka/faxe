@@ -132,7 +132,7 @@ handle_info({'EXIT', _C, _Reason}, State = #state{reconnector = Recon, host = H,
    {ok, State#state{connected = false, client = undefined, reconnector = Reconnector}};
 handle_info(start_debug, State) -> {ok, State#state{debug_mode = true}};
 handle_info(stop_debug, State) -> {ok, State#state{debug_mode = false}};
-handle_info(What, State) ->
+handle_info(_What, State) ->
    {ok, State}.
 
 shutdown(#state{client = C}) ->

@@ -114,11 +114,11 @@ eval_opts([], Acc) ->
    Acc;
 eval_opts([#{name := PName, type := PType, default := Default}=O|ModuleOpts], Acc) when is_tuple(Default) ->
    NewAcc = Acc ++ [#{<<"name">> => PName, <<"dataType">> => PType,
-      <<"description">> => maps:get(desc, O, <<>>), <<"default">> => <<"from config file">>}],
+      <<"description">> => maps:get(desc, O, <<>>), <<"defaultValue">> => <<"from config file">>}],
    eval_opts(ModuleOpts, NewAcc);
 eval_opts([#{name := PName, type := PType, default := Default}=O|ModuleOpts], Acc) ->
    NewAcc = Acc ++ [#{<<"name">> => PName, <<"dataType">> => PType,
-      <<"description">> => maps:get(desc, O, <<>>), <<"default">> => Default}],
+      <<"description">> => maps:get(desc, O, <<>>), <<"defaultValue">> => Default}],
    eval_opts(ModuleOpts, NewAcc);
 eval_opts([#{name := PName, type := PType}=O|ModuleOpts], Acc) ->
    NewAcc = Acc ++ [#{<<"name">> => PName, <<"dataType">> => PType,
@@ -129,9 +129,9 @@ eval_opts([{PName, PType}|ModuleOpts], Acc) ->
    eval_opts(ModuleOpts, NewAcc);
 eval_opts([{PName, PType, DefaultConfig}|ModuleOpts], Acc) when is_tuple(DefaultConfig)->
    NewAcc = Acc ++ [#{<<"name">> => PName, <<"dataType">> => PType,
-      <<"description">> => <<>>, <<"default">> => <<"from config file">>}],
+      <<"description">> => <<>>, <<"defaultValue">> => <<"from config file">>}],
    eval_opts(ModuleOpts, NewAcc);
 eval_opts([{PName, PType, Default}|ModuleOpts], Acc) ->
    NewAcc = Acc ++ [#{<<"name">> => PName, <<"dataType">> => PType,
-      <<"description">> => <<>>, <<"default">> => Default}],
+      <<"description">> => <<>>, <<"defaultValue">> => Default}],
    eval_opts(ModuleOpts, NewAcc).

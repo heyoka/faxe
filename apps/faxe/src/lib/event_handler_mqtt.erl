@@ -130,7 +130,7 @@ handle_call(_Request, State) ->
    {swap_handler, Args1 :: term(), NewState :: #state{},
       Handler2 :: (atom() | {atom(), Id :: term()}), Args2 :: term()} |
    remove_handler).
-handle_info({publish, Topic, Data} = M, State = #state{publisher = Publisher}) ->
+handle_info({publish, Topic, Data}, State = #state{publisher = Publisher}) ->
    publish(Topic, Data, Publisher),
    {ok, State};
 handle_info({'EXIT', OldPublisher, _Reason}, State = #state{publisher = OldPublisher, publisher_opts = Opts}) ->

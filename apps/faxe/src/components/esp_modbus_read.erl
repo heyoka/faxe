@@ -297,7 +297,7 @@ read(Client, [Request|Reqs], Point, Timeout) ->
 
 
 do_read(
-    O=#{function := Fun, start := Start, amount := Amount, opts := Opts, aliases := As} = Req, Client, Timeout) ->
+    #{function := Fun, start := Start, amount := Amount, opts := Opts, aliases := As}, Client, Timeout) ->
    Res = modbus:Fun(Client, Start, Amount, Opts),
    case Res of
       {error, disconnected} ->
@@ -316,7 +316,7 @@ recv(TId, Timeout) ->
    receive
       {modbusdata, {ok, TId, Data}} ->
          {ok, Data};
-      {modbusdata, {ok, NotOurTId, Data}} ->
+      {modbusdata, {ok, NotOurTId, _Data}} ->
          {error, {wrong_tid_returned, NotOurTId}};
       {modbusdata, {error, TId, What}} ->
          {error, What}

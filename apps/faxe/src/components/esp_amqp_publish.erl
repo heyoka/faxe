@@ -93,7 +93,7 @@ eval_qos(Opts = #{qos := 1}) ->
 eval_qos(Opts = #{qos := 2}) ->
    Opts#{safe_mode => true, use_queue => true}.
 
-process(_In, Item, State = #state{flowid_nodeid = FNId, debug_mode = Debug}) ->
+process(_In, Item, State = #state{}) ->
    Key = key(Item, State),
    do_process(Key, Item, State).
 

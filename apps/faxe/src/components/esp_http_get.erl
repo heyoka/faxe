@@ -164,7 +164,7 @@ start_client(State = #state{host = Host, port = Port, tls = Tls}) ->
    {ok, C} = gun:open(Host, Port, Options),
    MonitorRef = erlang:monitor(process, C),
    case gun:await_up(C) of
-      {ok, What} ->
+      {ok, _What} ->
          connection_registry:connected(),
          NewState = maybe_start_timer(State),
          NewState#state{client = C};

@@ -61,7 +61,7 @@ set_fields(Item = #data_batch{points = Points}, S = #state{fields_root = true}) 
    NewPoints = [set_fields(P, S) || P <- Points],
    Item#data_batch{points = NewPoints};
 set_fields(Item = #data_point{fields = Fields}, #state{fields_root = true, field_kvs = FieldList}) ->
-   NewFields = maps:merge(Fields, maps:from_list(FieldList)),
+   NewFields = lists:foldl(fun({K, V}, AccMap) -> AccMap#{K => V} end, Fields, FieldList),
    Item#data_point{fields = NewFields};
 set_fields(Item, #state{field_kvs = FieldList}) ->
    flowdata:set_fields(Item, FieldList).
