@@ -167,16 +167,7 @@ get_query_point(#data_point{} = P) ->
 send(Item, State = #state{query = Q, faxe_fields = Fields, remaining_fields_as = RemFieldsAs,
       user = User, pass = Pass}) ->
    Query = build(Item, Q, Fields, RemFieldsAs),
-%%   Headers0 = [{?DEFAULT_SCHEMA_HDR, Schema}, {<<"content-type">>, <<"application/json">>}],
-   Headers0 = [{<<"content-type">>, <<"application/json">>}],
-   Headers =
-   case Pass of
-      undefined -> Headers0;
-      _ when is_binary(Pass) andalso is_binary(User) -> UP = <<User/binary, ":", Pass/binary>>,
-         Auth = base64:encode(UP),
-         Headers0 ++ [{?AUTH_HEADER_KEY, <<"Basic ", Auth/binary>>}];
-      _ -> Headers0
-   end,
+   Headers = [{<<"content-type">>, <<"application/json">>}] ++ http_lib:basic_auth_header(User, Pass),
    NewState = do_send(Item, Query, Headers, 0, State#state{last_error = undefined}),
    MBytes = faxe_util:bytes(Query),
    node_metrics:metric(?METRIC_BYTES_SENT, MBytes, State#state.fn_id),

@@ -75,14 +75,7 @@ init(NodeId, _Inputs,
          _ -> As
       end,
    erlang:send_after(0, self(), start_client),
-   Headers0 = ?HEADERS ++ [{<<"user-agent">>, http_lib:user_agent()}],
-   Headers =
-   case User of
-      undefined -> Headers0;
-      _ ->
-         UserPass = base64:encode(iolist_to_binary([User, <<":">>, Pass])),
-         Headers0 ++ [{<<"authorization">>, [<<"Basic ">>, UserPass]}]
-   end,
+   Headers = ?HEADERS ++ http_lib:user_agent_header() ++ http_lib:basic_auth_header(User, Pass),
    {ok, all,
       #state{
          host = Host, port = Port,

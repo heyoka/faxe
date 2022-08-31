@@ -1,8 +1,9 @@
 |value_emitter()
 .every(5s)
-.type(point)
 
 |http_post()
-.host('127.0.0.1')
+.host('http://127.0.0.1')
 .port(8899)
 .path('/')
+.user('alex')
+.pass('hahaha')

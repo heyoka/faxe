@@ -18,6 +18,8 @@
    host :: string(),
    port :: non_neg_integer(),
    path :: string(),
+   auth :: undefined|binary(),
+   headers :: list(),
    client,
    failed_retries,
    tries,
@@ -30,7 +32,9 @@ options() ->
       {host, string},
       {port, integer},
       {path, string, <<"/">>},
-      {tls, is_set, false}
+      {tls, is_set, false},
+      {user, string, undefined},
+      {pass, string, undefined}
    ].
 
 metrics() ->
@@ -38,12 +42,17 @@ metrics() ->
       {?METRIC_BYTES_SENT, meter, []}
    ].
 
-init(NodeId, _Inputs, #{host := Host0, port := Port, path := Path, tls := Tls}) ->
+init(NodeId, _Inputs, #{host := Host0, port := Port, path := Path, tls := Tls, user := User, pass := Pass}) ->
    Host = binary_to_list(Host0),
    connection_registry:reg(NodeId, Host, Port, <<"http">>),
    erlang:send_after(0, self(), start_client),
+   Headers =
+      [{<<"content-type">>, <<"application/json">>}] ++
+      http_lib:basic_auth_header(User, Pass) ++ http_lib:user_agent_header(),
+   lager:info("Headers are ~p",[Headers]),
    {ok, all,
-      #state{host = Host, port = Port, path = Path, tls = Tls, failed_retries = ?FAILED_RETRIES, fn_id = NodeId}}.
+      #state{host = Host, port = Port, path = Path, tls = Tls,
+         failed_retries = ?FAILED_RETRIES, fn_id = NodeId, headers = Headers}}.
 
 process(_In, P = #data_point{}, State = #state{}) ->
    send(P, State),
@@ -65,10 +74,9 @@ handle_info(_R, State) ->
 shutdown(#state{client = C}) ->
    gun:close(C).
 
-send(Item, State = #state{}) ->
+send(Item, State = #state{headers = Headers}) ->
    M = flowdata:to_mapstruct(Item),
    Body = jiffy:encode(M),
-   Headers = [{<<"content-type">>, <<"application/json">>}],
    do_send(Body, Headers, 0, State).
 
 do_send(_Body, _Headers, MaxFailedRetries, S = #state{failed_retries = MaxFailedRetries}) ->
