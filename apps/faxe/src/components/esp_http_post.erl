@@ -49,7 +49,6 @@ init(NodeId, _Inputs, #{host := Host0, port := Port, path := Path, tls := Tls, u
    Headers =
       [{<<"content-type">>, <<"application/json">>}] ++
       http_lib:basic_auth_header(User, Pass) ++ http_lib:user_agent_header(),
-   lager:info("Headers are ~p",[Headers]),
    {ok, all,
       #state{host = Host, port = Port, path = Path, tls = Tls,
          failed_retries = ?FAILED_RETRIES, fn_id = NodeId, headers = Headers}}.
