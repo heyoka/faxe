@@ -23,6 +23,7 @@ user_agent_header() ->
 basic_auth_header(undefined, _) -> [];
 basic_auth_header(_, undefined) -> [];
 basic_auth_header(User, Pass) when is_binary(User), is_binary(Pass) ->
-  Basic = base64:encode(<<"Basic ", User/binary, ":", Pass/binary>>),
-  [{"authorization", Basic}].
+  Basic = base64:encode(<<User/binary, ":", Pass/binary>>),
+  [{"Authorization", <<"Basic ", Basic/binary>>}];
+basic_auth_header(_ , _) -> [].
 
