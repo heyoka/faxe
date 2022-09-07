@@ -34,6 +34,8 @@
    trigger_on_value = false,
    repeat_last = false,
    repeat_with_new_ts = true,
+   repeat_interval = undefined,
+   last_ts = undefined,
    last_point,
    no_forward
 }).
@@ -44,7 +46,10 @@ options() -> [
    {field_values, list, []},
    {silent_time, duration, <<"0ms">>}, %% for this amount of time no timeout is triggered
    {repeat_last, is_set},
+   %% deprecated
    {repeat_with_new_ts, bool, true},
+   %% add this amount of time, when repeating a message
+   {repeat_interval, duration, undefined},
    {trigger_on_value, is_set},
    {no_forward, is_set}
 ].
@@ -53,23 +58,25 @@ check_options() -> [{same_length, [fields, field_values]}].
 
 init(NodeId, _Ins,
     #{timeout := Timeout0, fields := Fields, repeat_last := Repeat, no_forward := NoForward,
-       trigger_on_value := Trigger, field_values := Vals, silent_time := QTime0, repeat_with_new_ts := NewTs}) ->
+       trigger_on_value := Trigger, field_values := Vals, silent_time := QTime0,
+       repeat_with_new_ts := NewTs, repeat_interval := TsInterval0}) ->
 
 
    Timeout = faxe_time:duration_to_ms(Timeout0),
    QTimeout = faxe_time:duration_to_ms(QTime0),
+   TsInterval = faxe_time:duration_to_ms(TsInterval0),
    State =
       #state{timeout = Timeout, fields = Fields, repeat_last = Repeat, no_forward = NoForward,
          repeat_with_new_ts = NewTs, node_id = NodeId, field_vals = Vals, silent_time = QTimeout,
-         trigger_on_value = Trigger},
+         trigger_on_value = Trigger, repeat_interval = TsInterval},
 
    {ok, all, maybe_trigger_restart_timer(State)}.
 
-process(_In, Data, State = #state{no_forward = true}) ->
-   NewState = State#state{last_point = Data},
+process(_In, Data=#data_point{ts = Ts}, State = #state{no_forward = true}) ->
+   NewState = State#state{last_point = Data, last_ts = Ts},
    {ok, maybe_restart_timer(NewState)};
-process(_In, Data, State = #state{}) ->
-   NewState = State#state{last_point = Data},
+process(_In, Data=#data_point{ts = Ts}, State = #state{}) ->
+   NewState = State#state{last_point = Data, last_ts = Ts},
    {emit, Data, maybe_restart_timer(NewState)}.
 
 handle_info(q_timeout, State = #state{}) ->
@@ -77,22 +84,28 @@ handle_info(q_timeout, State = #state{}) ->
    {ok, restart_timer(State#state{is_quiet = false, silent_timer_ref = undefined})};
 
 handle_info(timeout, State = #state{}) ->
-%%   lager:info("time is up"),
-   dataflow:emit(build_message(State)),
-   NewState = maybe_start_qtimer(State),
-   {ok, maybe_restart_timer(NewState)};
+   {OutPoint, NewState0} = build_message(State),
+   NewState = maybe_start_qtimer(NewState0),
+   {emit, OutPoint, maybe_restart_timer(NewState)};
 handle_info(_R, State) ->
    {ok, State}.
 
 
-build_message(#state{repeat_last = true, repeat_with_new_ts = NewTs, last_point = P=#data_point{}}) ->
-   case NewTs of
-      true -> P#data_point{ts = faxe_time:now()};
-      false -> P
-   end;
-build_message(#state{field_vals = Vals, fields = Fields}) ->
+build_message(S=#state{repeat_last = true, repeat_interval = Interval, last_point = P=#data_point{ts = Ts}, last_ts = LastTs})
+   when is_integer(Interval) ->
+   NewTs =
+   case LastTs of
+      undefined -> Ts + Interval;
+      ATs -> ATs + Interval
+   end,
+   {P#data_point{ts = NewTs}, S#state{last_ts = NewTs}};
+build_message(S=#state{repeat_last = true, repeat_with_new_ts = true, last_point = P=#data_point{}}) ->
+   {P#data_point{ts = faxe_time:now()}, S};
+build_message(S=#state{repeat_last = true, repeat_with_new_ts = true, last_point = P=#data_point{}}) ->
+   {P, S};
+build_message(S=#state{field_vals = Vals, fields = Fields}) ->
    DataPoint = #data_point{ts = faxe_time:now()},
-   flowdata:set_fields(DataPoint, Fields, Vals).
+   {flowdata:set_fields(DataPoint, Fields, Vals), S}.
 
 maybe_start_qtimer(State = #state{silent_time = 0}) ->
    State;

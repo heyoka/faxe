@@ -73,10 +73,6 @@ build_addresses(Addresses, PDUSize) ->
   lager:notice("building addresses with PDU size ~p",[PDUSize]),
   F = fun({Address, Clients}) -> Address#{clients => Clients} end,
   WithClients = lists:map(F, Addresses),
-%%  {WithClients, _} = lists:unzip(WithClients0),
-
-%%  lager:notice("with clients: ~p",[WithClients]),
-
   %% partition addresses+aliases by data-type
   PartitionFun =
     fun(#{dtype := Dtype, start := Start} = E, Acc) ->
@@ -91,7 +87,6 @@ build_addresses(Addresses, PDUSize) ->
       end
     end,
   Splitted = lists:foldl(PartitionFun, #{}, WithClients),
-%%lager:notice("Splitted: ~p",[Splitted]),
   %% extract bit addresses
   {Bools, NonBools} =
     case maps:take(bool, Splitted) of
@@ -102,44 +97,27 @@ build_addresses(Addresses, PDUSize) ->
   %% sort bit addresses
   BoolsSorted = sort_by_start(Bools),
   %% build byte addresses for bits
-%%  {BoolParts, BoolClients} = find_bool_bytes(BoolsSorted),
-%%  lager:notice("BOOL CLients: ~p",[BoolClients]),
   {NewBoolParts, {NewBoolRestParts, _NewBoolRestAliases} = BoolRest} = find_bool_bytes(BoolsSorted, PDUSize),
-%%  lager:warning("NEW bool contiguous: ~n",[]),
-%%  lager:warning("NEW BOOL Parts: ~p~n",[NewBoolParts]),
-%%  lager:warning("NEW BOOL RESTParts: ~p~n",[length(NewBoolRestParts)]),
-%%  lager:warning("NEW BOOL RESTAliases: ~p~n",[NewBoolRestAliases]),
 
   %% sort by starts
   ParamsSorted = lists:flatmap(fun({_Type, L}) -> sort_by_start(L) end, maps:to_list(NonBools)),
   %% find contiguous starts
-%%  {NonBoolParts, NonBoolAliases} = find_contiguous(ParamsSorted),
   {NewParts, {NewRestParts, NewRestAliases} = NonBoolRest} = find_contiguous(ParamsSorted, PDUSize),
-%%  lager:warning("NEW contiguous: ~n",[]),
-%%  lager:warning("NEW Parts: ~p~n",[NewParts]),
-%%  lager:warning("NEW RESTParts: ~p~n",[length(NewRestParts)]),
-%%  lager:warning("NEW RESTAliases: ~p~n",[NewRestAliases]),
-
   %% merge rest from bool and non bools, if size would allow it
   AllRestParts = NewBoolRestParts++NewRestParts,
   All =
   case exceeds_limits(PDUSize, AllRestParts) of
     true ->
-%%      lager:warning("cannot merge rest parts"),
       NewBoolParts ++ [BoolRest] ++ NewParts ++ [NonBoolRest];
     false ->
-%%      lager:warning("merge rest parts"),
       Rest0 = [BoolRest, NonBoolRest],
-%%      lager:notice("Rests now ~p",[Rest0]),
       Rest = lists:filter(
         fun
           ({[], []}) -> false;
           (_) -> true
         end,
         Rest0),
-%%      lager:notice("Rests after filter ~p",[Rest0]),
       A = NewBoolParts ++ NewParts ++ Rest,
-%%      [lager:notice("All merged REST ~p",[A1]) || A1 <- A],
       A
 end,
   [lager:notice("request num items: ~p - ~p byte",[length(Req), byte_count(Req)]) || {Req, _} <- All],
@@ -158,18 +136,9 @@ find_contiguous(ParamList, PDUSize) ->
   ) ->
     ThisSize = byte_count(E),
     NewSize = ThisSize + CurrentSize,
-%%    lager:info("CurrentSize is ~p",[CurrentSize]),
-%%    lager:info("CurrentVars is ~p",[CurrentVars]),
-%%    lager:info("Current is ~p",[Current]),
-    CMaxPayloadSize = max_payload_size(PDUSize, length(CurrentVars)),
     case size_exceeded(PDUSize, NewSize, length(CurrentVars)) of
-%%    case exceeds_limits(PDUSize, NewSize, length(CurrentVars)) of
       true ->
-%%        lager:notice("new size of ~p > ~p at:~p",[NewSize, CMaxPayloadSize, E]),
-%%        %% we need a new request here
-%%        NewCurrent = Current#{amount => CAmount+1, aliases => CAs++[{Clients, DType}]},
         NewCurrentVars = CurrentVars++[Current],
-%%        lager:info("RealByteSize: ~p",[byte_count(NewCurrentVars)]),
         AliasesList = lists:map(fun(#{aliases := Aliases}) -> lists:unzip(Aliases) end, NewCurrentVars),
         AddressPartitions = [maps:without([aliases, clients, dtype], M) || M <- NewCurrentVars],
         {-2, E#{aliases => [{Clients, DType}]}, [], Requests ++[{AddressPartitions, AliasesList}], ThisSize};
@@ -208,8 +177,6 @@ find_contiguous(ParamList, PDUSize) ->
   RestAliasesList = lists:map(FAs, RestVars),
   RestAddressPartitions = [maps:without([aliases, clients, dtype], M) || M <- RestVars],
 %%  lager:notice("REST Addresses ~p",[RestAddressPartitions]),
-  %% we have to filter Parts for empty address entries
-%%  Parts = lists:filter(fun({Var, _Als}) ->
   {Parts, {RestAddressPartitions, RestAliasesList}}.
 
 
@@ -223,26 +190,11 @@ find_bool_bytes(Bools, PDUSize) ->
         Requests,
         CurrentSize}
   ) ->
-%%    lager:info("Clients in find_bool_bytes: ~p",[Clients]),
     ThisSize = byte_count(E),
     NewSize = ThisSize + CurrentSize,
-%%    lager:info("B CurrentSize is ~p",[CurrentSize]),
-%%    lager:info("B CurrentVars is ~p ~p",[CurrentVars, length(CurrentVars)]),
-%%    lager:info("B Current is ~p",[Current]),
     case size_exceeded(PDUSize, NewSize, length(CurrentVars)) of
-%%    case exceeds_limits(PDUSize, NewSize, length(CurrentVars)) of
       true ->
-        CMaxPayloadSize = max_payload_size(PDUSize, length(CurrentVars)),
-%%        lager:notice("B new size of ~p > ~p at : ~p",[NewSize, CMaxPayloadSize, E]),
-        %% we need a new request here
-%%        NewCurrent0 = Current#{aliases => CAs++[{Clients, bool_byte, (Bit+(Byte-CStartByte)*8)}]},
-%%        NewCurrent =
-%%          case LastByte + 1 == Byte of
-%%            true -> NewCurrent0#{amount => CAmount+1};
-%%            false -> NewCurrent0
-%%          end,
         NewCurrentVars = CurrentVars++[Current],
-%%        lager:info("B RealByteSize: ~p",[byte_count(NewCurrentVars)]),
         AliasesList = lists:map(fun(#{aliases := Aliases}) -> lists:unzip3(Aliases) end, NewCurrentVars),
         AddressPartitions = [maps:without([aliases, clients, dtype, byte_num, bit_num], M) || M <- NewCurrentVars],
         %% reset current byte with -2
@@ -281,11 +233,8 @@ find_bool_bytes(Bools, PDUSize) ->
          end,
   {_Last, Current, CurrentVars, Parts, _Size} =
     lists:foldl(CFun, {-2, #{aliases => [], amount => 0, db_number => -1, start => -2}, [], [], 0}, Bools),
-%%  lager:alert("BOOL Current ~p~nCurrentVars ~p~nParts ~p",[Current, CurrentVars, Parts]),
 
   RestVars = CurrentVars ++ [Current],
-%%  All = Parts ++ [Current],
-%%  lager:notice("ALL bools: ~p",[All]),
   FAs = fun(#{aliases := Aliases}) -> lists:unzip3(Aliases) end,
   RestAliasesList = lists:map(FAs, RestVars),
   RestAddressPartitions = [maps:without([aliases, clients, dtype, byte_num, bit_num], M) || M <- RestVars],

@@ -29,8 +29,10 @@
 
 options() ->
    [
-      {size, integer},
-      {timeout, duration, <<"1h">>}
+      #{name => size, type => integer, desc => <<"Batch-size, number of data-points.">>},
+      #{name => timeout, type => duration, default => <<"1h">>,
+         desc => <<"Timeout gets started with the first data-point coming in,
+            after which the collected data is outputted, regardless of size.">>}
    ].
 
 wants() -> both.
