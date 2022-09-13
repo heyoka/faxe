@@ -62,6 +62,7 @@ init([]) ->
    ok = new_table(temp_tasks, set),
 
    ok = new_table(s7_pools, set),
+   ok = new_table(s7_pools_index, set),
    ok = new_table(s7reader_clients, set),
 
    ok = new_table(node_connections, set),

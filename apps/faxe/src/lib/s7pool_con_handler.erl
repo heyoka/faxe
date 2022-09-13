@@ -22,7 +22,9 @@
 %%% Spawning and gen_server implementation
 %%%===================================================================
 get_connection(Key) ->
-  gen_server:call(?SERVER, {get_connection, Key}).
+  Index = get_index(Key),
+  get_connection(Key, Index).
+%%  gen_server:call(?SERVER, {get_connection, Key}).
 
 start_link() ->
   gen_server:start_link({local, ?SERVER}, ?MODULE, [], []).
@@ -62,6 +64,7 @@ code_change(_OldVsn, State = #state{}, _Extra) ->
 %%% Internal functions
 %%%===================================================================
 get_connection(Ip, Index) ->
+  Index = get_index(Ip),
   case ets:lookup(s7_pools, Ip) of
     [] -> {error, no_pool_found};
     [{Ip, []}] -> {error, no_connection_in_pool};
@@ -69,8 +72,15 @@ get_connection(Ip, Index) ->
     [{Ip, Connections}] ->
       NextI = next_index(Connections, Index),
       Worker = lists:nth(NextI, Connections),
-      lager:info("~p found ~p connections, current ~p",[?MODULE, length(Connections), Worker]),
-      {ok, Worker, NextI}
+      ets:insert(s7_pools_index, {Ip, NextI}),
+%%      lager:info("~p found ~p connections, current ~p",[?MODULE, length(Connections), Worker]),
+      {ok, Worker}
+  end.
+
+get_index(Key) ->
+  case ets:lookup(s7_pools_index, Key) of
+    [] -> 1;
+    [{Key, Index}] -> Index
   end.
 
 next_index(L, I) when I > length(L) -> length(L);

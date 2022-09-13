@@ -288,7 +288,6 @@ from_register_task(Req, State = #state{name = TaskName, dfs = Dfs, tags = Tags})
    rest_helper:do_register(Req, TaskName, Dfs, Tags, State, task).
 
 from_upsert_task(Req, State = #state{name = TaskId}) ->
-   lager:notice("upsert: ~p", [lager:pr(State, ?MODULE)]),
    case faxe:get_task(TaskId) of
       {error, not_found} -> from_register_task(Req, State);
       #task{id = TId, name = Name} -> from_update_to_json(Req, State#state{task_id = TId, name = Name})
