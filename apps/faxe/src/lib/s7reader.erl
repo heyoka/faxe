@@ -110,6 +110,7 @@ handle_info({read, Requests, [{_Intv, #faxe_timer{last_time = Ts}}] = SendTimers
       end
     end,
   RunWith = s7pool_manager:connection_count(Ip),
+  lager:notice("s7reader:read - connection count is ~p",[RunWith]),
   case RunWith > 0 of
     true ->
       %%    1,%faxe_config:get(s7pool_max_size, 2),

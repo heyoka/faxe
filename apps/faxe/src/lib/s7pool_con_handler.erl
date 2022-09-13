@@ -69,6 +69,7 @@ get_connection(Ip, Index) ->
     [{Ip, Connections}] ->
       NextI = next_index(Connections, Index),
       Worker = lists:nth(NextI, Connections),
+      lager:info("~p found ~p connections, current ~p",[?MODULE, length(Connections), Worker]),
       {ok, Worker, NextI}
   end.
 

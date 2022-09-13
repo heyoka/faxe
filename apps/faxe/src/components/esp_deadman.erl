@@ -64,7 +64,7 @@ init(NodeId, _Ins,
 
    Timeout = faxe_time:duration_to_ms(Timeout0),
    QTimeout = faxe_time:duration_to_ms(QTime0),
-   TsInterval = faxe_time:duration_to_ms(TsInterval0),
+   TsInterval = case TsInterval0 of undefined -> undefined; _ -> faxe_time:duration_to_ms(TsInterval0) end,
    State =
       #state{timeout = Timeout, fields = Fields, repeat_last = Repeat, no_forward = NoForward,
          repeat_with_new_ts = NewTs, node_id = NodeId, field_vals = Vals, silent_time = QTimeout,

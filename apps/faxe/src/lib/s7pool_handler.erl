@@ -166,9 +166,9 @@ stop_worker(Pid) ->
 
 add_initial(State = #state{initial_size = Initial, opts = Opts}) ->
   %% start with initial-number of  connections
+  lager:notice("s7pool initial size is ~p and max-size is ~p",[Initial, State#state.max_size]),
   Conns = lists:map(
     fun(_) ->
-      timer:sleep(50),
       {ok, Con} = s7worker:start_link(Opts), Con
     end, lists:seq(1, Initial)),
   State#state{waiting_cons = Conns}.

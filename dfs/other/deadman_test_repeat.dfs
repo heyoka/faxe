@@ -4,7 +4,6 @@ def republish_timeout = 2s
 .every(10s)
 .align()
 
-
 |deadman(republish_timeout)
 .repeat_last(true)
 .trigger_on_value(true)

@@ -110,7 +110,7 @@ do_register(Req, TaskName, Dfs, Tags, State, Type) ->
                task -> "";
                _ -> "-template"
             end,
-         lager:warning("Error occured when registering faxe-flow"++Add++": ~p",[Error]),
+         lager:warning("Error occured when registering faxe-flow"++Add++" '~p': ~p",[TaskName, Error]),
          Req4 = cowboy_req:set_resp_body(jiffy:encode(#{success => false, error => faxe_util:to_bin(Error)}), Req),
          {false, Req4, State}
    end.

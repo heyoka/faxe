@@ -176,7 +176,7 @@ init2(ParsedAddresses, State=#state{standalone = false, interval = Dur, opts = O
   State;
 init2(ParsedAddresses, State=#state{opts = Opts, as_list = As1}) ->
   {Parts, AliasesList} = build_addresses(ParsedAddresses, As1),
-  lager:info("~n~p address parts: ~p ~n AliasesList: ~p",[?MODULE, Parts, AliasesList]),
+%%  lager:info("~n~p address parts: ~p ~n AliasesList: ~p",[?MODULE, Parts, AliasesList]),
   ByteSize = bit_count(Parts)/8,
   S7Client = setup_connection(Opts),
   State#state{client = S7Client, vars = Parts, as = AliasesList, byte_size = ByteSize}.

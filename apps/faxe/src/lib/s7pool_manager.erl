@@ -43,8 +43,8 @@ read_vars(_Opts=#{ip := Ip}, Vars) ->
     {ok, Worker} ->
       case catch gen_server:call(Worker, {read, Vars}) of
         {ok, _} = R -> R;
-        _Nope ->
-          lager:warning("~p error when reading multivars",[?MODULE]),
+        Nope ->
+          lager:warning("~p error when reading multivars ~p",[?MODULE, Nope]),
           {error, read_failed}
       end;
     Other ->
