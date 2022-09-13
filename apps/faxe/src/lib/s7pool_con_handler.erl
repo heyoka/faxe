@@ -64,7 +64,6 @@ code_change(_OldVsn, State = #state{}, _Extra) ->
 %%% Internal functions
 %%%===================================================================
 get_connection(Ip, Index) ->
-  Index = get_index(Ip),
   case ets:lookup(s7_pools, Ip) of
     [] -> {error, no_pool_found};
     [{Ip, []}] -> {error, no_connection_in_pool};
