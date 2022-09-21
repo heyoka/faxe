@@ -65,10 +65,10 @@ metrics() ->
 
 init(NodeId, _Ins,
     #{ip := Ip, port := Port, every := Dur, msg_text := Text, msg_json := Json,
-      response_as := RespAs, response_timeout := RTimeout, response_json := RespJson, packet := Packet}) ->
+      response_as := RespAs, response_timeout := RTimeout, response_json := RespJson, packet := Packet} = Opts) ->
 
   connection_registry:reg(NodeId, Ip, Port, <<"tcp">>),
-
+  lager:info("opts: ~p",[Opts]),
   Interval =
     case Dur of
       undefined -> undefined;
@@ -98,6 +98,7 @@ init(NodeId, _Ins,
 process(_In, Item, State = #state{connected = false}) ->
   {ok, State#state{last_item = Item}};
 process(_In, Item, State = #state{}) ->
+  lager:notice("got item"),
   NewState = State#state{last_item = Item},
   {ok, send(NewState)}.
 
@@ -147,6 +148,7 @@ shutdown(#state{socket = Sock, timer_ref = Timer, response_tref = RTimer}) ->
   catch (erlang:cancel_timer(RTimer)),
   catch (gen_tcp:close(Sock)).
 
+send(#state{socket = undefined} = S) -> lager:warning("socket is undefined"), S;
 send(#state{msg_json = undefined, msg_text = undefined, last_item = LastItem} = State) ->
 %%  lager:notice("send: ~p",[LastItem]),
   Msg = flowdata:to_json(LastItem),
@@ -158,8 +160,9 @@ send(#state{msg_json = Json} = State) ->
   do_send(jiffy:encode(Json), maybe_start_timeout(State)).
 
 do_send(Msg, State = #state{socket = Socket, fn_id = FNId}) ->
-  case gen_tcp:send(Socket, Msg) of
+  case catch gen_tcp:send(Socket, Msg) of
     ok ->
+      lager:notice("item sent ok"),
       node_metrics:metric(?METRIC_ITEMS_OUT, 1, FNId),
       node_metrics:metric(?METRIC_BYTES_SENT, faxe_util:bytes(Msg), FNId),
       sender(State);
@@ -197,6 +200,7 @@ connect(#state{ip = Ip, port = Port, connector = Reconnector, packet = Packet} =
   case
     gen_tcp:connect(binary_to_list(Ip), Port, ?SOCKOPTS++[{packet, Packet}]) of
     {ok, Socket} ->
+      lager:notice("connected"),
       connection_registry:connected(),
       State#state{socket = Socket, connected = true, connector = faxe_backoff:reset(Reconnector)};
     {error, Reason} ->

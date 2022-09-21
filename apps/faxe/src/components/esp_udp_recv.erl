@@ -67,12 +67,11 @@ process(_Inport, #data_point{} = _Point, State = #state{}) ->
   {ok, State}.
 
 handle_info({udp, Socket, _IP, _InPortNo, Packet}, State=#state{fn_id = FNId}) ->
-  lager:notice("udp packet arrived: ~p", [Packet]),
+%%  lager:notice("udp packet arrived: ~p", [Packet]),
   node_metrics:metric(?METRIC_ITEMS_IN, 1, FNId),
   node_metrics:metric(?METRIC_BYTES_SENT, faxe_util:bytes(Packet), FNId),
-  NewState = maybe_emit(Packet, State),
   inet:setopts(Socket, [{active, once}]),
-  {ok, NewState};
+  maybe_emit(Packet, State);
 handle_info(_E, S) ->
   {ok, S}.
 
@@ -93,15 +92,19 @@ maybe_emit(Data, State = #state{changes = true, prev_crc32 = PrevCheckSum}) ->
   NewState = State#state{prev_crc32 = DataCheckSum},
   case  DataCheckSum /= PrevCheckSum of
     true -> do_emit(Data, NewState);
-    false -> NewState
+    false -> {ok, State}
   end.
 
+do_emit(Data, State = #state{as = As, parser = undefined}) ->
+  %% just get it from json
+  DataItem = flowdata:from_json_struct(Data),
+  {emit, DataItem, State};
 do_emit(Data, State = #state{as = As, parser = Parser}) ->
+  %% use parser to retrieve internal data structure
   case (catch binary_msg_parser:convert(Data, As, Parser)) of
-    P when is_record(P, data_point) -> dataflow:emit(P);
-    Err -> lager:warning("Parsing error [~p] ~nmessage ~p",[Parser, Err])
-  end,
-  State.
+    P when is_record(P, data_point) -> {emit, P, State};
+    Err -> lager:warning("Parsing error [~p] ~nmessage ~p",[Parser, Err]), {ok, State}
+  end.
 
 
 

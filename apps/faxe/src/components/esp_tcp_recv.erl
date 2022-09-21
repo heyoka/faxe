@@ -53,7 +53,7 @@
 -define(RECON_MAX_RETRIES, infinity).
 
 options() -> [
-  {ip, binary},
+  {ip, binary, undefined},
   {port, integer},
   {as, binary, <<"data">>}, %% alias for fieldname
   {extract, is_set}, %% overrides as
@@ -87,7 +87,7 @@ init(NodeId, _Ins,
     {?RECON_MIN_INTERVAL, ?RECON_MAX_INTERVAL, ?RECON_MAX_RETRIES}),
   Parser = case Parser0 of undefined -> undefined; _ -> faxe_util:save_binary_to_atom(Parser0) end,
   {ok, Reconnector1} = faxe_backoff:execute(Reconnector, do_reconnect),
-  reconnect_watcher:new(20000, 15, io_lib:format("~s:~p ~p",[Ip, Port, ?MODULE])),
+  reconnect_watcher:new(20000, 15, io_lib:format("~p:~p ~p",[Ip, Port, ?MODULE])),
   connection_registry:reg(NodeId, Ip, Port, <<"tcp">>),
   {ok, all,
     #state{ip = Ip, port = Port, as = As, extract = Extract, changes = Changed,
@@ -134,6 +134,11 @@ try_reconnect(State=#state{reconnector = Reconnector}) ->
       {stop, {shutdown, Error}, State}
   end.
 
+connect(undefined, Port, Packet) ->
+  lager:info("setup listen socket"),
+  Res = gen_tcp:listen(Port, ?SOCKOPTS++[{packet, Packet}]),
+  lager:notice("listen socket: ~p",[Res]),
+  Res;
 connect(Ip, Port, Packet) ->
   reconnect_watcher:bump(),
   gen_tcp:connect(binary_to_list(Ip), Port, ?SOCKOPTS++[{packet, Packet}]).
