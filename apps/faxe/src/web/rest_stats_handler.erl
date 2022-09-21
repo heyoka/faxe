@@ -64,4 +64,12 @@ stats_json(Req, State=#state{mode = msgq}) ->
 %% Graph node processes by reductions STATS
 stats_json(Req, State=#state{mode = nodes}) ->
   Stats = process_stats:get_top_nodes(20),
-  {jiffy:encode(Stats), Req, State}.
+  {jiffy:encode(Stats), Req, State};
+
+%% cpu utilization stats by os_mon cpu_sup application
+stats_json(Req, State=#state{mode = cpu}) ->
+  {Cpus, Busy, NonBusy, _} = cpu_sup:util([detailed]),
+  Stats = #{<<"cpus">> => length(Cpus), <<"busy">> => maps:from_list(Busy), <<"nonbusy">> => maps:from_list(NonBusy)},
+  Procs = cpu_sup:nprocs(),
+%%  Load = 100 * (1 - D/(D + Load))
+  {jiffy:encode(Stats#{<<"unix_procs">> => Procs}), Req, State}.

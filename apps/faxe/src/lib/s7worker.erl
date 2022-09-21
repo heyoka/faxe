@@ -63,8 +63,6 @@ init(#{ip := Ip, port := Port, slot := Slot, rack := Rack, owner := Owner}) ->
   }}.
 
 handle_call({read, Opts}, _From, State = #state{client = Client, ip = _Ip}) ->
-  {message_queue_len, ML} = erlang:process_info(self(), message_queue_len),
-  lager:notice("s7worker ~p message_queue_len: ~p",[self(), ML]),
   Res = (catch snapclient:read_multi_vars(Client, Opts)),
   {reply, Res, State};
 handle_call({get_pdu_size}, _From, State = #state{client = Client}) ->

@@ -20,7 +20,6 @@
    , wants/0, emits/0, handle_info/2, check_options/0, do_process/2, shutdown/1]).
 
 -define(UPDATE_NEVER, <<"never">>).
--define(UPDATE_ALWAYS, <<"always">>).
 
 -define(PREVIOUS_POINT_ROOT, <<"__state">>).
 -define(UPDATE_MODE_REPLACE, <<"replace">>).
@@ -29,6 +28,7 @@
 
 -define(TAG_ADDED, <<"added">>).
 -define(TAG_REMOVED, <<"removed">>).
+-define(TAG_UPDATED, <<"updated">>).
 
 -define(MIN_AGING_INTERVAL, 5*60*1000).
 
@@ -50,6 +50,7 @@
    age_timer :: reference(),
    %% tagging and output
    tag_added = false :: true | false,
+   tag_updated = false :: true | false,
    include_removed = false :: true | false,
    tag_value :: term(),
    current_batch_start :: faxe_time:timestamp(),
@@ -67,6 +68,7 @@ options() -> [
    {emit_every, duration, undefined},
    {emit_unchanged, boolean, true}, %% emit contents, even if the internal state has not changed
    {tag_added, boolean, false},
+   {tag_updated, boolean, false},
    {tag_removed, boolean, false},
    {include_removed, boolean, false},
    {keep, string_list, []}, %% a list of field path to keep for every data_point
@@ -94,7 +96,8 @@ emits() -> both.
 init(NodeId, _Ins, #{
    key_fields := Fields, add := AddFunc, remove := RemFunc,
    update := UpStateFun, update_mode := UpMode, emit_unchanged := EmitAlways,
-   emit_every := EmitEvery, tag_added := TagAdd, tag_removed := TagRem, include_removed := InclRem0, tag_value := TagVal,
+   emit_every := EmitEvery, tag_added := TagAdd, tag_removed := TagRem, tag_updated := TagUpdate,
+   include_removed := InclRem0, tag_value := TagVal,
    keep := Keep, keep_as := KeepAs, merge := Merge,
    as := As, max_age := MaxAge0}
 ) ->
@@ -119,6 +122,7 @@ init(NodeId, _Ins, #{
          as = As,
          max_age = MaxAge,
          tag_added = TagAdd,
+         tag_updated = TagUpdate,
          include_removed = InclRem,
          tag_value = TagVal,
          merge = Merge}}.
@@ -130,6 +134,7 @@ process(Port, Item, State = #state{buffer = undefined}) ->
 process(_Port, #data_point{ts = Ts} = Point, State = #state{fields = _Field}) ->
    NewState = State#state{newest_timestamp = Ts},
    Res = do_process(Point, NewState),
+   Out =
    case Res of
       {ok, NewState} -> {ok, NewState};
       {Changed, ChangedState} ->
@@ -224,10 +229,12 @@ maybe_add(Point = #data_point{ts = _Ts}, KeyVal, State = #state{add_function = A
 
 maybe_remove(_Point = #data_point{ts = _Ts}, _KeyVal, State = #state{remove_function = undefined}) ->
    {false, State};
-maybe_remove(Point = #data_point{ts = _Ts}, KeyVal, State = #state{remove_function = RemFunc}) ->
-   case catch(faxe_lambda:execute(Point, RemFunc)) of
+maybe_remove(Point = #data_point{fields = Fields}, KeyVal, State = #state{remove_function = RemFunc, buffer = Buffer}) ->
+   StatePoint = buffer_get(KeyVal, Buffer),
+   FunPoint = Point#data_point{fields = Fields#{?PREVIOUS_POINT_ROOT => StatePoint#data_point.fields}},
+   case catch(faxe_lambda:execute(FunPoint, RemFunc)) of
       true ->
-%%         lager:info("remove: ~p ~p",[KeyVal, Point]),
+%%         lager:warning("remove: ~p ~p",[KeyVal, Point]),
          {true, remove1(KeyVal, State)};
       _ -> {false, State}
    end.
@@ -288,12 +295,12 @@ do_emit(State = #state{buffer = Buff, tag_value = _TagVal, merge = Merge, newest
 %%   lager:notice("buffer length after emit: ~p",[length(NewState#state.buffer)]),
    {emit, Out, NewState#state{current_batch_start = undefined}}.
 
-buffer_cleanup(State = #state{tag_added = false, include_removed = false}) ->
+buffer_cleanup(State = #state{tag_added = false, include_removed = false, tag_updated = false}) ->
    State;
 buffer_cleanup(State = #state{buffer = Buff, tag_value = TagVal}) ->
    CleanFun =
       fun({Key, Point, _Ts}, Acc) ->
-         Point0 = flowdata:delete_field(Point, ?TAG_ADDED),
+         Point0 = flowdata:delete_fields(Point, [?TAG_ADDED, ?TAG_UPDATED]),
          case flowdata:field(Point0, ?TAG_REMOVED) of
             TagVal -> buffer_delete(Key, Acc);
             _ -> buffer_update(Key, Point0, Acc)
@@ -329,7 +336,7 @@ start_age_timeout(#state{max_age = Age}) ->
 keep(DataPoint, #state{keep = []}) ->
    DataPoint;
 keep(DataPoint, #state{keep = FieldNames, keep_as = As0}) when is_list(FieldNames) ->
-   P0 = flowdata:with(DataPoint, FieldNames++[?TAG_ADDED, ?TAG_REMOVED]),
+   P0 = flowdata:with(DataPoint, FieldNames++[?TAG_ADDED, ?TAG_REMOVED, ?TAG_UPDATED]),
    Out =
    case As0 of
       undefined -> P0;
@@ -347,16 +354,26 @@ add(Key, Point, S = #state{buffer = Buffer0, tag_added = false}) ->
 add(Key, Point, S = #state{buffer = Buffer0, tag_added = true, tag_value = Tag}) ->
    {true, S#state{buffer = buffer_add(Key, keep(flowdata:set_field(Point, ?TAG_ADDED, Tag), S), Buffer0)}}.
 
-do_update(Key, _OldPoint, NewPoint, State = #state{update_mode = ?UPDATE_MODE_REPLACE, buffer = Buff}) ->
+do_update(Key, _OldPoint, NewPoint,
+    State = #state{update_mode = ?UPDATE_MODE_REPLACE, buffer = Buff, tag_updated = false}) ->
    State#state{buffer = buffer_update(Key, keep(NewPoint, State), Buff)};
+do_update(Key, _OldPoint, NewPoint,
+    State = #state{update_mode = ?UPDATE_MODE_REPLACE, buffer = Buff, tag_value = TagVal}) ->
+   State#state{buffer = buffer_update(Key, keep(flowdata:set_field(NewPoint, ?TAG_UPDATED, TagVal), State), Buff)};
 do_update(Key, OldPoint, NewPoint, State = #state{update_mode = ?UPDATE_MODE_MERGE}) ->
    merge(Key, OldPoint, keep(NewPoint, State), State);
 do_update(Key, OldPoint, NewPoint, State = #state{update_mode = ?UPDATE_MODE_MERGE_REVERSE}) ->
    %% flip old and new points
    merge(Key, keep(NewPoint, State), OldPoint, State).
 
-merge(Key, P1, P2, State = #state{buffer = Buff}) ->
-   Point = flowdata:merge_points([P1, P2]),
+
+merge(Key, P1, P2, State = #state{buffer = Buff, tag_updated = TagIt, tag_value = TagVal}) ->
+   Point0 = flowdata:merge_points([P1, P2]),
+   %% after the merge operation, maybe add an updated field
+   Point = case TagIt of
+              true -> flowdata:set_field(Point0, ?TAG_UPDATED, TagVal);
+              false -> Point0
+           end,
 %%   lager:warning("~n~p ~nmerged with : ~n~p~ngot:~n~p",[P1, P2, Point]),
    State#state{buffer = buffer_update(Key, Point, Buff)}.
 
