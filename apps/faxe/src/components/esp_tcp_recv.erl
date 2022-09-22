@@ -55,19 +55,20 @@
 options() -> [
   {ip, binary, undefined},
   {port, integer},
-  {as, binary, <<"data">>}, %% alias for fieldname
+%%  {as, binary, <<"data">>}, %% alias for fieldname
+  {as, binary, undefined}, %% alias for fieldname
   {extract, is_set}, %% overrides as
   {parser, string, undefined}, %% parser module to use
   {changed, is_set, false}, %% only emit, when new data is different to previous
-  {packet, integer, 2}
-                      %% 1 | 2 | 4
+  {packet, any, 2}
+                      %% 1 | 2 | 4 | 'line'
                       %% Packets consist of a header specifying the number of bytes in the packet,
                       %% followed by that number of bytes. The header length can be one, two, or four bytes,
                       %% and containing an unsigned integer in big-endian byte order.
 ].
 
 check_options() ->
-  [{one_of, packet, [1, 2, 4]},
+  [{one_of, packet, [1, 2, 4, <<"line">>]},
     {func, parser,
       fun
         (undefined) -> true;
@@ -91,17 +92,22 @@ init(NodeId, _Ins,
   connection_registry:reg(NodeId, Ip, Port, <<"tcp">>),
   {ok, all,
     #state{ip = Ip, port = Port, as = As, extract = Extract, changes = Changed,
-      parser = Parser, reconnector = Reconnector1, fn_id = NodeId, packet = Packet}}.
+      parser = Parser, reconnector = Reconnector1, fn_id = NodeId, packet = p_type(Packet)}}.
 
 process(_In, #data_batch{points = _Points} = _Batch, State = #state{}) ->
   {ok, State};
 process(_Inport, #data_point{} = _Point, State = #state{}) ->
   {ok, State}.
 
-handle_info({tcp, Socket, Data}, State=#state{fn_id = FNId}) ->
+handle_info({tcp, Socket, Data0}, State=#state{fn_id = FNId, packet = Packet}) ->
   node_metrics:metric(?METRIC_ITEMS_IN, 1, FNId),
-  node_metrics:metric(?METRIC_BYTES_READ, faxe_util:bytes(Data), FNId),
+  node_metrics:metric(?METRIC_BYTES_READ, faxe_util:bytes(Data0), FNId),
   inet:setopts(Socket, [{active, once}]),
+  %% if we use packet == line, then we strip the newline at the end, cause it will still be there
+  Data = case Packet of
+           line -> string:chomp(Data0);
+           _ -> Data0
+         end,
   maybe_emit(Data, State);
 handle_info({tcp_closed, _S}, S=#state{}) ->
   connection_registry:disconnected(),
@@ -135,10 +141,9 @@ try_reconnect(State=#state{reconnector = Reconnector}) ->
   end.
 
 connect(undefined, Port, Packet) ->
-  lager:info("setup listen socket"),
-  Res = gen_tcp:listen(Port, ?SOCKOPTS++[{packet, Packet}]),
-  lager:notice("listen socket: ~p",[Res]),
-  Res;
+  {ok, Socket} = gen_tcp:listen(Port, ?SOCKOPTS++[{packet, Packet}]),
+  %% this blocks the process until a connection comes in
+  gen_tcp:accept(Socket);
 connect(Ip, Port, Packet) ->
   reconnect_watcher:bump(),
   gen_tcp:connect(binary_to_list(Ip), Port, ?SOCKOPTS++[{packet, Packet}]).
@@ -157,7 +162,10 @@ maybe_emit(Data, State = #state{changes = true, prev_crc32 = PrevCheckSum}) ->
     false -> {ok, NewState}
   end.
 
-do_emit(Data, State = #state{as = As, parser = Parser, extract = _Extract}) ->
+do_emit(Data, State = #state{as = undefined, parser = undefined}) ->
+  Item = flowdata:from_json_struct(Data),
+  {emit, {1, Item}, State};
+do_emit(Data, State = #state{as = As, parser = Parser}) ->
   case (catch binary_msg_parser:convert(Data, As, Parser)) of
     P when is_record(P, data_point) ->
       {emit, {1, P}, State};
@@ -168,3 +176,5 @@ do_emit(Data, State = #state{as = As, parser = Parser, extract = _Extract}) ->
 
 
 
+p_type(<<"line">>) -> line;
+p_type(Other) -> Other.

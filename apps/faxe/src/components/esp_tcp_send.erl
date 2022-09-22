@@ -44,7 +44,7 @@
 options() -> [
   {ip, binary},
   {port, integer},
-  {packet, integer, 2},
+  {packet, any, 2}, %% 1 | 2 | 3 | 'line'
   {every, duration, undefined},
   {response_as, string, undefined},
   {response_json, is_set, false},
@@ -54,7 +54,7 @@ options() -> [
 
 check_options() ->
   [
-%%    {one_of_params, [msg_text, msg_json]}
+    {one_of, packet, [1, 2, 4, <<"line">>]}
   ]
 .
 
@@ -82,7 +82,7 @@ init(NodeId, _Ins,
     #state{
       ip = Ip,
       port = Port,
-      packet = Packet,
+      packet = p_type(Packet),
       response_as = RespAs,
       response_timeout = ResponseTimeout,
       response_is_json = RespJson,
@@ -148,7 +148,7 @@ shutdown(#state{socket = Sock, timer_ref = Timer, response_tref = RTimer}) ->
   catch (erlang:cancel_timer(RTimer)),
   catch (gen_tcp:close(Sock)).
 
-send(#state{socket = undefined} = S) -> lager:warning("socket is undefined"), S;
+send(#state{socket = undefined} = S) -> S; % that should not happen, but does anyway ?
 send(#state{msg_json = undefined, msg_text = undefined, last_item = LastItem} = State) ->
 %%  lager:notice("send: ~p",[LastItem]),
   Msg = flowdata:to_json(LastItem),
@@ -159,10 +159,11 @@ send(#state{msg_json = undefined, msg_text = Text} = State) ->
 send(#state{msg_json = Json} = State) ->
   do_send(jiffy:encode(Json), maybe_start_timeout(State)).
 
-do_send(Msg, State = #state{socket = Socket, fn_id = FNId}) ->
+do_send(Msg0, State = #state{socket = Socket, fn_id = FNId, packet = Pack}) ->
+  Msg = case Pack of line -> [Msg0, "\n"]; _ -> Msg0 end,
   case catch gen_tcp:send(Socket, Msg) of
     ok ->
-      lager:notice("item sent ok"),
+%%      lager:notice("item sent ok"),
       node_metrics:metric(?METRIC_ITEMS_OUT, 1, FNId),
       node_metrics:metric(?METRIC_BYTES_SENT, faxe_util:bytes(Msg), FNId),
       sender(State);
@@ -200,15 +201,15 @@ connect(#state{ip = Ip, port = Port, connector = Reconnector, packet = Packet} =
   case
     gen_tcp:connect(binary_to_list(Ip), Port, ?SOCKOPTS++[{packet, Packet}]) of
     {ok, Socket} ->
-      lager:notice("connected"),
       connection_registry:connected(),
       State#state{socket = Socket, connected = true, connector = faxe_backoff:reset(Reconnector)};
     {error, Reason} ->
       connection_registry:disconnected(),
-      lager:warning("connection to ~p ~p failed with reason: ~p", [Ip, Port, Reason]),
+      lager:warning("connection to ~p port ~p failed with reason: ~p", [Ip, Port, Reason]),
       {ok, Recon} = faxe_backoff:execute(Reconnector, reconnect),
       State#state{connector = Recon, connected = false}
 
   end.
 
-
+p_type(<<"line">>) -> line;
+p_type(Other) -> Other.
