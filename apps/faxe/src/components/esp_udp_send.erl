@@ -54,8 +54,10 @@ process(_In, DataItem, State = #state{socket = Socket, peer = Peer, port = Port}
   end,
   {ok, State}.
 
-handle_info(connect, S) ->
-  connect(S).
+handle_info(connect, State) ->
+  connect(State);
+handle_info(_, State) ->
+  {ok, State}.
 
 shutdown(#state{socket = Sock}) ->
   catch (gen_udp:close(Sock)).

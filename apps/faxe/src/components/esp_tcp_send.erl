@@ -98,7 +98,6 @@ init(NodeId, _Ins,
 process(_In, Item, State = #state{connected = false}) ->
   {ok, State#state{last_item = Item}};
 process(_In, Item, State = #state{}) ->
-  lager:notice("got item"),
   NewState = State#state{last_item = Item},
   {ok, send(NewState)}.
 
