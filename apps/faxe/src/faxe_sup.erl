@@ -80,6 +80,23 @@ init([]) ->
             {http_manager, start_link, []},
             permanent, 5000, worker, []}
    ],
+
+%%    Ps =
+%%    case faxe_config:get(mqtt_pool, enable) of
+%%        true ->
+%%            Procs++
+%%            [{wpool,
+%%                {wpool, start_pool,
+%%                    [
+%%                        {workers, faxe_config:get(mqtt_pool, max_size)},
+%%                        {queue_type, fifo}
+%%                    ]
+%%                },
+%%                permanent, 5000, worker, []}
+%%                ];
+%%        false ->
+%%            Procs
+%%    end,
    {ok, { {one_for_one, 5, 20}, Procs} }.
 
 %%====================================================================

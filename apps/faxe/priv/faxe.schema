@@ -330,9 +330,24 @@
     [{default, off}, {datatype, flag}]
 }.
 
+%% @doc whether to use the optimized s7 reader
+{mapping, "s7reader.optimized", "faxe.s7reader.optimized",
+    [{default, off}, {datatype, flag}]
+}.
+
 %% @doc -------------------------------------------------------------------------------
 %% MQTT defaults
 %% -------------------------------------------------------------------------------
+
+%% @doc whether to use the mqtt connection pool (default for all mqtt_publish nodes)
+%% the pool is only available for mqtt connections that use the default connection settings below
+{mapping, "mqtt_pool.enable", "faxe.mqtt_pool.enable",
+    [{default, on}, {datatype, flag}]
+}.
+%% @doc max size (maximum number of connections) for the mqtt connection pool
+{mapping, "mqtt_pool.max_size", "faxe.mqtt_pool.max_size",
+    [{default, 30}, {datatype, integer}]
+}.
 
 %% mqtt host
 {mapping, "mqtt.host", "faxe.mqtt.host",

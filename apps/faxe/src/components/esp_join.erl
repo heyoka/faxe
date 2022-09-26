@@ -148,7 +148,8 @@ maybe_emit(NewRow, NewTs, State = #state{full = true}) ->
 %%   lager:info("maybe_emit [fill=none]: ~p",[{NewRow, NewTs}]),
    case is_full_row(NewRow, State) of
       true -> do_emit(NewRow, NewTs, State);
-      false -> ok
+      false -> lager:warning("row is not full yet, will drop item"),
+         ok
    end;
 maybe_emit(NewRow, NewTs, State = #state{}) ->
 %%   lager:info("maybe_emit: ~p",[{NewRow, NewTs}]),

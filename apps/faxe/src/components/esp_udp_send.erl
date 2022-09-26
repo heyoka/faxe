@@ -29,7 +29,7 @@
 -define(SOCKOPTS, [binary, {broadcast, false}]).
 
 options() -> [
-  {host, string, undefined},
+  {host, string},
   {port, integer}
 ].
 

@@ -1,6 +1,6 @@
-%% Date: 30.12.16 - 23:01
-%% Query CrateDB, time series data
-%% Ⓒ 2019 heyoka
+%%
+%% Query CrateDB continously for time series data
+%% Ⓒ 2021 heyoka
 %%
 -module(esp_crate_query_cont).
 -author("Alexander Minichmair").
@@ -26,7 +26,7 @@
    query_timeout :: non_neg_integer(),
    period, %% length of the time-range to use in the query
    start :: pos_integer(), %% time (in data) at which to start queries
-   setup_start :: true|false, %% whether we have get our starttime from an sql query
+   setup_start :: true|false, %% whether we have got our starttime from an sql query
    stop :: undefined | pos_integer(), %% time (in data) at which to end queries
    stop_flow :: false | true|false, %% whether to stop the flow, when stop time is reached
    min_interval :: pos_integer(),
@@ -59,9 +59,9 @@ options() ->
    [
       {host, string, {crate, host}},
       {port, integer, {crate, port}},
-      {ssl, boolean, false},
+      {ssl, boolean, {crate, tls, enable}},
       {user, string, {crate, user}},
-      {pass, string, {crate, user}},
+      {pass, string, {crate, pass}},
       {database, string, {crate, database}},
       {query, any},
       {filter_time_field, string, <<"ts">>},
@@ -137,7 +137,7 @@ init(NodeId, _Inputs, Opts = #{
 
    process_flag(trap_exit, true),
    Host = binary_to_list(Host0),
-   DBOpts0 = #{host => Host, port => Port, username => binary_to_list(User), ssl => Ssl,
+   DBOpts0 = #{host => Host, port => Port, username => binary_to_list(User), ssl => Ssl, %ssl_opts => [],
       password => binary_to_list(Pass), database => DB},
    DBOpts = maps:merge(?DB_OPTIONS, DBOpts0),
 

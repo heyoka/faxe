@@ -56,7 +56,7 @@
   merge_field,
   port_data,
   address_offset,
-  standalone = false :: true|false
+  optimized = false :: true|false
 }).
 
 options() -> [
@@ -74,7 +74,9 @@ options() -> [
   {merge_field, string, undefined},
   {byte_offset, integer, 0},
   {use_pool, bool, {s7pool, enable}},
-  {standalone, bool, true}
+  %% deprecated, use optimized instead
+  {standalone, bool, true},
+  {optimized, bool, {s7reader, optimized}}
 ].
 
 check_options() ->
@@ -140,7 +142,9 @@ init({_, _NId}=NodeId, _Ins,
       diff := Diff,
       merge_field := MergeField,
       byte_offset := Offset,
-      standalone := Standalone} = Opts) ->
+%%      standalone := _Standalone,
+      optimized := Optimized
+    } = Opts) ->
 
   %% handle aliases and addresses
   {As, Addresses} = retrieve_ads(Opts),
@@ -161,16 +165,16 @@ init({_, _NId}=NodeId, _Ins,
     node_id = NodeId,
     merge_field = MergeField,
     address_offset = Offset,
-    standalone = Standalone
+    optimized = Optimized
   },
-
+  lager:notice("State: ~p",[lager:pr(State, ?MODULE)]),
 %%  %% connection
   connection_registry:reg(NodeId, Ip, Port, <<"s7">>),
   connection_registry:connecting(),
 
   {ok, all, init2(Parsed, State)}.
 
-init2(ParsedAddresses, State=#state{standalone = false, interval = Dur, opts = Opts, as_list = As1}) ->
+init2(ParsedAddresses, State=#state{optimized = true, interval = Dur, opts = Opts, as_list = As1}) ->
   lager:info("using optimized read"),
   s7reader:register(Opts, Dur, lists:zip(As1, ParsedAddresses)),
   State;
@@ -209,13 +213,13 @@ setup_connection(Opts = #{use_pool := false}) ->
 
 process(_Inport, _Item, State = #state{connected = false}) ->
   {ok, State};
-process(_Inport, Item, State = #state{standalone = false}) ->
+process(_Inport, Item, State = #state{optimized = true}) ->
   {ok, State#state{port_data = Item}};
 process(_Inport, Item, State = #state{connected = true}) ->
   % read now trigger
   handle_info(poll, State#state{port_data = Item}).
 
-handle_info({s7_connected, _Client}, State = #state{standalone = false}) ->
+handle_info({s7_connected, _Client}, State = #state{optimized = true}) ->
 %%  lager:alert("s7_connected"),
   connection_registry:connected(),
   {ok, State#state{connected = true}};
@@ -230,7 +234,7 @@ handle_info({s7_connected, _Client}, State = #state{align = Align, interval = Du
     true ->
       {ok, State}
   end;
-handle_info({s7_disconnected, _Client}, State = #state{standalone = false}) ->
+handle_info({s7_disconnected, _Client}, State = #state{optimized = true}) ->
 %%  lager:alert("s7_disconnected"),
   connection_registry:disconnected(),
   {ok, State#state{connected = false}};

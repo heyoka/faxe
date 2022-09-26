@@ -11,6 +11,7 @@
     lager_logstash_backend,
     inets,
     faxe_common,
+    worker_pool,
     plists,
     xmerl,
     mnesia,
