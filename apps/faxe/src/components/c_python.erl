@@ -133,6 +133,9 @@ handle_info({emit_data, {"Map", Data}}, State) when is_list(Data) ->
 handle_info({python_error, Error}, State) ->
    lager:error("error from python: ~p", [Error]),
    {ok, State};
+handle_info({python_log, Message}, State) ->
+   lager:notice("log from python: ~p", [Message]),
+   {ok, State};
 handle_info(_Request, State) ->
    lager:notice("got from python: ~p", [_Request]),
    {ok, State}.

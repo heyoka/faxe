@@ -115,3 +115,10 @@ class Faxe:
         :param error: string
         """
         erlport.erlang.cast(self.erlang_pid, (erlport.erlterms.Atom(b'python_error'), error))
+
+    def log(self, msg):
+        """
+        used to send a log
+        :param msg: string
+        """
+        erlport.erlang.cast(self.erlang_pid, (erlport.erlterms.Atom(b'python_log'), msg))

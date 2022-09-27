@@ -92,7 +92,7 @@ handle_info(gather, State = #state{stats = Stats}) ->
    S = #{
       <<"data_paths_known">> => length(Paths),
       <<"faxe_version">> => list_to_binary(FaxeVsn),
-      <<"opt_version">> => list_to_binary(faxe_util:get_erlang_version()),
+      <<"otp_version">> => list_to_binary(faxe_util:get_erlang_version()),
       <<"registered_tasks">> => length(TasksAll),
       <<"running_tasks">> => length(TasksRunning),
       <<"running_temp_tasks">> => length(TasksTemp),

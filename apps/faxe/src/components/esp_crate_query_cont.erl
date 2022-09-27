@@ -340,7 +340,7 @@ next_query(#state{query_mark = NewQueryMark, offset = Offset}) ->
 
 build_query(<<_Sel:6/binary, _Query/binary>> = Select, TimeField) ->
    TimeRangeClause = time_range(TimeField),
-   binary:replace(Select, ?TIMEFILTER_KEY, TimeRangeClause).
+   binary:replace(Select, ?TIMEFILTER_KEY, TimeRangeClause, [global]).
 
 time_range(TimeField) ->
    << TimeField/binary, " >= $1 AND ", TimeField/binary, " < $2" >>
