@@ -17,7 +17,6 @@
   initial_size,
   max_size,
   max_worker_rate,
-  min_worker_rate,
   pool = [],
   host,
   port,
@@ -52,15 +51,13 @@ init(#{host := Ip, port := Port} = Opts0) ->
   Initial = faxe_config:get_sub(mqtt_pub_pool, initial_size, ?INITIAL_SIZE),
   MaxSize = faxe_config:get_sub(mqtt_pub_pool, max_size, ?MAX_SIZE),
   MaxWorkerRate = faxe_config:get_sub(mqtt_pub_pool, worker_max_rate, ?MAX_RATE),
-  MinWorkerRate = faxe_config:get_sub(mqtt_pub_pool, worker_min_rate, ?MIN_RATE),
 
   S = #state{
     host = Ip, port = Port, opts = Opts,
     pool_index = 1,
     initial_size = Initial,
     max_size = MaxSize,
-    max_worker_rate = MaxWorkerRate,
-    min_worker_rate = MinWorkerRate
+    max_worker_rate = MaxWorkerRate
     },
 
   start_rate_timeout(),
@@ -73,7 +70,7 @@ handle_call(_Request, _From, State = #state{}) ->
 handle_cast(_Request, State = #state{}) ->
   {noreply, State}.
 
-handle_info(check_rate, State = #state{opts = #{host := Key}, max_worker_rate = MaxRate, min_worker_rate = MinRate}) ->
+handle_info(check_rate, State = #state{opts = #{host := Key}, max_worker_rate = MaxRate}) ->
   CurrentRateCnt = mqtt_pub_pool_manager:get_counter(Key),
   CurrentRate = CurrentRateCnt / ?RATE_INTERVAL_SEC,
   WorkerCount = mqtt_pub_pool_manager:connection_count(Key),
@@ -118,8 +115,7 @@ handle_info({mqtt_connected, Worker},
   end,
 %%  lager:alert("[~p] Pool: ~p, Waiting: ~p",[?MODULE, NewState#state.pool, NewState#state.waiting_cons]),
   {noreply, NewState};
-handle_info({mqtt_disconnected, Worker},
-    State = #state{pool = Pool, waiting_cons = Waiting, opts = #{host := Ip}, initial_size = Initial}) ->
+handle_info({mqtt_disconnected, Worker}, State = #state{pool = Pool, waiting_cons = Waiting}) ->
   NewWaiting =
   case lists:member(Worker, Waiting) of
     true -> Waiting; %already waiting for it !
