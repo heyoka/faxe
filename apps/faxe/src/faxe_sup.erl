@@ -68,6 +68,10 @@ init([]) ->
             {s7pool_sup, start_link, []},
             permanent, infinity, supervisor, [s7pool_sup]}
         ,
+        {mqtt_pub_pool_sup,
+            {mqtt_pub_pool_sup, start_link, []},
+            permanent, infinity, supervisor, [mqtt_pub_pool_sup]}
+        ,
         {s7reader_sup,
             {s7reader_sup, start_link, []},
             permanent, infinity, supervisor, [s7reader_sup]}

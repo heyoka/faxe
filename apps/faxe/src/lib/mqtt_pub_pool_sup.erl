@@ -4,7 +4,7 @@
 %%% @doc
 %%% @end
 %%%-------------------------------------------------------------------
--module(s7pool_sup).
+-module(mqtt_pub_pool_sup).
 
 -behaviour(supervisor).
 
@@ -15,11 +15,8 @@ start_link() ->
 
 init([]) ->
   P = [
-    {s7pool_manager, {s7pool_manager, start_link, []},
+    {mqtt_pub_pool_manager, {mqtt_pub_pool_manager, start_link, []},
     permanent, 5000, worker, []}
-%%    ,
-%%    {s7pool_con_handler, {s7pool_con_handler, start_link, []},
-%%      permanent, 5000, worker, []}
   ],
 
   {ok, {#{strategy => one_for_one,

@@ -36,7 +36,9 @@
    topic_field,
    safe = false,
    fn_id,
-   debug_mode = false
+   debug_mode = false,
+   use_pool = false :: true|false,
+   pool_connected = false :: true|false
 }).
 %% state for direct publish mode
 
@@ -53,7 +55,8 @@ options() -> [
    {retained, is_set},
    {ssl, is_set, {mqtt, ssl, enable}},
    {safe, boolean, false},
-   {max_mem_queue_size, integer, 100}
+   {max_mem_queue_size, integer, 100},
+   {use_pool, boolean, {mqtt_pub_pool, enable}}
 ].
 
 check_options() ->
@@ -76,13 +79,28 @@ init({_GraphId, _NodeId} = GId, _Ins, #{safe := true}=Opts) ->
    {ok, Publisher} = mqtt_publisher:start_link(NewOpts, Q),
    init_all(NewOpts, #state{publisher = Publisher, queue = Q, fn_id = GId});
 %% direct publish mode
+init(NodeId, _Ins, #{use_pool := true} = Opts) ->
+   NewOpts = prepare_opts(NodeId, Opts),
+%%   lager:info("use mqtt_pub_pool with opts: ~p",[NewOpts]),
+   mqtt_pub_pool_manager:connect(NewOpts),
+   init_all(NewOpts, #state{fn_id = NodeId});
 init(NodeId, _Ins, #{safe := false} = Opts) ->
    NewOpts = prepare_opts(NodeId, Opts),
    {ok, Publisher} = mqtt_publisher:start_link(NewOpts),
    init_all(NewOpts, #state{publisher = Publisher, fn_id = NodeId}).
 
-init_all(#{safe := Safe, topic := Topic, topic_lambda := LTopic, topic_field := TField} = Opts, State) ->
-   {ok, all, State#state{options = Opts, safe = Safe, topic = Topic, topic_lambda = LTopic, topic_field = TField}}.
+init_all(
+    #{safe := Safe, topic := Topic, topic_lambda := LTopic, topic_field := TField,
+       use_pool := Pool, host := Host, port := Port} = Opts, State = #state{fn_id = NId}) ->
+   %% when using the connection pool, we have to take care of the connection_registry ourselves
+   case Pool of
+      true -> connection_registry:reg(NId, Host, Port, <<"mqtt">>);
+      false -> ok
+   end,
+   {ok, all,
+      State#state{
+         options = Opts, safe = Safe, topic = Topic, topic_lambda = LTopic, topic_field = TField, use_pool = Pool}
+   }.
 
 prepare_opts({GId, NId}=GNId, Opts0 = #{client_id := CId, host := Host0}) ->
    Host = binary_to_list(Host0),
@@ -94,16 +112,35 @@ process(_In, Item, State = #state{safe = true, queue = Q, fn_id = FNId}) ->
    ok = esq:enq(build_message(Item, State), Q),
    dataflow:maybe_debug(item_out, 1, Item, FNId, State#state.debug_mode),
    {ok, State};
-%% direct state
+%% using the connection pool
+process(_Inport, _Item, State = #state{use_pool = true, pool_connected = false}) ->
+%%   lager:notice("got item, but pool not up yet"),
+   {ok, State};
+process(_Inport, Item, State = #state{safe = false, use_pool = true, fn_id = FNId,
+      options = #{host := Host, qos := Qos, retained := Ret}}) ->
+%%   {T, {ok, Publisher}} = timer:tc(mqtt_pub_pool_manager, get_connection, [Host]),
+   {ok, Publisher} = mqtt_pub_pool_manager:get_connection(Host),
+%%   lager:info("time to get connection ~p ~p",[Publisher, T]),
+   {Topic, Message} = build_message(Item, State),
+   Publisher ! {publish, {Topic, Message, Qos, Ret}},
+   dataflow:maybe_debug(item_out, 1, Item, FNId, State#state.debug_mode),
+   {ok, State};
 process(_Inport, Item, State = #state{safe = false, publisher = Publisher, fn_id = FNId}) ->
+%%   lager:warning("send msg when not safe and no pool used: ~p",[lager:pr(State, ?MODULE)]),
    Publisher ! {publish, build_message(Item, State)},
    dataflow:maybe_debug(item_out, 1, Item, FNId, State#state.debug_mode),
    {ok, State}.
-%% safe state
-%%process(In, #data_batch{points = Points}, State = #state{}) ->
-%%   [process(In, P, State) || P <- Points],
-%%   {ok, State}.
 
+%% we only get these, when pool is used
+handle_info({mqtt_connected, _}, State) ->
+%%   lager:info("mqtt_pool connected"),
+   connection_registry:connected(),
+   {ok, State#state{pool_connected = true}};
+handle_info({mqtt_disconnected, _}, State) ->
+   connection_registry:disconnected(),
+   {ok, State#state{pool_connected = false}};
+
+handle_info(start_debug, State) -> {ok, State#state{debug_mode = true}};
 handle_info(start_debug, State) -> {ok, State#state{debug_mode = true}};
 handle_info(stop_debug, State) -> {ok, State#state{debug_mode = false}};
 handle_info(_E, S) ->

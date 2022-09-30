@@ -2,14 +2,14 @@
 %%% @author heyoka
 %%% @copyright (C) 2020, <COMPANY>
 %%% @doc
-%%% s7 pool main module
+%%% mqtt publisher pool main module
 %%% @end
 %%%-------------------------------------------------------------------
--module(s7pool_manager).
+-module(mqtt_pub_pool_manager).
 
 -behaviour(gen_server).
 
--export([start_link/0, connect/1, read_vars/2, get_pdu_size/1, connection_count/1, get_connection/1]).
+-export([start_link/0, connect/1, connection_count/1, get_connection/1, reset_counter/1, get_counter/1]).
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2, terminate/2,
   code_change/3]).
 
@@ -27,36 +27,15 @@
 %%%===================================================================
 %%% Spawning and gen_server implementation
 %%%===================================================================
-connect(Opts) ->
+connect(Opts0) ->
+  Opts = maps:with([host, port, user, pass, ssl, qos, retain], Opts0),
   ?SERVER ! {ensure_pool, Opts, self()}.
 
-get_pdu_size(Ip) ->
-  case get_connection(Ip) of
-    {ok, Worker} ->
-%%      lager:notice("got connection ~p ",[Worker]),
-      s7worker:get_pdu_size(Worker);
-    Other ->
-      Other
-  end.
-
-read_vars(_Opts=#{ip := Ip}, Vars) ->
-  case get_connection(Ip) of
-    {ok, Worker} ->
-      case catch gen_server:call(Worker, {read, Vars}) of
-        {ok, _} = R -> R;
-        Nope ->
-          lager:warning("~p error when reading multivars ~p",[?MODULE, Nope]),
-          {error, read_failed}
-      end;
-    Other ->
-      Other
-  end.
-
-connection_count(Ip) ->
-  case ets:lookup(s7_pools, Ip) of
+connection_count(Key) ->
+  case ets:lookup(mqtt_pub_pools, Key) of
     [] -> 0;
-    [{Ip, []}] -> 0;
-    [{Ip, Connections}] -> length(Connections)
+    [{Key, []}] -> 0;
+    [{Key, Connections}] -> length(Connections)
   end.
 
 %%%===================================================================
@@ -65,8 +44,6 @@ connection_count(Ip) ->
 get_connection(Key) ->
   Index = get_index(Key),
   get_connection(Key, Index).
-
-
 
 start_link() ->
   gen_server:start_link({local, ?SERVER}, ?MODULE, [], []).
@@ -81,20 +58,21 @@ handle_call(_Request, _From, State = #state{}) ->
 handle_cast(_Request, State = #state{}) ->
   {noreply, State}.
 
-handle_info({ensure_pool, #{ip := Ip} = Opts, User},
+handle_info({ensure_pool, #{host := Ip} = Opts, User},
     State = #state{ips_pools = Ips, pools_ips = Pools, ip_opts = IpOpts, pool_user = PUsers,
       users_waiting = UsersWaiting, pools_up = Up}) ->
-  lager:notice("ensure_pool for ip :~p for user: ~p, current connection count: ~p",[Ip, User, connection_count(Ip)]),
+%%  lager:notice("ensure_pool for host :~p for user: ~p, current connection count: ~p",[Ip, User, connection_count(Ip)]),
   erlang:monitor(process, User),
   NewPUsers = add_user(Ip, PUsers, User),
-  IpDemand = check_demand(Ip, NewPUsers),
-  lager:info("Demand for IP ~p is ~p",[Ip, IpDemand]),
+%%  lager:info("Demand for IP ~p is ~p",[Ip, IpDemand]),
   {NewState, PoolHandler} =
   case maps:is_key(Ip, Ips) of
     true ->
       {State, maps:get(Ip, Ips)};
     false ->
-      {ok, Pid} = s7pool_handler:start_link(Opts),
+      {ok, Pid} = mqtt_pub_pool_handler:start_link(Opts),
+      %% init message counter ets table
+      reset_counter(Ip),
       {State#state{
         ips_pools = Ips#{Ip => Pid},
         pools_ips = Pools#{Pid => Ip},
@@ -105,7 +83,7 @@ handle_info({ensure_pool, #{ip := Ip} = Opts, User},
   UWaiting =
     case lists:member(Ip, Up) of
       true ->
-        User ! {s7_connected, Ip},
+        User ! {mqtt_connected, Ip},
         UsersWaiting;
       false ->
         case maps:is_key(Ip, UsersWaiting) of
@@ -113,23 +91,20 @@ handle_info({ensure_pool, #{ip := Ip} = Opts, User},
           false -> UsersWaiting#{Ip => [User]}
         end
     end,
-%%  lager:notice("[~p] ips_pools: ~p ~n pools_ips:~p ~n ip_opts: ~p",
-%%    [?MODULE, NewState#state.ips_pools, NewState#state.pools_ips, NewState#state.ip_opts]),
-  PoolHandler ! {demand, IpDemand},
   {noreply, NewState#state{pool_user = NewPUsers, users_waiting = UWaiting}};
 
 handle_info({up, Ip}, State = #state{pools_up = Up, ips_pools = _Pools, users_waiting = UWaiting}) ->
-  lager:info("pool for ip ~p is UP",[Ip]),
+%%  lager:info("pool for host ~p is UP",[Ip]),
   case lists:member(Ip, Up) of
     true -> {noreply, State};
     false ->
-      inform_users(Ip, s7_connected, State),
-      [U ! {s7_connected, Ip} || U <- maps:get(Ip, UWaiting)],
+      inform_users(Ip, mqtt_connected, State),
+      [U ! {mqtt_connected, Ip} || U <- maps:get(Ip, UWaiting)],
       {noreply, State#state{pools_up = [Ip|Up]}}
   end;
 handle_info({down, Ip}, State = #state{pools_up = Up, ips_pools = _Pools}) ->
-  lager:info("pool for ip ~p is DOWN",[Ip]),
-  inform_users(Ip, s7_disconnected, State),
+  lager:info("pool for host ~p is DOWN",[Ip]),
+  inform_users(Ip, mqtt_disconnected, State),
   {noreply, State#state{pools_up = lists:delete(Ip, Up)}};
 handle_info({'EXIT', Pid, normal}, State = #state{}) ->
   lager:warning("Pool-Handler exiting normal, will no restart: ~p",[Pid]),
@@ -138,10 +113,10 @@ handle_info({'EXIT', Pid, normal}, State = #state{}) ->
 %% handler exited
 handle_info({'EXIT', Pid, Why}, State = #state{pools_ips = Pools, ip_opts = IpOpts})  when is_map_key(Pid, Pools) ->
   Ip = maps:get(Pid, Pools),
-  lager:warning("Pool-Handler ~p-~p is down: ~p",[Pid, Ip, Why]),
+  lager:notice("Pool-Handler ~p-~p is down: ~p",[Pid, Ip, Why]),
   NState = do_remove_handler(Pid, Ip, State),
   Opts = maps:get(Ip, IpOpts),
-  {ok, NewPid} = s7pool_handler:start_link(Opts),
+  {ok, NewPid} = mqtt_pub_pool_handler:start_link(Opts),
   {noreply, NState#state{
     ips_pools = (NState#state.ips_pools)#{Ip => NewPid},
     pools_ips = (NState#state.pools_ips)#{NewPid => Ip}}
@@ -150,8 +125,6 @@ handle_info({'EXIT', _Pid, _Why}, State = #state{}) ->
   {noreply, State};
 %% pool-user is DOWN
 handle_info({'DOWN', _Mon, process, Pid, _Info}, State = #state{pool_user =  PoolUsers, ips_pools = Ips}) ->
-%%  lager:notice("[~p] pool-user is down: ~p", [?MODULE, Pid]),
-%%  lager:info("PoolUsers: ~p", [PoolUsers]),
   F = fun({Ip, UserList}, {L, LastIp}) ->
     UList = sets:to_list(UserList),
         case lists:member(Pid, UList) of
@@ -161,18 +134,16 @@ handle_info({'DOWN', _Mon, process, Pid, _Info}, State = #state{pool_user =  Poo
       end,
   {NewPoolUsers0, Ip} = lists:foldl(F, {[], 0}, maps:to_list(PoolUsers)),
   NewPoolUsers = maps:from_list(NewPoolUsers0),
-%%  lager:info("PoolUsers after: ~p",[NewPoolUsers]),
   case maps:is_key(Ip, Ips) of
     true ->
       Handler = maps:get(Ip, Ips),
-      Handler ! {demand, check_demand(Ip, NewPoolUsers)};
+      check_demand(Handler, Ip, NewPoolUsers);
     false ->
-      lager:warning("no pool handler found for ~p",[Ip]),
-      ok
+      lager:warning("no pool handler found for ~p",[Ip])
   end,
   {noreply, State#state{pool_user = NewPoolUsers}};
 handle_info(Req, State) ->
-  lager:warning("Unhandled Request : ~p",[Req]),
+%%  lager:warning("Unhandled Request : ~p",[Req]),
   {noreply, State}.
 
 terminate(_Reason, _State = #state{}) ->
@@ -213,12 +184,19 @@ add_user(Ip, AllUsers, NewUser) ->
   end,
   AllUsers#{Ip => PoolUsers}.
 
-check_demand(Ip, AllUsers) when is_map_key(Ip, AllUsers) ->
-  PUsersSet = maps:get(Ip, AllUsers),
-  sets:size(PUsersSet);
-check_demand(_Ip, _AllUsers) ->
-  0.
 
+check_demand(Handler, Ip, AllUsers) when is_map_key(Ip, AllUsers) ->
+  PUsersSet = maps:get(Ip, AllUsers),
+%%  sets:size(PUsersSet),
+  case sets:size(PUsersSet) of
+    0 ->
+      lager:info("stop handler, no more clients left"),
+      gen_server:stop(Handler);
+    _ -> ok
+  end;
+check_demand(Handler, _Ip, _AllUsers) ->
+  lager:info("stop handler, no more clients left"),
+  gen_server:stop(Handler).
 
 
 
@@ -226,20 +204,22 @@ check_demand(_Ip, _AllUsers) ->
 %%% connection functions
 %%%===================================================================
 get_connection(Ip, Index) ->
-  case ets:lookup(s7_pools, Ip) of
+  %% bump request counter for mqtt_pub_pool_handler
+  bump_counter(Ip),
+  case ets:lookup(mqtt_pub_pools, Ip) of
     [] -> {error, no_pool_found};
     [{Ip, []}] -> {error, no_connection_in_pool};
-    [{Ip, [Conn]}] -> {ok, Conn, 1};
+    [{Ip, [Conn]}] -> {ok, Conn};
     [{Ip, Connections}] ->
       NextI = next_index(Connections, Index),
       Worker = lists:nth(NextI, Connections),
-      ets:insert(s7_pools_index, {Ip, NextI}),
+      ets:insert(mqtt_pub_pools_index, {Ip, NextI}),
 %%      lager:info("~p found ~p connections, current ~p",[?MODULE, length(Connections), Worker]),
       {ok, Worker}
   end.
 
 get_index(Key) ->
-  case ets:lookup(s7_pools_index, Key) of
+  case ets:lookup(mqtt_pub_pools_index, Key) of
     [] -> 1;
     [{Key, Index}] -> Index
   end.
@@ -247,3 +227,13 @@ get_index(Key) ->
 next_index(L, I) when I > length(L) -> length(L);
 next_index(L, I) when I == length(L) -> 1;
 next_index(_L, I) -> I + 1.
+
+%%% request counter
+reset_counter(Key) ->
+  ets:insert(mqtt_pub_pool_cnt, {Key, 0}).
+
+bump_counter(Key) ->
+  ets:update_counter(mqtt_pub_pool_cnt, Key, 1).
+
+get_counter(Key) ->
+  ets:update_counter(mqtt_pub_pool_cnt, Key, 0).

@@ -386,6 +386,34 @@
 }.
 
 
+%%
+%% for every unique ip address used by mqtt_publish nodes,
+%% faxe will maintain a separate connection pool,
+%% each pool will have at least 'mqtt_pub_pool.min_size' connections
+%% and a maximum of 'mqtt_pub_pool.max_size' connections
+%%
+%% mqtt publisher connection pool min size
+{mapping, "mqtt_pub_pool.min_size", "faxe.mqtt_pub_pool.initial_size",
+    [{default, 2}, {datatype, integer}]
+}.
+%% @doc mqtt publisher connection pool max size
+%% @see s7pool.min_size
+{mapping, "mqtt_pub_pool.max_size", "faxe.mqtt_pub_pool.max_size",
+    [{default, 30}, {datatype, integer}]
+}.
+
+%% @doc mqtt publisher connection pool max worker rate (message throughput per second)
+%% this is used for the elastic pool grow/shrink mechanism
+{mapping, "mqtt_pub_pool.worker_max_rate", "faxe.mqtt_pub_pool.worker_max_rate",
+    [{default, 70}, {datatype, integer}]
+}.
+
+
+%% @doc whether to use the s7 pool (default for all s7read nodes)
+{mapping, "mqtt_pub_pool.enable", "faxe.mqtt_pub_pool.enable",
+    [{default, on}, {datatype, flag}]
+}.
+
 %% @doc -------------------------------------------------------------------------------
 %% AMQP defaults
 %% -------------------------------------------------------------------------------

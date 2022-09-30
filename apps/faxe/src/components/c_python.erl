@@ -55,7 +55,7 @@
 ).
 options() -> [{cb_module, atom}, {cb_class, atom}].
 
-%% @doc get the options required for the python callback class
+%% @doc get the options to recognize in dfs for the python node (from the callback class)
 -spec call_options(atom(), atom()) -> list(tuple()).
 call_options(Module, Class) ->
    process_flag(trap_exit, true),
@@ -73,14 +73,10 @@ call_options(Module, Class) ->
    Res.
 
 init(NodeId, _Ins, #{cb_module := Callback, cb_class := CBClass} = Args) ->
-%%   ArgsKeys = maps:keys(Args),
-%%   lager:info("ArgsKeys: ~p",[ArgsKeys]),
-%%   lager:notice("ARgs for ~p: ~p", [Callback, Args]),
    PInstance = get_python(),
    %% create an instance of the callback class
    ClassInstance = pythra:init(PInstance, Callback, CBClass,
       [maps:without([cb_module, cb_class], Args#{<<"erl">> => self()})]),
-%%   lager:info("python instantiation of ~p gives us: ~p",[{Callback, CBClass}, ClassInstance]),
    State = #state{
       callback_module = Callback,
       callback_class =  CBClass,
@@ -102,20 +98,7 @@ process(_Inp, #data_batch{points = Points} = Batch, State = #state{callback_modu
 process(_Inp, #data_point{} = Point, State = #state{python_instance = Python, cb_object = Obj}) ->
 
    Data = flowdata:to_mapstruct(data_map(Point)),
-%%   lager:warning("Data TO PYTHON: ~p" ,[Data]),
-%%   {_, _, Ob} =
-%%   case catch pythra:method(Python, Obj, ?PYTHON_POINT_CALL, [Data]) of
-%%      Bin when is_binary(Bin) -> {ok, State#state{cb_object = Bin}};
-%%      {'EXIT',{{python,PythonErr,Desc,{'$erlport.opaque',python,Err}}}} ->
-%%         lager:warning("Python ERROR: ~p:~p :: ~s",[PythonErr, Desc, Err]),
-%%         {ok, State};
-%%      {'$erlport.opaque',python,Err} ->  lager:warning("Python ERROR: ~p",[Err]),
-%%         {ok, State};
-%%      Err -> lager:warning("Python Error: ~p",[Err]),
-%%         {ok, State}
-%%   end.
-%%   ,
-      NewObj = pythra:method(Python, Obj, ?PYTHON_POINT_CALL, [Data]),
+   NewObj = pythra:method(Python, Obj, ?PYTHON_POINT_CALL, [Data]),
 %%   lager:warning("new obj has size: ~p", [byte_size(Ob)]),
    {ok, State#state{cb_object = NewObj}}.
 
@@ -131,13 +114,16 @@ handle_info({emit_data, {"Map", Data}}, State) when is_list(Data) ->
 %%   lager:notice("got point data from python: ~p", [Data]),
    {emit, {1, Data}, State};
 handle_info({python_error, Error}, State) ->
-   lager:error("error from python: ~p", [Error]),
+   lager:error("~p", [Error]),
    {ok, State};
 handle_info({python_log, Message}, State) ->
-   lager:notice("log from python: ~p", [Message]),
+   lager:notice("~p", [Message]),
    {ok, State};
-handle_info(_Request, State) ->
-   lager:notice("got from python: ~p", [_Request]),
+%%%
+handle_info(start_debug, State) ->
+   {ok, State};
+handle_info(Request, State) ->
+   lager:notice("got unexpected: ~p", [Request]),
    {ok, State}.
 
 shutdown(#state{python_instance = Python}) ->

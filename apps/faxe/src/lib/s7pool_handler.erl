@@ -53,20 +53,17 @@ handle_cast(_Request, State = #state{}) ->
 handle_info({s7_connected, Worker},
     State = #state{pool = Pool, waiting_cons = Waiting, opts = #{ip := Ip}, initial_size = Initial}) ->
 
-  lager:notice("~p s7worker is up!",[?MODULE]),
   NewState =
   case lists:member(Worker, Waiting) of
     true ->
-      lager:warning("~p found waiting_con now up: ~p",[Worker, ?MODULE]),
       State#state{pool = Pool ++ [Worker], waiting_cons = lists:delete(Worker, Waiting)};
     false ->
-      lager:alert("~p s7 worker is up, but not waiting for it: ~p",[Worker, ?MODULE]),
       State#state{pool = Pool ++ [Worker]}
   end,
   update_ets(NewState),
   case length(NewState#state.pool) > 0 of
     true -> s7pool_manager ! {up, Ip};
-    false -> lager:warning("[~p] s7 connection is up, but initial size of ~p not reached yet !!",[?MODULE, Initial]),ok
+    false -> ok
   end,
 %%  lager:alert("[~p] Pool: ~p, Waiting: ~p",[?MODULE, NewState#state.pool, NewState#state.waiting_cons]),
   {noreply, NewState};
@@ -90,7 +87,6 @@ handle_info({s7_disconnected, Worker},
 %%  end,
   {noreply, NewState};
 handle_info({demand, Num}, State = #state{pool = Pool, waiting_cons = Waiting, max_size = MAX}) ->
-  lager:notice("[~p] demand is: ~p",[?MODULE, Num]),
   Size = length(Pool) + length(Waiting),
   case Num of
     0 ->
@@ -166,7 +162,6 @@ stop_worker(Pid) ->
 
 add_initial(State = #state{initial_size = Initial, opts = Opts}) ->
   %% start with initial-number of  connections
-  lager:notice("s7pool initial size is ~p and max-size is ~p",[Initial, State#state.max_size]),
   Conns = lists:map(
     fun(_) ->
       {ok, Con} = s7worker:start_link(Opts), Con

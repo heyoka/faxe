@@ -61,9 +61,14 @@ init([]) ->
    ok = new_table(field_paths, set),
    ok = new_table(temp_tasks, set),
 
+   %% s7 pool
    ok = new_table(s7_pools, set),
    ok = new_table(s7_pools_index, set),
    ok = new_table(s7reader_clients, set),
+   %% mqtt publisher pool
+   ok = new_table(mqtt_pub_pools, set),
+   ok = new_table(mqtt_pub_pools_index, set),
+   ok = new_table(mqtt_pub_pool_cnt, set), %% message count for rate computation
 
    ok = new_table(node_connections, set),
 

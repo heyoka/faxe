@@ -1,0 +1,26 @@
+def data =
+|json_emitter('{"hello": "you", "how": {"are": "you"}, "int": 1}')
+.every(1s)
+.align()
+
+
+data
+|mqtt_publish()
+.topic('tgw/data/alex_test/mqtt_pub_pool1')
+.host('10.14.204.20')
+.port(1883)
+.use_pool(true)
+
+
+def data1 =
+|json_emitter('{"hello": "you", "how": {"are": "you"}, "int": 1}')
+.every(500ms)
+.align()
+
+data1
+|mqtt_publish()
+.topic('tgw/data/alex_test/mqtt_pub_pool2-1')
+.host('10.14.204.20')
+.port(1883)
+.use_pool(false)
+.retained(true)

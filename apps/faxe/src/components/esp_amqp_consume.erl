@@ -74,7 +74,7 @@ options() -> [
    {vhost, string, <<"/">>},
    {routing_key, string, undefined},
    {bindings, string_list, undefined},
-   {qx_name, string, undefined},
+   {qx_name, string, undefined}, %% not used currently
    {queue, string, undefined},
    {queue_prefix, string, {rabbitmq, queue_prefix}},
    {consumer_tag, string, undefined},
