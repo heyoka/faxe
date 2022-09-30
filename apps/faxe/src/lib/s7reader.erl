@@ -101,7 +101,7 @@ handle_cast(_Request, State = #state{}) ->
 
 handle_info({read, Requests, [{_Intv, #faxe_timer{last_time = Ts}}] = SendTimers},
     State=#state{slot_timers = SlotTimers, conn_opts = Opts, s7_ip = Ip}) ->
-  lager:warning("read ~p requests ", [length(Requests)]),
+%%  lager:warning("read ~p requests ", [length(Requests)]),
   ElFun =
     fun({Vars, Aliases}) ->
       case s7pool_manager:read_vars(Opts, Vars) of
@@ -110,7 +110,7 @@ handle_info({read, Requests, [{_Intv, #faxe_timer{last_time = Ts}}] = SendTimers
       end
     end,
   RunWith = s7pool_manager:connection_count(Ip),
-  lager:notice("s7reader:read - connection count is ~p",[RunWith]),
+%%  lager:notice("s7reader:read - connection count is ~p",[RunWith]),
   case RunWith > 0 of
     true ->
       %%    1,%faxe_config:get(s7pool_max_size, 2),
@@ -169,7 +169,6 @@ handle_info({s7_connected, _Client}=M, State = #state{connected = true, retrieve
   maybe_next(State);
 handle_info({s7_connected, _Client}=M,
     State = #state{s7_ip = Ip, cache_pdu_size = CachePDU, request_cache = Cache, pdu_size = InitialPDUSize}) ->
-  lager:warning("~p s7_connected",[?MODULE]),
   {PduSize, Retrieve} =
     case catch s7pool_manager:get_pdu_size(Ip) of
       {ok, PS} -> {PS, false};
@@ -187,12 +186,11 @@ handle_info({s7_connected, _Client}=M,
   end,
   maybe_next(State#state{pdu_size = PduSize, connected = true, retrieve_pdu_size = Retrieve, request_cache = NewCache});
 handle_info({s7_disconnected, _Client}=M, State = #state{timer = Timer}) ->
-  lager:alert("~p s7_disconnected",[?MODULE]),
   catch erlang:cancel_timer(Timer),
   send_all_clients(M, State),
   {noreply, State#state{timer = undefined, busy = false, connected = false}};
 handle_info(Info, State = #state{}) ->
-  lager:notice("~p got info: ~p",[?MODULE, Info]),
+  lager:info("~p got info: ~p",[?MODULE, Info]),
   maybe_next(State).
 
 terminate(Reason, _State = #state{s7_ip = Ip}) ->
@@ -206,7 +204,6 @@ code_change(_OldVsn, State = #state{}, _Extra) ->
 %%% Internal functions
 %%%===================================================================
 do_register(ClientPid, Interval, Vars, State = #state{current_addresses = CurrentSlots, connected = Connected}) ->
-  lager:notice("{client: ~p register, ~p}", [ClientPid, {Interval, length(Vars), ClientPid}]),
   erlang:monitor(process, ClientPid),
   Current = maps:get(Interval, CurrentSlots, []),
   NewCurrent = s7_utils:add_client_addresses(ClientPid, Vars, Current),
@@ -225,7 +222,6 @@ maybe_next(State = #state{connected = false}) ->
   lager:notice("maybe_next when not connected"),
   {noreply, State};
 maybe_next(State = #state{busy = true}) ->
-  lager:notice("maybe_next when busy"),
   {noreply, State};
 maybe_next(State = #state{current_addresses = Slots}) when map_size(Slots) == 0 ->
   erlang:send_after(?EMPTY_RETRY_INTERVAL, self(), try_read),
@@ -233,7 +229,7 @@ maybe_next(State = #state{current_addresses = Slots}) when map_size(Slots) == 0 
 maybe_next(State = #state{busy = false, current_addresses = Slots}) ->
   NewSlotTimers = check_slot_timers(Slots, State#state.slot_timers),
   [{_I, #faxe_timer{last_time = At}}|_] = ReadIntervals = next_read(NewSlotTimers),
-  lager:notice("NEXT~n SlotTimers:~p~n read-intervals: ~p",[NewSlotTimers, ReadIntervals]),
+%%  lager:notice("NEXT~n SlotTimers:~p~n read-intervals: ~p",[NewSlotTimers, ReadIntervals]),
   Intervals = proplists:get_keys(ReadIntervals),
   {ReadRequests, NewState} = get_requests(Intervals, State),
   NewTimer = faxe_time:send_at(At, {read, ReadRequests, ReadIntervals}),
@@ -247,7 +243,6 @@ check_slot_timers(Slots, CurrentTimers) ->
       case lists:keymember(SlotInterval, 1, Timers) of
         true -> Timers;
         false ->
-          lager:notice("ADD SLOT : ~p",[SlotInterval]),
           NewTimer0=#faxe_timer{last_time = LastTime, interval = Interval} = faxe_time:timer_new(SlotInterval, true, read),
           %% init timers on the NEXT interval
           [{SlotInterval, NewTimer0#faxe_timer{last_time = LastTime+Interval}}|Timers]
@@ -290,23 +285,19 @@ get_requests(IntervalList, S = #state{current_addresses = Slots}) ->
 
 build_requests(IntervalList, Addresses, S=#state{pdu_size = PDUSize, request_cache = Cache}) ->
   {T, BuiltRequests} = timer:tc(s7_utils, build_addresses, [Addresses, PDUSize]),
-  lager:alert("Time to build ~p addresses: ~p", [length(Addresses), T]),
   {BuiltRequests, S#state{request_cache = Cache#{IntervalList => BuiltRequests}, cache_pdu_size = PDUSize}}.
 
 
 add_client_ets(ClientPid, Interval, Vars, #state{s7_ip = Ip}) ->
   case ets:lookup(s7reader_clients, Ip) of
     [] ->
-      lager:notice("no clients found, add ~p",[ClientPid]),
       ets:insert(s7reader_clients, {Ip, [{ClientPid, Interval, Vars}]}),
       true;
     [{Ip, Clients}] ->
       case lists:keymember(ClientPid, 1, Clients) of
         true ->
-          lager:notice("client ~p is already there",[ClientPid]),
           false;
         false ->
-          lager:notice("client ~p not found, add her",[ClientPid]),
           ets:insert(s7reader_clients, {Ip, [{ClientPid, Interval, Vars}|Clients]}),
           true
       end

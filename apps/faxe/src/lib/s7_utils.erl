@@ -70,7 +70,6 @@ remove_client(Client, Addresses, CurrentAddresses) ->
 
 
 build_addresses(Addresses, PDUSize) ->
-  lager:notice("building addresses with PDU size ~p",[PDUSize]),
   F = fun({Address, Clients}) -> Address#{clients => Clients} end,
   WithClients = lists:map(F, Addresses),
   %% partition addresses+aliases by data-type
