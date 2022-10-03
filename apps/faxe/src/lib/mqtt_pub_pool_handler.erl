@@ -8,7 +8,7 @@
 
 -behaviour(gen_server).
 
--export([start_link/1]).
+-export([start_link/1, get_rate/1]).
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2, terminate/2,
   code_change/3]).
 
@@ -24,7 +24,8 @@
   users,
   monitors,
   pool_index,
-  waiting_cons = []
+  waiting_cons = [],
+  last_rate = 0
 }).
 
 %% default configs
@@ -64,15 +65,14 @@ init(#{host := Ip, port := Port} = Opts0) ->
   %% start with initial-number of connections
   {ok, add_initial(S)}.
 
-handle_call(_Request, _From, State = #state{}) ->
-  {reply, ok, State}.
+handle_call(get_rate, _From, State = #state{last_rate = Rate}) ->
+  {reply, {ok, Rate}, State}.
 
 handle_cast(_Request, State = #state{}) ->
   {noreply, State}.
 
 handle_info(check_rate, State = #state{opts = #{host := Key}, max_worker_rate = MaxRate}) ->
-  CurrentRateCnt = mqtt_pub_pool_manager:get_counter(Key),
-  CurrentRate = CurrentRateCnt / ?RATE_INTERVAL_SEC,
+  CurrentRate = get_rate(Key),
   WorkerCount = mqtt_pub_pool_manager:connection_count(Key),
 %%  WorkerRate = ceil(CurrentRate / WorkerCount),
 
@@ -97,7 +97,7 @@ handle_info(check_rate, State = #state{opts = #{host := Key}, max_worker_rate = 
 %%  lager:info("we should have ~p workers",[TargetWorkerCount]),
   start_rate_timeout(),
   mqtt_pub_pool_manager:reset_counter(Key),
-  {noreply, NewState};
+  {noreply, NewState#state{last_rate = CurrentRate}};
 handle_info({mqtt_connected, Worker},
     State = #state{pool = Pool, waiting_cons = Waiting, opts = #{host := Ip}}) ->
 
@@ -154,6 +154,10 @@ code_change(_OldVsn, State = #state{}, _Extra) ->
 %%%===================================================================
 %%% Internal functions
 %%%===================================================================
+get_rate(Key) ->
+  CurrentRateCnt = mqtt_pub_pool_manager:get_counter(Key),
+  CurrentRateCnt / ?RATE_INTERVAL_SEC.
+
 add_worker(State = #state{waiting_cons = Waiting, opts = Opts0}) ->
   %% set a client-id
   Id = faxe_util:to_bin(faxe_util:uuid_string()),

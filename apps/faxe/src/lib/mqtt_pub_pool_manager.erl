@@ -52,6 +52,14 @@ init([]) ->
   erlang:process_flag(trap_exit, true),
   {ok, #state{}}.
 
+handle_call({get_throughput, Key}, _From, State = #state{ips_pools = Pools}) ->
+  Handler = maps:get(Key, Pools, undefined),
+  Res =
+  case Handler of
+    undefined -> {ok, 0};
+    _ -> gen_server:call(Handler, get_rate)
+  end,
+  {reply, Res, State};
 handle_call(_Request, _From, State = #state{}) ->
   {reply, ok, State}.
 
@@ -185,13 +193,17 @@ add_user(Ip, AllUsers, NewUser) ->
   AllUsers#{Ip => PoolUsers}.
 
 
-check_demand(Handler, Ip, AllUsers) when is_map_key(Ip, AllUsers) ->
-  PUsersSet = maps:get(Ip, AllUsers),
+check_demand(Handler, Key, AllUsers) when is_map_key(Key, AllUsers) ->
+  PUsersSet = maps:get(Key, AllUsers),
 %%  sets:size(PUsersSet),
   case sets:size(PUsersSet) of
     0 ->
       lager:info("stop handler, no more clients left"),
-      gen_server:stop(Handler);
+      gen_server:stop(Handler),
+      %% delete ets entries
+      ets:delete(mqtt_pub_pools, Key),
+      ets:delete(mqtt_pub_pools_index, Key),
+      ets:delete(mqtt_pub_pool_cnt, Key);
     _ -> ok
   end;
 check_demand(Handler, _Ip, _AllUsers) ->
@@ -203,17 +215,17 @@ check_demand(Handler, _Ip, _AllUsers) ->
 %%%===================================================================
 %%% connection functions
 %%%===================================================================
-get_connection(Ip, Index) ->
+get_connection(Key, Index) ->
   %% bump request counter for mqtt_pub_pool_handler
-  bump_counter(Ip),
-  case ets:lookup(mqtt_pub_pools, Ip) of
+  bump_counter(Key),
+  case ets:lookup(mqtt_pub_pools, Key) of
     [] -> {error, no_pool_found};
-    [{Ip, []}] -> {error, no_connection_in_pool};
-    [{Ip, [Conn]}] -> {ok, Conn};
-    [{Ip, Connections}] ->
+    [{Key, []}] -> {error, no_connection_in_pool};
+    [{Key, [Conn]}] -> {ok, Conn};
+    [{Key, Connections}] ->
       NextI = next_index(Connections, Index),
       Worker = lists:nth(NextI, Connections),
-      ets:insert(mqtt_pub_pools_index, {Ip, NextI}),
+      ets:insert(mqtt_pub_pools_index, {Key, NextI}),
 %%      lager:info("~p found ~p connections, current ~p",[?MODULE, length(Connections), Worker]),
       {ok, Worker}
   end.

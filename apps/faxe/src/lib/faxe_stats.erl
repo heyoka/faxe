@@ -64,7 +64,18 @@ init([]) ->
    {stop, Reason :: term(), Reply :: term(), NewState :: #state{}} |
    {stop, Reason :: term(), NewState :: #state{}}).
 handle_call(get, _From, State=#state{stats = Stats}) ->
-   {reply, Stats, State};
+   %% add pool stats
+   MQTTPools = lists:map(
+      fun({Key, Conns}) ->
+         {ok, Throughout} = gen_server:call(mqtt_pub_pool_manager, {get_throughput, Key}),
+         #{<<"peer">> => faxe_util:to_bin(Key), <<"num_connections">> => length(Conns),
+            <<"throughput">> => Throughout} end,
+      ets:tab2list(mqtt_pub_pools)),
+   S7Pools = lists:map(
+      fun({Key1, Conns1}) ->
+         #{<<"peer">> => faxe_util:to_bin(Key1), <<"num_connections">> => length(Conns1)} end,
+      ets:tab2list(s7_pools)),
+   {reply, Stats#{<<"mqtt_pub_pools">> => MQTTPools, <<"s7_pools">> => S7Pools}, State};
 handle_call(_Request, _From, State) ->
    {reply, ok, State}.
 
