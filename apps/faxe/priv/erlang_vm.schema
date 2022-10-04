@@ -389,3 +389,38 @@ end}.
     {commented, "false"},
     {datatype, {enum, [true, false]}}
 ]}.
+
+%% @doc --------------------------------------------------------------------------
+%% Erlangs scheduler busy wait threshold
+%%
+%% More info: https://www.erlang.org/doc/man/erl.html
+%% ------------------------------------------------------------------------------
+%% scheduler busy wait threshold
+{mapping, "erlang.busy_wait.cpu_scheduler", "vm_args.+sbwt", [
+    {default, "{{sbwt}}"},
+    {commented, "{{sbwt}}"},
+    {datatype, {enum, ["none", "very_short", "short", "medium", "long", "very_long"]}
+    }
+]}.
+
+%% dirty CPU scheduler busy wait threshold
+{mapping, "erlang.busy_wait.dirty_cpu_scheduler", "vm_args.+sbwtdcpu", [
+    {default, "{{sbwtdcpu}}"},
+    {commented, "{{sbwtdcpu}}"},
+    {datatype, {enum, ["none", "very_short", "short", "medium", "long", "very_long"]}
+    }
+]}.
+
+%% dirty IO scheduler busy wait threshold
+{mapping, "erlang.busy_wait.dirty_io_scheduler", "vm_args.+sbwtdio", [
+    {default, "{{sbwtdio}}"},
+    {commented, "{{sbwtdio}}"},
+    {datatype, {enum, ["none", "very_short", "short", "medium", "long", "very_long"]}
+    }
+]}.
+
+%%%% +sbwt none
+%% dirty CPU scheduler busy wait threshold
+%%%% +sbwtdcpu none
+%%  dirty IO schedulers busy wait threshold
+%%%% +sbwtdio none
