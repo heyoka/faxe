@@ -36,8 +36,7 @@
     uuid,
     mapz,
     gen_smtp,
-    vmstats,
-    lake
+    vmstats
    ]},
   {env,[]},
   {modules, [esp_stats]},
