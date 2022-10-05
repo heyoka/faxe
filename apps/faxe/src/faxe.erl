@@ -92,9 +92,9 @@ join(NodeName) ->
 get_task(TaskId) ->
    case faxe_db:get_task(TaskId) of
       {error, not_found} -> {error, not_found};
-      #task{pid = Pid} = T ->
+      #task{name = Id} = T ->
          Running = supervisor:which_children(graph_sup),
-         case lists:keyfind(Pid, 2, Running) of
+         case lists:keyfind(Id, 1, Running) of
             Y when is_tuple(Y) -> T#task{is_running = true};
             false -> T
          end
@@ -175,8 +175,8 @@ set_tags(TaskId, Tags) ->
 add_running_flag(TaskList) when is_list(TaskList) ->
    Running = supervisor:which_children(graph_sup),
    F =
-      fun(#task{pid = Pid} = T) ->
-         case lists:keyfind(Pid, 2, Running) of
+      fun(#task{name = Id} = T) ->
+         case lists:keyfind(Id, 1, Running) of
             Y when is_tuple(Y) -> T#task{is_running = true};
             false -> T#task{is_running = false}
          end
@@ -431,7 +431,8 @@ start_temp(DfsScript, Type, TTL) ->
                   ok ->
                      {ok, Id}
                catch
-                  _:E = E -> {error, graph_start_error}
+                  _:E = E -> lager:error("graph_start_error: ~p",[E]),
+                     {error, {graph_start_error, E}}
                end;
             {error, E} -> {error, E}
          end;
@@ -471,7 +472,9 @@ do_start_task(T = #task{name = Name, definition = GraphDef},
                flow_changed({task, Name, start}),
                Res
          catch
-            _:E = E -> {error, graph_start_error}
+            _:E = E ->
+               lager:error("graph_start_error: ~p",[E]),
+               {error, {graph_start_error, E}}
          end;
       {error, {already_started, _Pid}} -> {error, already_started}
    end.
@@ -496,7 +499,9 @@ start_copy(Task = #task{definition = GraphDef, name = TName}, #task_modes{perman
                            last_start = faxe_time:now_date(),
                            permanent = Perm, group = TName})
                catch
-                  _:E = E -> {error, graph_start_error}
+                  _:E = E ->
+                     lager:error("graph_start_error: ~p",[E]),
+                     {error, {graph_start_error, E}}
                end;
             {error, What} -> {error, What}
          end;
