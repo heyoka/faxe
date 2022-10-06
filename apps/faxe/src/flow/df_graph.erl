@@ -65,6 +65,7 @@
 %% node metrics collection interval in ms
 -define(METRICS_INTERVAL, 5000).
 -define(TRACE_TIMEOUT, 120 * 1000).
+-define(START_GRAPH_TIMEOUT, 7000).
 %%%===================================================================
 %%% API
 %%%===================================================================
@@ -78,7 +79,7 @@ start_link(Id, Params) ->
 
 -spec start_graph(pid(), #task_modes{}) -> {ok, started}|{error, term()}.
 start_graph(Graph, Modes) ->
-   gen_server:call(Graph, {start, Modes}).
+   gen_server:call(Graph, {start, Modes}, ?START_GRAPH_TIMEOUT).
 
 stop(Graph) ->
    erlang:process_flag(trap_exit, true),

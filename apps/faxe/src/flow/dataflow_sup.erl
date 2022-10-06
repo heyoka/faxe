@@ -56,7 +56,11 @@ init([]) ->
    Procs = [
       {graph_sup,
          {graph_sup, start_link, []},
-         permanent, infinity, supervisor, [graph_sup]}
+         permanent, infinity, supervisor, [graph_sup]},
+      {graph_starter,
+         {graph_starter, start_link, []},
+         permanent, 5000, worker, []}
+
    ],
 
    SupFlags = {RestartStrategy, MaxRestarts, MaxSecondsBetweenRestarts},

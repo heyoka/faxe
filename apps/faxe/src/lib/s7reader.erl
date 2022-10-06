@@ -116,7 +116,9 @@ handle_info({read, Requests, [{_Intv, #faxe_timer{last_time = Ts}}] = SendTimers
       %%    1,%faxe_config:get(s7pool_max_size, 2),
       {Time, [FirstResult |RequestResults]} = timer:tc(plists, map, [ElFun, Requests, {processes, RunWith}]),
 %%  {Time, [FirstResult |RequestResults]} = timer:tc(lists, map, [ElFun, Requests]),
-      lager:alert("Time to read: ~p millis with ~p processes/connections",[erlang:round(Time/1000), RunWith]),
+
+      lager:notice("Time to read ~p requests: ~p millis with ~p processes/connections",
+        [length(Requests), erlang:round(Time/1000), RunWith]),
       MergeFun =
         fun
           (Prev, Val) when is_map(Prev), is_map(Val) -> maps:merge(Prev, Val);

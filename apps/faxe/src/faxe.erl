@@ -63,7 +63,7 @@
    update_by_template/2, start_metrics_trace/2, stop_metrics_trace/1,
    reset_tasks/0,
    reset_templates/0,
-   stop_all/0]).
+   stop_all/0, do_start_task/2]).
 
 start_permanent_tasks() ->
    Tasks = faxe_db:get_permanent_tasks(),
@@ -206,7 +206,7 @@ register_task(DfsScript, Name, Type) ->
             group = Name,
             group_leader = true
          },
-         flow_changed({flow, Name, register}),
+%%         flow_changed({flow, Name, register}),
          faxe_db:save_task(Task)
    end.
 
@@ -251,7 +251,7 @@ register_template(DfsScript, Name, Type) ->
                   name = Name,
                   dfs = DFS
                },
-               flow_changed({template, Name, delete}),
+%%               flow_changed({template, Name, delete}),
                faxe_db:save_template(Template);
 
             {error, What} -> {error, What}
@@ -350,7 +350,7 @@ update(DfsScript, Task, ScriptType) ->
             definition = Map,
             dfs = DFS,
             date = faxe_time:now_date()},
-         flow_changed({flow, Task#task.name, update}),
+%%         flow_changed({flow, Task#task.name, update}),
          faxe_db:save_task(NewTask);
       Err -> Err
    end.
@@ -460,7 +460,7 @@ do_start_task(T = #task{name = Name, definition = GraphDef},
    case dataflow:create_graph(Name, GraphDef) of
       {ok, Graph} ->
          try dataflow:start_graph(Graph, Mode) of
-            ok ->
+            _ ->
                faxe_db:save_task(T#task{pid = Graph, last_start = faxe_time:now_date(), permanent = Perm}),
                Res =
                case Concurrency of
@@ -469,7 +469,7 @@ do_start_task(T = #task{name = Name, definition = GraphDef},
                      start_concurrent(T, Mode),
                      {ok, Graph}
                end,
-               flow_changed({task, Name, start}),
+%%               flow_changed({task, Name, start}),
                Res
          catch
             _:E = E ->
@@ -608,7 +608,7 @@ do_stop_task(T = #task{pid = Graph, group_leader = _Leader, group = _Group}, Per
                false -> T
             end,
          Res = faxe_db:save_task(NewT#task{pid = undefined, last_stop = faxe_time:now_date()}),
-         flow_changed({task, T#task.name, stop}),
+%%         flow_changed({task, T#task.name, stop}),
          Res;
 %%         case Leader of
 %%            true ->
@@ -650,7 +650,7 @@ do_delete_task(#task{id = TaskId, group = Group, group_leader = Leader}) ->
          case Leader of
             true ->
                delete_task_group(Group),
-               flow_changed({flow, TaskId, delete}),
+%%               flow_changed({flow, TaskId, delete}),
                ok;
             false -> ok
          end;
@@ -675,7 +675,7 @@ delete_template(TaskId) ->
       {error, not_found} -> ok;
       #template{} ->
          Res = faxe_db:delete_template(TaskId),
-         flow_changed({template, TaskId, delete}),
+%%         flow_changed({template, TaskId, delete}),
          Res
    end.
 
@@ -793,7 +793,7 @@ template_to_task(Template = #template{dfs = DFS}, TaskName, Vars) ->
             template_vars = Vars
             },
          Res = faxe_db:save_task(Task),
-         flow_changed({flow, TaskName, register}),
+%%         flow_changed({flow, TaskName, register}),
          Res;
       {error, What} -> {error, What}
    end.

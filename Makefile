@@ -18,7 +18,6 @@ dev1:
     export FAXE_CRATE_PASS=sD7YAu6qrENaYpYzUpZT && \
 	export FAXE_MQTT_HOST='10.14.204.20' && \
 	export FAXE_MQTT_SSL_ENABLE='off' && \
-	export FAXE_MQTT_PUB_POOL_WORKER_MIN_RATE=10 && \
 	export FAXE_MQTT_PUB_POOL_WORKER_MAX_RATE=15 && \
 	export FAXE_MQTT_PUB_POOL_MIN_SIZE=2 && \
 	export FAXE_MQTT_PUB_POOL_MAX_SIZE=12 && \
