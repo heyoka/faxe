@@ -428,7 +428,7 @@ start_temp(DfsScript, Type, TTL) ->
                },
                ets:insert(temp_tasks, {Id, Graph}),
                try dataflow:start_graph(Graph, #task_modes{temporary = true, temp_ttl = TTL}) of
-                  ok ->
+                  _ ->
                      {ok, Id}
                catch
                   _:E = E -> lager:error("graph_start_error: ~p",[E]),

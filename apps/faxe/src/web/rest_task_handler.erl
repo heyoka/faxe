@@ -338,6 +338,12 @@ start_to_json(Req, State = #state{task_id = Id}) ->
    case faxe:start_task(Id, is_permanent(Req)) of
       {ok, _Graph} ->
          rest_helper:success(Req, State);
+      {error, already_started} ->
+         Qs = cowboy_req:parse_qs(Req),
+         case lists:keyfind(<<"quiet">>, 1, Qs) of
+            {_, <<"true">>} -> rest_helper:success(Req, State);
+            _ -> rest_helper:error(Req, State, faxe_util:to_bin(already_started))
+         end;
       {error, Error} ->
          rest_helper:error(Req, State, faxe_util:to_bin(Error))
    end.
