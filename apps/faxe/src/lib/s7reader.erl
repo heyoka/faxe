@@ -377,7 +377,7 @@ client_vars(Value, Clients, ClientVars) ->
 %% string is a special case, multiple chars(bytes) form one string
 -spec bld(list()|binary(), {list(), list()}) -> {list(), list()}.
 bld(Res, {[As], [string]}) ->
-%%  lager:notice("bld string single: ~p, ~p",[Res, As]),
+%%  lager:warning("~p bld string single: ~p, ~p",[?MODULE, Res, As]),
   Data = decode(string, Res),
   {[As], [Data]};
 %% non-bool, non-single, string
@@ -386,8 +386,8 @@ bld(Res, {As, [DType|_]}) ->
   DataList = decode(DType, Res),
   {As, DataList};
 %% bits from bytes
-bld(Res, {As, _, Bits}) ->
-%%  lager:notice("bld bool: ~p, ~p",[Res, As]),
+bld(Res, {As, _, Bits}=T) ->
+%%  lager:notice("~p bld bool: ~p, ~p",[?MODULE, Res, T]),
   DataList = decode(bool_byte, Res),
   BitList = [lists:nth(Bit+1, DataList) || Bit <- Bits],
   {As, BitList}.

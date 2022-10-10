@@ -84,21 +84,27 @@ destroy_node_metrics(FlowId, NodeId, MetricList) ->
   MF = fun({MetricName, _MetricType, _, _}) -> folsom_metrics:delete_metric(<<NId/binary, MetricName/binary>>) end,
   lists:foreach(MF, MetricList).
 
+
+metric(_Name, _Value, _FlowId, _NodeId) ->
+  ok.
+metric(_FlowNodeId, _Name, _Value) ->
+  ok.
+
 %%% @doc update a metric
-metric(Name, Value, FlowId, NodeId) ->
-  metric(id(FlowId, NodeId), Name, Value).
-metric(Name, Value, {FlowId, NodeId}) ->
-  metric(Name, Value, FlowId, NodeId);
-metric(FlowNodeId, ?METRIC_BYTES_READ, Value) when is_binary(FlowNodeId) ->
-  %% add Value to histogram to have average value ready
-  folsom_metrics:notify({<<FlowNodeId/binary, ?METRIC_BYTES_READ_SIZE/binary>>, Value}),
-  folsom_metrics:notify({<<FlowNodeId/binary, ?METRIC_BYTES_READ/binary>>, Value});
-metric(FlowNodeId, ?METRIC_BYTES_SENT, Value) when is_binary(FlowNodeId) ->
-  %% add Value to histogram to have average value ready
-  folsom_metrics:notify({<<FlowNodeId/binary, ?METRIC_BYTES_SENT_SIZE/binary>>, Value}),
-  folsom_metrics:notify({<<FlowNodeId/binary, ?METRIC_BYTES_SENT/binary>>, Value});
-metric(FlowNodeId, Name, Value) when is_binary(FlowNodeId), is_binary(Name) ->
-  folsom_metrics:notify({<<FlowNodeId/binary, Name/binary>>, Value}).
+%%metric(Name, Value, FlowId, NodeId) ->
+%%  metric(id(FlowId, NodeId), Name, Value).
+%%metric(Name, Value, {FlowId, NodeId}) ->
+%%  metric(Name, Value, FlowId, NodeId);
+%%metric(FlowNodeId, ?METRIC_BYTES_READ, Value) when is_binary(FlowNodeId) ->
+%%  %% add Value to histogram to have average value ready
+%%  folsom_metrics:notify({<<FlowNodeId/binary, ?METRIC_BYTES_READ_SIZE/binary>>, Value}),
+%%  folsom_metrics:notify({<<FlowNodeId/binary, ?METRIC_BYTES_READ/binary>>, Value});
+%%metric(FlowNodeId, ?METRIC_BYTES_SENT, Value) when is_binary(FlowNodeId) ->
+%%  %% add Value to histogram to have average value ready
+%%  folsom_metrics:notify({<<FlowNodeId/binary, ?METRIC_BYTES_SENT_SIZE/binary>>, Value}),
+%%  folsom_metrics:notify({<<FlowNodeId/binary, ?METRIC_BYTES_SENT/binary>>, Value});
+%%metric(FlowNodeId, Name, Value) when is_binary(FlowNodeId), is_binary(Name) ->
+%%  folsom_metrics:notify({<<FlowNodeId/binary, Name/binary>>, Value}).
 
 %%% @doc get process_info metrics and send them to the metrics backend
 process_metrics(FlowId, #node{id = NId, pid = NPid}) ->

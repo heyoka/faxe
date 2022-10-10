@@ -590,9 +590,9 @@
     [{default, "faxe_vmstats"}, {datatype, atom}, hidden]
 }.
 
-%% Interval at which vm stats are exposed
+%% Interval at which vm stats are collected
 {mapping, "vmstats.interval", "vmstats.interval",
-    [{default, "15s"}, {datatype, {duration, ms}}, hidden]
+    [{default, "30s"}, {datatype, {duration, ms}}, hidden]
 }.
 
 %% Scheduler time

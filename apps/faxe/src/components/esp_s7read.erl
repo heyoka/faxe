@@ -56,7 +56,8 @@
   merge_field,
   port_data,
   address_offset,
-  optimized = false :: true|false
+  optimized = false :: true|false,
+  reader :: atom()
 }).
 
 options() -> [
@@ -76,7 +77,8 @@ options() -> [
   {use_pool, bool, {s7pool, enable}},
   %% deprecated, use optimized instead
   {standalone, bool, true},
-  {optimized, bool, {s7reader, optimized}}
+  {optimized, bool, {s7reader, optimized}},
+  {native, bool, false}
 ].
 
 check_options() ->
@@ -143,7 +145,8 @@ init({_, _NId}=NodeId, _Ins,
       merge_field := MergeField,
       byte_offset := Offset,
 %%      standalone := _Standalone,
-      optimized := Optimized
+      optimized := Optimized,
+      native := Native
     } = Opts) ->
 
   %% handle aliases and addresses
@@ -165,7 +168,8 @@ init({_, _NId}=NodeId, _Ins,
     node_id = NodeId,
     merge_field = MergeField,
     address_offset = Offset,
-    optimized = Optimized
+    optimized = Optimized,
+    reader = case Native of true -> s7reader_native; false -> s7reader end
   },
   lager:notice("State: ~p",[lager:pr(State, ?MODULE)]),
 %%  %% connection
@@ -174,9 +178,9 @@ init({_, _NId}=NodeId, _Ins,
 
   {ok, all, init2(Parsed, State)}.
 
-init2(ParsedAddresses, State=#state{optimized = true, interval = Dur, opts = Opts, as_list = As1}) ->
+init2(ParsedAddresses, State=#state{optimized = true, interval = Dur, opts = Opts, as_list = As1, reader = Reader}) ->
   lager:info("using optimized read"),
-  s7reader:register(Opts, Dur, lists:zip(As1, ParsedAddresses)),
+  Reader:register(Opts, Dur, lists:zip(As1, ParsedAddresses)),
   State;
 init2(ParsedAddresses, State=#state{opts = Opts, as_list = As1}) ->
   {Parts, AliasesList} = build_addresses(ParsedAddresses, As1),
@@ -274,7 +278,7 @@ handle_info(poll, State=#state{as = Aliases, timer = Timer, byte_size = ByteSize
   end;
 handle_info({s7_data, Ts, DataList}, State = #state{diff = Diff, last_values = LastPoint, as_list = As}) ->
 %%  lager:notice("got data: ~p",[DataList]),
-  lager:info("requested ~p items, got ~p",[length(As), length(DataList)]),
+  lager:info("requested ~p items, got ~p :: reader: ~p",[length(As), length(DataList), State#state.reader]),
   Missing = lists:filter(fun(AsE) -> not proplists:is_defined(AsE, DataList) end, As),
   case Missing of
     [] -> ok;

@@ -65,8 +65,14 @@ init([]) ->
    ok = new_table(s7_pools, set),
    ok = new_table(s7_pools_index, set),
    ok = new_table(s7reader_clients, set),
+
+   %% s7 pool native
+   ok = new_table(s7_pools_native, set),
+   ok = new_table(s7_pools_index_native, set),
+   ok = new_table(s7reader_clients_native, set),
    %% reference from counter for native (erlang) driver
    ok = new_table(s7_pools_native_refs, set),
+
    %% mqtt publisher pool
    ok = new_table(mqtt_pub_pools, set),
    ok = new_table(mqtt_pub_pools_index, set),

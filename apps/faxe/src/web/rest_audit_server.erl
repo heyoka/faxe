@@ -19,8 +19,9 @@
 %%%===================================================================
 %%% Spawning and gen_server implementation
 %%%===================================================================
-audit(User, Req) ->
-  ?SERVER ! {audit, User, Req}.
+audit(_User, _Req) ->
+  ok.
+%%  ?SERVER ! {audit, User, Req}.
 
 start_link() ->
   gen_server:start_link({local, ?SERVER}, ?MODULE, [], []).

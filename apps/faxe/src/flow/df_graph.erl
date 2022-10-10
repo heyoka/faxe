@@ -318,7 +318,7 @@ build_edge(Graph, {SourceNode, SourcePort, TargetNode, TargetPort, Metadata}) ->
 -spec start(#task_modes{}, #state{}) -> #state{}.
 start(ModeOpts=#task_modes{run_mode = RunMode, temporary = Temp, temp_ttl = TTL}, State=#state{graph = G}) ->
 
-   erlang:send_after(?METRICS_INTERVAL, self(), collect_metrics),
+%%   erlang:send_after(?METRICS_INTERVAL, self(), collect_metrics),
    Nodes0 = digraph:vertices(G),
    %% make nodes and subscriptions, start df_component-processes and start computing async
    NewState = make_start_nodes(Nodes0, ModeOpts, State),
