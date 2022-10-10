@@ -415,7 +415,7 @@ start_async(Nodes0, Subscriptions, RunMode, Id) ->
       fun(#node{id = NodeId, component = Comp, pid = NPid}) ->
          {Inputs, Subs} = proplists:get_value(NodeId, Subscriptions),
          df_subscription:save_subscriptions({Id, NodeId}, Subs),
-         node_metrics:setup(Id, NodeId, Comp),
+%%         node_metrics:setup(Id, NodeId, Comp),
          df_component:start_node(NPid, Inputs, RunMode)
       end,
       Mems),
@@ -423,7 +423,7 @@ start_async(Nodes0, Subscriptions, RunMode, Id) ->
       fun(#node{id = NodeId, component = Comp, pid = NPid}) ->
          {Inputs, Subs} = proplists:get_value(NodeId, Subscriptions),
          df_subscription:save_subscriptions({Id, NodeId}, Subs),
-         node_metrics:setup(Id, NodeId, Comp),
+%%         node_metrics:setup(Id, NodeId, Comp),
          df_component:start_async(NPid, Inputs, RunMode)
       end,
       Others),
