@@ -125,7 +125,11 @@ handle_info({read, Requests, [{_Intv, #faxe_timer{last_time = Ts}}] = SendTimers
           (Prev, Val) when is_list(Prev), is_list(Val) -> Prev++Val;
           (_, Val) -> Val
         end,
-      TheResult = mapz:deep_merge(MergeFun, FirstResult, RequestResults),
+      TheResult =
+        case mapz:deep_merge(MergeFun, FirstResult, RequestResults) of
+          R1 when is_map(R1) -> R1;
+          Nope -> lager:warning("could not read a valid result: ~p",[Nope]), #{}
+        end,
 
       maps:map(fun(ClientPid, Values) ->
         ClientPid ! {s7_data, Ts, Values}
