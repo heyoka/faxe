@@ -171,7 +171,7 @@ init({_, _NId}=NodeId, _Ins,
     optimized = Optimized,
     reader = case Native of true -> s7reader_native; false -> s7reader end
   },
-  lager:notice("State: ~p",[lager:pr(State, ?MODULE)]),
+%%  lager:notice("State: ~p",[lager:pr(State, ?MODULE)]),
 %%  %% connection
   connection_registry:reg(NodeId, Ip, Port, <<"s7">>),
   connection_registry:connecting(),
@@ -261,9 +261,9 @@ handle_info(poll, State=#state{as = Aliases, timer = Timer, byte_size = ByteSize
 %%  end,
   case Result of
     {ok, Res} ->
-      node_metrics:metric(?METRIC_READING_TIME, TMs, FlowIdNodeId),
-      node_metrics:metric(?METRIC_ITEMS_IN, 1, FlowIdNodeId),
-      node_metrics:metric(?METRIC_BYTES_READ, ByteSize, FlowIdNodeId),
+%%      node_metrics:metric(?METRIC_READING_TIME, TMs, FlowIdNodeId),
+%%      node_metrics:metric(?METRIC_ITEMS_IN, 1, FlowIdNodeId),
+%%      node_metrics:metric(?METRIC_BYTES_READ, ByteSize, FlowIdNodeId),
       {Ts, NewTimer} =
         case is_record(Timer, faxe_timer) of
           true -> {Timer#faxe_timer.last_time, faxe_time:timer_next(Timer)};
@@ -272,7 +272,7 @@ handle_info(poll, State=#state{as = Aliases, timer = Timer, byte_size = ByteSize
       NewState = State#state{timer = NewTimer, last_values = Res},
       maybe_emit(Diff, Ts, Res, Aliases, LastList, NewState);
     _Other ->
-      node_metrics:metric(?METRIC_ERRORS, 1, FlowIdNodeId),
+%%      node_metrics:metric(?METRIC_ERRORS, 1, FlowIdNodeId),
       lager:warning("Error reading S7 Vars: ~p", [_Other]),
       {ok, State#state{timer = faxe_time:timer_next(Timer)}}
   end;

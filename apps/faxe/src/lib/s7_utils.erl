@@ -101,7 +101,7 @@ build_addresses(Addresses, PDUSize) ->
   %% sort by starts
   ParamsSorted = lists:flatmap(fun({_Type, L}) -> sort_by_start(L) end, maps:to_list(NonBools)),
   %% find contiguous starts
-  {NewParts, {NewRestParts, NewRestAliases} = NonBoolRest} = find_contiguous(ParamsSorted, PDUSize),
+  {NewParts, {NewRestParts, _NewRestAliases} = NonBoolRest} = find_contiguous(ParamsSorted, PDUSize),
   %% merge rest from bool and non bools, if size would allow it
   AllRestParts = NewBoolRestParts++NewRestParts,
   All =

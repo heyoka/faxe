@@ -66,12 +66,8 @@ init([]) ->
             permanent, 5000, worker, []},
         {s7pool_sup,
             {s7pool_sup, start_link, []},
-            permanent, infinity, supervisor, [s7pool_sup]}
-%%        ,
-%%        {s7pool_sup_native,
-%%            {s7pool_sup_native, start_link, []},
-%%            permanent, infinity, supervisor, [s7pool_sup_native]}
-        ,
+            permanent, infinity, supervisor, [s7pool_sup]},
+
         {mqtt_pub_pool_sup,
             {mqtt_pub_pool_sup, start_link, []},
             permanent, infinity, supervisor, [mqtt_pub_pool_sup]}
@@ -80,10 +76,6 @@ init([]) ->
             {s7reader_sup, start_link, []},
             permanent, infinity, supervisor, [s7reader_sup]}
         ,
-%%        {s7reader_sup_native,
-%%            {s7reader_sup_native, start_link, []},
-%%            permanent, infinity, supervisor, [s7reader_sup]}
-%%        ,
         {initial_task_starter,
             {initial_task_starter, start_link, []},
             permanent, 5000, worker, []}

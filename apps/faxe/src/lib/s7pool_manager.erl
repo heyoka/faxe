@@ -9,7 +9,7 @@
 
 -behaviour(gen_server).
 
--export([start_link/0, connect/1, read_vars/2, get_pdu_size/1, connection_count/1, get_connection/1]).
+-export([start_link/0, connect/1, read_vars/2, get_pdu_size/1, connection_count/1, get_connection/1, get_clients/1]).
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2, terminate/2,
   code_change/3]).
 
@@ -62,11 +62,13 @@ connection_count(Ip) ->
 %%%===================================================================
 %%% get a connection from a pool
 %%%===================================================================
+
 get_connection(Key) ->
   Index = get_index(Key),
   get_connection(Key, Index).
 
-
+get_clients(Key) ->
+  gen_server:call(?SERVER, {get_clients, Key}).
 
 start_link() ->
   gen_server:start_link({local, ?SERVER}, ?MODULE, [], []).
@@ -75,6 +77,9 @@ init([]) ->
   erlang:process_flag(trap_exit, true),
   {ok, #state{}}.
 
+handle_call({get_clients, Key}, _From, State = #state{}) ->
+  PoolUsers = get_users(Key, State),
+  {reply, PoolUsers, State};
 handle_call(_Request, _From, State = #state{}) ->
   {reply, ok, State}.
 
@@ -196,11 +201,14 @@ do_remove_handler(HandlerPid, Ip, State = #state{pools_ips = Pools, ips_pools = 
   NewIps = maps:without([Ip], Ips),
   State#state{ips_pools = NewIps, pools_ips = NewPools}.
 
-inform_users(Ip, StateMsg, #state{pool_user = PoolUsers}) when is_map_key(Ip, PoolUsers) ->
-  UsersIp = maps:get(Ip, PoolUsers),
-  [U ! {StateMsg, Ip} || U <- sets:to_list(UsersIp)];
-inform_users(_Ip, _StateMsg, #state{}) ->
-  ok.
+inform_users(Ip, StateMsg, State = #state{}) ->
+  UsersIp = get_users(Ip, State),
+  [U ! {StateMsg, Ip} || U <- UsersIp].
+
+get_users(Ip, #state{pool_user = PoolUsers}) when is_map_key(Ip, PoolUsers) ->
+  sets:to_list(maps:get(Ip, PoolUsers));
+get_users(_Ip, #state{pool_user = _PoolUsers}) ->
+  [].
 
 add_user(Ip, AllUsers, NewUser) ->
   PoolUsers =
@@ -229,7 +237,7 @@ get_connection(Ip, Index) ->
   case ets:lookup(s7_pools, Ip) of
     [] -> {error, no_pool_found};
     [{Ip, []}] -> {error, no_connection_in_pool};
-    [{Ip, [Conn]}] -> {ok, Conn, 1};
+    [{Ip, [Conn]}] -> {ok, Conn};
     [{Ip, Connections}] ->
       NextI = next_index(Connections, Index),
       Worker = lists:nth(NextI, Connections),

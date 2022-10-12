@@ -51,7 +51,7 @@ handle_cast(_Request, State = #state{}) ->
   {noreply, State}.
 
 handle_info({s7_connected, Worker},
-    State = #state{pool = Pool, waiting_cons = Waiting, opts = #{ip := Ip}, initial_size = Initial}) ->
+    State = #state{pool = Pool, waiting_cons = Waiting, opts = #{ip := Ip}, initial_size = _Initial}) ->
 
   NewState =
   case lists:member(Worker, Waiting) of

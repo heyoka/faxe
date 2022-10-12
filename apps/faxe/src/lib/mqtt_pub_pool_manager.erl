@@ -9,7 +9,7 @@
 
 -behaviour(gen_server).
 
--export([start_link/0, connect/1, connection_count/1, get_connection/1, reset_counter/1, get_counter/1]).
+-export([start_link/0, connect/1, connection_count/1, get_connection/1, reset_counter/1, get_counter/1, get_clients/1]).
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2, terminate/2,
   code_change/3]).
 
@@ -45,6 +45,9 @@ get_connection(Key) ->
   Index = get_index(Key),
   get_connection(Key, Index).
 
+get_clients(Key) ->
+  gen_server:call(?SERVER, {get_clients, Key}).
+
 start_link() ->
   gen_server:start_link({local, ?SERVER}, ?MODULE, [], []).
 
@@ -60,6 +63,9 @@ handle_call({get_throughput, Key}, _From, State = #state{ips_pools = Pools}) ->
     _ -> gen_server:call(Handler, get_rate)
   end,
   {reply, Res, State};
+handle_call({get_clients, Key}, _From, State = #state{}) ->
+  PoolUsers = get_users(Key, State),
+  {reply, PoolUsers, State};
 handle_call(_Request, _From, State = #state{}) ->
   {reply, ok, State}.
 
@@ -175,11 +181,14 @@ do_remove_handler(HandlerPid, Ip, State = #state{pools_ips = Pools, ips_pools = 
   NewIps = maps:without([Ip], Ips),
   State#state{ips_pools = NewIps, pools_ips = NewPools}.
 
-inform_users(Ip, StateMsg, #state{pool_user = PoolUsers}) when is_map_key(Ip, PoolUsers) ->
-  UsersIp = maps:get(Ip, PoolUsers),
-  [U ! {StateMsg, Ip} || U <- sets:to_list(UsersIp)];
-inform_users(_Ip, _StateMsg, #state{}) ->
-  ok.
+inform_users(Ip, StateMsg, State = #state{pool_user = _PoolUsers}) ->
+  UsersIp = get_users(Ip, State),
+  [U ! {StateMsg, Ip} || U <- UsersIp].
+
+get_users(Ip, #state{pool_user = PoolUsers}) when is_map_key(Ip, PoolUsers) ->
+  sets:to_list(maps:get(Ip, PoolUsers));
+get_users(_Ip, #state{pool_user = _PoolUsers}) ->
+  [].
 
 add_user(Ip, AllUsers, NewUser) ->
   PoolUsers =

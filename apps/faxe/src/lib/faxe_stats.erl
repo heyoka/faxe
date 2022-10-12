@@ -68,12 +68,15 @@ handle_call(get, _From, State=#state{stats = Stats}) ->
    MQTTPools = lists:map(
       fun({Key, Conns}) ->
          {ok, Throughout} = gen_server:call(mqtt_pub_pool_manager, {get_throughput, Key}),
+         Clients = mqtt_pub_pool_manager:get_clients(Key),
          #{<<"peer">> => faxe_util:to_bin(Key), <<"num_connections">> => length(Conns),
-            <<"throughput">> => Throughout} end,
+            <<"throughput">> => Throughout, <<"clients">> => length(Clients)} end,
       ets:tab2list(mqtt_pub_pools)),
    S7Pools = lists:map(
       fun({Key1, Conns1}) ->
-         #{<<"peer">> => faxe_util:to_bin(Key1), <<"num_connections">> => length(Conns1)} end,
+         S7Clients = s7pool_manager:get_clients(Key1),
+         #{<<"peer">> => faxe_util:to_bin(Key1), <<"num_connections">> => length(Conns1),
+            <<"clients">> => length(S7Clients)} end,
       ets:tab2list(s7_pools)),
    {reply, Stats#{<<"mqtt_pub_pools">> => MQTTPools, <<"s7_pools">> => S7Pools}, State};
 handle_call(_Request, _From, State) ->
