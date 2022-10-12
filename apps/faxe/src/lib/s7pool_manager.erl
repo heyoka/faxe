@@ -93,7 +93,7 @@ handle_info({ensure_pool, #{ip := Ip} = Opts, User},
   erlang:monitor(process, User),
   NewPUsers = add_user(Ip, PUsers, User),
   IpDemand = check_demand(Ip, NewPUsers),
-  lager:info("Demand for IP ~p is ~p",[Ip, IpDemand]),
+%%  lager:info("Demand for IP ~p is ~p",[Ip, IpDemand]),
   {NewState, PoolHandler} =
   case maps:is_key(Ip, Ips) of
     true ->

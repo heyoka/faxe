@@ -472,7 +472,7 @@ do_start_task(T = #task{name = Name, definition = GraphDef},
 %%               flow_changed({task, Name, start}),
                Res
          catch
-            _:E = E ->
+            _:_ = E ->
                lager:error("graph_start_error: ~p",[E]),
                {error, {graph_start_error, E}}
          end;

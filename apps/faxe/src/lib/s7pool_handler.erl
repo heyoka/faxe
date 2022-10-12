@@ -87,6 +87,7 @@ handle_info({s7_disconnected, Worker},
 %%  end,
   {noreply, NewState};
 handle_info({demand, Num}, State = #state{pool = Pool, waiting_cons = Waiting, max_size = MAX}) ->
+%%  lager:warning("~p DEMAND: ~p",[?MODULE, Num]),
   Size = length(Pool) + length(Waiting),
   case Num of
     0 ->
