@@ -357,7 +357,9 @@ emit_results([FirstResult|RequestResults], Ts) ->
   TheResult =
     case (catch mapz:deep_merge(MergeFun, FirstResult, RequestResults)) of
       R1 when is_map(R1) -> R1;
-      Nope -> lager:warning("could not read a valid result: ~p",[Nope]), #{}
+      Nope ->
+        lager:warning("could not read a valid result: ~p",[Nope]),
+        #{}
     end,
 
   maps:map(fun(ClientPid, Values) ->

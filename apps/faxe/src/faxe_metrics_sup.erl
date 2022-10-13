@@ -15,10 +15,7 @@ start_link() ->
 
 init([]) ->
   P = [
-    {connection_registry,
-      {connection_registry, start_link, []},
-      permanent, 5000, worker, []}
-    ,
+
     {rest_audit_server,
       {rest_audit_server, start_link, []},
       permanent, 5000, worker, []}

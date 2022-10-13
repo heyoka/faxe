@@ -32,6 +32,12 @@ init([]) ->
 %%        {faxe_peer_manager,
 %%            {faxe_peer_manager, start_link, []},
 %%            permanent, 5000, worker, []},
+
+        {connection_registry,
+            {connection_registry, start_link, []},
+            permanent, 5000, worker, []}
+        ,
+
         {faxe_time_offset_monitor,
             {faxe_time_offset_monitor, start_link, []},
             permanent, 5000, worker, []},
