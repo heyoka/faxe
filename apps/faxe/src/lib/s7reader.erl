@@ -101,42 +101,11 @@ handle_cast(_Request, State = #state{}) ->
 
 handle_info({read, Requests, [{_Intv, #faxe_timer{last_time = Ts}}] = SendTimers},
     State=#state{slot_timers = SlotTimers, conn_opts = Opts, s7_ip = Ip}) ->
-%%  lager:warning("read ~p requests ", [length(Requests)]),
-  ElFun =
-    fun({Vars, Aliases}) ->
-      case s7pool_manager:read_vars(Opts, Vars) of
-        {ok, Res} -> handle_result(Res, Aliases);
-        _ -> []
-      end
-    end,
-  RunWith = s7pool_manager:connection_count(Ip),
-%%  lager:notice("s7reader:read - connection count is ~p",[RunWith]),
-  case RunWith > 0 of
-    true ->
-      %%    1,%faxe_config:get(s7pool_max_size, 2),
-      {Time, [FirstResult |RequestResults]} = timer:tc(plists, map, [ElFun, Requests, {processes, RunWith}]),
-%%  {Time, [FirstResult |RequestResults]} = timer:tc(lists, map, [ElFun, Requests]),
 
-      lager:notice("Time to read ~p requests: ~p millis with ~p processes/connections",
-        [length(Requests), erlang:round(Time/1000), RunWith]),
-      MergeFun =
-        fun
-          (Prev, Val) when is_map(Prev), is_map(Val) -> maps:merge(Prev, Val);
-          (Prev, Val) when is_list(Prev), is_list(Val) -> Prev++Val;
-          (_, Val) -> Val
-        end,
-      TheResult =
-        case (catch mapz:deep_merge(MergeFun, FirstResult, RequestResults)) of
-          R1 when is_map(R1) -> R1;
-          Nope -> lager:warning("could not read a valid result: ~p",[Nope]), #{}
-        end,
-
-      maps:map(fun(ClientPid, Values) ->
-        ClientPid ! {s7_data, Ts, Values}
-               end, TheResult);
-    false ->
-      lager:warning("~p no connections available!",[?MODULE]),
-      ok
+  %% read
+  case read(Requests, Opts, Ip) of
+    {true, ReadResults} -> emit_results(ReadResults, Ts);
+    _ -> ok
   end,
 
   %% progress timers used
@@ -350,6 +319,50 @@ remove_client(Client, State = #state{current_addresses = AddressSlots, slot_time
       {AddressSlots, STimers}
   end,
   State#state{current_addresses = NewAddressSlots, slot_timers = SlotTimers, request_cache = #{}}.
+
+
+read(Requests, Opts, Ip) ->
+  RunWith = s7pool_manager:connection_count(Ip),
+  case RunWith > 0 of
+    true -> do_read(Requests, Opts, RunWith);
+    false -> lager:warning("~p no connection when trying to read vars", [?MODULE]), {error, no_connection}
+  end.
+
+do_read(Requests, Opts, RunWith) ->
+  ElFun =
+    fun
+      ({Vars, Aliases}, {true, Results}) ->
+        case s7pool_manager:read_vars(Opts, Vars) of
+          {ok, Res} ->
+            {true, [handle_result(Res, Aliases)|Results]};
+          Other ->
+            lager:warning("Not ok when reading vars: ~p",[Other]),
+            {false, Results}
+        end;
+      ({_Vars, _Aliases}, {false, _} = R) ->
+        R
+    end,
+  {Time, ReadResult} = timer:tc(plists, fold, [ElFun, {true, []}, Requests, {processes, RunWith}]),
+  lager:notice("Time to read ~p requests: ~p millis with ~p processes/connections",
+    [length(Requests), erlang:round(Time/1000), RunWith]),
+  ReadResult.
+
+emit_results([FirstResult|RequestResults], Ts) ->
+  MergeFun =
+    fun
+      (Prev, Val) when is_map(Prev), is_map(Val) -> maps:merge(Prev, Val);
+      (Prev, Val) when is_list(Prev), is_list(Val) -> Prev++Val;
+      (_, Val) -> Val
+    end,
+  TheResult =
+    case (catch mapz:deep_merge(MergeFun, FirstResult, RequestResults)) of
+      R1 when is_map(R1) -> R1;
+      Nope -> lager:warning("could not read a valid result: ~p",[Nope]), #{}
+    end,
+
+  maps:map(fun(ClientPid, Values) ->
+    ClientPid ! {s7_data, Ts, Values}
+           end, TheResult).
 
 %%% handle results  -->
 handle_result(ResultList, AliasesList) when is_list(ResultList), is_list(AliasesList) ->

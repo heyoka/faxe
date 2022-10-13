@@ -17,7 +17,7 @@
 -define(S7_FUNCTION_HEADER_BYTES, 12).
 -define(S7_HEADER_BYTES, ?S7_HEADER_LENGTH_BYTES+?S7_FUNCTION_HEADER_BYTES).
 -define(S7_VAR_OVERHEAD_BYTES, 12).
--define(S7_MAX_REQUEST_VARS, 19).
+-define(S7_MAX_REQUEST_VARS, 18).
 
 
 add_client_addresses(Client, Addresses, CurrentAddresses) ->
