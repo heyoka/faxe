@@ -16,7 +16,7 @@
 
 -define(SERVER, ?MODULE).
 -define(START_WAIT_TIME, 15).
--define(EMPTY_WAIT_TIME, 300).
+-define(EMPTY_WAIT_TIME, 200).
 
 -record(state, {
   queue :: queue:queue(),
@@ -62,7 +62,7 @@ handle_info(check_queue, State = #state{queue = Q, start_count = Count}) ->
       end,
       State#state{queue = NewQ, timer = check_queue(?EMPTY_WAIT_TIME), start_count = Count+1}
   end,
-  lager:notice("started ~p flows so far",[NewState#state.start_count]),
+%%  lager:notice("started ~p flows so far",[NewState#state.start_count]),
   {noreply, NewState};
 handle_info({start_graph, _Graph, _StartMode = #task_modes{}} = Req, State = #state{queue = Q, timer = Timer}) ->
   catch erlang:cancel_timer(Timer),
