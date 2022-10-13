@@ -37,7 +37,8 @@
    module_state,
    as :: binary(),
    keep :: list(),
-   default_ts :: non_neg_integer()
+   default_ts :: non_neg_integer(),
+   last_point = undefined :: undefined | #data_point{}
 }).
 
 options() -> [
