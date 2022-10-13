@@ -79,7 +79,7 @@ handle_info({ensure_pool, #{host := Ip} = Opts, User},
   erlang:monitor(process, User),
   NewPUsers = add_user(Ip, PUsers, User),
 %%  lager:info("Demand for IP ~p is ~p",[Ip, IpDemand]),
-  {NewState, PoolHandler} =
+  {NewState, _PoolHandler} =
   case maps:is_key(Ip, Ips) of
     true ->
       {State, maps:get(Ip, Ips)};
@@ -156,7 +156,7 @@ handle_info({'DOWN', _Mon, process, Pid, _Info}, State = #state{pool_user =  Poo
       lager:warning("no pool handler found for ~p",[Ip])
   end,
   {noreply, State#state{pool_user = NewPoolUsers}};
-handle_info(Req, State) ->
+handle_info(_Req, State) ->
 %%  lager:warning("Unhandled Request : ~p",[Req]),
   {noreply, State}.
 
@@ -232,7 +232,7 @@ get_connection(Key, Index) ->
     [{Key, []}] -> {error, no_connection_in_pool};
     [{Key, [Conn]}] -> {ok, Conn};
     [{Key, Connections}] ->
-      NextI = next_index(Connections, Index),
+      NextI = next_index(length(Connections), Index),
       Worker = lists:nth(NextI, Connections),
       ets:insert(mqtt_pub_pools_index, {Key, NextI}),
 %%      lager:info("~p found ~p connections, current ~p",[?MODULE, length(Connections), Worker]),
@@ -245,8 +245,8 @@ get_index(Key) ->
     [{Key, Index}] -> Index
   end.
 
-next_index(L, I) when I > length(L) -> length(L);
-next_index(L, I) when I == length(L) -> 1;
+next_index(L, I) when I > L -> L;
+next_index(L, I) when I == L -> 1;
 next_index(_L, I) -> I + 1.
 
 %%% request counter

@@ -249,12 +249,12 @@ handle_info({s7_disconnected, _Client}, State = #state{timer = Timer}) ->
   {ok, State#state{timer = NewTimer, connected = false}};
 handle_info(poll, State = #state{connected = false}) ->
   {ok, State};
-handle_info(poll, State=#state{as = Aliases, timer = Timer, byte_size = ByteSize,
-      diff = Diff, last_values = LastList, node_id = FlowIdNodeId}) ->
+handle_info(poll, State=#state{as = Aliases, timer = Timer, byte_size = _ByteSize,
+      diff = Diff, last_values = LastList, node_id = _FlowIdNodeId}) ->
 
-  TStart = erlang:monotonic_time(microsecond),
+%%  TStart = erlang:monotonic_time(microsecond),
   Result = read_vars(State),
-  TMs = round((erlang:monotonic_time(microsecond)-TStart)/1000),
+%%  TMs = round((erlang:monotonic_time(microsecond)-TStart)/1000),
 %%  case Timer /= undefined andalso TMs > Timer#faxe_timer.interval of
 %%    true -> lager:notice("[~p] Time to read: ~p ms",[self(), TMs]);
 %%    false -> ok
@@ -278,12 +278,12 @@ handle_info(poll, State=#state{as = Aliases, timer = Timer, byte_size = ByteSize
   end;
 handle_info({s7_data, Ts, DataList}, State = #state{diff = Diff, last_values = LastPoint, as_list = As}) ->
 %%  lager:notice("got data: ~p",[DataList]),
-  lager:info("requested ~p items, got ~p :: reader: ~p",[length(As), length(DataList), State#state.reader]),
-  Missing = lists:filter(fun(AsE) -> not proplists:is_defined(AsE, DataList) end, As),
-  case Missing of
-    [] -> ok;
-    _ -> lager:info("~p data items missing ~p",[length(Missing), Missing])
-  end,
+%%  lager:info("requested ~p items, got ~p :: reader: ~p",[length(As), length(DataList), State#state.reader]),
+%%  Missing = lists:filter(fun(AsE) -> not proplists:is_defined(AsE, DataList) end, As),
+%%  case Missing of
+%%    [] -> ok;
+%%    _ -> lager:notice("~p data items missing ~p",[length(Missing), Missing])
+%%  end,
   NewPoint = #data_point{fields = NewFields} = flowdata:set_fields(#data_point{ts = Ts}, DataList),
   NewState = State#state{last_values = #data_point{fields = NewFields}},
 %%  lager:warning("got s7 data and built point: ~p",[lager:pr(NewPoint, ?MODULE)]),

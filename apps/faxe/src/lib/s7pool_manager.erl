@@ -252,6 +252,6 @@ get_index(Key) ->
     [{Key, Index}] -> Index
   end.
 
-next_index(L, I, Len) when I > Len -> Len;
-next_index(L, I, Len) when I == Len -> 1;
+next_index(_L, I, Len) when I > Len -> Len;
+next_index(_L, I, Len) when I == Len -> 1;
 next_index(_L, I, _Len) -> I + 1.

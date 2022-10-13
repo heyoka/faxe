@@ -151,7 +151,7 @@ handle_info({s7_connected, _Client}=M,
         lager:notice("getting pdu size failed: ~p", [_O]),
         {InitialPDUSize, true}
     end,
-  lager:notice("pdu size is ~p bytes",[PduSize]),
+%%  lager:notice("pdu size is ~p bytes",[PduSize]),
   send_all_clients(M, State),
   %% clear the cache, if pdu size changed
   NewCache =
@@ -194,7 +194,7 @@ send_all_clients(Msg, S=#state{}) ->
   lists:foreach(fun({ClientPid, _, _}) -> ClientPid ! Msg end, get_clients(S)).
 
 maybe_next(State = #state{connected = false}) ->
-  lager:notice("maybe_next when not connected"),
+%%  lager:notice("maybe_next when not connected"),
   {noreply, State};
 maybe_next(State = #state{busy = true}) ->
   {noreply, State};
@@ -259,7 +259,7 @@ get_requests(IntervalList, S = #state{current_addresses = Slots}) ->
   build_requests(IntervalList, Addresses, S).
 
 build_requests(IntervalList, Addresses, S=#state{pdu_size = PDUSize, request_cache = Cache}) ->
-  {T, BuiltRequests} = timer:tc(s7_utils, build_addresses, [Addresses, PDUSize]),
+  {_T, BuiltRequests} = timer:tc(s7_utils, build_addresses, [Addresses, PDUSize]),
   {BuiltRequests, S#state{request_cache = Cache#{IntervalList => BuiltRequests}, cache_pdu_size = PDUSize}}.
 
 
@@ -405,8 +405,7 @@ bld(Res, {As, [DType|_]}) ->
   DataList = decode(DType, Res),
   {As, DataList};
 %% bits from bytes
-bld(Res, {As, _, Bits}=T) ->
-%%  lager:notice("~p bld bool: ~p, ~p",[?MODULE, Res, T]),
+bld(Res, {As, _, Bits}) ->
   DataList = decode(bool_byte, Res),
   BitList = [lists:nth(Bit+1, DataList) || Bit <- Bits],
   {As, BitList}.

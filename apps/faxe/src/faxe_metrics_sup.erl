@@ -16,6 +16,10 @@ start_link() ->
 init([]) ->
   P = [
 
+    {event_handler_starter,
+      {event_handler_starter, start_link, []},
+      transient, 2000, worker, []},
+
     {rest_audit_server,
       {rest_audit_server, start_link, []},
       permanent, 5000, worker, []}

@@ -318,7 +318,6 @@ do_query(State = #state{client = C, period = Period, query_mark = QueryMark, res
 %%   lager:notice("from: ~p, to :~p (~p sec)",
 %%      [faxe_time:to_iso8601(QueryMark-Period), faxe_time:to_iso8601(QueryMark), round(Period/1000)]),
    Result = faxe_epgsql_response:handle(Resp, RespDef#faxe_epgsql_response{default_timestamp = FromTs}),
-%%   lager:notice("result: ~p",[Result]),
    case Result of
       ok ->
          {ok, NewState};

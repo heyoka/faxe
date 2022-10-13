@@ -14,9 +14,10 @@
 
 install() ->
   install_handlers(debug),
-  install_handlers(conn_status),
-  install_handlers(metrics),
-  install_handlers(flow_changed).
+  install_handlers(conn_status).
+%%,
+%%  install_handlers(metrics),
+%%  install_handlers(flow_changed).
 
 install_handlers(Key) ->
   Handlers = get_enabled(Key, handler),

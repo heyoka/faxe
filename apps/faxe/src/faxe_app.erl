@@ -43,7 +43,6 @@ start(_StartType, _StartArgs) ->
    ),
    %% start top supervisor
    Res = faxe_sup:start_link(),
-   faxe_event_handlers:install(),
    print_started(HttpPort),
    Res.
 

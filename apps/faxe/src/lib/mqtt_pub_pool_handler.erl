@@ -144,9 +144,8 @@ handle_info({'EXIT', Pid, Why}, State = #state{pool = Pool, waiting_cons = Waiti
   update_pool(NewState),
   {noreply, NewState}.
 
-terminate(_Reason, State = #state{pool = P, waiting_cons = Waiting}) ->
+terminate(_Reason, State = #state{}) ->
   remove_all(State).
-%%  [stop_worker(Con) || Con <- P ++ Waiting].
 
 code_change(_OldVsn, State = #state{}, _Extra) ->
   {ok, State}.
