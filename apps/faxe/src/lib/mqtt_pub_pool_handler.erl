@@ -108,7 +108,7 @@ handle_info({mqtt_connected, Worker},
     false ->
       State#state{pool = Pool ++ [Worker]}
   end,
-  update_ets(NewState),
+  update_pool(NewState),
   case length(NewState#state.pool) > 0 of
     true -> mqtt_pub_pool_manager ! {up, Ip};
     false -> ok
@@ -127,7 +127,7 @@ handle_info({mqtt_disconnected, Worker}, State = #state{pool = Pool, waiting_con
       end
   end,
   NewState = State#state{pool = lists:delete(Worker, Pool), waiting_cons = NewWaiting},
-  update_ets(NewState),
+  update_pool(NewState),
   {noreply, NewState};
 handle_info({'DOWN', _, process, _, _}, State = #state{pool = _Pool}) ->
   {noreply, State#state{}};
@@ -141,7 +141,7 @@ handle_info({'EXIT', Pid, Why}, State = #state{pool = Pool, waiting_cons = Waiti
       add_worker(State#state{pool = NewPool0, waiting_cons = NewWaiting});
     false -> State
   end,
-  update_ets(NewState),
+  update_pool(NewState),
   {noreply, NewState}.
 
 terminate(_Reason, State = #state{pool = P, waiting_cons = Waiting}) ->
@@ -161,7 +161,7 @@ get_rate(Key) ->
 add_worker(State = #state{waiting_cons = Waiting, opts = Opts0}) ->
   %% set a client-id
   Id = faxe_util:to_bin(faxe_util:uuid_string()),
-  Opts = Opts0#{client_id => <<"mqtt_pool_", Id/binary>>},
+  Opts = Opts0#{client_id => <<"faxe_mqtt_pool_", Id/binary>>},
   {ok, Con} = mqtt_publisher:start_link(Opts),
   State#state{waiting_cons = Waiting ++ [Con]}.
 
@@ -178,7 +178,7 @@ remove_worker(State = #state{pool = []}) ->
 remove_worker(State = #state{pool = [Oldest|Pool]}) ->
 %%  lager:info("[~p] remove_worker: ~p",[?MODULE, Oldest]),
   stop_worker(Oldest),
-  update_ets(State#state{pool = Pool}),
+  update_pool(State#state{pool = Pool}),
   State#state{pool = Pool}.
 
 remove_workers(0, State) ->
@@ -193,7 +193,7 @@ remove_all(State) ->
   S = remove_worker(State),
   remove_all(S).
 
-update_ets(#state{opts = #{host := Ip}, pool = Pool}) ->
+update_pool(#state{opts = #{host := Ip}, pool = Pool}) ->
   case Pool of
     [] -> mqtt_pub_pool_manager ! {down, Ip};
     _ -> ok

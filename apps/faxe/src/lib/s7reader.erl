@@ -126,7 +126,7 @@ handle_info({read, Requests, [{_Intv, #faxe_timer{last_time = Ts}}] = SendTimers
           (_, Val) -> Val
         end,
       TheResult =
-        case mapz:deep_merge(MergeFun, FirstResult, RequestResults) of
+        case (catch mapz:deep_merge(MergeFun, FirstResult, RequestResults)) of
           R1 when is_map(R1) -> R1;
           Nope -> lager:warning("could not read a valid result: ~p",[Nope]), #{}
         end,
@@ -232,7 +232,7 @@ maybe_next(State = #state{busy = true}) ->
 maybe_next(State = #state{current_addresses = Slots}) when map_size(Slots) == 0 ->
   erlang:send_after(?EMPTY_RETRY_INTERVAL, self(), try_read),
   {noreply, State#state{busy = false}};
-maybe_next(State = #state{busy = false, current_addresses = Slots}) ->
+maybe_next(State = #state{current_addresses = Slots}) ->
   NewSlotTimers = check_slot_timers(Slots, State#state.slot_timers),
   [{_I, #faxe_timer{last_time = At}}|_] = ReadIntervals = next_read(NewSlotTimers),
 %%  lager:notice("NEXT~n SlotTimers:~p~n read-intervals: ~p",[NewSlotTimers, ReadIntervals]),

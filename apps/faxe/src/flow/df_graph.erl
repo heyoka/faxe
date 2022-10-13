@@ -50,22 +50,25 @@
 }).
 
 -record(state, {
-   id                   :: non_neg_integer() | string(),
-   running  = false     :: true | false,
-   started  = false     :: true | false,
+   id                      :: non_neg_integer() | string(),
+   running  = false        :: true | false,
+   started  = false        :: true | false,
    graph    = nil,
-   start_mode = undefined :: #task_modes{},
-   timeout_ref          :: reference(),
-   debug_timeout_ref    :: reference(),
-   metrics_timeout_ref  :: reference(),
-   nodes    = []        :: list(tuple()),
-   subgraphs = #{}      :: #{RootNodeName :: binary() => #subgraph{}}
+   start_mode = undefined  :: #task_modes{},
+   timeout_ref             :: reference(),
+   debug_timeout_ref       :: reference(),
+   metrics_timeout_ref     :: reference(),
+   nodes    = []           :: list(tuple()),
+   nodes_ext_conn = []     :: list(tuple()),
+   subgraphs = #{}         :: #{RootNodeName :: binary() => #subgraph{}}
 }).
 
 %% node metrics collection interval in ms
 -define(METRICS_INTERVAL, 5000).
 -define(TRACE_TIMEOUT, 120 * 1000).
+%% start timeout
 -define(START_GRAPH_TIMEOUT, 7000).
+
 %%%===================================================================
 %%% API
 %%%===================================================================

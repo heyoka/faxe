@@ -60,7 +60,7 @@ handle_info({s7_connected, Worker},
     false ->
       State#state{pool = Pool ++ [Worker]}
   end,
-  update_ets(NewState),
+  update_pool(NewState),
   case length(NewState#state.pool) > 0 of
     true -> s7pool_manager ! {up, Ip};
     false -> ok
@@ -80,7 +80,7 @@ handle_info({s7_disconnected, Worker},
       end
   end,
   NewState = State#state{pool = lists:delete(Worker, Pool), waiting_cons = NewWaiting},
-  update_ets(NewState),
+  update_pool(NewState),
 %%  case length(NewState#state.pool) == 0 of
 %%    true -> s7pool_manager ! {down, Ip};
 %%    false -> ok
@@ -116,7 +116,7 @@ handle_info({'EXIT', Pid, Why}, State = #state{pool = Pool, waiting_cons = Waiti
       add_worker(State#state{pool = NewPool0, waiting_cons = NewWaiting});
     false -> State
   end,
-  update_ets(NewState),
+  update_pool(NewState),
   {noreply, NewState}.
 
 terminate(_Reason, _State = #state{pool = P, waiting_cons = Waiting}) ->
@@ -139,7 +139,7 @@ remove_worker(State = #state{pool = []}) ->
 remove_worker(State = #state{pool = [Oldest|Pool]}) ->
 %%  lager:info("[~p] remove_worker: ~p",[?MODULE, Oldest]),
   stop_worker(Oldest),
-  update_ets(State#state{pool = Pool}),
+  update_pool(State#state{pool = Pool}),
   State#state{pool = Pool}.
 
 remove_all(State = #state{pool = []}) ->
@@ -148,7 +148,7 @@ remove_all(State) ->
   S = remove_worker(State),
   remove_all(S).
 
-update_ets(#state{opts = #{ip := Ip}, pool = Pool}) ->
+update_pool(#state{opts = #{ip := Ip}, pool = Pool}) ->
   case Pool of
     [] -> s7pool_manager ! {down, Ip};
     _ -> ok

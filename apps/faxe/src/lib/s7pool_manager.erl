@@ -239,7 +239,7 @@ get_connection(Ip, Index) ->
     [{Ip, []}] -> {error, no_connection_in_pool};
     [{Ip, [Conn]}] -> {ok, Conn};
     [{Ip, Connections}] ->
-      NextI = next_index(Connections, Index),
+      NextI = next_index(Connections, Index, length(Connections)),
       Worker = lists:nth(NextI, Connections),
       ets:insert(s7_pools_index, {Ip, NextI}),
 %%      lager:info("~p found ~p connections, current ~p",[?MODULE, length(Connections), Worker]),
@@ -252,6 +252,6 @@ get_index(Key) ->
     [{Key, Index}] -> Index
   end.
 
-next_index(L, I) when I > length(L) -> length(L);
-next_index(L, I) when I == length(L) -> 1;
-next_index(_L, I) -> I + 1.
+next_index(L, I, Len) when I > Len -> Len;
+next_index(L, I, Len) when I == Len -> 1;
+next_index(_L, I, _Len) -> I + 1.
