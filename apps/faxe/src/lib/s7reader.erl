@@ -99,7 +99,9 @@ handle_cast(_Request, State = #state{}) ->
   {noreply, State}.
 
 
-handle_info({read, Requests, [{_Intv, #faxe_timer{last_time = Ts}}] = SendTimers},
+%% command for reading the next timeslot, for the result, we just use the timestamp of the first
+%% timer in the timer-list, they all are the same anyway
+handle_info({read, Requests, [{_Intv, #faxe_timer{last_time = Ts}}|_] = SendTimers},
     State=#state{slot_timers = SlotTimers, conn_opts = Opts, s7_ip = Ip}) ->
 
   %% read
