@@ -35,8 +35,7 @@ start_link() ->
   gen_server:start_link({local, ?SERVER}, ?MODULE, [], []).
 
 init([]) ->
-  check_queue(?START_WAIT_TIME),
-  {ok, #state{queue = queue:new()}}.
+  {ok, #state{queue = queue:new(), timer = check_queue(?START_WAIT_TIME)}}.
 
 handle_call(_Request, _From, State = #state{}) ->
   {reply, ok, State}.
@@ -54,21 +53,22 @@ handle_info(check_queue, State = #state{queue = Q, start_count = Count}) ->
     false ->
       NewQ =
       case queue:out(Q) of
-        {{value, {start_graph, Graph, StartMode}}, Q1} ->
-          df_graph:start_graph(Graph, StartMode),
+        {{value, {start_graph, Task = #task{name = _Name}, StartMode}}, Q1} ->
+          do_start(Task, StartMode),
+%%          df_graph:start_graph(Graph, StartMode),
           Q1;
         _ ->
           Q
       end,
-      State#state{queue = NewQ, timer = check_queue(?EMPTY_WAIT_TIME), start_count = Count+1}
+      State#state{queue = NewQ, timer = check_queue(?START_WAIT_TIME), start_count = Count+1}
   end,
 %%  lager:notice("started ~p flows so far",[NewState#state.start_count]),
   {noreply, NewState};
-handle_info({start_graph, _Graph, _StartMode = #task_modes{}} = Req, State = #state{queue = Q, timer = Timer}) ->
-  catch erlang:cancel_timer(Timer),
-  NewTimer = check_queue(?START_WAIT_TIME),
+handle_info({start_graph, _Task = #{}, _StartMode = #task_modes{}} = Req, State = #state{queue = Q}) ->
   NewQ = queue:in(Req, Q),
-  {noreply, State#state{queue = NewQ, timer = NewTimer}}.
+  {noreply, State#state{queue = NewQ}};
+handle_info(_What, State) ->
+  {noreply, State}.
 
 terminate(_Reason, _State = #state{}) ->
   ok.
@@ -81,3 +81,29 @@ code_change(_OldVsn, State = #state{}, _Extra) ->
 %%%===================================================================
 check_queue(Timeout) ->
   erlang:send_after(Timeout, self(), check_queue).
+
+do_start(T = #task{name = Name, definition = GraphDef},
+    #task_modes{concurrency = Concurrency, permanent = Perm} = Mode) ->
+  case graph_sup:new(Name, GraphDef) of
+    {ok, Graph} ->
+      try df_graph:start_graph(Graph, Mode) of
+        _ ->
+          faxe_db:save_task(T#task{pid = Graph, last_start = faxe_time:now_date(), permanent = Perm}),
+          Res =
+            case Concurrency of
+              1 -> {ok, Graph};
+              Num when Num > 1 ->
+                faxe:start_concurrent(T, Mode),
+                {ok, Graph}
+            end,
+%%               flow_changed({task, Name, start}),
+          Res
+      catch
+        _:_ = E ->
+          lager:error("graph_start_error ~p: ~p", [Name, E]),
+          {error, {graph_start_error, E}}
+      end;
+    {error, {already_started, _Pid}} ->
+      lager:notice("task already started: ~p", [Name]),
+      {error, already_started}
+  end.

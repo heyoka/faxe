@@ -63,7 +63,9 @@
    update_by_template/2, start_metrics_trace/2, stop_metrics_trace/1,
    reset_tasks/0,
    reset_templates/0,
-   stop_all/0, do_start_task/2]).
+   stop_all/0
+%%   , do_start_task/2
+]).
 
 start_permanent_tasks() ->
    Tasks = faxe_db:get_permanent_tasks(),
@@ -447,7 +449,7 @@ start_task(TaskId) ->
 start_task(TaskId, #task_modes{run_mode = _RunMode} = Mode) ->
    case faxe_db:get_task(TaskId) of
       {error, not_found} -> {error, task_not_found};
-      T = #task{} -> do_start_task(T, Mode)
+      T = #task{} -> graph_starter:start_graph(T, Mode), {ok, enqueued_to_start}
    end;
 start_task(TaskId, Permanent) when Permanent == true orelse Permanent == false ->
    start_task(TaskId, push, Permanent).
@@ -455,29 +457,29 @@ start_task(TaskId, Permanent) when Permanent == true orelse Permanent == false -
 start_task(TaskId, GraphRunMode, Permanent) ->
    start_task(TaskId, #task_modes{run_mode = GraphRunMode, permanent = Permanent}).
 
-do_start_task(T = #task{name = Name, definition = GraphDef},
-    #task_modes{concurrency = Concurrency, permanent = Perm} = Mode) ->
-   case dataflow:create_graph(Name, GraphDef) of
-      {ok, Graph} ->
-         try dataflow:start_graph(Graph, Mode) of
-            _ ->
-               faxe_db:save_task(T#task{pid = Graph, last_start = faxe_time:now_date(), permanent = Perm}),
-               Res =
-               case Concurrency of
-                  1 -> {ok, Graph};
-                  Num when Num > 1 ->
-                     start_concurrent(T, Mode),
-                     {ok, Graph}
-               end,
-%%               flow_changed({task, Name, start}),
-               Res
-         catch
-            _:_ = E ->
-               lager:error("graph_start_error: ~p",[E]),
-               {error, {graph_start_error, E}}
-         end;
-      {error, {already_started, _Pid}} -> {error, already_started}
-   end.
+%%do_start_task(T = #task{name = Name, definition = GraphDef},
+%%    #task_modes{concurrency = Concurrency, permanent = Perm} = Mode) ->
+%%   case dataflow:create_graph(Name, GraphDef) of
+%%      {ok, Graph} ->
+%%         try dataflow:start_graph(Graph, Mode) of
+%%            _ ->
+%%               faxe_db:save_task(T#task{pid = Graph, last_start = faxe_time:now_date(), permanent = Perm}),
+%%               Res =
+%%               case Concurrency of
+%%                  1 -> {ok, Graph};
+%%                  Num when Num > 1 ->
+%%                     start_concurrent(T, Mode),
+%%                     {ok, Graph}
+%%               end,
+%%%%               flow_changed({task, Name, start}),
+%%               Res
+%%         catch
+%%            _:_ = E ->
+%%               lager:error("graph_start_error: ~p",[E]),
+%%               {error, {graph_start_error, E}}
+%%         end;
+%%      {error, {already_started, _Pid}} -> {error, already_started}
+%%   end.
 
 start_concurrent(Task = #task{}, #task_modes{concurrency = Con} = Mode) ->
    F = fun(Num) -> start_copy(Task, Mode, Num) end,
@@ -505,7 +507,7 @@ start_copy(Task = #task{definition = GraphDef, name = TName}, #task_modes{perman
                end;
             {error, What} -> {error, What}
          end;
-      T = #task{} -> do_start_task(T#task{group_leader = false, group = TName}, Mode#task_modes{concurrency = 1})
+      T = #task{} -> graph_starter:start_graph(T#task{group_leader = false, group = TName}, Mode#task_modes{concurrency = 1})
    end
    .
 

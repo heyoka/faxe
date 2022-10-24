@@ -52,9 +52,13 @@ start:
 	_build/dev1/rel/faxe/bin/faxe console
 
 dev2:
+	export QUIET=1 && \
+	export FAXE_HTTP_API_PORT=8082 && \
 	rebar3 as dev2 release && _build/dev2/rel/faxe/bin/faxe console
 
 dev3:
+	export QUIET=1 && \
+	export FAXE_HTTP_API_PORT=8083 && \
 	rebar3 as dev3 release && _build/dev3/rel/faxe/bin/faxe console
 
 dev4:
