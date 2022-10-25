@@ -89,7 +89,6 @@ handle_cast(_Request, State = #state{}) ->
 handle_info({ensure_pool, #{ip := Ip} = Opts, User},
     State = #state{ips_pools = Ips, pools_ips = Pools, ip_opts = IpOpts, pool_user = PUsers,
       users_waiting = UsersWaiting, pools_up = Up}) ->
-  lager:notice("ensure_pool for ip :~p for user: ~p, current connection count: ~p",[Ip, User, connection_count(Ip)]),
   erlang:monitor(process, User),
   NewPUsers = add_user(Ip, PUsers, User),
   IpDemand = check_demand(Ip, NewPUsers),
@@ -124,7 +123,6 @@ handle_info({ensure_pool, #{ip := Ip} = Opts, User},
   {noreply, NewState#state{pool_user = NewPUsers, users_waiting = UWaiting}};
 
 handle_info({up, Ip}, State = #state{pools_up = Up, ips_pools = _Pools, users_waiting = UWaiting}) ->
-  lager:info("pool for ip ~p is UP",[Ip]),
   case lists:member(Ip, Up) of
     true -> {noreply, State};
     false ->
@@ -133,17 +131,14 @@ handle_info({up, Ip}, State = #state{pools_up = Up, ips_pools = _Pools, users_wa
       {noreply, State#state{pools_up = [Ip|Up]}}
   end;
 handle_info({down, Ip}, State = #state{pools_up = Up, ips_pools = _Pools}) ->
-  lager:info("pool for ip ~p is DOWN",[Ip]),
   inform_users(Ip, s7_disconnected, State),
   {noreply, State#state{pools_up = lists:delete(Ip, Up)}};
 handle_info({'EXIT', Pid, normal}, State = #state{}) ->
-  lager:warning("Pool-Handler exiting normal, will no restart: ~p",[Pid]),
   NewState = remove_handler(Pid, State),
   {noreply, NewState};
 %% handler exited
 handle_info({'EXIT', Pid, Why}, State = #state{pools_ips = Pools, ip_opts = IpOpts})  when is_map_key(Pid, Pools) ->
   Ip = maps:get(Pid, Pools),
-  lager:warning("Pool-Handler ~p-~p is down: ~p",[Pid, Ip, Why]),
   NState = do_remove_handler(Pid, Ip, State),
   Opts = maps:get(Ip, IpOpts),
   {ok, NewPid} = s7pool_handler:start_link(Opts),
@@ -155,8 +150,6 @@ handle_info({'EXIT', _Pid, _Why}, State = #state{}) ->
   {noreply, State};
 %% pool-user is DOWN
 handle_info({'DOWN', _Mon, process, Pid, _Info}, State = #state{pool_user =  PoolUsers, ips_pools = Ips}) ->
-%%  lager:notice("[~p] pool-user is down: ~p", [?MODULE, Pid]),
-%%  lager:info("PoolUsers: ~p", [PoolUsers]),
   F = fun({Ip, UserList}, {L, LastIp}) ->
     UList = sets:to_list(UserList),
         case lists:member(Pid, UList) of
@@ -166,7 +159,6 @@ handle_info({'DOWN', _Mon, process, Pid, _Info}, State = #state{pool_user =  Poo
       end,
   {NewPoolUsers0, Ip} = lists:foldl(F, {[], 0}, maps:to_list(PoolUsers)),
   NewPoolUsers = maps:from_list(NewPoolUsers0),
-%%  lager:info("PoolUsers after: ~p",[NewPoolUsers]),
   case maps:is_key(Ip, Ips) of
     true ->
       Handler = maps:get(Ip, Ips),
@@ -177,7 +169,7 @@ handle_info({'DOWN', _Mon, process, Pid, _Info}, State = #state{pool_user =  Poo
   end,
   {noreply, State#state{pool_user = NewPoolUsers}};
 handle_info(Req, State) ->
-  lager:warning("Unhandled Request : ~p",[Req]),
+%%  lager:warning("Unhandled Request : ~p",[Req]),
   {noreply, State}.
 
 terminate(_Reason, _State = #state{}) ->
@@ -242,7 +234,6 @@ get_connection(Ip, Index) ->
       NextI = next_index(Connections, Index, length(Connections)),
       Worker = lists:nth(NextI, Connections),
       ets:insert(s7_pools_index, {Ip, NextI}),
-%%      lager:info("~p found ~p connections, current ~p",[?MODULE, length(Connections), Worker]),
       {ok, Worker}
   end.
 

@@ -52,18 +52,26 @@ register(Opts = #{ip := Ip}, Interval, Vars) when is_list(Vars) ->
   [Pid || {Name, Pid, _Type, _Modules} <- Children, Name =:= Ip],
   Server =
   case ChildList of
-    [C] when is_pid(C) ->
-      C;
+    [C] when is_pid(C) -> C;
     [undefined] ->
       %% the child pid is undefined, when it has stopped previously, so we simply restart it
-      {ok, Child} = supervisor:restart_child(s7reader_sup, Ip),
-      Child;
-    _ ->
-      {ok, ServerPid} = s7reader_sup:start_reader(Opts),
-      ServerPid
+      case supervisor:restart_child(s7reader_sup, Ip) of
+        {ok, Child} -> Child;
+        {error, not_found} -> start_reader(Opts);
+        {error, _What} ->
+          catch supervisor:delete_child(s7reader_sup, Ip),
+          start_reader(Opts)
+      end;
+    _ -> start_reader(Opts)
 end,
 %%  lager:notice("So ~p wants to read: ~p every ~pms from ~p",[self(), Vars, Interval, Ip]),
   Server ! {register, Interval, Vars, self()}.
+
+start_reader(Opts = #{ip := _Ip}) ->
+  {ok, ServerPid} = s7reader_sup:start_reader(Opts),
+  ServerPid.
+
+
 
 start_link(Opts) ->
   gen_server:start_link(?MODULE, Opts, []).
@@ -119,7 +127,6 @@ handle_info({read, Requests, [{_Intv, #faxe_timer{last_time = Ts}}|_] = SendTime
       end,
       SlotTimers,
       SendTimers),
-%%  lager:warning("new slot timers ~p" ,[NewSlotTimers]),
   NewState = State#state{busy = false, slot_timers = NewSlotTimers},
   maybe_next(NewState);
 
@@ -159,7 +166,7 @@ handle_info({s7_connected, _Client}=M,
   NewCache =
   case CachePDU == PduSize of
     true -> Cache;
-    false -> lager:info("s7reader clear cache on connect, cause PDU size changed to ~p",[PduSize]), #{}
+    false -> #{}
   end,
   maybe_next(State#state{pdu_size = PduSize, connected = true, retrieve_pdu_size = Retrieve, request_cache = NewCache});
 handle_info({s7_disconnected, _Client}=M, State = #state{timer = Timer}) ->
@@ -167,11 +174,9 @@ handle_info({s7_disconnected, _Client}=M, State = #state{timer = Timer}) ->
   send_all_clients(M, State),
   {noreply, State#state{timer = undefined, busy = false, connected = false}};
 handle_info(Info, State = #state{}) ->
-  lager:info("~p got info: ~p",[?MODULE, Info]),
   maybe_next(State).
 
 terminate(Reason, _State = #state{s7_ip = Ip}) ->
-  lager:notice("~p for IP ~p stopping with Reason ~p", [?MODULE, Ip, Reason]),
   ok.
 
 code_change(_OldVsn, State = #state{}, _Extra) ->
@@ -235,15 +240,12 @@ next_read(SlotTimers) ->
       SlotTimers),
   FunProceed =
     fun({_Interval, #faxe_timer{last_time = LastTime}} = SlotT, ReadIntervals) ->
-%%      lager:info("lasttime: ~p vs nextts: ~p for: ~p",[LastTime, NextTs, Interval]),
       case LastTime == NextTs of
         true -> [SlotT|ReadIntervals];
         false -> ReadIntervals
       end
     end,
   NextSlotsToRead = lists:foldl(FunProceed, [], SlotTimers),
-%%  lager:warning("Now: ~p NextReads: ~p", [faxe_time:now(), Reads]),
-%%  lager:warning("NextSlotsToRead: ~p", [NextSlotsToRead]),
   NextSlotsToRead.
 
 get_requests(IntervalList, S = #state{request_cache = Cache}) when is_map_key(IntervalList, Cache) ->
@@ -344,9 +346,10 @@ do_read(Requests, Opts, RunWith) ->
       ({_Vars, _Aliases}, {false, _} = R) ->
         R
     end,
-  {Time, ReadResult} = timer:tc(plists, fold, [ElFun, {true, []}, Requests, {processes, RunWith}]),
-  lager:notice("Time to read ~p requests: ~p millis with ~p processes/connections",
-    [length(Requests), erlang:round(Time/1000), RunWith]),
+  ReadResult = plists:fold(ElFun, {true, []}, Requests, {processes, RunWith}),
+%%  {Time, ReadResult} = timer:tc(plists, fold, [ElFun, {true, []}, Requests, {processes, RunWith}]),
+%%  lager:notice("Time to read ~p requests: ~p millis with ~p processes/connections",
+%%    [length(Requests), erlang:round(Time/1000), RunWith]),
   ReadResult.
 
 emit_results([FirstResult|RequestResults], Ts) ->

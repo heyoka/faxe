@@ -119,7 +119,7 @@ build_addresses(Addresses, PDUSize) ->
       A = NewBoolParts ++ NewParts ++ Rest,
       A
 end,
-  [lager:info("request num items: ~p - ~p byte",[length(Req), byte_count(Req)]) || {Req, _} <- All],
+%%  [lager:info("request num items: ~p - ~p byte",[length(Req), byte_count(Req)]) || {Req, _} <- All],
   All.
 
 

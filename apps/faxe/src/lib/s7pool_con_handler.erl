@@ -43,7 +43,6 @@ handle_call({get_connection, Key}, _From, State = #state{pool_indices = Idxs}) -
     {ok, W, Ind} -> {{ok, W}, Ind};
     {error, _What} = R -> {R, Index}
   end,
-%%  lager:info("got worker: ~p at index: ~p",[Worker, NewIndex]),
   {reply, Worker, State#state{pool_indices = #{Key => NewIndex}}};
 handle_call(_Request, _From, State = #state{}) ->
   {reply, ok, State}.
@@ -72,7 +71,6 @@ get_connection(Ip, Index) ->
       NextI = next_index(Connections, Index),
       Worker = lists:nth(NextI, Connections),
       ets:insert(s7_pools_index, {Ip, NextI}),
-%%      lager:info("~p found ~p connections, current ~p",[?MODULE, length(Connections), Worker]),
       {ok, Worker}
   end.
 

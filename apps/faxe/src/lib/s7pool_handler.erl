@@ -65,7 +65,6 @@ handle_info({s7_connected, Worker},
     true -> s7pool_manager ! {up, Ip};
     false -> ok
   end,
-%%  lager:alert("[~p] Pool: ~p, Waiting: ~p",[?MODULE, NewState#state.pool, NewState#state.waiting_cons]),
   {noreply, NewState};
 handle_info({s7_disconnected, Worker},
     State = #state{pool = Pool, waiting_cons = Waiting, opts = #{ip := Ip}, initial_size = Initial}) ->
@@ -81,13 +80,8 @@ handle_info({s7_disconnected, Worker},
   end,
   NewState = State#state{pool = lists:delete(Worker, Pool), waiting_cons = NewWaiting},
   update_pool(NewState),
-%%  case length(NewState#state.pool) == 0 of
-%%    true -> s7pool_manager ! {down, Ip};
-%%    false -> ok
-%%  end,
   {noreply, NewState};
 handle_info({demand, Num}, State = #state{pool = Pool, waiting_cons = Waiting, max_size = MAX}) ->
-%%  lager:warning("~p DEMAND: ~p",[?MODULE, Num]),
   Size = length(Pool) + length(Waiting),
   case Num of
     0 ->
@@ -130,14 +124,11 @@ code_change(_OldVsn, State = #state{}, _Extra) ->
 %%%===================================================================
 add_worker(State = #state{waiting_cons = Waiting, opts = Opts}) ->
   {ok, Con} = s7worker:start_link(Opts),
-%%  lager:info("[~p] add worker: ~p", [?MODULE, Con]),
   State#state{waiting_cons = Waiting ++ [Con]}.
 
 remove_worker(State = #state{pool = []}) ->
-%%  lager:info("remove worker, when none left"),
   State;
 remove_worker(State = #state{pool = [Oldest|Pool]}) ->
-%%  lager:info("[~p] remove_worker: ~p",[?MODULE, Oldest]),
   stop_worker(Oldest),
   update_pool(State#state{pool = Pool}),
   State#state{pool = Pool}.

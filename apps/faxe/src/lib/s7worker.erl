@@ -43,7 +43,6 @@ start_link(#{} = Opts) ->
   gen_server:start_link(?MODULE, Opts#{owner => self()}, []).
 
 start_monitor(#{} = Opts) ->
-  lager:notice("Opts for s7worker: ~p",[Opts]),
   case gen_server:start(?MODULE, Opts#{owner => self()}, []) of
     {ok, Pid} -> erlang:monitor(process, Pid), {ok, Pid};
     Other -> Other
@@ -77,11 +76,9 @@ handle_cast(_Request, State = #state{}) ->
 %% client process is down,
 %% we match the Object field from the DOWN message against the current client pid
 handle_info({snap7_connected, Client}, State = #state{client = Client, owner = Owner}) ->
-  lager:info("[~p] s7 (~p) connected",[?MODULE, State#state.ip]),
   Owner ! {s7_connected, self()},
   {noreply, State#state{client = Client}};
 handle_info({'DOWN', _MonitorRef, _Type, Client, Info}, State=#state{client = Client, owner = Owner}) ->
-  lager:info("Snap7 Client process is DOWN with : ~p ! ", [Info]),
   Owner ! {s7_disconnected, self()},
   try_reconnect(State#state{client = undefined});
 %% old DOWN message from already restarted client process
@@ -89,7 +86,6 @@ handle_info({'DOWN', _MonitorRef, _Type, _Object, _Info}, State) ->
   {noreply, State};
 handle_info(connect,
     State=#state{ip = Ip, port = Port, rack = Rack, slot = Slot}) ->
-  lager:info("[~p] do_reconnect, ~p", [?MODULE, {Ip, Port}]),
   case connect(Ip, Rack, Slot) of
     {ok, Client} ->
       {noreply, State#state{client = Client}};
@@ -114,7 +110,7 @@ try_reconnect(State=#state{reconnector = Reconnector}) ->
   case faxe_backoff:execute(Reconnector, connect) of
     {ok, Reconnector1} ->
       {noreply, State#state{reconnector = Reconnector1}};
-    {stop, Error} -> logger:error("[Client: ~p] PLC reconnect error: ~p!",[?MODULE, Error]),
+    {stop, Error} -> lager:error("[Client: ~p] PLC reconnect error: ~p!",[?MODULE, Error]),
       {stop, {shutdown, Error}, State}
   end.
 
