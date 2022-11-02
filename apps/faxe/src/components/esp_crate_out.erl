@@ -33,7 +33,8 @@
    fn_id,
    last_error,
    debug_mode = false,
-   flow_inputs
+   flow_inputs,
+   ignore_resp_timeout = false
 }).
 
 -define(KEY, <<"stmt">>).
@@ -59,7 +60,8 @@ options() ->
       {db_fields, list},
       {faxe_fields, string_list},
       {remaining_fields_as, string, undefined},
-      {max_retries, integer, ?FAILED_RETRIES}
+      {max_retries, integer, ?FAILED_RETRIES},
+      {ignore_response_timeout, boolean, false}
    ].
 
 check_options() ->
@@ -82,7 +84,7 @@ metrics() ->
 init(NodeId, Inputs,
     #{host := Host0, port := Port, database := DB, table := Table, user := User, pass := Pass,
        tls := Tls, db_fields := DBFields, faxe_fields := FaxeFields,
-       remaining_fields_as := RemFieldsAs, max_retries := MaxRetries}) ->
+       remaining_fields_as := RemFieldsAs, max_retries := MaxRetries, ignore_response_timeout := IgnoreRespTimeout}) ->
 
    Host = binary_to_list(Host0),
    erlang:send_after(0, self(), start_client),
@@ -92,7 +94,7 @@ init(NodeId, Inputs,
    State = #state{host = Host, port = Port, database = DB, user = User, pass = Pass,
       failed_retries = MaxRetries, remaining_fields_as = RemFieldsAs, tls = Tls,
       table = Table, db_fields = DBFields, faxe_fields = FaxeFields,
-      fn_id = NodeId, flow_inputs = Inputs},
+      fn_id = NodeId, flow_inputs = Inputs, ignore_resp_timeout = IgnoreRespTimeout},
    NewState = query_init(State),
 %%   lager:warning("QUERY INIT Schema:~p ~p",[DB, {NewState#state.query, NewState#state.query_from_lambda}]),
    {ok, all, NewState}.
@@ -190,7 +192,7 @@ do_send(_Item, _Body, _Headers, MaxFailedRetries, S = #state{failed_retries = Ma
    S#state{last_error = undefined};
 do_send(Item, Body, Headers, Retries, State = #state{client = Client, fn_id = FNId}) ->
    Ref = gun:post(Client, ?PATH, Headers, Body),
-   case catch(get_response(Client, Ref)) of
+   case catch(get_response(Client, Ref, State#state.ignore_resp_timeout)) of
       ok ->
          dataflow:ack(Item, State#state.flow_inputs),
          dataflow:maybe_debug(item_out, 1, Item, FNId, State#state.debug_mode),
@@ -270,12 +272,21 @@ build_query(ValueList0, Table, RemFieldsAs) when is_list(ValueList0) ->
    Q = <<Q1/binary, "(", QMarks/binary, ")">>,
    Q.
 
-get_response(Client, Ref) ->
-   {response, _IsFin, Status, _Headers} = gun:await(Client, Ref, ?QUERY_TIMEOUT),
+get_response(Client, Ref, Ignore) ->
+   case gun:await(Client, Ref, ?QUERY_TIMEOUT) of
+      {response, _IsFin, Status, _Headers} ->
 %%   lager:info("response Status: ~p, Headers: ~p" ,[Status, _Headers]),
-   {ok, Message} = gun:await_body(Client, Ref),
+         {ok, Message} = gun:await_body(Client, Ref),
 %%   handle_response_message(Message),
-   handle_response(integer_to_binary(Status), Message).
+         handle_response(integer_to_binary(Status), Message);
+      {error, timeout} ->
+         case Ignore of
+            true -> ok;
+            false -> {error, timeout}
+         end;
+      Other ->
+         {error, Other}
+   end.
 
 -spec handle_response(integer(), binary()) -> ok|{error, invalid}|{failed, term()}.
 handle_response(<<"200">>, BodyJSON) ->

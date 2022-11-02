@@ -64,7 +64,7 @@ handle_info(check_queue, State = #state{queue = Q, start_count = Count}) ->
   end,
 %%  lager:notice("started ~p flows so far",[NewState#state.start_count]),
   {noreply, NewState};
-handle_info({start_graph, _Task = #{}, _StartMode = #task_modes{}} = Req, State = #state{queue = Q}) ->
+handle_info({start_graph, _Task = #task{}, _StartMode = #task_modes{}} = Req, State = #state{queue = Q}) ->
   NewQ = queue:in(Req, Q),
   {noreply, State#state{queue = NewQ}};
 handle_info(_What, State) ->
