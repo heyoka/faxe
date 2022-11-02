@@ -429,7 +429,7 @@ start_temp(DfsScript, Type, TTL) ->
                   name = Id
                },
                ets:insert(temp_tasks, {Id, Graph}),
-               try dataflow:start_graph(Graph, #task_modes{temporary = true, temp_ttl = TTL}) of
+               try df_graph:start_graph(Graph, #task_modes{temporary = true, temp_ttl = TTL}) of
                   _ ->
                      {ok, Id}
                catch

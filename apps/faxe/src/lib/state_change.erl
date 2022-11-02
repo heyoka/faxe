@@ -109,11 +109,11 @@ comp(true, State = #state_change{state_name = ?In}, P) ->
 comp(true, State = #state_change{state_name = Name}, P = #data_point{}) when Name == ?Out orelse Name == ?Left ->
   %% ENTERING !!!
   enter(State, P);
-comp(false, State = #state_change{state_name = Name, state_count = C, enter_time = T, last_point = LastP}, _P)
+comp(false, State = #state_change{state_name = Name, state_count = C, enter_time = T, last_point = _LastP}, P)
   when Name == ?In orelse Name == ?Entered ->
   %% LEAVING !!!
   {ok, State#state_change{state_name = ?Left, state_count = -1,  last_state_count = C,
-    last_duration = LastP#data_point.ts - T,  enter_time = undefined, last_enter_time = T}};
+    last_duration = P#data_point.ts - T,  enter_time = undefined, last_enter_time = T}};
 comp(false, State = #state_change{state_name = Name}, _P) when Name == ?Out orelse Name == ?Left ->
   {ok, State#state_change{state_name = ?Out, last_point = undefined, enter_time = undefined, state_count = -1}}.
 
