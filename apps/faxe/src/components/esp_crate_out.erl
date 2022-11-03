@@ -282,7 +282,9 @@ get_response(Client, Ref, Ignore) ->
          handle_response(integer_to_binary(Status), Message);
       {error, timeout} ->
          case Ignore of
-            true -> ok;
+            true ->
+               lager:notice("response timeout ! (~p)", [?QUERY_TIMEOUT]),
+               ok;
             false -> {error, timeout}
          end;
       Other ->
