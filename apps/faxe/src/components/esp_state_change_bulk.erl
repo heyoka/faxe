@@ -136,7 +136,7 @@ handle(left, FieldName, StateState, State=#state{emit_left = true, left_as = As,
    AddFields = [
       1,
       state_change:get_last_enter_time(StateState),
-      P#data_point.ts,
+      state_change:get_end(StateState),
       state_change:get_last_duration(StateState),
       state_change:get_last_count(StateState),
       FieldName],

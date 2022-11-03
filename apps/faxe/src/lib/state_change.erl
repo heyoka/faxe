@@ -14,7 +14,7 @@
 %% API
 -export([
   new/1, new/2, process/2, get_duration/1, get_count/1, get_state/1,
-  get_last_point/1, get_last_duration/1, get_last_count/1, get_last_enter_time/1]).
+  get_last_point/1, get_last_duration/1, get_last_count/1, get_last_enter_time/1, get_end/1]).
 
 %%%%%%%%%%% known states %%%%%%%
 -define(Init, init).
@@ -29,6 +29,7 @@
 -record(state_change, {
   state_name = ?Init,
   last_point = undefined,
+  leave_point = undefined,
   enter_time,
   last_enter_time,
   state_count = -1,
@@ -87,6 +88,9 @@ get_state(#state_change{state_name = State}) ->
 get_last_point(#state_change{last_point = P}) ->
   P.
 
+get_end(#state_change{leave_point = P}) ->
+  P#data_point.ts.
+
 
 execute(State = #state_change{}, Point) ->
   comp((catch exec(Point, State)), State, Point).
@@ -113,7 +117,7 @@ comp(false, State = #state_change{state_name = Name, state_count = C, enter_time
   when Name == ?In orelse Name == ?Entered ->
   %% LEAVING !!!
   {ok, State#state_change{state_name = ?Left, state_count = -1,  last_state_count = C,
-    last_duration = P#data_point.ts - T,  enter_time = undefined, last_enter_time = T}};
+    last_duration = P#data_point.ts - T,  enter_time = undefined, last_enter_time = T, leave_point = P}};
 comp(false, State = #state_change{state_name = Name}, _P) when Name == ?Out orelse Name == ?Left ->
   {ok, State#state_change{state_name = ?Out, last_point = undefined, enter_time = undefined, state_count = -1}}.
 
@@ -160,7 +164,7 @@ basic_test() ->
   {ok, NewStateLeft} = comp(false, NewStateIn1, NextP),
   ?assertEqual(?Left, state_change:get_state(NewStateLeft)),
   ?assertEqual(3, state_change:get_last_count(NewStateLeft)),
-  ?assertEqual(2002, state_change:get_last_duration(NewStateLeft)),
+  ?assertEqual(1001, state_change:get_last_duration(NewStateLeft)),
   ?assertEqual(-1, state_change:get_count(NewStateLeft)),
   ?assertEqual(-1, state_change:get_duration(NewStateLeft)),
   ?assertEqual(NextP1, NewStateLeft#state_change.last_point),

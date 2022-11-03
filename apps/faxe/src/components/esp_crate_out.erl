@@ -34,7 +34,7 @@
    last_error,
    debug_mode = false,
    flow_inputs,
-   ignore_resp_timeout = false
+   ignore_resp_timeout
 }).
 
 -define(KEY, <<"stmt">>).
@@ -61,7 +61,7 @@ options() ->
       {faxe_fields, string_list},
       {remaining_fields_as, string, undefined},
       {max_retries, integer, ?FAILED_RETRIES},
-      {ignore_response_timeout, boolean, false}
+      {ignore_response_timeout, boolean, true}
    ].
 
 check_options() ->
@@ -133,6 +133,7 @@ handle_info(_Req, State) ->
 shutdown(#state{client = C}) ->
    gun:close(C).
 
+-spec start_client(#state{}) -> #state{}.
 start_client(State = #state{host = Host, port = Port, tls = Tls}) ->
    connection_registry:connecting(),
    Options =

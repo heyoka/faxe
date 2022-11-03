@@ -67,7 +67,9 @@ maybe_do_emit(State = #state{}) ->
    {ok, State}.
 
 do_emit(State=#state{window = Win, count = _Count, len = _Len}) ->
-   Batch = #data_batch{points = queue:to_list(Win)},
+   %% get head point of queue for batch start timestamp
+   [HdPoint|_] = Points = queue:to_list(Win),
+   Batch = #data_batch{points = Points, start = HdPoint#data_point.ts},
    {emit, Batch, State}.
 
 
