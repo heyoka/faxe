@@ -31,7 +31,20 @@ options() -> [
 
 check_options() ->
    [
-      {same_length, [fields, field_values]}, {same_length, [tags, tag_values]}
+%%      {same_length, [fields, field_values]}, {same_length, [tags, tag_values]},
+      {func, field_values,
+         fun(FieldValues, #{fields := Fields}) ->
+            Vals = prepare_values(FieldValues, Fields),
+            length(Vals) == length(Fields)
+         end,
+         <<" and 'fields' must be of the same length">>},
+      {func, tag_values,
+         fun(TagValues, #{tags := Tags}) ->
+            Vals = prepare_values(TagValues, Tags),
+            length(Vals) == length(Tags)
+         end,
+         <<" and 'tags' must be of the same length">>}
+
    ].
 
 init(NodeId, _Ins, #{fields := Fields0, tags := Tags0,
@@ -41,9 +54,15 @@ init(NodeId, _Ins, #{fields := Fields0, tags := Tags0,
    {RootFields, Fields} = prepare_paths(Fields0),
    {RootTags, Tags} = prepare_paths(Tags0),
 
+   FieldValues = prepare_values(FieldV, Fields),
+   TagValues = prepare_values(TagV, Tags),
+
    {ok, all,
-      #state{fields = Fields, node_id = NodeId, tags = Tags,
-         tag_values = TagV, field_values = FieldV, root_fields = RootFields, root_tags = RootTags}}.
+      #state{
+         fields = Fields, node_id = NodeId, tags = Tags,
+         tag_values = TagValues, field_values = FieldValues,
+         root_fields = RootFields, root_tags = RootTags}
+   }.
 
 process(_In, #data_batch{points = Points} = Batch,
     State = #state{fields = FName, field_values = FValue, root_fields = FieldsRoot,
@@ -115,6 +134,14 @@ prepare_paths(Paths) ->
    AllPaths = [flowdata:path(F) || F <- Paths],
    IsRootAll = lists:all(fun(E) -> flowdata:is_root_path(E) end, AllPaths),
    {IsRootAll, AllPaths}.
+
+prepare_values([_SingleVal] = V, [_FieldName]) ->
+   V;
+prepare_values([SingleVal], FieldNames) when is_list(FieldNames) ->
+   L = length(FieldNames),
+   lists:duplicate(L, SingleVal);
+prepare_values(V, _F) when is_list(V) ->
+   V.
 
 
 -ifdef(TEST).
