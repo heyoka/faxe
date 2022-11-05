@@ -1,4 +1,2 @@
-crate_query check object (deep path) support
-crate_query should support time sync in a plausible way
-fix update flow with python code where a new param has been added to the py code: all params are stored with task !
+
 
