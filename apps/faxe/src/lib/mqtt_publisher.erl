@@ -296,7 +296,7 @@ do_connect(#state{host = Host, port = Port, client_id = ClientId, pool_caller = 
    Opts0 = [{host, Host}, {port, Port}, {keepalive, 30}, {client_id, ClientId}],
    Opts1 = opts_auth(State, Opts0),
    Opts = opts_ssl(State, Opts1),
-%%   lager:debug("connect to mqtt broker with: ~p",[Opts]),
+   lager:notice("connect to mqtt broker with: ~p",[Opts]),
    {ok, _Client} = emqttc:start_link(Opts),
    State.
 
