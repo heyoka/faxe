@@ -1,0 +1,13 @@
+|json_emitter(
+%'{}'
+    '{"field1" : 1, "field2": "2", "field3": {"deeper": {"list": [1,2,{"inlist": 999}]}}}',
+    '{"field11" : 1, "field22": "2", "field3": {"deeper": {"list": [3,4,{"inlist": 444}]}}}'
+)
+.every(500ms)
+.as('data.prata')
+
+|rename()
+.fields('data.prata.field1')
+.as_fields('prata.data.field1')
+
+|debug()

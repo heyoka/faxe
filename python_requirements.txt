@@ -1,6 +1,7 @@
 # pip install --no-cache-dir -r python_requirements.txt
 ###### Requirements without Version Specifiers ######
 cytoolz
+jsonpath-ng
 numpy
 # pandas
 scipy

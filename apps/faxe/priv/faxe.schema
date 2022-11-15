@@ -370,6 +370,12 @@
 {mapping, "mqtt.ssl.enable", "faxe.mqtt.ssl.enable",
     [{default, off}, {datatype, flag}, {commented, off}]
 }.
+
+%% @doc mqtt ssl peer verification
+{mapping, "mqtt.ssl.verify", "faxe.mqtt.ssl.verify",
+    [{default, verify_none}, {datatype, {enum,[verify_none, verify_peer]}}, {commented, verify_none}]
+}.
+
 %% @doc mqtt ssl certificate
 {mapping, "mqtt.ssl.certfile", "faxe.mqtt.ssl.certfile",
     [{default, ""},

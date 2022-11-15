@@ -10,7 +10,7 @@
 
 -behavior(df_component).
 %% API
--export([init/3, process/3, options/0, handle_info/2, check_options/0, shutdown/1, metrics/0]).
+-export([init/3, process/3, options/0, handle_info/2, check_options/0, shutdown/1, metrics/0, handle_ack/3]).
 
 -record(state, {
    host :: string(),
@@ -160,6 +160,10 @@ process(_In, _P = #data_point{}, State = #state{}) ->
 process(_In, _B = #data_batch{}, State = #state{}) ->
    {ok, State}.
 
+
+handle_ack(Mode, DTag, State=#state{}) ->
+   lager:notice("[~p] got ack ~p for Tag: ~p",[?MODULE, Mode, DTag]),
+   {ok, State}.
 
 handle_info(query, State = #state{timer = _Timer, query_mark = QueryMark, offset = Offset}) ->
    Now = faxe_time:now(),

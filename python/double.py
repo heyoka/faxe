@@ -1,4 +1,4 @@
-from faxe import Faxe
+from faxe_new import Faxe
 
 
 class Double(Faxe):

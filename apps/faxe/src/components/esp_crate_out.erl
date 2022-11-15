@@ -103,6 +103,7 @@ init(NodeId, Inputs,
 %% not connected -> drop message
 %% @todo buffer these messages when not connected
 process(_In, _DataItem, State = #state{client = undefined}) ->
+   lager:notice("got item when not connected"),
    {ok, State};
 %% we do not have a prepare query yet
 process(_In, DataItem, State = #state{query_from_lambda = true,
@@ -199,7 +200,7 @@ do_send(Item, Body, Headers, Retries, State = #state{client = Client, fn_id = FN
          dataflow:maybe_debug(item_out, 1, Item, FNId, State#state.debug_mode),
          State;
       {error, What} ->
-         lager:warning("could not send ~p: error in request", [Body]),
+         lager:warning("could not send ~p: error in request: ~p", [Body, What]),
          do_send(Item, Body, Headers, Retries+1, State#state{last_error = What});
 
       O ->

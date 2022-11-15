@@ -11,6 +11,8 @@ from decode_dict import DecodeDict
 def encode_data(data):
     if isinstance(data, DecodeDict):
         return data.store
+    if isinstance(data, erlterms.Map):
+        encode_data(dict(data))
     if type(data) == list:
         newlist = [encode_data(d) for d in data]
         return newlist

@@ -202,9 +202,14 @@ list_json(Req, State=#state{mode = Mode}) ->
       {error, What} ->
          {jiffy:encode(#{<<"error">> => faxe_util:to_bin(What)}), Req, State};
       _ ->
-
+         Qs = cowboy_req:parse_qs(Req),
+         FullList =
+         case lists:keyfind(<<"full">>, 1, Qs) of
+            {_, <<"true">>} -> true;
+            _ -> false
+         end,
          Sorted = lists:sort(order_fun(OrderBy, Direction), Tasks),
-         Maps = [rest_helper:task_to_map(T) || T <- Sorted],
+         Maps = [rest_helper:task_to_map(T, FullList) || T <- Sorted],
          {jiffy:encode(Maps), Req, State}
    end.
 

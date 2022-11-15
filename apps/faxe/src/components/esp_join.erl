@@ -68,7 +68,6 @@ init(NodeId, Ins,
        tolerance := Tol, merge_field := FMerge, fill := Fill}) ->
 
    FullFill = case Full of false -> false; true -> not fill(Fill) end,
-   lager:info("fullfill ~p",[FullFill]),
    RowList = proplists:get_keys(Ins),
    RowLength = length(Ins),
    Prefix1 =
@@ -148,7 +147,7 @@ maybe_emit(NewRow, NewTs, State = #state{full = true}) ->
 %%   lager:info("maybe_emit [fill=none]: ~p",[{NewRow, NewTs}]),
    case is_full_row(NewRow, State) of
       true -> do_emit(NewRow, NewTs, State);
-      false -> lager:warning("row is not full yet, will drop item"),
+      false -> lager:notice("row is not full yet, will drop item"),
          ok
    end;
 maybe_emit(NewRow, NewTs, State = #state{}) ->

@@ -12,6 +12,7 @@
 
 -define(RAND, <<"rand">>).
 -define(SEQ, <<"seq">>).
+-define(BATCH, <<"batch">>).
 
 -define(STATE_POINT_FIELD, <<"__state">>).
 
@@ -40,13 +41,13 @@ options() ->
          desc => <<"whether to align to full occurencies of the every parameter">>},
       #{name => json, type => string_list,
          desc => <<"list of json strings to use">>},
-      #{name => select, type => string, default => ?RAND, values => [?RAND, ?SEQ],
-         desc => <<"how to select the json entries, 'rand' or 'seq'">>},
+      #{name => select, type => string, default => ?RAND, values => [?RAND, ?SEQ, ?BATCH],
+         desc => <<"how to select the json entries, 'rand', 'seq' or 'batch'">>},
       #{name => modify, type => string_list, default => undefined,
          desc => <<"fields to replace on every interval">>},
       #{name => modify_with, type => lambda_list, default => undefined,
          desc => <<"lambda expressions for the replacements">>},
-      #{name => as, type => string, default => <<"data">>,
+      #{name => as, type => string, default => <<>>,
          desc => <<"root object for output">>}
    ].
 
@@ -54,7 +55,7 @@ options() ->
 check_options() ->
    [
       {func, json, fun check_json/1, <<", invalid json">>},
-      {one_of, select, [?RAND, ?SEQ]}
+      {one_of, select, [?RAND, ?SEQ, ?BATCH]}
    ].
 
 check_json(Jsons) when is_list(Jsons) ->
@@ -97,28 +98,33 @@ process(_Inport, _Value, State) ->
    {ok, State}.
 
 handle_info(emit, State=#state{jitter = 0, every = Every}) ->
-   do_emit(Every, State);
+   select_emit(Every, State);
 handle_info(emit, State=#state{every = Every, jitter = JT}) ->
    Jitter = round(rand:uniform()*JT),
    After = Every+(Jitter),
-   do_emit(After, State);
+   select_emit(After, State);
 handle_info(_Request, State) ->
    {ok, State}.
 
-do_emit(Next, State=#state{ejson = JS, as = As, transforms = Transforms, state_point = SPoint0}) ->
-   erlang:send_after(Next, self(), emit),
+select_emit(Next, State=#state{select = ?BATCH, ejson = JS, as = As, transforms = Transforms, state_point = SPoint}) ->
+   Batch = build(JS, As, Transforms, SPoint),
+   do_emit(Next, Batch, State);
+select_emit(Next, State=#state{ejson = JS, as = As, state_point = SPoint0, transforms = Transforms}) ->
    {NextIndex, NewState} = next_index(State),
    Json = lists:nth(NextIndex, JS),
    SPoint =
-   case SPoint0 of
-      undefined -> flowdata:set_root(#data_point{ts = faxe_time:now(), fields = Json}, As);
-      _ -> SPoint0
-   end,
-   Msg = build(Json, As, Transforms, SPoint),
-%%   {T, Msg} = timer:tc(fun build/4, [Json, As, Transforms, SPoint]),
-%%   lager:info("time to build: ~p",[T]),
-   {emit,{1, Msg}, NewState#state{state_point = Msg}}.
+      case SPoint0 of
+         undefined -> flowdata:set_root(#data_point{ts = faxe_time:now(), fields = Json}, As);
+         _ -> SPoint0
+      end,
+   Item = build(Json, As, Transforms, SPoint),
+   do_emit(Next, Item, NewState).
+do_emit(Next, Msg, State=#state{}) ->
+   erlang:send_after(Next, self(), emit),
+   {emit,{1, Msg}, State#state{state_point = Msg}}.
 
+next_index(S = #state{select = ?BATCH, ejson = _JS}) ->
+   {1, S#state{idx = 1}};
 next_index(S = #state{select = ?RAND, ejson = JS}) ->
    {rand:uniform(length(JS)), S};
 next_index(S = #state{select = ?SEQ, ejson = JS, idx = Index}) when Index > length(JS) ->
@@ -136,12 +142,16 @@ build(JsonList, As, Transforms, SPoint) when is_list(JsonList) ->
 
 maybe_transform(Point, undefined, _SP) ->
    Point;
-maybe_transform(Point, ReplaceList, SPoint) ->
-   do_transform(ReplaceList, flowdata:set_field(Point, ?STATE_POINT_FIELD, SPoint#data_point.fields)).
+maybe_transform(Point, ReplaceList, SPoint) when is_record(SPoint, data_point) ->
+   do_transform(ReplaceList, flowdata:set_field(Point, ?STATE_POINT_FIELD, SPoint#data_point.fields));
+maybe_transform(Point, ReplaceList, _SPoint) ->
+   do_transform(ReplaceList, Point).
 
 do_transform([], Point) ->
    flowdata:delete_field(Point, ?STATE_POINT_FIELD);
 do_transform([{FieldPath, Lambda}|Transforms], Point) ->
+
+   lager:info("do_transform ~p on ~p",[Point, FieldPath]),
    NewPoint = faxe_lambda:execute(Point, Lambda, FieldPath),
    do_transform(Transforms, NewPoint).
 

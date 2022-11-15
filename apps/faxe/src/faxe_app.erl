@@ -38,7 +38,8 @@ start(_StartType, _StartArgs) ->
       max_connections => MaxConns, num_acceptors => Acceptors},
       #{
          env =>  #{dispatch => Dispatch},
-         middlewares => [cowboy_router, cmw_headers, cowboy_handler]
+         middlewares => [cowboy_router, cmw_headers, cowboy_handler],
+         stream_handlers => [cowboy_compress_h, cowboy_stream_h] % ?
       }
    ),
    %% start top supervisor

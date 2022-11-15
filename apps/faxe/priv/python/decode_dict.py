@@ -14,9 +14,13 @@ class DecodeDict(MutableMapping):
             self.own_key_type = type(next(iter(self.store)))
 
     def __getitem__(self, key):
+
         val = self.store[self.__keytransform__(key)]
+        print("decode get item", type(val))
         if isinstance(val, dict):
             return DecodeDict(val)  # if it is a dict then also wrap the sub-dict
+        elif isinstance(val. erlterms.Map):
+            return dict(val)
         elif isinstance(val, list):  # iterate through all list items
             returnlist = []
             for item in val:

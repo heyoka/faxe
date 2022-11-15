@@ -10,7 +10,7 @@
 -export([start_script/2, do/0, do/1, do/2, compile/1, file/2, data/2, make_lambda_fun/3, get_all_nodes/0]).
 
 %% for now the only user definable component-type is python(3)
--define(USER_COMPONENT, c_python).
+-define(USER_COMPONENT, c_python2).
 -define(USER_NODE_PREFIX, "@").
 -define(USER_COMPONENT_MODULE, cb_module).
 -define(USER_COMPONENT_CLASS, cb_class).

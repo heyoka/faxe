@@ -54,6 +54,9 @@ init(NodeId, _Ins, #{fields := Fields0, tags := Tags0,
    {RootFields, Fields} = prepare_paths(Fields0),
    {RootTags, Tags} = prepare_paths(Tags0),
 
+   %% prepare the default values, normally we expect the value and field lists to be of the same length,
+   %% but there is a special case, where exactly 1 value is provided (while the field list can be of any size)
+   %% in this case we just use this 1 value for every field/tag given
    FieldValues = prepare_values(FieldV, Fields),
    TagValues = prepare_values(TagV, Tags),
 

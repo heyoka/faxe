@@ -12,7 +12,7 @@
 -include("faxe.hrl").
 
 %% API
--export([task_to_map/1, template_to_map/1, do_register/6,
+-export([task_to_map/1, task_to_map/2, template_to_map/1, do_register/6,
    reg_fun/3, report_malformed/3, add_tags/2, set_tags/2,
    get_task_or_template_id/2, is_authorized/1, is_authorized/2,
    success/2, success/3, error/2, error/3, int_or_bin/1]).
@@ -53,32 +53,34 @@ is_authorized(Req, State) ->
       false -> {{false, <<"Basic realm=\"faxe\"">>}, Req, State}
    end.
 
+task_to_map(T = #task{}) ->
+   task_to_map(T, true).
 
 task_to_map(_T = #task{
    id = Id, name = Name, date = Dt, is_running = Running,
    last_start = LStart, last_stop = LStop, dfs = Dfs, permanent = Perm,
    template = Template, template_vars = TemplateVars, tags = Tags,
    group = Group, group_leader = Leader
-}) ->
+}, Full) ->
    Map = #{
       <<"id">> => Id,
       <<"name">> => Name,
-      <<"dfs">> => Dfs,
       <<"running">> => Running,
       <<"permanent">> => Perm,
       <<"changed">> => faxe_time:to_iso8601(Dt),
       <<"last_start">> => faxe_time:to_iso8601(LStart),
       <<"last_stop">> => faxe_time:to_iso8601(LStop),
-      <<"tags">> => Tags,
-      <<"group">> => Group,
-      <<"group_leader">> => Leader
+      <<"tags">> => Tags
    },
    OutMap =
    case Template of
       <<>> -> Map;
       _ -> Map#{<<"template">> => Template, <<"template_vars">> => TemplateVars}
    end,
-   OutMap.
+   case Full of
+      true -> OutMap#{<<"dfs">> => Dfs, <<"group">> => Group, <<"group_leader">> => Leader};
+      _ -> OutMap
+   end.
 
 template_to_map(_T = #template{definition = _Def0, id = Id, name = Name, date = Dt, dfs = Dfs}) ->
    Map = #{
