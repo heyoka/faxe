@@ -1,4 +1,3 @@
-import time
 from functools import cmp_to_key
 from jsonpath_ng import parse
 
@@ -24,10 +23,10 @@ class Faxe:
         method = getattr(cls, "options")
         outlist = []
         for i, x in enumerate(method()):
-            l = list(x)
-            l[0] = erlport.erlterms.Atom(to_bytes(l[0]))
-            l[1] = erlport.erlterms.Atom(to_bytes(l[1]))
-            outlist.append(tuple(l))
+            lout = list(x)
+            lout[0] = erlport.erlterms.Atom(to_bytes(lout[0]))
+            lout[1] = erlport.erlterms.Atom(to_bytes(lout[1]))
+            outlist.append(tuple(lout))
         return outlist
 
     @staticmethod
@@ -52,32 +51,23 @@ class Faxe:
         """
         pass
 
-    def handle_point(self, point_data):
+    def handle_point(self, _point_data: dict):
         """
         optional
         called when a data_point comes in to this node
-        :param point_data: dict @see class Point
+        :param _point_data: dict @see class Point
         """
-        pass
+        self.log('handle_point not implemented!', 'error')
 
-    def handle_batch(self, batch_data):
+    def handle_batch(self, _batch_data: dict):
         """
         optional
         called when a data_batch comes in
-        :param batch_data: dict @see class Batch
+        :param _batch_data: dict @see class Batch
         """
-        pass
+        self.log('handle_batch not implemented!', 'error')
 
-    def point(self, req):
-        self.handle_point(dict(req))
-        return self
-
-    def batch(self, req):
-        self.log(time.time())
-        self.handle_batch(dict(req))
-        return self
-
-    def emit(self, emit_data):
+    def emit(self, emit_data: dict):
         """
         used to emit data to downstream nodes
         :param emit_data: dict
@@ -108,6 +98,14 @@ class Faxe:
         :return: int
         """
         return int(time.time()*1000)
+
+    def point(self, req):
+        self.handle_point(dict(req))
+        return self
+
+    def batch(self, req):
+        self.handle_batch(dict(req))
+        return self
 
     @staticmethod
     def decode_args(args):
@@ -441,7 +439,6 @@ def encode_dict(mydict):
 
 
 def to_bytes(ele):
-    # print("to_bytes ", type(ele))
     if type(ele) == str:
         return ele.encode("utf-8")
     if type(ele) == dict:
@@ -454,5 +451,3 @@ def to_bytes(ele):
         return [to_bytes(d) for d in ele]
 
     return ele
-
-

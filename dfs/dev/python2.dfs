@@ -1,0 +1,31 @@
+|json_emitter(
+%'{}'
+    '{"field1" : 1, "field2": "2", "field3": {"deeper": {"list": [1,2,{"inlist": 999}, "33", "44", "55", "yes-no-but-yes"]}}}',
+    '{"field1" : 21, "field22": "2", "field3": {"deeper": {"list": [3,4,{"inlist": 444}]}}}',
+    '{"field1" : 14, "field2": "2", "field3": {"deeper": {"list": [1,2,{"inlist": 999}]}}}',
+    '{"field1" : 99, "field22": "2", "field3": {"deeper": {"list": [3,4,{"inlist": 444}]}}}'
+)
+.every(500ms)
+.as('pyth')
+.select('batch')
+
+
+%|debug()
+
+
+%|where(lambda: defined("pyth.data"))
+%.emit_empty(true)
+%|batch(7)
+
+%|debug('info')
+
+@data_demo()
+
+%@callback()
+%@filter()
+
+%@less_than()
+%.fields('field1', 'field2', 'field3')
+%.values(14, 3, 7)
+
+|debug()

@@ -1,4 +1,4 @@
-from faxe_new import Faxe
+from faxe import Faxe, Point, Batch
 
 
 class Double(Faxe):
@@ -21,12 +21,11 @@ class Double(Faxe):
         self.emit(self.calc(point_data))
 
     def handle_batch(self, batch_data):
-        out_list = list()
-        for point in batch_data:
-            out_list.append(self.calc(point))
-        self.emit(out_list)
+        for point in Batch.points(batch_data):
+            self.calc(point)
+        self.emit(batch_data)
 
     def calc(self, point_dict):
-        point_dict[self.asfieldname] = point_dict["data"]["val"] * 2
+        Point.value(point_dict, self.asfieldname, (Point.value(point_dict, self.fieldname) * 2))
         return point_dict
 

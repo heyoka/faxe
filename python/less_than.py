@@ -54,8 +54,8 @@ class Less_than(Faxe):
         :return:
         """
         for idx, fieldname in enumerate(self.fields):
-            if Point.field(point, fieldname):
-                val = Point.field(point, fieldname)
+            val = Point.field(point, fieldname)
+            if val is not None:
                 if (type(val) == int or type(val) == float) and val >= self.values[idx]:
                     return False
 

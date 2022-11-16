@@ -9,30 +9,13 @@ class Data_demo(Faxe):
     def handle_point(self, point_data):
 
         # just add a field and emit the data-point
-        print("point field ", Point.value(point_data, 'pyth.field3.deeper.list[0]'))
+        self.log("point field ", Point.value(point_data, 'pyth.field3.deeper.list[0]'))
         Point.value(point_data,'glippse.globbsy.p_ts[0]', Faxe.now())
-        print('result after setting data', point_data)
+        self.log('result after setting data', point_data)
 
         self.emit(point_data)
 
     def handle_batch(self, batch_data):
-        # SOME TESTS ###################
-        print("Batch DEFAULT", Batch.default(batch_data, 'pyth.field22', 'JURGOLINNEN'))
-
-        print("value on Batch", Batch.value(batch_data, 'pyth.field2'))
-        Batch.value(batch_data, 'pbatch.field.new', 'hurra')
-        print("set value on Batch", batch_data)
-        self.emit(batch_data)
-
-        print("Batch.values", Batch.values(batch_data, ['pyth.field1', 'pyth.field2'], 'NOOOOOOOOOOO- NOOOOOOOOOOO'))
-
-        newpoint = Point.new()
-        print("new point", newpoint)
-        Point.default(newpoint, 'a.somewhat.deep.path', 0.099999)
-        print("Point.default", newpoint)
-        print("new point", Point.new())
-        print("new batch", Batch.new())
-
         # HELPER CLASSES DEMO ##########
         """
         ############################################################################################
@@ -69,4 +52,5 @@ class Data_demo(Faxe):
         batch_out = Batch.new(9876)
         Batch.points(batch_out, [newpoint2, lastpoint, newpoint3, newpoint, newpoint4])
 
+        self.log('output ' + str(batch_out), 'info')
         self.emit(batch_out)

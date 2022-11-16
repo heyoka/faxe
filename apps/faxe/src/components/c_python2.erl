@@ -117,7 +117,6 @@ handle_info({python_error, Error}, State) ->
    lager:error("~p", [Error]),
    {ok, State};
 handle_info({python_log, Message, Level0} = L, State) ->
-%%   lager:notice("~p", [L]),
    Level = log_level(faxe_util:to_bin(Level0)),
    esp_debug:do_log(Level, "~p", [Message]),
    {ok, State};

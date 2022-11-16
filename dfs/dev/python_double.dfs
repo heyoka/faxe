@@ -1,0 +1,16 @@
+|json_emitter(
+    '{"field1" : 1, "field2": "2"}',
+    '{"field1" : 2, "field2": "3"}',
+    '{"field1" : 3, "field2": "4"}'
+)
+.every(500ms)
+.as('data')
+.select('batch')
+
+@double()
+.field('data.field1')
+.as('data.double.field1')
+
+|keep('data.double.field1')
+|debug()
+

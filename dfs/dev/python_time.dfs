@@ -1,0 +1,12 @@
+|json_emitter('{}').every(500ms).select('batch')
+
+@python_time()
+
+|eval(lambda: str_concat(
+                    string(abs("python.time" - "ts")) ,
+                    'ms')
+    )
+.as('time_diff')
+
+|debug()
+
