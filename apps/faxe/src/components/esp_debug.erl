@@ -11,7 +11,7 @@
 
 -behavior(df_component).
 %% API
--export([init/3, process/3, shutdown/1, options/0, check_options/0, handle_info/2]).
+-export([init/3, process/3, shutdown/1, options/0, check_options/0, handle_info/2, do_log/3]).
 
 -record(state, {
    nodeid,
@@ -92,4 +92,4 @@ do_log(notice, Format, Args) -> lager:notice(Format, Args);
 do_log(warning, Format, Args) -> lager:warning(Format, Args);
 do_log(error, Format, Args) -> lager:error(Format, Args);
 do_log(critical, Format, Args) -> lager:critical(Format, Args);
-do_log(alert, Format, Args) -> lager:critical(Format, Args).
+do_log(alert, Format, Args) -> lager:alert(Format, Args).

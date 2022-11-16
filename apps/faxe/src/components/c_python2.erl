@@ -1,8 +1,10 @@
 %%% Date: 10.11.22 - 14:11
 %%% Ⓒ 2022 heyoka
+%%%
 %%% @doc
-
-
+%%% version 2 of faxe's python interface, has a more streamlined data interface
+%%% supporting complete data-point and data-batch python representations
+%%% in python data items are still dicts
 
 -module(c_python2).
 -author("Alexander Minichmair").
@@ -114,8 +116,10 @@ handle_info({emit_data, {"Map", Data}}, State) when is_list(Data) ->
 handle_info({python_error, Error}, State) ->
    lager:error("~p", [Error]),
    {ok, State};
-handle_info({python_log, Message}, State) ->
-   lager:notice("~p", [Message]),
+handle_info({python_log, Message, Level0} = L, State) ->
+%%   lager:notice("~p", [L]),
+   Level = log_level(faxe_util:to_bin(Level0)),
+   esp_debug:do_log(Level, "~p", [Message]),
    {ok, State};
 %%%
 handle_info(start_debug, State) ->
@@ -155,8 +159,15 @@ from_map(P = #data_point{fields = Fields}, As) ->
 get_python() ->
    {ok, PythonParams} = application:get_env(faxe, python),
    Path = proplists:get_value(script_path, PythonParams, "./python"),
-%%   FaxePath = filename:join(code:priv_dir(faxe), "python/"),
-   {ok, Python} = pythra:start_link([Path]),
-%%   {ok, Python} = pythra:start_link([FaxePath, Path]),
+   FaxePath = filename:join(code:priv_dir(faxe), "python/"),
+   {ok, Python} = pythra:start_link([FaxePath, Path]),
    Python.
 
+
+log_level(<<"debug">>) -> debug;
+log_level(<<"info">>) -> info;
+log_level(<<"notice">>) -> notice;
+log_level(<<"warning">>) -> warning;
+log_level(<<"error">>) -> error;
+log_level(<<"alert">>) -> alert;
+log_level(_) -> notice.

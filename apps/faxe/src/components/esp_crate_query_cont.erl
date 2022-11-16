@@ -306,7 +306,9 @@ start(S = #state{}) ->
 do_query(State = #state{query_mark = QueryMark, stop = Stop}) when Stop /= undefined andalso QueryMark > Stop ->
    lager:notice("stop is reached: ~p > ~p",[faxe_time:to_iso8601(QueryMark), faxe_time:to_iso8601(Stop)]),
    case State#state.stop_flow of
-      true -> {stop, normal, State};
+      true ->
+         dataflow:send_done(State#state.fn_id);
+%%         {stop, normal, State};
       false -> {ok, State}
    end;
 do_query(State = #state{client = C, period = Period, query_mark = QueryMark, response_def = RespDef, fn_id = FnId}) ->
