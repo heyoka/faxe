@@ -59,7 +59,8 @@ get_ssl_opts(Key) when is_atom(Key) ->
    case faxe_config:get(Key) of
       KeyOpts when is_list(KeyOpts) ->
          SslOpts = proplists:get_value(ssl, KeyOpts, []),
-         filter_empty_options(proplists:delete(enable, SslOpts));
+         filter_empty_options(proplists:delete(enable, SslOpts)) ++
+            [{versions, ['tlsv1.2','tlsv1.3']}, {fail_if_no_peer_cert, false}];
       _ -> []
    end.
 

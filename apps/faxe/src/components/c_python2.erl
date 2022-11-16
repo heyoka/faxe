@@ -76,7 +76,6 @@ init(NodeId, _Ins, #{cb_module := Callback, cb_class := CBClass, as := As} = Arg
 
 process(_Inp, #data_batch{} = Batch,
     State = #state{callback_module = _Mod, python_instance = Python, cb_object = Obj}) ->
-   lager:warning("now ~p",[erlang:system_time(microsecond)]),
    Data = to_map(Batch),
    NewObj = pythra:method(Python, Obj, ?PYTHON_BATCH_CALL, [Data]),
    {ok, State#state{cb_object = NewObj}}
