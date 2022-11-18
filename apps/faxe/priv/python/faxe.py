@@ -260,6 +260,15 @@ class Batch:
         return b
 
     @staticmethod
+    def empty(batch_data):
+        """
+        a Batch is empty, if it has no points
+        :param batch_data:
+        :return: True | False
+        """
+        return ('points' not in batch_data) or (batch_data['points'] == [])
+
+    @staticmethod
     def points(batch_data, points=None):
         """
 

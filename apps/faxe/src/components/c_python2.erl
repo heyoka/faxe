@@ -89,7 +89,6 @@ process(_Inp, #data_point{} = Point, State = #state{python_instance = Python, cb
 
 %% python sends us data
 handle_info({emit_data, #{<<"fields">> := _F}= Data} , State = #state{as = As}) ->
-%%   lager:notice("point from python ~p",[Data]),
    Point = flowdata:point_from_json_map(Data),
    {emit, {1, from_map(Point, As)}, State};
 handle_info({emit_data, #{<<"points">> := Points}=BatchData}, State = #state{as = As}) ->
@@ -149,9 +148,12 @@ batch_to_map(#data_batch{points = Points, start = Start, dtag = DTag}) ->
       <<"dtag">> => DTag
    }.
 
-from_map(P = #data_point{fields = Fields}, As) ->
+from_map(P = #data_point{fields = Fields}, As) when is_map_key(<<"fields">>, Fields) ->
    NewFields = maps:get(<<"fields">>, Fields),
    P1 = P#data_point{fields = maps:without([<<"dtag">>, <<"fields">>, <<"tags">>, <<"ts">>], NewFields)},
+   flowdata:set_root(P1, As);
+from_map(P = #data_point{fields = Fields}, As) ->
+   P1 = P#data_point{fields = maps:without([<<"dtag">>, <<"tags">>, <<"ts">>], Fields)},
    flowdata:set_root(P1, As).
 
 
