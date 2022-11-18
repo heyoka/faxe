@@ -31,7 +31,7 @@ class Data_demo(Faxe):
         :return: void
         """
         newpoint = Point.new(1)
-        Point.field(newpoint, 'python_field', 1234)
+        Point.value(newpoint, 'python_field', 1234)
 
         newpoint2 = Point.new(2)
         Point.field(newpoint2, 'python_field2', 2345)

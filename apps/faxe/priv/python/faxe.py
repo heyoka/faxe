@@ -1,3 +1,4 @@
+import time
 from functools import cmp_to_key
 from jsonpath_ng import parse
 
@@ -159,24 +160,6 @@ class Point:
             return point_data
 
         return dict(point_data['fields'])
-
-    @staticmethod
-    def field(point_data, fieldname, value=None):
-        """
-        get or set a specific field
-        :param point_data: dict()
-        :param fieldname: string
-        :param value: any
-        :return: None, if field is not found /
-        """
-        if value is not None:
-            point_data['fields'][fieldname] = value
-            return point_data
-
-        if fieldname in point_data['fields']:
-            return point_data['fields'][fieldname]
-
-        return None
 
     @staticmethod
     def value(point_data, path, value=None):

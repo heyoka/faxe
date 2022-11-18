@@ -69,16 +69,22 @@ init_as(#{as := As}) ->
    As.
 
 %%% databatch only
-process(_Inport, #data_batch{points = []}, S) ->
-   {ok, S};
+process(_Inport, #data_batch{points = [], start = BatchStart}, State = #state{as = Aliases}) ->
+   %% the only chance for us to get a timestamp here, is to take the batchstart or else use now() ;(
+   Ts = case BatchStart of
+           undefined -> faxe_time:now();
+           _ when is_integer(BatchStart) -> BatchStart
+        end,
+   NewFields = [{As, 0} || As <- Aliases],
+   NewPoint = flowdata:set_fields(#data_point{ts = Ts}, NewFields),
+   %% emit zeroed fields
+   {emit, NewPoint, State};
 process(_Inport, #data_batch{points = Points, start = BatchStart} = Batch,
     State = #state{modules = Mods, module_state = MState, fields = Fields, as = As, keep = KeepFields}) ->
 
    DefaultTs = faxe_time:now(),
    Ps = [flowdata:tss_fields(Batch, F) || F <- Fields],
    MStates = [MState || _F <- Fields],
-
-   KeepPoint = lists:last(Points),
 
    %% if there is no timestamp present in the result, we use the ts field form the last point from incoming data_batch
    {Ts, Results} =
@@ -92,6 +98,7 @@ process(_Inport, #data_batch{points = Points, start = BatchStart} = Batch,
       _ when is_integer(BatchStart) -> BatchStart
    end,
    %% handle keep fields
+   KeepPoint = lists:last(Points),
    KeepKV = lists:zip(KeepFields, flowdata:fields(KeepPoint, KeepFields)),
    NewPoint0 = flowdata:set_fields(#data_point{ts = TsBatch}, KeepKV),
    NewPoint = flowdata:set_fields(NewPoint0, Results),
