@@ -13,9 +13,6 @@ class Path(Faxe):
     def init(self, args=None):
         self.path = args["field"]
 
-    def handle_batch(self, batch_data):
-
-
     def handle_point(self, point_data):
         # val = Point.value(point_data, self.path)
         # print(val)

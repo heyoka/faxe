@@ -1,4 +1,4 @@
-|json_emitter('{}').every(500ms).select('batch')
+|json_emitter('{"hallo": "du"}').every(3s)
 
 @python_time()
 

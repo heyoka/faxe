@@ -36,7 +36,11 @@
 -define(PYTHON_INFO_CALL, info).
 -define(PYTHON_INIT_CALL, init).
 -define(PYTHON_BATCH_CALL, batch).
+-define(PYTHON_BATCH_CHUNK_CALL, batch_chunk).
+-define(PYTHON_BATCH_CHUNK_END_CALL, batch_chunked_end).
 -define(PYTHON_POINT_CALL, point).
+
+-define(BATCH_CHUNK_SIZE, 350).
 
 
 -spec options() -> list(
@@ -76,10 +80,18 @@ init(NodeId, _Ins, #{cb_module := Callback, cb_class := CBClass, as := As} = Arg
       as = As},
    {ok, all, State}.
 
-process(_Inp, #data_batch{} = Batch,
+process(_Inp, #data_batch{points = Points} = Batch,
     State = #state{callback_module = _Mod, python_instance = Python, cb_object = Obj}) ->
-   Data = to_map(Batch),
-   NewObj = pythra:method(Python, Obj, ?PYTHON_BATCH_CALL, [Data]),
+   BatchSize = length(Points),
+   NewObj =
+      case BatchSize > ?BATCH_CHUNK_SIZE of
+      true ->
+         lager:notice("batch too big, send in chunks of ~p",[?BATCH_CHUNK_SIZE]),
+         chunk_batch(Points, Batch#data_batch{points = []}, State);
+      false ->
+         Data = to_map(Batch),
+         pythra:method(Python, Obj, ?PYTHON_BATCH_CALL, [Data])
+   end,
    {ok, State#state{cb_object = NewObj}}
 ;
 process(_Inp, #data_point{} = Point, State = #state{python_instance = Python, cb_object = Obj}) ->
@@ -163,6 +175,27 @@ get_python() ->
    FaxePath = filename:join(code:priv_dir(faxe), "python/"),
    {ok, Python} = pythra:start_link([FaxePath, Path]),
    Python.
+
+chunk_batch(Ps, BatchMeta, State=#state{cb_object = Obj}) ->
+   chunk_batch(Ps, BatchMeta, Obj, State).
+
+chunk_batch(PointsLeft, BatchMeta=#data_batch{}, Obj, State=#state{python_instance = Python})
+      when is_list(PointsLeft) ->
+   {Points, Rest} =
+   case catch lists:split(?BATCH_CHUNK_SIZE, PointsLeft) of
+      {Points0, Rest0} = R when is_list(Points0), is_list(Rest0) -> R;
+      N ->
+%%         lager:warning("caught ~p",[N]),
+         {PointsLeft, []}
+   end,
+%%   lager:info("points: ~p, rest: ~p",[Points, Rest]),
+   lager:info("send chunk of size ~p",[length(Points)]),
+   Data = to_map(BatchMeta#data_batch{points = Points}),
+   RObj = pythra:method(Python, Obj, ?PYTHON_BATCH_CHUNK_CALL, [Data]),
+   case Rest of
+      [] -> pythra:method(Python, RObj, ?PYTHON_BATCH_CHUNK_END_CALL, []);
+      _ -> chunk_batch(Rest, BatchMeta, RObj, State)
+   end.
 
 
 log_level(<<"debug">>) -> debug;

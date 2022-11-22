@@ -14,6 +14,7 @@ class Faxe:
     def __init__(self, args):
         self.erlang_pid = args['erl']
         self.init(Faxe.decode_args(args))
+        self.current_chunked = dict()
 
     @staticmethod
     def info(clname):
@@ -106,6 +107,20 @@ class Faxe:
 
     def batch(self, req):
         self.handle_batch(dict(req))
+        return self
+
+    def batch_chunk(self, chunk_data):
+        if 'points' in self.current_chunked:
+            points = Batch.points(chunk_data)
+            self.current_chunked['points'].append(points)
+        else:
+            self.current_chunked = chunk_data
+
+        return self
+
+    def batch_chunked_end(self):
+        self.handle_batch(self.current_chunked)
+        self.current_chunked = dict()
         return self
 
     @staticmethod
