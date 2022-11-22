@@ -1,0 +1,7 @@
+def letter_map = '{"a": 1, "d": 2, "c": 3}'
+
+|json_emitter('{"a": "b", "c": 4}')
+.every(3s)
+
+|eval(lambda: map_get("a", letter_map, 'defaultvalue')).as('mapped')
+|debug()
