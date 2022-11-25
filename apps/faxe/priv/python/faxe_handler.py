@@ -22,7 +22,6 @@ def register_handler(_classname):
             callback_object.point(args[0])
         elif tag == b'batch':
             data = json.loads(args[0], object_hook=undefined_to_None)
-            print("json", data)
             callback_object.batch(data)
         else:
             print('no route for handler with', tag)

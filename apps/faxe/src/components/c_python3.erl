@@ -108,7 +108,7 @@ handle_info({emit_data, #{<<"points">> := Points}=BatchData}, State = #state{as 
    end,
    Batch = Batch0#data_batch{start = StartTs},
    {emit, {1, Batch}, State};
-%% json data from python
+%% json data from python will be transferred as a string
 handle_info({emit_data, Data}, State = #state{}) when is_list(Data) ->
    BatchData = jiffy:decode(Data, [return_maps, {null_term, undefined}]),
    handle_info({emit_data, BatchData}, State);

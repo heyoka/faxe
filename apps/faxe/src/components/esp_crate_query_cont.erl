@@ -182,6 +182,9 @@ handle_info({init2, StartOpts}, State = #state{}) ->
    erlang:send_after(0, self(), reconnect),
    {ok, State1};
 
+handle_info({'EXIT', C, normal}, State = #state{client = C}) ->
+   lager:info("Client EXITED normal"),
+   {ok, State};
 handle_info({'EXIT', _C, Reason}, State = #state{}) ->
    lager:warning("EXIT epgsql with reason: ~p",[Reason]),
    State0 = cancel_timer(State),
@@ -298,8 +301,9 @@ start(S = #state{}) ->
    S#state{timer = TRef}.
 
 %% stop
-do_query(State = #state{query_mark = QueryMark, stop = Stop}) when Stop /= undefined andalso QueryMark > Stop ->
-   lager:notice("stop is reached: ~p > ~p",[faxe_time:to_iso8601(QueryMark), faxe_time:to_iso8601(Stop)]),
+do_query(State = #state{query_mark = QMark, stop = Stop, client = C}) when Stop /= undefined andalso QMark > Stop ->
+   lager:notice("stop is reached: ~p > ~p",[faxe_time:to_iso8601(QMark), faxe_time:to_iso8601(Stop)]),
+   epgsql:close(C),
    case State#state.stop_flow of
       true ->
          dataflow:send_done(State#state.fn_id);
