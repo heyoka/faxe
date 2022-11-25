@@ -28,7 +28,7 @@ min_test() ->
 map_get_test() ->
   ?assertEqual(<<"yes">>, faxe_lambda_lib:map_get(<<"k2">>, test_map())).
 map_get_undefined_test() ->
-  ?assertEqual(undefined, faxe_lambda_lib:map_get(<<"k8">>, test_map())).
+  ?assertEqual(<<"undefined">>, faxe_lambda_lib:map_get(<<"k8">>, test_map())).
 
 test_map() -> #{<<"k1">> => 2134.23, <<"k2">> => <<"yes">>, <<"four">> => 5}.
 -endif.

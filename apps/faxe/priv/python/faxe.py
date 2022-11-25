@@ -1,9 +1,10 @@
+import json
 import time
 from functools import cmp_to_key
 from jsonpath_ng import parse
 
-import erlport.erlterms
-import erlport.erlang
+from erlport.erlterms import Atom, Map, List
+from erlport.erlang import cast
 
 
 class Faxe:
@@ -26,8 +27,8 @@ class Faxe:
         outlist = []
         for i, x in enumerate(method()):
             lout = list(x)
-            lout[0] = erlport.erlterms.Atom(to_bytes(lout[0]))
-            lout[1] = erlport.erlterms.Atom(to_bytes(lout[1]))
+            lout[0] = Atom(to_bytes(lout[0]))
+            lout[1] = Atom(to_bytes(lout[1]))
             outlist.append(tuple(lout))
         return outlist
 
@@ -74,8 +75,11 @@ class Faxe:
         used to emit data to downstream nodes
         :param emit_data: dict
         """
-        erlport.erlang.cast(self.erlang_pid,
-                            (erlport.erlterms.Atom(b'emit_data'), encode_data(emit_data)))
+        if 'points' in emit_data:
+            data = json.dumps(emit_data)
+        else:
+            data = encode_data(emit_data)
+        cast(self.erlang_pid, (Atom(b'emit_data'), data))
 
     def error(self, error):
         """
@@ -83,7 +87,7 @@ class Faxe:
         used to send an error back to faxe
         :param error: string
         """
-        erlport.erlang.cast(self.erlang_pid, (erlport.erlterms.Atom(b'python_error'), error))
+        cast(self.erlang_pid, (Atom(b'python_error'), error))
 
     def log(self, msg, level='notice'):
         """
@@ -91,7 +95,7 @@ class Faxe:
         :param msg: string
         :param level: 'debug' | 'info' | 'notice' | 'warning' | 'error' | 'critical' | 'alert'
         """
-        erlport.erlang.cast(self.erlang_pid, (erlport.erlterms.Atom(b'python_log'), msg, level))
+        cast(self.erlang_pid, (Atom(b'python_log'), msg, level))
 
     @staticmethod
     def now():
@@ -106,7 +110,7 @@ class Faxe:
         return self
 
     def batch(self, req):
-        self.handle_batch(dict(req))
+        self.handle_batch(req)
         return self
 
     def batch_chunk(self, chunk_data):
@@ -428,9 +432,9 @@ class Jsn:
 
 
 def encode_data(data):
-    if isinstance(data, erlport.erlterms.Map):
+    if isinstance(data, Map):
         return encode_data(dict(data))
-    if isinstance(data, erlport.erlterms.List):
+    if isinstance(data, List):
         return encode_data(list(data))
     if type(data) == list:
         newlist = [encode_data(d) for d in data]
@@ -452,9 +456,9 @@ def to_bytes(ele):
         return encode_dict(ele)
     if type(ele) == list:
         return [to_bytes(d) for d in ele]
-    if isinstance(ele, erlport.erlterms.Map):
+    if isinstance(ele, Map):
         return encode_dict(dict(ele))
-    if isinstance(ele, erlport.erlterms.List):
+    if isinstance(ele, List):
         return [to_bytes(d) for d in ele]
 
     return ele

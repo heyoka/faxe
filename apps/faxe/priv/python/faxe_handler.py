@@ -19,14 +19,22 @@ def register_handler(_classname):
             class_ = getattr(module, class_name)
             callback_object = class_(args[1])
         elif tag == b'point':
-            data = json.loads(args[0])
-            callback_object.point(data)
+            callback_object.point(args[0])
         elif tag == b'batch':
-            data = json.loads(args[0])
+            data = json.loads(args[0], object_hook=undefined_to_None)
+            print("json", data)
             callback_object.batch(data)
         else:
             print('no route for handler with', tag)
 
     set_message_handler(handler)
     return Atom(b'ok')
+
+
+def undefined_to_None(dct):
+    for k, v in dct.items():
+        if v == 'undefined':
+            dct[k] = None
+
+    return dct
 
