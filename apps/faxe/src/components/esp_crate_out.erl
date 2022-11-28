@@ -315,13 +315,14 @@ handle_response_message(RespMessage) ->
          %% count where rows := -2
          NotWritten = lists:foldl(
             fun
-               (#{<<"rowcount">> := -2}, Acc) -> Acc+1;
+               (#{<<"rowcount">> := -2, <<"error_message">> := E}, {Count, Errors}) -> {Count+1, Errors++[E]};
+               (#{<<"rowcount">> := -2}, {Count, Errors}) -> {Count+1, Errors};
                (_, Acc) -> Acc
-            end, 0, Results),
+            end, {0, []}, Results),
          case NotWritten of
-            0 -> ok;
-            _ ->
+            {0, []} -> ok;
+            {C, Errs} ->
 %%               lager:info("results ~p",[Results]),
-               lager:notice("CrateDB: ~p of ~p rows not written",[length(Results), NotWritten])
+               lager:notice("CrateDB: ~p of ~p rows not written, errors: ~p",[length(Results), C, Errs])
          end
       end.
