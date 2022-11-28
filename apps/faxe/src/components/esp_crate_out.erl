@@ -22,6 +22,7 @@
    database,
    table,
    table_field,
+   path,
    query,
    query_from_lambda = false :: true|false,
    db_fields,
@@ -34,11 +35,13 @@
    last_error,
    debug_mode = false,
    flow_inputs,
-   ignore_resp_timeout
+   ignore_resp_timeout,
+   error_trace = false
 }).
 
 -define(KEY, <<"stmt">>).
--define(PATH, <<"/_sql?error_trace=true">>).
+-define(PATH, <<"/_sql">>).
+-define(ACTIVE_ERROR_TRACE, <<"?error_trace=true">>).
 -define(ARGS, <<"bulk_args">>).
 -define(DEFAULT_SCHEMA_HDR, <<"Default-Schema">>).
 -define(AUTH_HEADER_KEY, <<"Authorization">>).
@@ -61,6 +64,7 @@ options() ->
       {faxe_fields, string_list},
       {remaining_fields_as, string, undefined},
       {max_retries, integer, ?FAILED_RETRIES},
+      {error_trace, boolean, false},
       {ignore_response_timeout, boolean, true}
    ].
 
@@ -83,17 +87,19 @@ metrics() ->
 
 init(NodeId, Inputs,
     #{host := Host0, port := Port, database := DB, table := Table, user := User, pass := Pass,
-       tls := Tls, db_fields := DBFields, faxe_fields := FaxeFields,
-       remaining_fields_as := RemFieldsAs, max_retries := MaxRetries, ignore_response_timeout := IgnoreRespTimeout}) ->
+       tls := Tls, db_fields := DBFields, faxe_fields := FaxeFields, error_trace := ETrace,
+       remaining_fields_as := RemFieldsAs, max_retries := MaxRetries,
+       ignore_response_timeout := IgnoreRespTimeout}) ->
 
    Host = binary_to_list(Host0),
    erlang:send_after(0, self(), start_client),
 %%   Query = maybe_build_query(DBFields, Table, RemFieldsAs),
    connection_registry:reg(NodeId, Host, Port, <<"http">>),
    %% use fully qualified table name here, ie. doc."0x23d"
+   Path = case ETrace of false -> ?PATH; true -> <<?PATH/binary, ?ACTIVE_ERROR_TRACE/binary>> end,
    State = #state{host = Host, port = Port, database = DB, user = User, pass = Pass,
-      failed_retries = MaxRetries, remaining_fields_as = RemFieldsAs, tls = Tls,
-      table = Table, db_fields = DBFields, faxe_fields = FaxeFields,
+      failed_retries = MaxRetries, remaining_fields_as = RemFieldsAs, tls = Tls, path = Path,
+      table = Table, db_fields = DBFields, faxe_fields = FaxeFields, error_trace = ETrace,
       fn_id = NodeId, flow_inputs = Inputs, ignore_resp_timeout = IgnoreRespTimeout},
    NewState = query_init(State),
 %%   lager:warning("QUERY INIT Schema:~p ~p",[DB, {NewState#state.query, NewState#state.query_from_lambda}]),
@@ -192,8 +198,8 @@ build(Item, Query, Fields, RemFieldsAs) ->
 do_send(_Item, _Body, _Headers, MaxFailedRetries, S = #state{failed_retries = MaxFailedRetries, last_error = Err}) ->
    lager:warning("could not send ~p with ~p retries, last error: ~p", [_Body, MaxFailedRetries, Err]),
    S#state{last_error = undefined};
-do_send(Item, Body, Headers, Retries, State = #state{client = Client, fn_id = FNId}) ->
-   Ref = gun:post(Client, ?PATH, Headers, Body),
+do_send(Item, Body, Headers, Retries, State = #state{client = Client, fn_id = FNId, path = Path}) ->
+   Ref = gun:post(Client, Path, Headers, Body),
    case catch(get_response(Client, Ref, State#state.ignore_resp_timeout)) of
       ok ->
          dataflow:ack(Item, State#state.flow_inputs),
