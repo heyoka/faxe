@@ -233,7 +233,12 @@ merge(M1, M2) when is_map(M1), is_map(M2) -> mapz:deep_merge(merge_fun(), #{}, [
 merge(M1, M2) when is_list(M1), is_list(M2) -> lists:merge(M1, M2);
 merge(V1, V2) when is_number(V1), is_number(V2) -> V1 + V2;
 merge(S1, S2) when is_binary(S1), is_binary(S2) -> string:concat(S1, S2);
-merge(_, _) -> error(cannot_merge_wrong_or_different_datatypes).
+merge(A, B) ->
+   error( {iolist_to_binary(["cannot merge ",
+      faxe_util:type(B),  " into ",
+      faxe_util:type(A)]),
+      B, A
+   }).
 
 
 merge_fun() ->
