@@ -22,7 +22,6 @@
    database,
    table,
    table_field,
-   path,
    query,
    query_from_lambda = false :: true|false,
    db_fields,
