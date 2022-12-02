@@ -75,11 +75,14 @@ class Faxe:
         used to emit data to downstream nodes
         :param emit_data: dict
         """
+        data = None
         if 'points' in emit_data:
             data = json.dumps(emit_data)
-        else:
+        elif 'fields' in emit_data and emit_data['fields'] is not None:
             data = encode_data(emit_data)
-        cast(self.erlang_pid, (Atom(b'emit_data'), data))
+
+        if data is not None:
+            cast(self.erlang_pid, (Atom(b'emit_data'), data))
 
     def error(self, error):
         """

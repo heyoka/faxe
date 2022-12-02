@@ -95,7 +95,7 @@ process(_Inp, #data_point{} = Point, State = #state{python_instance = Python}) -
    {ok, State}.
 
 %% python sends us data
-handle_info({emit_data, #{<<"fields">> := _F}= Data} , State = #state{as = As}) ->
+handle_info({emit_data, #{<<"fields">> := Fs}= Data} , State = #state{as = As}) when is_map(Fs)->
    Point = flowdata:point_from_json_map(Data),
    {emit, {1, from_map(Point, As)}, State};
 handle_info({emit_data, #{<<"points">> := Points}=BatchData}, State = #state{as = As}) ->
