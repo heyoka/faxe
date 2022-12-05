@@ -1,5 +1,5 @@
 ### Build stage 0
-FROM balenalib/intel-nuc-debian-python:latest as erlang
+FROM balenalib/intel-nuc-debian-python:3.10.8 as erlang
 
 ### erlang and rebar3
 ENV OTP_VERSION="24.0.6" \

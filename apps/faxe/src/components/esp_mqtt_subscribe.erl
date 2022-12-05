@@ -164,7 +164,7 @@ connect(State = #state{host = Host, port = Port, client_id = ClientId}) ->
    ],
    Opts1 = opts_auth(State, Opts0),
    Opts = opts_ssl(State, Opts1),
-   lager:debug("connect to mqtt broker with: ~p",[Opts]),
+%%   lager:debug("connect to mqtt broker with: ~p",[Opts]),
    {ok, _Client} = emqttc:start_link(Opts)
 .
 
