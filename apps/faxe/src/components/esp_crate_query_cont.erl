@@ -304,12 +304,14 @@ start(S = #state{}) ->
 do_query(State = #state{query_mark = QMark, stop = Stop, client = C}) when Stop /= undefined andalso QMark > Stop ->
    lager:notice("stop is reached: ~p > ~p",[faxe_time:to_iso8601(QMark), faxe_time:to_iso8601(Stop)]),
    epgsql:close(C),
-   case State#state.stop_flow of
-      true ->
-         dataflow:send_done(State#state.fn_id);
-%%         {stop, normal, State};
-      false -> {ok, State}
-   end;
+   {ok, State};
+%%   case State#state.stop_flow of
+%%      true ->
+%%%%         dataflow:send_done(State#state.fn_id);
+%%%%         {stop, normal, State};
+%%         ok;
+%%      false -> {ok, State}
+%%   end;
 do_query(State = #state{client = C, period = Period, query_mark = QueryMark, response_def = RespDef, fn_id = FnId}) ->
    %% do query
    FromTs = QueryMark-Period,
