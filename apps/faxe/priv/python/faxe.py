@@ -27,9 +27,12 @@ class Faxe:
         outlist = []
         for i, x in enumerate(method()):
             lout = list(x)
+            if 3 == len(lout) and isinstance(lout[2], str):
+                lout[2] = to_bytes(lout[2])
             lout[0] = Atom(to_bytes(lout[0]))
             lout[1] = Atom(to_bytes(lout[1]))
             outlist.append(tuple(lout))
+
         return outlist
 
     @staticmethod
