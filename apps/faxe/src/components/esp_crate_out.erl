@@ -315,6 +315,7 @@ handle_response({error, What}, {error, Reason}) ->
 
 handle_response_message(RespMessage) ->
    Response = jiffy:decode(RespMessage, [return_maps]),
+   lager:info("res ~p",[Response]),
    case Response of
       #{<<"results">> := Results} ->
          %% count where rows := -2
@@ -327,7 +328,6 @@ handle_response_message(RespMessage) ->
          case NotWritten of
             {0, []} -> ok;
             {C, Errs} ->
-%%               lager:info("results ~p",[Results]),
-               lager:notice("CrateDB: ~p of ~p rows not written, errors: ~p",[length(Results), C, Errs])
+               lager:error("CrateDB: ~p of ~p rows not written, errors: ~p",[length(Results), C, Errs])
          end
       end.

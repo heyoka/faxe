@@ -79,13 +79,15 @@ class Faxe:
         :param emit_data: dict
         """
         data = None
-        if 'points' in emit_data:
+        if 'points' in emit_data and isinstance(emit_data['points'], list):
             data = json.dumps(emit_data)
-        elif 'fields' in emit_data and emit_data['fields'] is not None:
+        elif 'fields' in emit_data and isinstance(emit_data['fields'], dict):
             data = encode_data(emit_data)
 
         if data is not None:
             cast(self.erlang_pid, (Atom(b'emit_data'), data))
+        else:
+            self.log(f'Invalid emit data given. {emit_data}', 'error')
 
     def error(self, error):
         """
