@@ -10,7 +10,7 @@
 .select('seq')
 
 @batch_start()
-.field('pyth.field3.deeper.list[2]')
+%.field('pyth.field3.deeper.list[2]')
 
 %@data_demo()
 

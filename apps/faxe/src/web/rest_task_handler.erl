@@ -8,7 +8,7 @@
 %%%-------------------------------------------------------------------
 -module(rest_task_handler).
 
--define(BODY_LENGTH_TIMEOUT, #{length => 150000, period => 5000}).
+-define(BODY_LENGTH_TIMEOUT, #{length => 250000, period => 5000}).
 
 %%
 %% Cowboy callbacks
@@ -197,6 +197,8 @@ malformed_request(Req, State=#state{mode = Mode}) when Mode == add_tags; Mode ==
    {Malformed,
       rest_helper:report_malformed(Malformed, Req1, [<<"tags">>]), State#state{tags = TagList}};
 malformed_request(Req, State=#state{mode = Mode}) when Mode == register orelse Mode == upsert ->
+   L = cowboy_req:body_length(Req),
+   lager:notice("Body Length is ~p",[L]),
    {ok, Result, Req1} = cowboy_req:read_urlencoded_body(Req, ?BODY_LENGTH_TIMEOUT),
    Dfs = proplists:get_value(<<"dfs">>, Result, invalid),
    Name = proplists:get_value(<<"name">>, Result, invalid),
