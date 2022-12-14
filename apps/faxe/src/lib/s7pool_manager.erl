@@ -137,7 +137,7 @@ handle_info({'EXIT', Pid, normal}, State = #state{}) ->
   NewState = remove_handler(Pid, State),
   {noreply, NewState};
 %% handler exited
-handle_info({'EXIT', Pid, Why}, State = #state{pools_ips = Pools, ip_opts = IpOpts})  when is_map_key(Pid, Pools) ->
+handle_info({'EXIT', Pid, _Why}, State = #state{pools_ips = Pools, ip_opts = IpOpts})  when is_map_key(Pid, Pools) ->
   Ip = maps:get(Pid, Pools),
   NState = do_remove_handler(Pid, Ip, State),
   Opts = maps:get(Ip, IpOpts),
@@ -169,7 +169,7 @@ handle_info({'DOWN', _Mon, process, Pid, _Info}, State = #state{pool_user =  Poo
   end,
   {noreply, State#state{pool_user = NewPoolUsers}};
 handle_info(Req, State) ->
-%%  lager:warning("Unhandled Request : ~p",[Req]),
+  lager:notice("[~p] Unhandled Request : ~p",[?MODULE, Req]),
   {noreply, State}.
 
 terminate(_Reason, _State = #state{}) ->

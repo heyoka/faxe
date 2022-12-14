@@ -63,7 +63,14 @@ init(#{ip := Ip, port := Port, slot := Slot, rack := Rack, owner := Owner}) ->
 
 handle_call({read, Opts}, _From, State = #state{client = Client, ip = _Ip}) ->
   Res = (catch snapclient:read_multi_vars(Client, Opts)),
-  {reply, Res, State};
+  Ret =
+  case Res of
+    {error,#{es7 := errCliInvalidPlcAnswer}} ->
+      exit(Client, kill),
+      {error, failed};
+    _ -> Res
+  end,
+  {reply, Ret, State};
 handle_call({get_pdu_size}, _From, State = #state{client = Client}) ->
   Res = (catch snapclient:get_pdu_length(Client)),
   {reply, Res, State};
@@ -78,7 +85,7 @@ handle_cast(_Request, State = #state{}) ->
 handle_info({snap7_connected, Client}, State = #state{client = Client, owner = Owner}) ->
   Owner ! {s7_connected, self()},
   {noreply, State#state{client = Client}};
-handle_info({'DOWN', _MonitorRef, _Type, Client, Info}, State=#state{client = Client, owner = Owner}) ->
+handle_info({'DOWN', _MonitorRef, _Type, Client, _Info}, State=#state{client = Client, owner = Owner}) ->
   Owner ! {s7_disconnected, self()},
   try_reconnect(State#state{client = undefined});
 %% old DOWN message from already restarted client process

@@ -24,6 +24,9 @@
    table_field,
    query,
    query_from_lambda = false :: true|false,
+   %% the query point is used when the query is built with a lambda and also to get a decent error message
+   %% from CRATE when batch INSERT just returns a -2 for a row, but no error
+   query_point :: undefined|#data_point{},
    db_fields,
    faxe_fields,
    remaining_fields_as,
@@ -115,9 +118,9 @@ process(_In, DataItem, State = #state{query_from_lambda = true,
       table = Table, db_fields = DbFields, database = DB, remaining_fields_as = RemFields}) ->
    Point = get_query_point(DataItem),
    Query = build_query(DbFields, DB, Table, RemFields, Point),
-   do_process(DataItem, State#state{query = Query});
+   do_process(DataItem, State#state{query = Query, query_point = Point});
 process(_In, DataItem, State) ->
-   do_process(DataItem, State).
+   do_process(DataItem, State#state{query_point = get_query_point(DataItem)}).
 
 do_process(DataItem, State = #state{fn_id = _FNId}) ->
    _NewState = send(DataItem, State),
@@ -183,6 +186,13 @@ send(Item, State = #state{query = Q, faxe_fields = Fields, remaining_fields_as =
    node_metrics:metric(?METRIC_ITEMS_OUT, 1, State#state.fn_id),
    NewState.
 
+resend_single(State = #state{query = Q, faxe_fields = Fields, remaining_fields_as = RemFieldsAs,
+   user = User, pass = Pass, query_point = Item}) ->
+   Query = build(Item, Q, Fields, RemFieldsAs),
+   Headers = [{<<"content-type">>, <<"application/json">>}] ++ http_lib:basic_auth_header(User, Pass),
+   do_send(Item, Query, Headers, State#state.failed_retries-1, State#state{last_error = undefined}).
+
+
 %% bind values to the statement
 -spec build(#data_point{}|#data_batch{}, binary(), list(), binary()) -> iodata().
 build(Item, Query, Fields, RemFieldsAs) ->
@@ -204,8 +214,11 @@ do_send(Item, Body, Headers, Retries, State = #state{client = Client, fn_id = FN
          dataflow:ack(Item, State#state.flow_inputs),
          dataflow:maybe_debug(item_out, 1, Item, FNId, State#state.debug_mode),
          State;
+      {error, retry_single} ->
+         %% try with single data-point and done
+         resend_single(State);
       {error, What} ->
-         lager:warning("could not send ~p: error in request: ~p", [Body, What]),
+%%         lager:warning("could not send ~p: error in request: ~p", [Body, What]),
          do_send(Item, Body, Headers, Retries+1, State#state{last_error = What});
 
       O ->
@@ -299,8 +312,7 @@ get_response(Client, Ref, Ignore) ->
 
 -spec handle_response(integer(), binary()) -> ok|{error, invalid}|{failed, term()}.
 handle_response(<<"200">>, BodyJSON) ->
-   handle_response_message(BodyJSON),
-   ok;
+   handle_response_message(BodyJSON);
 handle_response(<<"4", _/binary>> = S,_BodyJSON) ->
    lager:error("Error ~p: ~p",[S, _BodyJSON]),
    {error, invalid};
@@ -315,7 +327,7 @@ handle_response({error, What}, {error, Reason}) ->
 
 handle_response_message(RespMessage) ->
    Response = jiffy:decode(RespMessage, [return_maps]),
-   lager:info("res ~p",[Response]),
+%%   lager:info("res ~p",[Response]),
    case Response of
       #{<<"results">> := Results} ->
          %% count where rows := -2
@@ -328,6 +340,7 @@ handle_response_message(RespMessage) ->
          case NotWritten of
             {0, []} -> ok;
             {C, Errs} ->
-               lager:error("CrateDB: ~p of ~p rows not written, errors: ~p",[length(Results), C, Errs])
+               lager:error("CrateDB: ~p of ~p rows not written, errors: ~p, will resend single",[C, length(Results), Errs]),
+               {error, retry_single}
          end
       end.
