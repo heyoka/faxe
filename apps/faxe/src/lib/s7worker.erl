@@ -66,6 +66,7 @@ handle_call({read, Opts}, _From, State = #state{client = Client, ip = _Ip}) ->
   Ret =
   case Res of
     {error,#{es7 := errCliInvalidPlcAnswer}} ->
+      lager:notice("errCliInvalidPlcAnswer workaround kicked in"),
       exit(Client, kill),
       {error, failed};
     _ -> Res
