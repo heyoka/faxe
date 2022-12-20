@@ -16,6 +16,9 @@
    host :: string(),
    port :: pos_integer(),
    query :: iodata(),
+   setup_query :: iodata(),
+   setup_vars :: list(),
+   setup_ts :: integer(),
    user :: string(),
    pass :: string(),
    database :: iodata(),
@@ -47,6 +50,8 @@
 }).
 
 -define(TIMEFILTER_KEY, <<"$__timefilter">>).
+-define(SETUP_QUERY_VAR_PLACEHOLDER, <<"$__var">>).
+-define(SETUP_QUERY_START_PLACEHOLDER, <<"$__start">>).
 %%-define(TIMEOUT_STATEMENT, <<"SET statement_timeout = ">>).
 -define(KEEPALIVE_QUERY, <<"SELECT 1">>).
 -define(KEEPALIVE_INTERVAL, 40000).
@@ -64,6 +69,9 @@ options() ->
       {pass, string, {crate, pass}},
       {database, string, {crate, database}},
       {query, any},
+      {setup_query, any, undefined},
+      {setup_vars, string_list, []},
+      {setup_ts, any, undefined},
       {filter_time_field, string, <<"ts">>},
       {result_time_field, string, undefined},
       {offset, duration, <<"20s">>},
@@ -83,6 +91,14 @@ check_options() ->
       %% check for valid select statement
       {func, query,
          fun
+            (SF) when is_function(SF) -> true;
+            (S)->  faxe_util:check_select_statement(S)
+         end,
+         <<" seems not to be a valid sql select statement">>},
+      %% check setup_query for valid select statement
+      {func, setup_query,
+         fun
+            (undefined) -> true;
             (SF) when is_function(SF) -> true;
             (S)->  faxe_util:check_select_statement(S)
          end,
@@ -133,6 +149,7 @@ metrics() ->
 
 init(NodeId, _Inputs, Opts = #{
    host := Host0, port := Port, user := User, pass := Pass, ssl := Ssl, database := DB, start_delay := Delay,
+   setup_query := SetupQuery, setup_vars := SetupVars, setup_ts := SetupTs,
    result_time_field := ResTimeField0, result_type := RType, filter_time_field := FilterTime, stop_flow := StopFlow}) ->
 
    process_flag(trap_exit, true),
@@ -151,6 +168,7 @@ init(NodeId, _Inputs, Opts = #{
    erlang:send_after(StartDelay, self(), {init2, Opts}),
    NewState = #state{
       host = Host, port = Port, user = User, pass = Pass, database = DB,
+      setup_query = SetupQuery, setup_vars = SetupVars, setup_ts = SetupTs,
       db_opts = DBOpts, response_def = Response, fn_id = NodeId, stop_flow = StopFlow},
    {ok, all, NewState}.
 
@@ -258,7 +276,7 @@ prepare_start(State = #state{start = Start0, period = Period0, stop = Stop0}) ->
    QueryMark = Start + Period,
    State#state{start = Start, stop = Stop, period = Period, query_mark = QueryMark}.
 
-
+%% setup the main query (the continous one)
 setup_query(#{query := Q0, filter_time_field := _FilterTimeField}=QM, S=#state{}) when is_function(Q0) ->
    Q1 = faxe_lambda:execute(#data_point{}, Q0),
    case check_timefilter(Q1) of
@@ -269,7 +287,7 @@ setup_query(#{query := Q0, filter_time_field := _FilterTimeField}=QM, S=#state{}
 setup_query(#{query := Q0, filter_time_field := FilterTimeField}, S=#state{}) ->
    Q = faxe_util:clean_query(Q0),
    Query = build_query(Q, FilterTimeField),
-%%   lager:notice("QUERY: ~p",[Query]),
+%%   lager:notice("QUERY: ~s",[Query]),
    S#state{query = Query}.
 
 setup_query_start(S=#state{start = Start}) ->
@@ -282,19 +300,67 @@ setup_query_start(S=#state{start = Start}) ->
    end.
 
 start_setup(S=#state{setup_start = false}) ->
-   start(S);
+   maybe_query_setup(S);
 start_setup(S=#state{start = Start, client = Client}) ->
 
    case catch epgsql:equery(Client, Start) of
       {ok,[_TsCol],[{TimeStampString}]} ->
          NewState = prepare_start(S#state{start = TimeStampString, setup_start = false}),
-         start(NewState);
+         maybe_query_setup(NewState);
       W ->
          lager:info("did not get starttime with query: ~p | ~p",[Start, W]),
          erlang:send_after(?START_QUERY_RETRY_INTERVAL, self(), start_setup),
          S
    end
 .
+
+
+%% that is a very bad naming here: change this, as setup_query and query_setup can be easily mixed up
+%% this is the setup_query (nothing to do with setting up the main query ;) )
+maybe_query_setup(S = #state{setup_query = undefined}) ->
+   start(S);
+maybe_query_setup(S = #state{setup_query = SetupQuery, setup_vars = [], client = C,
+      response_def = RespDef, setup_ts = Ts, start = StartTime}) ->
+   Query = prepare_setup_query(SetupQuery, <<>>, StartTime),
+   case do_setup_query(C, Query, RespDef#faxe_epgsql_response{default_timestamp = Ts}) of
+      {ok, R} ->
+%%         lager:notice("result from setup query: ~p",[R]),
+         dataflow:emit(R#data_batch{start = Ts});
+      _ -> ok
+   end,
+   start(S);
+maybe_query_setup(S = #state{setup_query = SetupQuery, setup_vars = Vars, client = C,
+      response_def = RespDef, setup_ts = Ts, start = StartTime}) ->
+   FoldFun =
+   fun(Var, Acc = #data_batch{points = AccPoints}) ->
+      Q = prepare_setup_query(SetupQuery, Var, StartTime),
+      case do_setup_query(C, Q, RespDef#faxe_epgsql_response{default_timestamp = Ts}) of
+         {ok, #data_batch{points = Points}} ->
+            Acc#data_batch{points = AccPoints++Points};
+         {error, _What} ->
+            Acc
+      end
+   end,
+   ResDataBatch = lists:foldl(FoldFun, #data_batch{start = Ts}, Vars),
+%%   lager:notice("result from setup QUERY: ~p",[ResDataBatch]),
+   dataflow:emit(ResDataBatch),
+   start(S).
+
+prepare_setup_query(SetupQuery, Var, StartTime) ->
+   Q0 = binary:replace(SetupQuery, ?SETUP_QUERY_VAR_PLACEHOLDER, Var, [global]),
+   binary:replace(Q0, ?SETUP_QUERY_START_PLACEHOLDER, integer_to_binary(StartTime), [global]).
+
+do_setup_query(Client, Query, RespDef) ->
+%%   lager:notice("setup query ~p",[Query]),
+   case catch epgsql:equery(Client, Query) of
+      {ok, _, _} = Res ->
+          faxe_epgsql_response:handle(Res, RespDef);
+      W ->
+         lager:warning("setup-query failed: ~p | ~p",[Query, W]),
+         {error, W}
+   end.
+
+
 
 start(S = #state{}) ->
    TRef = next_query(S),
@@ -316,6 +382,7 @@ do_query(State = #state{client = C, period = Period, query_mark = QueryMark, res
    %% do query
    FromTs = QueryMark-Period,
    {TsMy, Resp} = timer:tc(epgsql, prepared_query, [C, ?STMT, [FromTs, QueryMark]]),
+%%   lager:info("read from ~p to ~p",[FromTs, QueryMark]),
    %%   lager:info("reading time: ~pms", [round(TsMy/1000)]),
    node_metrics:metric(?METRIC_READING_TIME, round(TsMy/1000), FnId),
    NewQueryMark = QueryMark+Period,

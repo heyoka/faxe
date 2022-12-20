@@ -140,7 +140,6 @@ handle_info({register, Interval, Vars, ClientPid}, State = #state{}) ->
     end,
   {noreply, NewState};
 handle_info({'DOWN', _MonitorRef, process, Client, _Info}, State = #state{}) ->
-  lager:notice("Client: ~p is DOWN",[Client]),
   NewState = remove_client(Client, State),
   %% stop, if we have no clients left
   case get_clients(State) of
@@ -346,10 +345,10 @@ do_read(Requests, Opts, RunWith) ->
       ({_Vars, _Aliases}, {false, _} = R) ->
         R
     end,
-%%  ReadResult = plists:fold(ElFun, {true, []}, Requests, {processes, RunWith}),
-  {Time, ReadResult} = timer:tc(plists, fold, [ElFun, {true, []}, Requests, {processes, RunWith}]),
-  lager:notice("Time to read ~p requests: ~p millis with ~p processes/connections",
-    [length(Requests), erlang:round(Time/1000), RunWith]),
+  ReadResult = plists:fold(ElFun, {true, []}, Requests, {processes, RunWith}),
+%%  {Time, ReadResult} = timer:tc(plists, fold, [ElFun, {true, []}, Requests, {processes, RunWith}]),
+%%  lager:notice("Time to read ~p requests: ~p millis with ~p processes/connections",
+%%    [length(Requests), erlang:round(Time/1000), RunWith]),
   ReadResult.
 
 emit_results([FirstResult|RequestResults], Ts) ->

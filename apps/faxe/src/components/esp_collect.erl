@@ -134,7 +134,6 @@ process(Port, Item, State = #state{buffer = undefined}) ->
 process(_Port, #data_point{ts = Ts} = Point, State = #state{fields = _Field}) ->
    NewState = State#state{newest_timestamp = Ts},
    Res = do_process(Point, NewState),
-   Out =
    case Res of
       {ok, NewState} -> {ok, NewState};
       {Changed, ChangedState} ->

@@ -39,6 +39,7 @@
    emit_left,
    entered_as,
    left_as,
+   state_id_as,
    entered_keep = [],
    left_keep = [],
    unit,
@@ -56,6 +57,7 @@ options() -> [
    {exclude_fields, string_list, []},
    {enter_as, binary, <<"state_entered">>},
    {leave_as, binary, <<"state_left">>},
+   {state_id_as, binary, <<"state_id">>},
    {enter, is_set, undefined},
    {leave, is_set, undefined},
    {enter_keep, string_list, []},
@@ -75,7 +77,7 @@ emits() -> point.
 
 init(_NodeId, _Ins, #{lambda_pattern := Lambda_Pattern, enter_as := EnteredAs, leave_as := LeftAs, enter := EmitEntered,
    leave := EmitLeft, enter_keep := KeepFieldsEntered, leave_keep := KeepFieldsLeft, prefix := Prefix, field := Field,
-   exclude_fields := Excluded, state_value := StateValue}) ->
+   exclude_fields := Excluded, state_value := StateValue, state_id_as := SIdAs}) ->
 
    {ok, all,
       #state{
@@ -88,6 +90,7 @@ init(_NodeId, _Ins, #{lambda_pattern := Lambda_Pattern, enter_as := EnteredAs, l
          emit_left = EmitLeft,
          entered_as = EnteredAs,
          left_as = LeftAs,
+         state_id_as = SIdAs,
          entered_keep = KeepFieldsEntered,
          left_keep = KeepFieldsLeft,
          prefix = Prefix
@@ -121,13 +124,18 @@ maybe_process(FieldMap, Point, State = #state{}) ->
                  end, Emits),
    {ok, State#state{state_changes = NewStates, last_data = FieldMap}}.
 
-handle(entered, FieldName, StateState, State=#state{emit_entered = true, entered_as = As, entered_keep = Keep}) ->
+handle(entered, FieldName, StateState,
+    State=#state{emit_entered = true, entered_as = As, entered_keep = Keep, state_id_as = SIdAs}) ->
    P = state_change:get_last_point(StateState),
-   prepare_point_data(P, Keep, [As, <<"field">>], [1, FieldName], State);
-handle(left, FieldName, StateState, State=#state{emit_left = true, left_as = As, left_keep = Keep}) ->
+   PFields = [As, <<"field">>, SIdAs],
+   PVals = [1, FieldName, state_change:get_state_id(StateState)],
+   prepare_point_data(P, Keep, PFields, PVals, State);
+handle(left, FieldName, StateState,
+    State=#state{emit_left = true, left_as = As, left_keep = Keep, state_id_as = SIdAs}) ->
    P = state_change:get_last_point(StateState),
    AddFNames = [
       As,
+      SIdAs,
       <<"state_start_ts">>,
       <<"state_end_ts">>,
       <<"state_duration">>,
@@ -135,6 +143,7 @@ handle(left, FieldName, StateState, State=#state{emit_left = true, left_as = As,
       <<"field">>],
    AddFields = [
       1,
+      state_change:get_state_id(StateState),
       state_change:get_last_enter_time(StateState),
       state_change:get_end(StateState),
       state_change:get_last_duration(StateState),

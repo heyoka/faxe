@@ -33,6 +33,7 @@
    emit_left,
    entered_as,
    left_as,
+   state_id_as,
    entered_keep = [],
    left_keep = [],
    keep = [],
@@ -43,8 +44,9 @@
 
 options() -> [
    {lambda, lambda},
-   {enter_as, binary, <<"state_entered">>},
-   {leave_as, binary, <<"state_left">>},
+   {enter_as, string, <<"state_entered">>},
+   {leave_as, string, <<"state_left">>},
+   {state_id_as, string, <<"state_id">>},
    {enter, is_set, undefined},
    {leave, is_set, undefined},
    {enter_keep, string_list, []},
@@ -63,7 +65,8 @@ wants() -> point.
 emits() -> point.
 
 init(_NodeId, _Ins, #{lambda := Lambda, enter_as := EnteredAs, leave_as := LeftAs, enter := EmitEntered,
-   leave := EmitLeft, enter_keep := KeepFieldsEntered, leave_keep := KeepFieldsLeft, prefix := Prefix, keep := Keep}) ->
+   state_id_as := SIdAs, leave := EmitLeft, enter_keep := KeepFieldsEntered, leave_keep := KeepFieldsLeft,
+   prefix := Prefix, keep := Keep}) ->
    StateTracker = state_change:new(Lambda),
    State = #state{
       state_lambda = Lambda,
@@ -71,6 +74,7 @@ init(_NodeId, _Ins, #{lambda := Lambda, enter_as := EnteredAs, leave_as := LeftA
       emit_left = EmitLeft,
       entered_as = EnteredAs,
       left_as = LeftAs,
+      state_id_as = SIdAs,
       entered_keep = KeepFieldsEntered,
       left_keep = KeepFieldsLeft,
       keep = Keep,
@@ -101,19 +105,22 @@ process(_Inport, #data_point{} = Point, State = #state{state_change = StateChang
          {ok, State}
    end.
 
-handle(entered, StateState, State=#state{emit_entered = true, entered_as = As, entered_keep = Keep}) ->
+handle(entered, StateState,
+    State=#state{emit_entered = true, entered_as = As, entered_keep = Keep, state_id_as = SIdAs}) ->
    P = state_change:get_last_point(StateState),
-   emit_point_data(P, Keep, [As], [1], State);
-handle(left, StateState, State=#state{emit_left = true, left_as = As, left_keep = Keep}) ->
+   emit_point_data(P, Keep, [As, SIdAs], [1, state_change:get_state_id(StateState)], State);
+handle(left, StateState, State=#state{emit_left = true, left_as = As, left_keep = Keep, state_id_as = SIdAs}) ->
    P = state_change:get_last_point(StateState),
    AddFNames = [
       As,
+      SIdAs,
       <<"state_start_ts">>,
       <<"state_end_ts">>,
       <<"state_duration">>,
       <<"state_count">>],
    AddFields = [
       1,
+      state_change:get_state_id(StateState),
       state_change:get_last_enter_time(StateState),
       state_change:get_end(StateState),
       state_change:get_last_duration(StateState),

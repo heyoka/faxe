@@ -9,7 +9,7 @@
 %% %% + 'map' holds a map of key-value pairs
 %%
 %% Values a gathered normally within the flow of data, but the mem node can also be pre-populated with values.
-%% The values will be hold in an ets term storage.
+%% The values will be held in an ets term storage.
 %% @end
 -module(esp_mem).
 -author("Alexander Minichmair").

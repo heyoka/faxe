@@ -179,7 +179,6 @@ init({_, _NId}=NodeId, _Ins,
   {ok, all, init2(Parsed, State)}.
 
 init2(ParsedAddresses, State=#state{optimized = true, interval = Dur, opts = Opts, as_list = As1, reader = Reader}) ->
-  lager:info("using optimized read"),
   Reader:register(Opts, Dur, lists:zip(As1, ParsedAddresses)),
   State;
 init2(ParsedAddresses, State=#state{opts = Opts, as_list = As1}) ->
@@ -210,7 +209,6 @@ setup_connection(Opts = #{use_pool := true}) ->
   s7pool_manager:connect(Opts),
   undefined;
 setup_connection(Opts = #{use_pool := false}) ->
-  lager:notice("not using pool"),
   {ok, Client} = s7worker:start_monitor(Opts),
   Client.
 

@@ -14,7 +14,7 @@
 %% API
 -export([
   new/1, new/2, process/2, get_duration/1, get_count/1, get_state/1,
-  get_last_point/1, get_last_duration/1, get_last_count/1, get_last_enter_time/1, get_end/1]).
+  get_last_point/1, get_last_duration/1, get_last_count/1, get_last_enter_time/1, get_end/1, get_state_id/1]).
 
 %%%%%%%%%%% known states %%%%%%%
 -define(Init, init).
@@ -36,7 +36,8 @@
   state_fun,
   last_duration = -1,
   last_state_count = -1,
-  field_path
+  field_path,
+  state_id = undefined
   }).
 
 
@@ -91,6 +92,8 @@ get_last_point(#state_change{last_point = P}) ->
 get_end(#state_change{leave_point = P}) ->
   P#data_point.ts.
 
+get_state_id(#state_change{state_id = Id}) ->
+  Id.
 
 execute(State = #state_change{}, Point) ->
   comp((catch exec(Point, State)), State, Point).
@@ -125,7 +128,8 @@ comp(false, State = #state_change{state_name = Name}, _P) when Name == ?Out orel
 in_entered(State=#state_change{state_count = C}, NewPoint) ->
   {ok, State#state_change{state_name = ?In, last_point = NewPoint, state_count = C+1}}.
 enter(State=#state_change{}, P = #data_point{ts = Ts}) ->
-  {ok, State#state_change{state_name = ?Entered, state_count = 1, last_point = P, enter_time = Ts}}.
+  StateId = list_to_binary(faxe_util:uuid_string()),
+  {ok, State#state_change{state_name = ?Entered, state_count = 1, last_point = P, enter_time = Ts, state_id = StateId}}.
 
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%

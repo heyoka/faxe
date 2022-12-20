@@ -319,7 +319,7 @@ build_edge(Graph, {SourceNode, SourcePort, TargetNode, TargetPort, Metadata}) ->
 %% creates the initial graph processes and starts the computation
 %%
 -spec start(#task_modes{}, #state{}) -> #state{}.
-start(ModeOpts=#task_modes{run_mode = RunMode, temporary = Temp, temp_ttl = TTL}, State=#state{graph = G}) ->
+start(ModeOpts=#task_modes{run_mode = _RunMode, temporary = Temp, temp_ttl = TTL}, State=#state{graph = G}) ->
 
 %%   erlang:send_after(?METRICS_INTERVAL, self(), collect_metrics),
    Nodes0 = digraph:vertices(G),
@@ -332,8 +332,6 @@ start(ModeOpts=#task_modes{run_mode = RunMode, temporary = Temp, temp_ttl = TTL}
       false -> undefined;
       true -> erlang:send_after(TTL, self(), timeout)
    end,
-   lager:info("run_mode is :~p",[RunMode]),
-
    NewState#state{running = true, started = true,
       timeout_ref = TimerRef, start_mode = ModeOpts}.
 
@@ -344,7 +342,6 @@ make_start_nodes(NodeIds, #task_modes{run_mode = RunMode},
    Nodes = build_nodes(NodeIds, G, Id),
    %% Inports and Subscriptions, builds : [{NId, {Ins, list(#subscriptions{})}}]
    Subscriptions = build_subscriptions(Nodes, G, RunMode),
-%%   lager:notice("all subscriptions:~p",[[lager:pr(Sub, ?MODULE) || Sub <- Subscriptions]]),
    %% register our pid along with all node(component)-pids for graph ets table handling
    register_nodes(Nodes),
    %% start the nodes with subscriptions
@@ -356,7 +353,6 @@ build_nodes(NodeIds, Graph, Id) ->
    Nodes = lists:map(
       fun(NodeId) ->
          {NodeId, Label} = digraph:vertex(Graph, NodeId),
-%%         lager:notice("vertex: ~p", [{NodeId, Label}]),
          #{component := Component, inports := Inports, outports := OutPorts, metadata := Metadata}
             = Label,
          {ok, Pid} = df_component:start_link(Component, Id, NodeId, Inports, OutPorts, Metadata),
