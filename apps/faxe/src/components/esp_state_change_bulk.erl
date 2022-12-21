@@ -150,7 +150,9 @@ handle(left, FieldName, StateState,
       state_change:get_last_count(StateState),
       FieldName],
 
-   prepare_point_data(P, Keep, AddFNames, AddFields, State);
+%%   lager:notice("state_left ~nlast ~p~n end ~p",[P#data_point.ts, state_change:get_end(StateState)]),
+
+   prepare_point_data(P#data_point{ts = state_change:get_end(StateState)}, Keep, AddFNames, AddFields, State);
 handle(_, _F, _StateState, #state{}) ->
    undefined.
 
