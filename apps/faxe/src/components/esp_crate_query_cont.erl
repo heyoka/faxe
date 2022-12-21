@@ -204,7 +204,10 @@ handle_info({'EXIT', C, normal}, State = #state{client = C}) ->
    lager:info("Client EXITED normal"),
    {ok, State};
 handle_info({'EXIT', _C, Reason}, State = #state{}) ->
-   lager:warning("EXIT epgsql with reason: ~p",[Reason]),
+   case Reason of
+      sock_closed -> ok;
+      Err -> lager:warning("EXIT epgsql with reason: ~p",[Err])
+   end,
    State0 = cancel_timer(State),
    NewState = connect(State0),
    {ok, NewState};
