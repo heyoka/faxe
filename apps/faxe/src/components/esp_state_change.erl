@@ -126,7 +126,7 @@ handle(left, StateState, State=#state{emit_left = true, left_as = As, left_keep 
       state_change:get_last_duration(StateState),
       state_change:get_last_count(StateState)],
 
-   emit_point_data(P, Keep, AddFNames, AddFields, State);
+   emit_point_data(P#data_point{ts = state_change:get_end(StateState)}, Keep, AddFNames, AddFields, State);
 handle(_, _StateState, State=#state{}) ->
    {ok, State}.
 
