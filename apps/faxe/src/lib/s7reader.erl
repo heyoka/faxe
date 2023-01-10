@@ -172,10 +172,10 @@ handle_info({s7_disconnected, _Client}=M, State = #state{timer = Timer}) ->
   catch erlang:cancel_timer(Timer),
   send_all_clients(M, State),
   {noreply, State#state{timer = undefined, busy = false, connected = false}};
-handle_info(Info, State = #state{}) ->
+handle_info(_Info, State = #state{}) ->
   maybe_next(State).
 
-terminate(Reason, _State = #state{s7_ip = Ip}) ->
+terminate(_Reason, _State = #state{s7_ip = _Ip}) ->
   ok.
 
 code_change(_OldVsn, State = #state{}, _Extra) ->

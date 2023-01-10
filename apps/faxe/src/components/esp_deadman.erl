@@ -101,7 +101,7 @@ build_message(S=#state{repeat_last = true, repeat_interval = Interval, last_poin
    {P#data_point{ts = NewTs}, S#state{last_ts = NewTs}};
 build_message(S=#state{repeat_last = true, repeat_with_new_ts = true, last_point = P=#data_point{}}) ->
    {P#data_point{ts = faxe_time:now()}, S};
-build_message(S=#state{repeat_last = true, repeat_with_new_ts = true, last_point = P=#data_point{}}) ->
+build_message(S=#state{repeat_last = true, last_point = P=#data_point{}}) ->
    {P, S};
 build_message(S=#state{field_vals = Vals, fields = Fields}) ->
    DataPoint = #data_point{ts = faxe_time:now()},

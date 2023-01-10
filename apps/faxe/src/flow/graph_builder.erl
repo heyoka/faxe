@@ -10,6 +10,7 @@
 
 -define(LANG_EXCLUDE_COMPONENTS, [
    c_python,
+   c_python3,
    esp_triggered_timeout,
    crate_writer,
    esp_deadman_multi,

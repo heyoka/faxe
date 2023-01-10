@@ -78,7 +78,11 @@ handle_call(get, _From, State=#state{stats = Stats}) ->
          #{<<"peer">> => faxe_util:to_bin(Key1), <<"num_connections">> => length(Conns1),
             <<"clients">> => length(S7Clients)} end,
       ets:tab2list(s7_pools)),
-   {reply, Stats#{<<"mqtt_pub_pools">> => MQTTPools, <<"s7_pools">> => S7Pools}, State};
+   {reply, Stats#{
+      <<"mqtt_pub_pools">> => MQTTPools,
+      <<"s7_pools">> => S7Pools,
+      <<"PCRE_vsn">> => re:version()
+   }, State};
 handle_call(_Request, _From, State) ->
    {reply, ok, State}.
 

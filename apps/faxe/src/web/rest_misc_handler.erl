@@ -13,12 +13,14 @@
    init/2, allowed_methods/2, config_json/2, content_types_provided/2,
    is_authorized/2, content_types_accepted/2, from_validate_dfs/2,
    malformed_request/2, from_set_loglevel/2, loglevels_json/2, config_all_json/2,
-   lang_nodes_json/2]).
+   lang_nodes_json/2, python_list_json/2]).
 
 %%
 %% Additional callbacks
 -export([
 ]).
+
+-define(BODY_LENGTH_TIMEOUT, #{length => 250000, period => 5000}).
 
 -record(state, {mode, dfs, level, backend}).
 
@@ -64,6 +66,10 @@ content_types_provided(Req = #{method := <<"GET">>}, State = #state{mode = logle
    {[
       {{<<"application">>, <<"json">>, []}, loglevels_json}
    ], Req, State};
+content_types_provided(Req = #{method := <<"GET">>}, State = #state{mode = python_list}) ->
+   {[
+      {{<<"application">>, <<"json">>, []}, python_list_json}
+   ], Req, State};
 content_types_provided(Req, State) ->
    {
       [{{ <<"application">>, <<"json">>, '*'}, to_json}
@@ -71,7 +77,7 @@ content_types_provided(Req, State) ->
 
 
 malformed_request(Req, State=#state{mode = validate_dfs}) ->
-   {ok, Result, Req1} = cowboy_req:read_urlencoded_body(Req),
+   {ok, Result, Req1} = cowboy_req:read_urlencoded_body(Req, ?BODY_LENGTH_TIMEOUT),
    Dfs = proplists:get_value(<<"dfs">>, Result, undefined),
    Malformed = Dfs == undefined,
    {Malformed, rest_helper:report_malformed(Malformed, Req1, [<<"dfs">>]),
@@ -120,6 +126,8 @@ from_validate_dfs(Req, State = #state{dfs = DfsScript}) ->
    Response =
    case faxe:eval_dfs(DfsScript, data) of
       {_DFS, Def} = _Res when is_map(Def) ->
+%%         lager:info("valid: ~p",[Def]),
+%%         Add = check_custom_nodes(Def),
          #{<<"success">> => true, <<"message">> => <<"Dfs is valid.">>};
       {error, What} ->
          #{<<"success">> => false, <<"message">> => faxe_util:to_bin(What)}
@@ -151,6 +159,19 @@ config_all_json(Req, State) ->
 %%   Req3 = cowboy_req:set_resp_header(<<"content-type">>)
 %%   {true, Req2, State}.
    {CString, Req, State}.
+
+python_list_json(Req, State) ->
+   Ops = faxe_config:get(python),
+   Path = proplists:get_value(script_path, Ops),
+   {ok, Out0} = file:list_dir(Path),
+   Out = [list_to_binary(Py) || Py <- Out0],
+   {jiffy:encode(
+      #{
+         <<"vsn">> => list_to_binary(string:trim(os:cmd("python --version"))),
+         <<"executable">> => list_to_binary(os:find_executable("python")),
+         <<"modules">> => Out,
+         <<"path">> => list_to_binary(Path)
+      }, []), Req, State}.
 
 opts_mqtt(Key, TopicKey) ->
    Debug0 = get_config_mqtt_handler(Key),
@@ -197,3 +218,15 @@ lager_handlers() ->
    AllConf = application:get_all_env(lager),
    Handlers = proplists:get_value(handlers, AllConf),
    proplists:get_keys(Handlers).
+
+check_custom_nodes(_GraphDef = #{edges := _, nodes := Nodes}) when is_list(Nodes) ->
+   Fun =
+   fun
+      ({_NodeName, c_python3, #{cb_class := CallbackClass, cb_module := CallbackModule}}, Acc) ->
+         check_python_deps(CallbackClass, CallbackModule);
+      (_, Acc) -> Acc
+   end,
+   lists:foldl(Fun, #{}, Nodes).
+
+check_python_deps(PClass, PModule) ->
+   c_python3:call_options(PModule, PClass).

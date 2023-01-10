@@ -37,14 +37,14 @@ content_types_provided(Req, State) ->
 
 
 %% VM STATS
-stats_json(Req, State=#state{mode = vm}) ->
-   Stats = faxe_vmstats:called(),
-   F = fun(K, V, Acc) ->
-      NewKey = binary:replace(list_to_binary(K), <<".">>, <<"-">>, []),
-      Acc#{NewKey => V}
+stats_json(Req, State = #state{mode = vm}) ->
+  Stats = faxe_vmstats:called(),
+  F = fun(K, V, Acc) ->
+    NewKey = binary:replace(list_to_binary(K), <<".">>, <<"-">>, []),
+    Acc#{NewKey => V}
       end,
-   Map = maps:fold(F, #{}, Stats),
-   {jiffy:encode(Map), Req, State};
+  Map = maps:fold(F, #{}, Stats),
+  {jiffy:encode(Map), Req, State};
 
 %% FAXE STATS
 stats_json(Req, State=#state{mode = faxe}) ->

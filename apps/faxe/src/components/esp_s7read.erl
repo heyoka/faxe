@@ -274,7 +274,7 @@ handle_info(poll, State=#state{as = Aliases, timer = Timer, byte_size = _ByteSiz
       lager:warning("Error reading S7 Vars: ~p", [_Other]),
       {ok, State#state{timer = faxe_time:timer_next(Timer)}}
   end;
-handle_info({s7_data, Ts, DataList}, State = #state{diff = Diff, last_values = LastPoint, as_list = As}) ->
+handle_info({s7_data, Ts, DataList}, State = #state{diff = Diff, last_values = LastPoint, as_list = _As}) ->
 %%  lager:notice("got data: ~p",[DataList]),
 %%  lager:info("requested ~p items, got ~p :: reader: ~p",[length(As), length(DataList), State#state.reader]),
 %%  Missing = lists:filter(fun(AsE) -> not proplists:is_defined(AsE, DataList) end, As),
