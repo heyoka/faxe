@@ -133,7 +133,16 @@ eval({Nodes, Connections}) ->
             %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
             %% check options with the components option definition
             %% any errors raised here, would be caught in the surrounding call
-            FinalOpts = dataflow:build_options(Component, NodeOptions, CompOptions++NOpts),
+
+            ComponentDisplayName =
+            case Component of
+               ?USER_COMPONENT ->
+                  {_, atom, CallbackModule} = lists:keyfind(?USER_COMPONENT_MODULE, 1, NodeOptions),
+                  CallbackModule;
+%%                  lager:notice("CallbackModule ~p",[CallbackModule]);
+               _ -> Component
+            end,
+            FinalOpts = dataflow:build_options(ComponentDisplayName, NodeOptions, CompOptions++NOpts),
 
             lager:debug("all options for node ~p: ~p", [N, FinalOpts]),
             {

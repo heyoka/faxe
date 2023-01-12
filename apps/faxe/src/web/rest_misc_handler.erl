@@ -126,9 +126,8 @@ from_validate_dfs(Req, State = #state{dfs = DfsScript}) ->
    Response =
    case faxe:eval_dfs(DfsScript, data) of
       {_DFS, Def} = _Res when is_map(Def) ->
-%%         lager:info("valid: ~p",[Def]),
-%%         Add = check_custom_nodes(Def),
-         #{<<"success">> => true, <<"message">> => <<"Dfs is valid.">>};
+         Add = check_custom_nodes(Def),
+         #{<<"success">> => true, <<"message">> => <<"Dfs is valid.">>, <<"python_nodes">> => Add};
       {error, What} ->
          #{<<"success">> => false, <<"message">> => faxe_util:to_bin(What)}
    end,
@@ -222,11 +221,16 @@ lager_handlers() ->
 check_custom_nodes(_GraphDef = #{edges := _, nodes := Nodes}) when is_list(Nodes) ->
    Fun =
    fun
-      ({_NodeName, c_python3, #{cb_class := CallbackClass, cb_module := CallbackModule}}, Acc) ->
-         check_python_deps(CallbackClass, CallbackModule);
+      ({_NodeName, c_python3, #{cb_class := _CallbackClass, cb_module := CallbackModule}}, Acc) ->
+         case lists:member(CallbackModule, Acc) of
+            true -> Acc;
+            false -> Acc ++ [CallbackModule]
+         end;
+
+%%         check_python_deps(CallbackClass, CallbackModule);
       (_, Acc) -> Acc
    end,
-   lists:foldl(Fun, #{}, Nodes).
+   lists:foldl(Fun, [], Nodes).
 
-check_python_deps(PClass, PModule) ->
-   c_python3:call_options(PModule, PClass).
+%%check_python_deps(PClass, PModule) ->
+%%   c_python3:call_options(PModule, PClass).
