@@ -86,8 +86,8 @@ class Faxe:
 
         if data is not None:
             cast(self.erlang_pid, (Atom(b'emit_data'), data))
-        else:
-            self.log(f'Invalid emit data given. {emit_data}', 'error')
+        # else:
+        #     self.log(f'Invalid emit data given. {emit_data}', 'error')
 
     def error(self, error):
         """
