@@ -110,7 +110,6 @@ init(NodeId, Inputs,
 %%% DATA IN
 %% empyt batch -> continue
 process(_In, #data_batch{points = []}, State = #state{}) ->
-   lager:info("empty batch received"),
    {ok, State};
 %% not connected -> drop message
 %% @todo buffer these messages when not connected

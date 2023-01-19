@@ -82,8 +82,10 @@ decode_ts(<<Ts:64>>) ->
 decode_ts(Ts) when is_integer(Ts) ->
   Ts*1000;
 %% some kind of erlang now format (or with Second.Millisecond)
-decode_ts({_Date, {_Hour, _Minute, _SecondFrac}} = DateTime) ->
-  faxe_time:to_ms(DateTime);
+decode_ts({Date, {Hour, Minute, SecondFrac}} = _DateTime) ->
+  Second = erlang:trunc(SecondFrac),
+  Milli = erlang:round((SecondFrac - Second) * 1000),
+  faxe_time:to_ms({Date, {Hour, Minute, Second, Milli}});
 %% datetime string, we assume it is in iso8601 format
 decode_ts(DtString) when is_binary(DtString) ->
   time_format:iso8601_to_ms(DtString).

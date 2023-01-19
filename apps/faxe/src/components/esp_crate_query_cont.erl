@@ -1,5 +1,6 @@
 %%
 %% Query CrateDB continously for time series data
+%% Queries are based on timestamps
 %% Ⓒ 2021 heyoka
 %%
 -module(esp_crate_query_cont).
@@ -35,7 +36,7 @@
    min_interval :: pos_integer(),
    interval :: pos_integer(), %% query interval that is in place
    offset :: non_neg_integer(),
-   query_mark :: pos_integer(), %% this is the to mark, period will be substracted from it to get the from mark
+   query_mark :: pos_integer(), %% this is the 'to' mark, 'period' will be substracted from it to get the 'from' mark
    timer :: faxe_timer(),
    fn_id,
    debug_mode = false,
@@ -290,7 +291,7 @@ setup_query(#{query := Q0, filter_time_field := _FilterTimeField}=QM, S=#state{}
 setup_query(#{query := Q0, filter_time_field := FilterTimeField}, S=#state{}) ->
    Q = faxe_util:clean_query(Q0),
    Query = build_query(Q, FilterTimeField),
-%%   lager:notice("QUERY: ~s",[Query]),
+   lager:notice("QUERY: ~s",[Query]),
    S#state{query = Query}.
 
 setup_query_start(S=#state{start = Start}) ->
@@ -394,7 +395,8 @@ do_query(State = #state{client = C, period = Period, query_mark = QueryMark, res
    NewState = NewState0#state{timer = NewTimer},
 %%   lager:notice("from: ~p, to :~p (~p sec)",
 %%      [faxe_time:to_iso8601(QueryMark-Period), faxe_time:to_iso8601(QueryMark), round(Period/1000)]),
-   Result = faxe_epgsql_response:handle(Resp, RespDef#faxe_epgsql_response{default_timestamp = FromTs}),
+%%   Result = faxe_epgsql_response:handle(Resp, RespDef#faxe_epgsql_response{default_timestamp = FromTs}),
+   Result = faxe_epgsql_response:handle(Resp, RespDef),
    case Result of
       ok ->
          {ok, NewState};
