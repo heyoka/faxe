@@ -233,7 +233,7 @@ do_send(Item, Body, Headers, Retries, State = #state{client = Client, fn_id = FN
 build_value_stmt(_B = #data_batch{points = Points}, Fields, RemFieldsAs) ->
    build_batch(Points, Fields, RemFieldsAs, []);
 build_value_stmt(P = #data_point{ts = Ts}, Fields, undefined) ->
-   DataList0 = [Ts| flowdata:fields(P, Fields)],
+   DataList0 = [Ts| flowdata:fields(P, Fields, null)],
    DataList0;
 build_value_stmt(P = #data_point{}, Fields, _RemFieldsAs) ->
    DataList = build_value_stmt(P, Fields, undefined),

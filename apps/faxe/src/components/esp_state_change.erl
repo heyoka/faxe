@@ -108,7 +108,10 @@ process(_Inport, #data_point{} = Point, State = #state{state_change = StateChang
 handle(entered, StateState,
     State=#state{emit_entered = true, entered_as = As, entered_keep = Keep, state_id_as = SIdAs}) ->
    P = state_change:get_last_point(StateState),
-   emit_point_data(P, Keep, [As, SIdAs], [1, state_change:get_state_id(StateState)], State);
+   emit_point_data(P, Keep,
+      [As, SIdAs, <<"state_start_ts">>],
+      [1, state_change:get_state_id(StateState), P#data_point.ts],
+      State);
 handle(left, StateState, State=#state{emit_left = true, left_as = As, left_keep = Keep, state_id_as = SIdAs}) ->
    P = state_change:get_last_point(StateState),
    AddFNames = [

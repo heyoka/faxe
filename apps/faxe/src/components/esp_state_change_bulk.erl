@@ -127,8 +127,8 @@ maybe_process(FieldMap, Point, State = #state{}) ->
 handle(entered, FieldName, StateState,
     State=#state{emit_entered = true, entered_as = As, entered_keep = Keep, state_id_as = SIdAs}) ->
    P = state_change:get_last_point(StateState),
-   PFields = [As, <<"field">>, SIdAs],
-   PVals = [1, FieldName, state_change:get_state_id(StateState)],
+   PFields = [As, <<"field">>, SIdAs, <<"state_start_ts">>],
+   PVals = [1, FieldName, state_change:get_state_id(StateState), P#data_point.ts],
    prepare_point_data(P, Keep, PFields, PVals, State);
 handle(left, FieldName, StateState,
     State=#state{emit_left = true, left_as = As, left_keep = Keep, state_id_as = SIdAs}) ->
