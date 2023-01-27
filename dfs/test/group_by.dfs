@@ -2,6 +2,7 @@ def group_field = 'data.code'
 def data =
  |json_emitter()
  .every(100ms)
+ .align(true)
  .json(
      <<<{"code" : 224, "message": "this is a test", "mode": 1}>>>,
      <<<{"code" : 334, "message": "this is another test", "mode": 1}>>>,
@@ -35,6 +36,7 @@ group_by
 .mode('p-c')
 |win_clock()
 .every(4s)
+.align()
 
 def agg1 =
 window
@@ -52,6 +54,7 @@ window
 .as('data.mode_change')
 %.keep('data')
 
+agg1
 |join(agg2)
 .merge_field('data')
 .tolerance(0s)

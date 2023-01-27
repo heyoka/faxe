@@ -2,30 +2,36 @@
 def v1 =
     |value_emitter()
     .every(1s)
-    .type(point)
-    .format(ejson)
+    .type('point')
     .jitter(300ms)
 
 def v2 =
     |value_emitter()
     .every(700ms)
-    .type(point)
-    .format(ejson)
+    .type('point')
     .jitter(200ms)
 
 def v3 =
     |value_emitter()
     .every(900ms)
-    .type(point)
-    .format(ejson)
+    .type('point')
     .jitter(100ms)
 
 v1
-    |join(v2, v3)
+    |join2(v2, v3)
     .prefix('v1_', 'v2_', 'v3_')
     .tolerance(1s)
     .missing_timeout(300ms)
-    .fill(none)
 
     |debug('notice')
+    .message('JOIN2')
+
+ %v1
+ %    |join(v2, v3)
+ %    .prefix('v1_', 'v2_', 'v3_')
+ %    .tolerance(1s)
+ %    .missing_timeout(300ms)
+
+ %    |debug('notice')
+ %    .message('JOIN')
 

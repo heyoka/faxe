@@ -27,7 +27,10 @@
    select            :: binary(),
    transforms        :: list()|undefined,
    state_point       :: #data_point{}|undefined,
-   idx = 1           :: non_neg_integer()
+   idx = 1           :: non_neg_integer(),
+   current_ts        :: non_neg_integer()|undefined,
+   start_ts          :: non_neg_integer()|undefined,
+   one_shot = false  :: true|false
 }).
 
 
@@ -37,7 +40,7 @@ options() ->
          desc => <<"emit interval">>},
       #{name => jitter, type => duration, default => <<"0ms">>,
          desc => <<"max random value for added time jitter added to every">>},
-      #{name => align, type => is_set, default => false,
+      #{name => align, type => bool, default => false,
          desc => <<"whether to align to full occurencies of the every parameter">>},
       #{name => json, type => string_list,
          desc => <<"list of json strings to use">>},
@@ -47,6 +50,11 @@ options() ->
          desc => <<"fields to replace on every interval">>},
       #{name => modify_with, type => lambda_list, default => undefined,
          desc => <<"lambda expressions for the replacements">>},
+      #{name => one_shot, type => boolean, default => false,
+         desc => <<"one-shot mode">>},
+      #{name => start_ts, type => any, default => undefined,
+         desc =>
+         <<"provide a timestamp, that will be used to base produced message timestamps on, instead of wall-clock timer">>},
       #{name => as, type => string, default => <<>>,
          desc => <<"root object for output">>}
    ].
@@ -69,7 +77,7 @@ check_json(_) -> false.
 
 init(NodeId, _Inputs,
     #{every := Every, align := Unit, jitter := Jitter, json := JS, as := As, select := Sel, modify := Replace,
-       modify_with := Funs0} = _Opts) ->
+       modify_with := Funs0, one_shot := OneShot, start_ts := StartTs} = _Opts) ->
 
    NUnit =
       case Unit of
@@ -86,12 +94,13 @@ init(NodeId, _Inputs,
          node_id = NodeId, every = EveryMs,
          ejson = JSONs, as = As, json_string = JS,
          align = NUnit, jitter = JT, select = Sel,
-         transforms = TransformList
+         transforms = TransformList, one_shot = OneShot,
+         start_ts = StartTs
       },
 
    erlang:send_after(JT, self(), emit),
    rand:seed(exs1024s),
-   {ok, none, State}.
+   {ok, none, init_ts(State)}.
 
 
 process(_Inport, _Value, State) ->
@@ -106,22 +115,21 @@ handle_info(emit, State=#state{every = Every, jitter = JT}) ->
 handle_info(_Request, State) ->
    {ok, State}.
 
-select_emit(Next, State=#state{select = ?BATCH, ejson = JS, as = As, transforms = Transforms, state_point = SPoint}) ->
-   Batch = build(JS, As, Transforms, SPoint),
+select_emit(Next, State=#state{select = ?BATCH, ejson = JS, as = As, transforms = Transforms, current_ts = Ts}) ->
+   SPoint = get_state_point(State, JS),
+   Batch = build(JS, Ts, As, Transforms, SPoint),
    do_emit(Next, Batch, State);
-select_emit(Next, State=#state{ejson = JS, as = As, state_point = SPoint0, transforms = Transforms}) ->
+select_emit(Next, State=#state{ejson = JS, as = As, transforms = Transforms, current_ts = Ts}) ->
    {NextIndex, NewState} = next_index(State),
    Json = lists:nth(NextIndex, JS),
-   SPoint =
-      case SPoint0 of
-         undefined -> flowdata:set_root(#data_point{ts = faxe_time:now(), fields = Json}, As);
-         _ -> SPoint0
-      end,
-   Item = build(Json, As, Transforms, SPoint),
+   SPoint = get_state_point(State, Json),
+   Item = build(Json, Ts, As, Transforms, SPoint),
    do_emit(Next, Item, NewState).
-do_emit(Next, Msg, State=#state{}) ->
+do_emit(Next, Msg, State=#state{one_shot = true, current_ts = CTs}) ->
+   {emit,{1, Msg}, State#state{state_point = state_point(Msg), current_ts = CTs + Next}};
+do_emit(Next, Msg, State=#state{current_ts = CTs}) ->
    erlang:send_after(Next, self(), emit),
-   {emit,{1, Msg}, State#state{state_point = Msg}}.
+   {emit,{1, Msg}, State#state{state_point = state_point(Msg), current_ts = CTs + Next}}.
 
 next_index(S = #state{select = ?BATCH, ejson = _JS}) ->
    {1, S#state{idx = 1}};
@@ -132,13 +140,13 @@ next_index(S = #state{select = ?SEQ, ejson = JS, idx = Index}) when Index > leng
 next_index(S = #state{select = ?SEQ, ejson = _JS, idx = Index}) ->
    {Index, S#state{idx = Index+1}}.
 
-build(JsonMap, As, Transforms, SPoint) when is_map(JsonMap) ->
+build(JsonMap, Ts, As, Transforms, SPoint) when is_map(JsonMap) ->
    Point =
-    flowdata:set_root(#data_point{ts = faxe_time:now(), fields = JsonMap}, As),
+    flowdata:set_root(#data_point{ts = Ts, fields = JsonMap}, As),
    maybe_transform(Point, Transforms, SPoint);
-build(JsonList, As, Transforms, SPoint) when is_list(JsonList) ->
-   Points = [build(JsonMap, As, Transforms, SPoint) || JsonMap <- JsonList],
-   #data_batch{points = Points}.
+build(JsonList, Ts, As, Transforms, SPoint) when is_list(JsonList) ->
+   Points = [build(JsonMap, Ts, As, Transforms, SPoint) || JsonMap <- JsonList],
+   #data_batch{points = Points, start = Ts}.
 
 maybe_transform(Point, undefined, _SP) ->
    Point;
@@ -151,9 +159,31 @@ do_transform([], Point) ->
    flowdata:delete_field(Point, ?STATE_POINT_FIELD);
 do_transform([{FieldPath, Lambda}|Transforms], Point) ->
 
-   lager:info("do_transform ~p on ~p",[Point, FieldPath]),
+%%   lager:info("do_transform ~p on ~p",[Point, FieldPath]),
    NewPoint = faxe_lambda:execute(Point, Lambda, FieldPath),
    do_transform(Transforms, NewPoint).
+
+get_state_point(S = #state{state_point = undefined}, [First|_]) ->
+   get_state_point(S, First);
+get_state_point(#state{state_point = undefined, current_ts = CTs, as = As}, InitialData) ->
+   flowdata:set_root(#data_point{ts = CTs, fields = InitialData}, As);
+get_state_point(#state{state_point = SPoint}, _) ->
+   SPoint.
+
+state_point(P = #data_point{}) ->
+   P;
+state_point(#data_batch{points = [P|_]}) ->
+   P.
+
+init_ts(S = #state{start_ts = undefined, align = false}) ->
+   S#state{current_ts = faxe_time:now()};
+init_ts(S = #state{start_ts = undefined, align = Align}) ->
+   S#state{current_ts = faxe_time:align(faxe_time:now(), Align)};
+init_ts(S = #state{start_ts = Start}) when is_binary(Start)->
+   S#state{current_ts = time_format:iso8601_to_ms(Start)};
+init_ts(S = #state{start_ts = Start}) when is_integer(Start)->
+   S#state{current_ts = Start}.
+
 
 
 
