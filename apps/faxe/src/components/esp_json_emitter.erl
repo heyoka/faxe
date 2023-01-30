@@ -76,6 +76,8 @@ check_json(Json) when is_binary(Json) ->
    end;
 check_json(_) -> false.
 
+check_start_ts(undefined) ->
+   true;
 check_start_ts(Start) when is_binary(Start) ->
    case catch time_format:iso8601_to_ms(Start) of
       Ts when is_integer(Ts) -> true;
