@@ -63,7 +63,8 @@ options() ->
 check_options() ->
    [
       {func, json, fun check_json/1, <<", invalid json">>},
-      {one_of, select, [?RAND, ?SEQ, ?BATCH]}
+      {one_of, select, [?RAND, ?SEQ, ?BATCH]},
+      {func, start_ts, fun check_start_ts/1, <<", ms timestamp (integer) or ISO8601 format expected">>}
    ].
 
 check_json(Jsons) when is_list(Jsons) ->
@@ -74,6 +75,15 @@ check_json(Json) when is_binary(Json) ->
       _Other -> true
    end;
 check_json(_) -> false.
+
+check_start_ts(Start) when is_binary(Start) ->
+   case catch time_format:iso8601_to_ms(Start) of
+      Ts when is_integer(Ts) -> true;
+      _ -> false
+   end;
+check_start_ts(Start) ->
+   faxe_time:is_timestamp(Start).
+
 
 init(NodeId, _Inputs,
     #{every := Every, align := Unit, jitter := Jitter, json := JS, as := As, select := Sel, modify := Replace,
@@ -87,6 +97,8 @@ init(NodeId, _Inputs,
    JT = faxe_time:duration_to_ms(Jitter),
    EveryMs = faxe_time:duration_to_ms(Every),
 
+
+
    JSONs = [jiffy:decode(JsonString, [return_maps]) || JsonString <- JS],
    TransformList = case Replace of undefined -> undefined; _ -> lists:zip(Replace, Funs0) end,
    State =
@@ -97,6 +109,12 @@ init(NodeId, _Inputs,
          transforms = TransformList, one_shot = OneShot,
          start_ts = StartTs
       },
+
+%%   case Sel of
+%%      <<"batch">> -> lager:notice("select batch gives batch-interval of ~p ms (round(~p/~p)",
+%%         [round(EveryMs/length(JSONs)), {Every, EveryMs}, length(JSONs)]);
+%%      _ -> ok
+%%   end,
 
    erlang:send_after(JT, self(), emit),
    rand:seed(exs1024s),

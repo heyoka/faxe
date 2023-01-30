@@ -105,7 +105,7 @@ init_all(#{host := Host, port := Port} = Opts, State) ->
    Caller = maps:get(pool_caller, Opts, undefined),
    case is_pid(Caller) of
       true -> ok;
-      false -> connection_registry:reg(NId, Host, Port, <<"mqtt">>)
+      false -> catch connection_registry:reg(NId, Host, Port, <<"mqtt">>)
    end,
 
    {ok, OptsState#state{reconnector = Reconnector1, node_id = NId, pool_caller = Caller }}.
