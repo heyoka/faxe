@@ -193,8 +193,6 @@ do_register(ClientPid, Interval, Vars, State = #state{current_addresses = Curren
   Msg = case Connected of true -> s7_connected; false -> s7_disconnected end,
   ClientPid ! {Msg, undefined},
   {noreply, NewState} = maybe_next(State#state{current_addresses = NewSlots, request_cache = #{}}),
-  lager:notice("NewCurrent: ~p",[NewCurrent]),
-  s7_utils:build_addresses(NewCurrent, 420),
   NewState.
 
 
@@ -265,7 +263,6 @@ get_requests(IntervalList, S = #state{current_addresses = Slots}) ->
 
 build_requests(IntervalList, Addresses, S=#state{pdu_size = PDUSize, request_cache = Cache}) ->
   {_T, BuiltRequests} = timer:tc(s7_utils, build_addresses, [Addresses, PDUSize]),
-  lager:notice("requests: ~p",[BuiltRequests]),
   {BuiltRequests, S#state{request_cache = Cache#{IntervalList => BuiltRequests}, cache_pdu_size = PDUSize}}.
 
 
@@ -435,9 +432,7 @@ decode(sint, Data) ->
 decode(usint, Data) ->
   decode(byte, Data);
 decode(byte, Data) ->
-  D = [Res || <<Res:8/integer-unsigned>> <= Data],
-%%  lager:notice("bytes: ~p",[D]),
-  D;
+  [Res || <<Res:8/integer-unsigned>> <= Data];
 decode(char, Data) ->
   [Res || <<Res:1/binary>> <= Data];
 decode(string, Data) ->

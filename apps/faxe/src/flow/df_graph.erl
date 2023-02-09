@@ -218,8 +218,17 @@ handle_call({delete_subgraph, FromVertex, Port}, _From, State=#state{}) ->
 %%   {reply, {ok, 2}, State};
    {reply, ok, NewState};
 %% start the computation
-handle_call({start, Modes}, _From, State) ->
+handle_call({start, Modes}, _From, State=#state{graph = _G}) ->
    NewState = start(Modes, State),
+   Nodes = NewState#state.nodes,
+   SinkVertices = digraph:sink_vertices(NewState#state.graph),
+   MapFun =
+   fun(NodeName) ->
+      E = lists:keyfind(NodeName, 2, Nodes),
+      {NodeName, element(3, E)}
+   end,
+   SinkNodes = lists:map(MapFun, SinkVertices),
+%%   lager:warning("sink-nodes are: ~p~n nodes are: ~p",[SinkNodes, NewState#state.nodes]),
    {reply, ok, NewState};
 handle_call({stop}, _From, State) ->
    do_stop(State),

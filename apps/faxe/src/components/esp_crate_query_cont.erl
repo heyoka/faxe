@@ -291,7 +291,7 @@ setup_query(#{query := Q0, filter_time_field := _FilterTimeField}=QM, S=#state{}
 setup_query(#{query := Q0, filter_time_field := FilterTimeField}, S=#state{}) ->
    Q = faxe_util:clean_query(Q0),
    Query = build_query(Q, FilterTimeField),
-   lager:notice("QUERY: ~s",[Query]),
+%%   lager:notice("QUERY: ~s",[Query]),
    S#state{query = Query}.
 
 setup_query_start(S=#state{start = Start}) ->
@@ -401,6 +401,7 @@ do_query(State = #state{client = C, period = Period, query_mark = QueryMark, res
       ok ->
          {ok, NewState};
       {ok, Data} ->
+%%         lager:notice("JB: ~s",[flowdata:to_json(Data)]),
          node_metrics:metric(?METRIC_ITEMS_IN, 1, FnId),
          {emit, {1, Data#data_batch{start = FromTs}}, NewState};
       {error, Error} ->

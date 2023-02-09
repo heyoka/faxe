@@ -14,10 +14,8 @@ class Double(Faxe):
     def init(self, args=None):
         self.fieldname = args["field"]
         self.asfieldname = args["as"]
-        self.counter = 0
 
     def handle_point(self, point_data):
-        self.counter += 1
         self.emit(self.calc(point_data))
 
     def handle_batch(self, batch_data):

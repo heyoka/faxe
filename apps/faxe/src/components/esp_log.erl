@@ -32,12 +32,12 @@ init(_NodeId, _Inputs, #{file := File, format := Format0, field := Field}) ->
    Format = case Field of undefined -> Format0; _ -> <<"raw">> end,
    {ok, all, #state{file = F, field = Field, format = Format}}.
 
-process(_In, P = #data_point{}, State = #state{file = F, field = Field}) ->
+process(_In, P, State = #state{file = F, field = Field}) ->
    log(P, F, Field),
-   {emit, P, State};
-process(_In, B = #data_batch{points = Ps}, State = #state{file = F, field = Field}) ->
-   [log(P, F, Field) || P <- Ps],
-   {emit, B, State}.
+   {emit, P, State}.
+%%process(_In, B = #data_batch{points = Ps}, State = #state{file = F, field = Field}) ->
+%%   [log(P, F, Field) || P <- Ps],
+%%   {emit, B, State}.
 
 %% whole datapoint will be written as json
 log(Point, File, undefined) ->

@@ -1,6 +1,5 @@
 %% Date: 05.01.17 - 10:21
 %% Ⓒ 2017 heyoka
-%% @todo implement align
 -module(esp_json_emitter).
 -author("Alexander Minichmair").
 

@@ -43,7 +43,7 @@ dev1:
 	export FAXE_DEBUG_HANDLER_MQTT_BASE_TOPIC=sys/faxe/ && \
 	export FAXE_HOST=heyoka_local && \
 	export FAXE_S7POOL_ENABLE=on && \
-	export FAXE_S7READER_OPTIMIZED=off && \
+	export FAXE_S7READER_OPTIMIZED=on && \
 	rebar3 as dev1 release && _build/dev1/rel/faxe/bin/faxe console
 
 start:
