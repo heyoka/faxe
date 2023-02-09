@@ -193,6 +193,8 @@ do_register(ClientPid, Interval, Vars, State = #state{current_addresses = Curren
   Msg = case Connected of true -> s7_connected; false -> s7_disconnected end,
   ClientPid ! {Msg, undefined},
   {noreply, NewState} = maybe_next(State#state{current_addresses = NewSlots, request_cache = #{}}),
+  lager:notice("NewCurrent: ~p",[NewCurrent]),
+  s7_utils:build_addresses(NewCurrent, 420),
   NewState.
 
 
@@ -263,6 +265,7 @@ get_requests(IntervalList, S = #state{current_addresses = Slots}) ->
 
 build_requests(IntervalList, Addresses, S=#state{pdu_size = PDUSize, request_cache = Cache}) ->
   {_T, BuiltRequests} = timer:tc(s7_utils, build_addresses, [Addresses, PDUSize]),
+  lager:notice("requests: ~p",[BuiltRequests]),
   {BuiltRequests, S#state{request_cache = Cache#{IntervalList => BuiltRequests}, cache_pdu_size = PDUSize}}.
 
 
@@ -419,8 +422,22 @@ decode(bool, Data) ->
 decode(bool_byte, Data) ->
   D = [X || <<X:1>> <= Data],
   prepare_byte_list(D);
+decode(sint, Data) ->
+  lager:notice("signed integers 8bit ~p",[Data]),
+  [Res || <<Res:8/integer-signed>> <= Data];
+%%  Res1 = [{Sign, Num} || <<Sign:1/bits, Num:7/bits>> <= Data],
+%%  lists:map(
+%%    fun
+%%      ({0, Int}) -> Int;
+%%      ({1, Int0}) -> Int0 * -1
+%%    end,
+%%    Res1);
+decode(usint, Data) ->
+  decode(byte, Data);
 decode(byte, Data) ->
-  [Res || <<Res:8/integer-unsigned>> <= Data];
+  D = [Res || <<Res:8/integer-unsigned>> <= Data],
+%%  lager:notice("bytes: ~p",[D]),
+  D;
 decode(char, Data) ->
   [Res || <<Res:1/binary>> <= Data];
 decode(string, Data) ->

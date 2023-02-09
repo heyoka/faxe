@@ -265,6 +265,8 @@ max_payload_size(PDUSize, NumItems) ->
 
 word_len_size(bool) -> 1;
 word_len_size(byte) -> 1;
+word_len_size(sint) -> 1;
+word_len_size(usint) -> 1;
 word_len_size(char) -> 1;
 word_len_size(string) -> 1;
 word_len_size(word) -> 2;
