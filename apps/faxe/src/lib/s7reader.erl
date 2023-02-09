@@ -420,15 +420,7 @@ decode(bool_byte, Data) ->
   D = [X || <<X:1>> <= Data],
   prepare_byte_list(D);
 decode(sint, Data) ->
-  lager:notice("signed integers 8bit ~p",[Data]),
   [Res || <<Res:8/integer-signed>> <= Data];
-%%  Res1 = [{Sign, Num} || <<Sign:1/bits, Num:7/bits>> <= Data],
-%%  lists:map(
-%%    fun
-%%      ({0, Int}) -> Int;
-%%      ({1, Int0}) -> Int0 * -1
-%%    end,
-%%    Res1);
 decode(usint, Data) ->
   decode(byte, Data);
 decode(byte, Data) ->
@@ -437,9 +429,7 @@ decode(char, Data) ->
   [Res || <<Res:1/binary>> <= Data];
 decode(string, Data) ->
   %% strip null-bytes / control-chars
-%%  L = [binary_to_list(Res) || <<Res:1/binary>> <= Data, Res /= <<0>>],
   L = [binary_to_list(Res) || <<Res:1/binary>> <= Data, Res > <<31>>],
-%%  lager:info("~p",[L]),
   list_to_binary(lists:concat(L));
 decode(int, Data) ->
   [Res || <<Res:16/integer-signed>> <= Data];
