@@ -213,6 +213,7 @@ maybe_next(State = #state{current_addresses = Slots}) ->
   SmallestInterval = lists:min(proplists:get_keys(ReadIntervals0)),
 %%  lager:notice("NEXT~n SlotTimers:~p~n read-intervals: ~p",[NewSlotTimers, ReadIntervals]),
   TimeDiff = faxe_time:now() - At0,
+  lager:notice("timediff = ~p, smallest interval: ~p",[TimeDiff, SmallestInterval]),
   {ReadIntervals, NewSlotTimers, At} =
   case TimeDiff > SmallestInterval of
     true ->
