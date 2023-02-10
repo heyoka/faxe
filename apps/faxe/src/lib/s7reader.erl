@@ -352,7 +352,7 @@ do_read(Requests, Opts, RunWith) ->
     end,
 %%  ReadResult = plists:fold(ElFun, {true, []}, Requests, {processes, RunWith}),
   {Time, ReadResult} = timer:tc(plists, fold, [ElFun, {true, []}, Requests, {processes, RunWith}]),
-  lager:notice("Time to read ~p requests: ~p millis with ~p processes/connections",
+  lager:warning("Time to read ~p requests: ~p millis with ~p processes/connections",
     [length(Requests), erlang:round(Time/1000), RunWith]),
   ReadResult.
 
