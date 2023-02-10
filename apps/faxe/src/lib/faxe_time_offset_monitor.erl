@@ -14,7 +14,7 @@
 
 -define(SERVER, ?MODULE).
 
--record(state, {}).
+-record(state, {current_offset = 0}).
 
 %%%===================================================================
 %%% Spawning and gen_server implementation
@@ -25,7 +25,7 @@ start_link() ->
 
 init([]) ->
   erlang:monitor(time_offset, clock_service),
-  {ok, #state{}}.
+  {ok, #state{current_offset = erlang:time_offset(milli_seconds)}}.
 
 handle_call(_Request, _From, State = #state{}) ->
   {reply, ok, State}.
@@ -33,9 +33,11 @@ handle_call(_Request, _From, State = #state{}) ->
 handle_cast(_Request, State = #state{}) ->
   {noreply, State}.
 
-handle_info({'CHANGE', _MonitorReference, time_offset, clock_service, NewTimeOffset}, State = #state{}) ->
-  lager:notice("TIME_OFFSET changed to: ~p", [NewTimeOffset]),
-  {noreply, State};
+handle_info({'CHANGE', _MonitorReference, time_offset, clock_service, NewTimeOffset},
+    State = #state{current_offset = Off}) ->
+  OffsetMs = erlang:convert_time_unit(NewTimeOffset, native, milli_seconds),
+  lager:warning("TIME_OFFSET changed by ~pms to: ~p", [Off-OffsetMs, OffsetMs]),
+  {noreply, State#state{current_offset = OffsetMs}};
 handle_info(_Info, State = #state{}) ->
   lager:info("[~p]got info: ~p",[?MODULE, _Info]),
   {noreply, State}.

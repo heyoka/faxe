@@ -211,6 +211,11 @@ maybe_next(State = #state{current_addresses = Slots}) ->
   NewSlotTimers = check_slot_timers(Slots, State#state.slot_timers),
   [{_I, #faxe_timer{last_time = At}}|_] = ReadIntervals = next_read(NewSlotTimers),
 %%  lager:notice("NEXT~n SlotTimers:~p~n read-intervals: ~p",[NewSlotTimers, ReadIntervals]),
+  TimeDiff = faxe_time:now() - At,
+  case abs(TimeDiff) > 500 of
+    true -> lager:warning("~p TimeDrift of ~p detected",[?MODULE, TimeDiff]);
+    false -> ok
+  end,
   Intervals = proplists:get_keys(ReadIntervals),
   {ReadRequests, NewState} = get_requests(Intervals, State),
   NewTimer = faxe_time:send_at(At, {read, ReadRequests, ReadIntervals}),

@@ -9,7 +9,8 @@
 
 -behavior(df_component).
 %% API
--export([init/3, process/3, options/0, handle_info/2, do_send/5, shutdown/1, metrics/0, check_options/0]).
+-export([init/3, process/3, options/0, handle_info/2, do_send/5, shutdown/1, metrics/0,
+   check_options/0, quote_identifier/1, check_table_identifier/1, check_column_identifier/1]).
 
 -record(state, {
    host :: string(),
@@ -40,6 +41,9 @@
    ignore_resp_timeout,
    error_trace = false
 }).
+
+-define(QUOTEABLE, [
+   <<"0">>, <<"1">>, <<"2">>, <<"3">>, <<"4">>, <<"5">>, <<"6">>, <<"7">>, <<"8">>, <<"9">>]).
 
 -define(KEY, <<"stmt">>).
 -define(PATH, <<"/_sql">>).
@@ -72,7 +76,8 @@ options() ->
 
 check_options() ->
    [
-      {func, table, fun(E) -> is_function(E) orelse is_binary(E) end, <<" must be either a string or a lambda function">>},
+      {func, table, fun(E) -> is_function(E) orelse is_binary(E) end,
+         <<" must be either a string or a lambda function">>},
       {func, db_fields,
          fun(Fields) ->
             lists:all(fun(E) -> is_function(E) orelse is_binary(E) end, Fields)
@@ -99,9 +104,14 @@ init(NodeId, Inputs,
    connection_registry:reg(NodeId, Host, Port, <<"http">>),
    %% use fully qualified table name here, ie. doc."0x23d"
    Path = case ETrace of false -> ?PATH; true -> <<?PATH/binary, ?ACTIVE_ERROR_TRACE/binary>> end,
-   State = #state{host = Host, port = Port, database = DB, user = User, pass = Pass,
+   State = #state{
+      host = Host, port = Port,
+      database = quote_identifier(DB),
+      user = User, pass = Pass,
       failed_retries = MaxRetries, remaining_fields_as = RemFieldsAs, tls = Tls, path = Path,
-      table = Table, db_fields = DBFields, faxe_fields = FaxeFields, error_trace = ETrace,
+      table = quote_identifier(Table),
+      db_fields = [quote_identifier(DBField) || DBField <- DBFields],
+      faxe_fields = FaxeFields, error_trace = ETrace,
       fn_id = NodeId, flow_inputs = Inputs, ignore_resp_timeout = IgnoreRespTimeout},
    NewState = query_init(State),
 %%   lager:warning("QUERY INIT Schema:~p ~p",[DB, {NewState#state.query, NewState#state.query_from_lambda}]),
@@ -347,3 +357,106 @@ handle_response_message(RespMessage) ->
                {error, retry_single}
          end
       end.
+
+
+check_table_identifier(<<"_", _/binary>>) -> false;
+check_table_identifier(<<"\"_", _/binary>>) -> false;
+check_table_identifier(Ident) ->
+   % CRATE DB identifiers
+%%   \ / * ? " < > | <whitespace> , # .
+   re:run(Ident, <<"[(A-Z)|(\\)|/|\*|\?|<|>|\|\s|,|#|\.]">>) == nomatch.
+
+check_column_identifier(Ident) ->
+   binary:match(Ident, [<<"[">>, <<"]">>, <<".">>]) == nomatch.
+
+quote_identifier(<<"\"", _/binary>> = Ident) ->
+   Ident;
+quote_identifier(<<F:1/binary, _R/binary>> = Ident) ->
+   case lists:member(F, ?QUOTEABLE) of
+      true -> <<"\"", Ident/binary, "\"">>;
+      false -> Ident
+   end;
+quote_identifier(Other) ->
+   Other.
+
+
+reserved() ->
+   [
+   <<"add">>, <<"all">>, <<"alter">>, <<"and">>, <<"any">>, <<"array">>, <<"as">>,
+   <<"asc">>, <<"between">>, <<"by">>, <<"called">>, <<"case">>, <<"case">>, <<"cast">>,
+   <<"column">> ,<<"constraint">>, <<"create">>, <<"cross">>, <<"current_date">>,
+   <<"current_schema">>, <<"current_time">>, <<"current_timestamp">>, <<"current_user">>
+%%   | default           |
+%%   | delete            |
+%%   | deny              |
+%%   | desc              |
+%%   | describe          |
+%%   | directory         |
+%%   | distinct          |
+%%   | drop              |
+%%   | else              |
+%%   | end               |
+%%| escape            |
+%%| except            |
+%%| exists            |
+%%| extract           |
+%%| false             |
+%%| first             |
+%%| for               |
+%%| from              |
+%%| full              |
+%%| function          |
+%%| grant             |
+%%| group             |
+%%| having            |
+%%| if                |
+%%| in                |
+%%| index             |
+%%| inner             |
+%%| input             |
+%%| insert            |
+%%| intersect         |
+%%| into              |
+%%| is                |
+%%| join              |
+%%| last              |
+%%| left              |
+%%| like              |
+%%| limit             |
+%%| match             |
+%%| natural           |
+%%| not               |
+%%| null              |
+%%| nulls             |
+%%| object            |
+%%| offset            |
+%%| on                |
+%%| or                |
+%%| order             |
+%%| outer             |
+%%| persistent        |
+%%| recursive         |
+%%| reset             |
+%%| returns           |
+%%| revoke            |
+%%| right             |
+%%| select            |
+%%| session_user      |
+%%| set               |
+%%| some              |
+%%| stratify          |
+%%| table             |
+%%| then              |
+%%| transient         |
+%%| true              |
+%%| try_cast          |
+%%| unbounded         |
+%%| union             |
+%%| update            |
+%%| user              |
+%%| using             |
+%%| when              |
+%%| where             |
+%%| with
+
+].
