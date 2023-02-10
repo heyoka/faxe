@@ -209,7 +209,7 @@ maybe_next(State = #state{current_addresses = Slots}) when map_size(Slots) == 0 
   {noreply, State#state{busy = false}};
 maybe_next(State = #state{current_addresses = Slots}) ->
   NewSlotTimers0 = check_slot_timers(Slots, State#state.slot_timers),
-  [{_I, #faxe_timer{last_time = At0, interval = Interval}}|_] = ReadIntervals0 = next_read(NewSlotTimers0),
+  [{_I0, #faxe_timer{last_time = At0, interval = Interval}}|_] = ReadIntervals0 = next_read(NewSlotTimers0),
 %%  SmallestInterval = lists:min(proplists:get_keys(NewSlotTimers0)),
 %%  lager:notice("NEXT~n SlotTimers:~p~n read-intervals: ~p",[NewSlotTimers, ReadIntervals]),
   TimeDiff = faxe_time:now() - At0,
@@ -218,7 +218,7 @@ maybe_next(State = #state{current_addresses = Slots}) ->
   case TimeDiff > Interval of
     true ->
       NewSlotTimers1 = reset_slot_timers(State),
-      [{_I, #faxe_timer{last_time = At1}}|_] = ReadIntervals1 = next_read(NewSlotTimers1),
+      [{_I1, #faxe_timer{last_time = At1}}|_] = ReadIntervals1 = next_read(NewSlotTimers1),
       lager:warning("~p TimeDrift of ~p detected, reset timers ...", [{?MODULE, self()}, TimeDiff]),
       {ReadIntervals1, NewSlotTimers1, At1};
     false ->
