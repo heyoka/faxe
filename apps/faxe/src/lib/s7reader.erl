@@ -208,13 +208,19 @@ maybe_next(State = #state{current_addresses = Slots}) when map_size(Slots) == 0 
   erlang:send_after(?EMPTY_RETRY_INTERVAL, self(), try_read),
   {noreply, State#state{busy = false}};
 maybe_next(State = #state{current_addresses = Slots}) ->
-  NewSlotTimers = check_slot_timers(Slots, State#state.slot_timers),
-  [{_I, #faxe_timer{last_time = At}}|_] = ReadIntervals = next_read(NewSlotTimers),
+  NewSlotTimers0 = check_slot_timers(Slots, State#state.slot_timers),
+  [{Interval0, #faxe_timer{last_time = At0}}|_] = ReadIntervals0 = next_read(NewSlotTimers0),
 %%  lager:notice("NEXT~n SlotTimers:~p~n read-intervals: ~p",[NewSlotTimers, ReadIntervals]),
-  TimeDiff = faxe_time:now() - At,
-  case abs(TimeDiff) > 500 of
-    true -> lager:warning("~p TimeDrift of ~p detected",[?MODULE, TimeDiff]);
-    false -> ok
+  TimeDiff = faxe_time:now() - At0,
+  {ReadIntervals, NewSlotTimers, At} =
+  case TimeDiff > Interval0 of
+    true ->
+      NewSlotTimers1 = reset_slot_timers(State),
+      [{_I, #faxe_timer{last_time = At1}}|_] = ReadIntervals1 = next_read(NewSlotTimers1),
+      lager:warning("~p TimeDrift of ~p detected, reset timers ...", [{?MODULE, self()}, TimeDiff]),
+      {ReadIntervals1, NewSlotTimers1, At1};
+    false ->
+      {ReadIntervals0, NewSlotTimers0, At0}
   end,
   Intervals = proplists:get_keys(ReadIntervals),
   {ReadRequests, NewState} = get_requests(Intervals, State),
@@ -237,6 +243,15 @@ check_slot_timers(Slots, CurrentTimers) ->
     CurrentTimers,
     SlotIntervals
   ).
+
+
+%% reset all timer records
+-spec reset_slot_timers(#state{}) -> list().
+reset_slot_timers(#state{current_addresses = Slots}) ->
+  NewTimers = check_slot_timers(Slots, []),
+  NewTimers.
+%%  State#state{slot_timers = NewTimers}.
+
 
 next_read(SlotTimers) ->
   [{_I, #faxe_timer{last_time = NextTs}}|_] =
@@ -350,10 +365,10 @@ do_read(Requests, Opts, RunWith) ->
       ({_Vars, _Aliases}, {false, _} = R) ->
         R
     end,
-%%  ReadResult = plists:fold(ElFun, {true, []}, Requests, {processes, RunWith}),
-  {Time, ReadResult} = timer:tc(plists, fold, [ElFun, {true, []}, Requests, {processes, RunWith}]),
-  lager:warning("Time to read ~p requests: ~p millis with ~p processes/connections",
-    [length(Requests), erlang:round(Time/1000), RunWith]),
+  ReadResult = plists:fold(ElFun, {true, []}, Requests, {processes, RunWith}),
+%%  {Time, ReadResult} = timer:tc(plists, fold, [ElFun, {true, []}, Requests, {processes, RunWith}]),
+%%  lager:warning("Time to read ~p requests: ~p millis with ~p processes/connections",
+%%    [length(Requests), erlang:round(Time/1000), RunWith]),
   ReadResult.
 
 emit_results([FirstResult|RequestResults], Ts) ->
