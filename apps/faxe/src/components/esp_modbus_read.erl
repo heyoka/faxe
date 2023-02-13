@@ -118,6 +118,8 @@ init(NodeId, _Ins, #{timeout := Timeout} = Opts) ->
    NewState =
       State#state{requests = ReadRequests, fn_id = NodeId, read_timeout = ReadTimeout, byte_size_total = Bytes},
    erlang:send_after(0, self(), connect),
+   %% monitor time_offsets
+   erlang:monitor(time_offset, clock_service),
    {ok, all, NewState}.
 
 init_opts([{'_name', _DisplayName}|Opts], State) ->
@@ -192,6 +194,12 @@ handle_info({modbus, Client, disconnected}, State=#state{timer = Timer, client =
    connection_registry:disconnected(),
    lager:notice("Modbus Client is disconnected!!, stop polling ....", []),
    {ok, State#state{timer = faxe_time:timer_cancel(Timer), connected = false}};
+handle_info({'CHANGE', _MonitorReference, time_offset, clock_service, _NewTimeOffset}, State=#state{timer = Timer}) ->
+   faxe_time:timer_cancel(Timer),
+   lager:warning("<~p> TIME_OFFSET changed ", [{?MODULE, self()}]),
+   Timer = faxe_time:init_timer(State#state.align, State#state.interval, poll),
+   NewState = State#state{timer = Timer},
+   {ok, NewState};
 
 handle_info(_E, S) ->
    {ok, S#state{}}.

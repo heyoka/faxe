@@ -77,6 +77,8 @@ start_link(Opts) ->
   gen_server:start_link(?MODULE, Opts, []).
 
 init(Opts0=#{ip := Ip}) ->
+  %% monitor time_offsets
+  erlang:monitor(time_offset, clock_service),
   Opts = maps:without([vars], Opts0),
   %% lets see, if we have clients in ets clients table
   State = init_clients(Ip, Opts),
@@ -172,6 +174,11 @@ handle_info({s7_disconnected, _Client}=M, State = #state{timer = Timer}) ->
   catch erlang:cancel_timer(Timer),
   send_all_clients(M, State),
   {noreply, State#state{timer = undefined, busy = false, connected = false}};
+handle_info({'CHANGE', _MonitorReference, time_offset, clock_service, _NewTimeOffset}, State=#state{timer = Timer}) ->
+  catch erlang:cancel_timer(Timer),
+  lager:warning("<~p> TIME_OFFSET changed ", [{?MODULE, self()}]),
+  NewState = State#state{slot_timers = reset_slot_timers(State), timer = undefined},
+  maybe_next(NewState);
 handle_info(_Info, State = #state{}) ->
   maybe_next(State).
 
@@ -217,8 +224,8 @@ maybe_next(State = #state{current_addresses = Slots}) ->
     true ->
       NewSlotTimers1 = reset_slot_timers(State),
       [{_I1, #faxe_timer{last_time = At1}}|_] = ReadIntervals1 = next_read(NewSlotTimers1),
-      lager:warning("~p TimeDrift of ~p detected, reset timers ... (~p vs ~p)",
-        [{?MODULE, self(), Now}, TimeDiff, faxe_time:to_iso8601(At0), faxe_time:to_iso8601(At1)]),
+%%      lager:warning("~p TimeDrift of ~p detected, reset timers ... (~p vs ~p)",
+%%        [{?MODULE, self(), Now}, TimeDiff, faxe_time:to_iso8601(At0), faxe_time:to_iso8601(At1)]),
       {ReadIntervals1, NewSlotTimers1, At1};
     false ->
       {ReadIntervals0, NewSlotTimers0, At0}
