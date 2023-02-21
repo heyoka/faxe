@@ -47,6 +47,13 @@
    save_user/2,
    save_user/3, reset_templates/0, reset_users/0]).
 
+%% state persistence
+-export([
+   save_node_state/2
+   , get_flow_states/1, delete_flow_states/1]).
+
+
+
 get_all_tasks() ->
    get_all(task).
 
@@ -287,6 +294,21 @@ reset_users() ->
    mnesia:clear_table(faxe_user),
    create_default_user().
 
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%% state persistence
+save_node_state(FlowNodeId, State) ->
+   lager:notice("persist state for ~p",[FlowNodeId]),
+   mnesia:dirty_write(
+      #node_state{flownode_id = FlowNodeId, state = State, ts = erlang:system_time(millisecond)}
+   ).
+
+get_flow_states(FlowId) ->
+   mnesia:dirty_match_object(node_state, {node_state, {FlowId, '_'}, '_', '_'}).
+
+delete_flow_states(FlowId) ->
+   [mnesia:dirty_delete_object(NodeState) || NodeState <- get_flow_states(FlowId)].
+
 %%%%%%%%%%%%%%%%%%%%%%%%%%%% table management %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 db_init() ->
@@ -370,6 +392,9 @@ copy_tables(Node) ->
    ,
    Res8 = mnesia:add_table_copy(faxe_user, Node, disc_copies),
    lager:debug("remote_init add_table copy = ~p~n", [Res8])
+   ,
+   Res9 = mnesia:add_table_copy(node_state, Node, disc_copies),
+   lager:debug("remote_init add_table copy = ~p~n", [Res9])
 
 .
 
@@ -379,6 +404,7 @@ renew_tables() ->
    mnesia:delete_table(ids),
    mnesia:delete_table(tag_tasks),
    mnesia:delete_table(faxe_user),
+   mnesia:delete_table(node_state),
    create().
 
 %%
@@ -407,6 +433,12 @@ create() ->
    ,
    _Res2 = mnesia:create_table(tag_tasks, [
       {attributes, record_info(fields, tag_tasks)},
+      {type, set},
+      {disc_copies, [node()]}
+   ]),
+
+   _Res3 = mnesia:create_table(node_state, [
+      {attributes, record_info(fields, node_state)},
       {type, set},
       {disc_copies, [node()]}
    ]),

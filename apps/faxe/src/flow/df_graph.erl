@@ -415,12 +415,16 @@ build_node_subscriptions(Graph, Node, Nodes, FlowMode) ->
 
 -spec start_async(list({binary(), atom(), pid()}), list(), push|pull, binary()) -> ok.
 start_async(Nodes0, Subscriptions, RunMode, Id) ->
+   %% state persistence
+   AllStates0 = faxe_db:get_flow_states(Id),
+   AllStates = [{NodeId, State} || #node_state{flownode_id = {Id, NodeId}, state = State} <- AllStates0],
+   lager:notice("All node-states from flow ~p: ~p",[Id, AllStates]),
    %% start the nodes with subscriptions
    %% do we have mem nodes present ? then sync start them first
    {Mems, Others} = lists:partition(fun(#node{component = Comp}) -> Comp =:= esp_mem end, Nodes0),
    %% mem nodes first
    lists:foreach(
-      fun(#node{id = NodeId, component = Comp, pid = NPid}) ->
+      fun(#node{id = NodeId, component = _Comp, pid = NPid}) ->
          {Inputs, Subs} = proplists:get_value(NodeId, Subscriptions),
          df_subscription:save_subscriptions({Id, NodeId}, Subs),
 %%         node_metrics:setup(Id, NodeId, Comp),
@@ -428,11 +432,12 @@ start_async(Nodes0, Subscriptions, RunMode, Id) ->
       end,
       Mems),
    lists:foreach(
-      fun(#node{id = NodeId, component = Comp, pid = NPid}) ->
+      fun(#node{id = NodeId, component = _Comp, pid = NPid}) ->
          {Inputs, Subs} = proplists:get_value(NodeId, Subscriptions),
          df_subscription:save_subscriptions({Id, NodeId}, Subs),
 %%         node_metrics:setup(Id, NodeId, Comp),
-         df_component:start_async(NPid, Inputs, RunMode)
+%%         df_component:start_async(NPid, Inputs, RunMode)
+         df_component:start_async(NPid, Inputs, RunMode, proplists:get_value(NodeId, AllStates))
       end,
       Others),
    %% if in pull mode, initially let all components send requests to their producers

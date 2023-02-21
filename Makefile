@@ -31,7 +31,7 @@ dev1:
 	export FAXE_LOG_LOGSTASH_HOST=10.14.204.17 && \
 	export FAXE_LOG_LOGSTASH_PORT=9125 && \
 	export FAXE_LOG_LOGSTASH_BACKEND_PROTOCOL=udp && \
-	export FAXE_FLOW_AUTO_START=off && \
+	export FAXE_FLOW_AUTO_START=on && \
 	export FAXE_FLOW_AUTO_RELOAD=off && \
 	export FAXE_ALLOW_ANONYMOUS=true && \
 	export FAXE_HTTP_API_TLS_ENABLE=off && \

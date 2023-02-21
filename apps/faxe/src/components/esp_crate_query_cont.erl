@@ -11,7 +11,7 @@
 
 -behavior(df_component).
 %% API
--export([init/3, process/3, options/0, handle_info/2, check_options/0, shutdown/1, metrics/0]).
+-export([init/3, process/3, options/0, handle_info/2, check_options/0, shutdown/1, metrics/0, init/4]).
 
 -record(state, {
    host :: string(),
@@ -40,7 +40,11 @@
    timer :: faxe_timer(),
    fn_id,
    debug_mode = false,
-   response_def :: faxe_epgsql_response()
+   response_def :: faxe_epgsql_response(),
+
+   %% done flags
+%%   setup_time_query_done = false :: true|false,
+   setup_start_done = false :: true|false
 }).
 
 -define(DB_OPTIONS, #{
@@ -167,12 +171,22 @@ init(NodeId, _Inputs, Opts = #{
    StartDelay = case Delay of undefined -> 0; _ -> faxe_time:duration_to_ms(Delay) end,
    %% init after maybe startdelay
    erlang:send_after(StartDelay, self(), {init2, Opts}),
+   lager:info("~p init",[?MODULE]),
    NewState = #state{
       host = Host, port = Port, user = User, pass = Pass, database = DB,
       setup_query = SetupQuery, setup_vars = SetupVars, setup_ts = SetupTs,
       db_opts = DBOpts, response_def = Response, fn_id = NodeId, stop_flow = StopFlow},
-   {ok, all, NewState}.
+   {ok, true, NewState}.
 
+
+init(NodeId, _Inputs, #{port := Port, host := Host0}, State) ->
+   lager:warning("init with persisted state: ~p", [State]),
+   process_flag(trap_exit, true),
+   Host = binary_to_list(Host0),
+   connection_registry:reg(NodeId, Host, Port, <<"pgsql">>),
+   %% connect
+   erlang:send_after(0, self(), reconnect),
+   {ok, true, State}.
 
 process(_In, _P = #data_point{}, State = #state{}) ->
    {ok, State};
@@ -196,6 +210,7 @@ handle_info(query, State = #state{timer = _Timer, query_mark = QueryMark, offset
 
 handle_info({init2, StartOpts}, State = #state{}) ->
    %% prepare and convert time(r) related options
+   lager:info("~p init2",[?MODULE]),
    State0 = setup_time(StartOpts, State),
    State1 = setup_query(StartOpts, State0),
    erlang:send_after(0, self(), reconnect),
@@ -215,6 +230,7 @@ handle_info({'EXIT', _C, Reason}, State = #state{}) ->
 handle_info(reconnect, State) ->
    {ok, connect(State)};
 handle_info(start_setup, State) ->
+   lager:info("~p handle_info start_setup",[?MODULE]),
    {ok, start_setup(State)};
 handle_info(_What, State) ->
    {ok, State}.
@@ -256,14 +272,15 @@ setup_time(#{
    Offset = faxe_time:duration_to_ms(Offset0),
    MinInterval = faxe_time:duration_to_ms(MinInterval0),
 
+   lager:info("~p setup_time",[?MODULE]),
    NewState = setup_query_start(State#state{start = Start0, stop = Stop0, period = Period0}),
-
    NewState#state{
       query_timeout = QueryTimeout, offset = Offset, min_interval = MinInterval, interval = MinInterval}.
 
 
 prepare_start(State = #state{start = Start0, period = Period0, stop = Stop0}) ->
    %% period also used for start alignment
+   lager:info("~p prepare start (no query)",[?MODULE]),
    Period = faxe_time:duration_to_ms(Period0),
    PeriodDuration = faxe_time:binary_to_duration(Period0),
    Start1 = time_format:iso8601_to_ms(Start0),
@@ -282,6 +299,7 @@ prepare_start(State = #state{start = Start0, period = Period0, stop = Stop0}) ->
 
 %% setup the main query (the continous one)
 setup_query(#{query := Q0, filter_time_field := _FilterTimeField}=QM, S=#state{}) when is_function(Q0) ->
+   lager:info("~p setup query (lambda)",[?MODULE]),
    Q1 = faxe_lambda:execute(#data_point{}, Q0),
    case check_timefilter(Q1) of
       false -> error("Timefilter not found in statement !");
@@ -289,6 +307,7 @@ setup_query(#{query := Q0, filter_time_field := _FilterTimeField}=QM, S=#state{}
    end,
    setup_query(QM#{query => Q1}, S);
 setup_query(#{query := Q0, filter_time_field := FilterTimeField}, S=#state{}) ->
+   lager:info("~p setup_query",[?MODULE]),
    Q = faxe_util:clean_query(Q0),
    Query = build_query(Q, FilterTimeField),
 %%   lager:notice("QUERY: ~s",[Query]),
@@ -303,10 +322,14 @@ setup_query_start(S=#state{start = Start}) ->
 
    end.
 
+start_setup(S=#state{setup_start_done = true}) ->
+   lager:info("~p start_setup already done ",[?MODULE]),
+   start(S);
 start_setup(S=#state{setup_start = false}) ->
+   lager:info("~p start_setup with ~p",[?MODULE, S#state.start]),
    maybe_query_setup(S);
 start_setup(S=#state{start = Start, client = Client}) ->
-
+   lager:info("~p start_setup get start time from query",[?MODULE]),
    case catch epgsql:equery(Client, Start) of
       {ok,[_TsCol],[{TimeStampString}]} ->
          NewState = prepare_start(S#state{start = TimeStampString, setup_start = false}),
@@ -325,6 +348,7 @@ maybe_query_setup(S = #state{setup_query = undefined}) ->
    start(S);
 maybe_query_setup(S = #state{setup_query = SetupQuery, setup_vars = [], client = C,
       response_def = RespDef, setup_ts = Ts, start = StartTime}) ->
+
    Query = prepare_setup_query(SetupQuery, <<>>, StartTime),
    case do_setup_query(C, Query, RespDef#faxe_epgsql_response{default_timestamp = Ts}) of
       {ok, R} ->
@@ -356,6 +380,7 @@ prepare_setup_query(SetupQuery, Var, StartTime) ->
 
 do_setup_query(Client, Query, RespDef) ->
 %%   lager:notice("setup query ~p",[Query]),
+   lager:info("~p do_setup_query",[?MODULE]),
    case catch epgsql:equery(Client, Query) of
       {ok, _, _} = Res ->
           faxe_epgsql_response:handle(Res, RespDef);
@@ -367,13 +392,15 @@ do_setup_query(Client, Query, RespDef) ->
 
 
 start(S = #state{}) ->
+   lager:info("~p start",[?MODULE]),
    TRef = next_query(S),
-   S#state{timer = TRef}.
+   S#state{timer = TRef, setup_start_done = true}.
 
 %% stop
 do_query(State = #state{query_mark = QMark, stop = Stop, client = C}) when Stop /= undefined andalso QMark > Stop ->
    lager:notice("stop is reached: ~p > ~p",[faxe_time:to_iso8601(QMark), faxe_time:to_iso8601(Stop)]),
    epgsql:close(C),
+%%   faxe_db:save_node_state(State#state.fn_id, State),
    {ok, State};
 %%   case State#state.stop_flow of
 %%      true ->
@@ -393,9 +420,10 @@ do_query(State = #state{client = C, period = Period, query_mark = QueryMark, res
    NewState0 = State#state{query_mark = NewQueryMark},
    NewTimer = next_query(NewState0),
    NewState = NewState0#state{timer = NewTimer},
-%%   lager:notice("from: ~p, to :~p (~p sec)",
-%%      [faxe_time:to_iso8601(QueryMark-Period), faxe_time:to_iso8601(QueryMark), round(Period/1000)]),
+   lager:notice("from: ~p, to :~p (~p sec)",
+      [faxe_time:to_iso8601(QueryMark-Period), faxe_time:to_iso8601(QueryMark), round(Period/1000)]),
 %%   Result = faxe_epgsql_response:handle(Resp, RespDef#faxe_epgsql_response{default_timestamp = FromTs}),
+%%   faxe_db:save_node_state(FnId, NewState),
    Result = faxe_epgsql_response:handle(Resp, RespDef),
    case Result of
       ok ->
