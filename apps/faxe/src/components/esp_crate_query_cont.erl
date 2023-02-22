@@ -179,7 +179,7 @@ init(NodeId, _Inputs, Opts = #{
    {ok, true, NewState}.
 
 
-init(NodeId, _Inputs, #{port := Port, host := Host0}, State) ->
+init(NodeId, _Inputs, #{port := Port, host := Host0}, #node_state{state = State}) ->
    lager:warning("init with persisted state: ~p", [State]),
    process_flag(trap_exit, true),
    Host = binary_to_list(Host0),

@@ -417,7 +417,7 @@ build_node_subscriptions(Graph, Node, Nodes, FlowMode) ->
 start_async(Nodes0, Subscriptions, RunMode, Id) ->
    %% state persistence
    AllStates0 = faxe_db:get_flow_states(Id),
-   AllStates = [{NodeId, State} || #node_state{flownode_id = {Id, NodeId}, state = State} <- AllStates0],
+   AllStates = [{NodeId, NState} || #node_state{flownode_id = {Id, NodeId}} = NState <- AllStates0],
    lager:notice("All node-states from flow ~p: ~p",[Id, AllStates]),
    %% start the nodes with subscriptions
    %% do we have mem nodes present ? then sync start them first

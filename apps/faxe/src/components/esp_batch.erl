@@ -17,7 +17,7 @@
 -include("faxe.hrl").
 
 %% API
--export([init/3, process/3, handle_info/2, options/0, wants/0, emits/0, shutdown/1]).
+-export([init/3, process/3, handle_info/2, options/0, wants/0, emits/0, shutdown/1, init/4]).
 
 -record(state, {
    size :: non_neg_integer(), %% batch size,
@@ -41,7 +41,33 @@ emits() -> batch.
 init(_NodeId, _Inputs, #{size := Size, timeout := Timeout0}) ->
    Timeout = case Timeout0 of T when is_binary(T) -> faxe_time:duration_to_ms(T); _Else -> undefined end,
    State = #state{size = Size, timeout = Timeout, window = queue:new()},
-   {ok, all, State}.
+   {ok, true, State}.
+init(_NodeId, _Inputs, #{size := _Size, timeout := _Timeout0}, #node_state{state = State, ts = Ts}) ->
+   %% if there are messages in the buffer, we start a timer, depending on how old the state is already,
+   %% if the state is older than the timeout and we have a non empty buffer, we will emit immediately
+   %% otherwise we start a timer, that sends a timeout message in TimeoutInterval - StateAge
+   NewState =
+   case State#state.length == 0 of
+      true ->
+         %% buffer is empty, nothing to do
+         lager:info("the buffer is empty, continue"),
+         State#state{timer_ref = undefined};
+      false ->
+         StateAge = faxe_time:now() - Ts,
+         lager:notice("state is ~p ms old and has ~p entries",[StateAge, State#state.length]),
+         case StateAge > State#state.timeout of
+            true ->
+               lager:info("emit buffer"),
+               {Batch, NState} = prepare_batch(State),
+               dataflow:emit(Batch),
+               NState;
+            false ->
+               lager:info("start timer with timeout ~p",[State#state.timeout - StateAge]),
+               TRef = erlang:send_after(State#state.timeout - StateAge, self(), batch_timeout),
+               State#state{timer_ref = TRef}
+         end
+   end,
+   {ok, true, NewState}.
 
 process(_, #data_point{} = Point, State=#state{} ) ->
    NewState = accumulate(Point, State),
@@ -75,11 +101,13 @@ handle_info(batch_timeout, State) ->
 handle_info(_Request, State) ->
    {ok, State}.
 
-shutdown(#state{length = 0}) ->
-   ok;
-shutdown(State) ->
-   {Batch, _NewState} = prepare_batch(State),
-   dataflow:emit(Batch).
+shutdown(#state{length = _}) ->
+   ok.
+%% following clause has been removed, because it would interfere with the state persistence
+%%;
+%%shutdown(State) ->
+%%   {Batch, _NewState} = prepare_batch(State),
+%%   dataflow:emit(Batch).
 
 
 
