@@ -649,6 +649,8 @@ delete_task(TaskId, Force) ->
 do_delete_task(#task{id = TaskId, group = Group, group_leader = Leader}) ->
    case faxe_db:delete_task(TaskId) of
       ok ->
+         %% delete persisted states
+         faxe_db:delete_flow_states(TaskId),
          case Leader of
             true ->
                delete_task_group(Group),
@@ -666,7 +668,7 @@ delete_task_group(TaskGroupName) ->
       {error, not_found} -> {error, not_found};
       TaskList when is_list(TaskList) ->
          case lists:all(fun(#task{} = T) -> is_task_alive(T) == false end, TaskList) of
-            true -> [faxe_db:delete_task(T) || T <- TaskList];
+            true -> [begin faxe_db:delete_task(T), faxe_db:delete_flow_states(T) end || T <- TaskList];
             false -> {error, tasks_are_running}
          end
    end.

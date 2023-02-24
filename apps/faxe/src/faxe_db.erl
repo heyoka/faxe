@@ -306,6 +306,8 @@ save_node_state(FlowNodeId, State) ->
 get_flow_states(FlowId) ->
    mnesia:dirty_match_object(node_state, {node_state, {FlowId, '_'}, '_', '_'}).
 
+delete_flow_states(#task{id = FlowId}) ->
+   delete_flow_states(FlowId);
 delete_flow_states(FlowId) ->
    [mnesia:dirty_delete_object(NodeState) || NodeState <- get_flow_states(FlowId)].
 
