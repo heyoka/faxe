@@ -11,6 +11,9 @@
 
 -behavior(epgsql_codec).
 
+-define(POSTGRESQL_GS_EPOCH, 63113904000). % calendar:datetime_to_gregorian_seconds({{2000,1,1}, {0,0,0}}).
+-define(int64, 1/big-signed-unit:64).
+
 %% API
 -export([init/2, names/0, encode/3, decode/3]).
 
@@ -20,22 +23,16 @@ init(_, _Sock) ->
    State.
 
 names() ->
-   [time, timestamp, timestamptz].
+   [timestamp].
 
 encode(Data, _, _State) ->
    Data.
 
-decode(<<Ts:64>>, _, _State) ->
-   Ts;
-decode(Ts, _, _State) when is_integer(Ts) ->
-   Ts*1000;
-decode({_Date, {_Hour, _Minute, _SecondFrac}}=T, timestamptz, State) ->
-   decode(T, timestamp, State);
+decode(<<Ts:?int64>> = _T, timestamp, _State) ->
+  TsOutMicro = Ts + (?POSTGRESQL_GS_EPOCH * 1000000) - (62167219200 * 1000000),
+  round(TsOutMicro / 1000);
 decode({Date, {Hour, Minute, SecondFrac}}=T, timestamp, _State) ->
-   lager:info("got timestamp: ~p",[T]),
    Second = erlang:trunc(SecondFrac),
    M0 = SecondFrac - Second,
    Milli = erlang:round(M0 * 1000),
-   faxe_time:to_ms({Date, {Hour, Minute, Second, Milli}});
-decode(DtString, timestamp, _S) when is_binary(DtString) ->
-   time_format:iso8601_to_ms(DtString).
+   faxe_time:to_ms({Date, {Hour, Minute, Second, Milli}}).

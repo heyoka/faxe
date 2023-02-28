@@ -40,7 +40,7 @@ handle(Other, _ResponseDef) ->
 
 columns([], ColumnNames) ->
   lists:reverse(ColumnNames);
-columns([{column, Name, _Type, _, _, _, _, _, _}|RestC], ColumnNames) ->
+columns([{column, Name, _Type, _, _, _, _, _, _}=C|RestC], ColumnNames) ->
   columns(RestC, [Name|ColumnNames]).
 
 handle_result(Columns, Rows, ResponseDef = #faxe_epgsql_response{response_type = batch}) ->
@@ -68,19 +68,15 @@ row_to_datapoint([], [], Point, _TimeField) ->
 row_to_datapoint([TimeField|Columns], [null|Row], Point, TimeField) ->
   row_to_datapoint(Columns, Row, Point, TimeField);
 row_to_datapoint([TimeField|Columns], [Ts|Row], Point, TimeField) ->
-%%  lager:info("got ts: ~p",[Ts]),
+  lager:info("got ts: ~p",[Ts]),
   P = Point#data_point{ts = decode_ts(Ts)},
   row_to_datapoint(Columns, Row, P, TimeField);
 row_to_datapoint([C|Columns], [Val|Row], Point, TimeField) ->
   P = flowdata:set_field(Point, C, Val),
   row_to_datapoint(Columns, Row, P, TimeField).
 
-%% ms timestamp in bin
-decode_ts(<<Ts:64>>) ->
-  Ts;
-%% unix ts in sec as integer
-decode_ts(Ts) when is_integer(Ts) ->
-  Ts*1000;
+%% shortcut for when using new codec, it should return an integer already
+decode_ts(Ts) when is_integer(Ts) -> Ts;
 %% some kind of erlang now format (or with Second.Millisecond)
 decode_ts({Date, {Hour, Minute, SecondFrac}} = _DateTime) ->
   Second = erlang:trunc(SecondFrac),
