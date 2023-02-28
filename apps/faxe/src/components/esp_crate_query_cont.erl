@@ -310,7 +310,7 @@ setup_query(#{query := Q0, filter_time_field := FilterTimeField}, S=#state{}) ->
    lager:info("~p setup_query",[?MODULE]),
    Q = faxe_util:clean_query(Q0),
    Query = build_query(Q, FilterTimeField),
-%%   lager:notice("QUERY: ~s",[Query]),
+   lager:notice("QUERY: ~s",[Query]),
    S#state{query = Query}.
 
 setup_query_start(S=#state{start = Start}) ->

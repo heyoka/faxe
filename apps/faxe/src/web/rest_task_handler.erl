@@ -393,7 +393,7 @@ start_debug_to_json(Req, State = #state{task_id = Id}) ->
    end.
 
 stop_to_json(Req, State = #state{task_id = Id}) ->
-   case faxe:stop_task(Id, is_permanent(Req)) of
+   case faxe:stop_task(Id, stop_mode(Req)) of
       ok ->
          rest_helper:success(Req, State);
       {error, Error} ->
@@ -456,6 +456,15 @@ is_permanent(Req) ->
    Permanent = cowboy_req:binding(permanent, Req, <<"false">>),
    Permanent == <<"true">>.
 
+stop_mode(Req) ->
+   Qs = cowboy_req:parse_qs(Req),
+   KeepState =
+   case lists:keyfind(<<"keepstate">>, 1, Qs) of
+      {_, <<"true">>} -> true;
+      _ -> false
+   end,
+%%   KeepStates = cowboy_req:binding(keepstates, Req, <<"false">>),
+   #stop_modes{permanent = is_permanent(Req), keep_states = KeepState}.
 
 convert_tags(undefined) -> [];
 convert_tags(Bin) when is_binary(Bin) ->

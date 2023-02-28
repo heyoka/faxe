@@ -353,6 +353,9 @@ update(DfsScript, Task, ScriptType) ->
             dfs = DFS,
             date = faxe_time:now_date()},
 %%         flow_changed({flow, Task#task.name, update}),
+         %% since the flow has changed, the persisted states of its nodes are not valid anymore
+         %% so we delete them all
+         faxe_db:delete_flow_states(Task),
          faxe_db:save_task(NewTask);
       Err -> Err
    end.
@@ -573,19 +576,21 @@ stop_task(_T=#task{pid = Graph}) when is_pid(Graph) ->
          df_graph:stop(Graph);
       false -> {error, not_running}
    end;
-
 stop_task(TaskId) ->
-   stop_task(TaskId, false).
--spec stop_task(#task{}|integer()|binary(), true|false) -> ok.
-stop_task(T = #task{}, Permanent) ->
-   do_stop_task(T, Permanent);
-stop_task(TaskId, Permanent) ->
+   stop_task(TaskId, #stop_modes{permanent = false}).
+
+-spec stop_task(#task{}|integer()|binary(), true|false|#stop_modes{}) -> ok.
+stop_task(T = #task{}, StopModes = #stop_modes{}) ->
+   do_stop_task(T, StopModes);
+stop_task(TaskId, StopModes = #stop_modes{}) ->
    T = faxe_db:get_task(TaskId),
    case T of
       {error, not_found} -> {error, not_found};
-      #task{pid = Graph} = T when is_pid(Graph) -> do_stop_task(T, Permanent);
+      #task{pid = Graph} = T when is_pid(Graph) -> do_stop_task(T, StopModes);
       #task{} -> {error, not_running}
-   end.
+   end;
+stop_task(Task, Permanent) ->
+   stop_task(Task, #stop_modes{permanent = Permanent}).
 
 %% stop all tasks running with a specific group name
 stop_task_group(TaskGroupName, Permanent) ->
@@ -600,7 +605,9 @@ stop_all() ->
    Tasks = list_running_tasks(),
    [stop_task(Task) || Task <- Tasks].
 
-do_stop_task(T = #task{pid = Graph, group_leader = _Leader, group = _Group}, Permanent) ->
+do_stop_task(T = #task{pid = Graph, group_leader = _Leader, group = _Group},
+    #stop_modes{permanent = Permanent, keep_states = KeepStates}=SM) ->
+   lager:notice("do_stop_task ~p with ~p",[T#task.name, lager:pr(SM, ?MODULE)]),
    case is_task_alive(T) of
       true ->
          df_graph:stop(Graph),
@@ -610,6 +617,11 @@ do_stop_task(T = #task{pid = Graph, group_leader = _Leader, group = _Group}, Per
                false -> T
             end,
          Res = faxe_db:save_task(NewT#task{pid = undefined, last_stop = faxe_time:now_date()}),
+         %% delete persistent flow states
+         case KeepStates of
+            false -> faxe_db:delete_flow_states(NewT);
+            true -> ok
+         end,
 %%         flow_changed({task, T#task.name, stop}),
          Res;
 %%         case Leader of
@@ -624,7 +636,9 @@ do_stop_task(T = #task{pid = Graph, group_leader = _Leader, group = _Group}, Per
 %%            false -> ok
 %%         end;
       false -> {error, not_running}
-   end.
+   end;
+do_stop_task(T = #task{}, Permanent) ->
+   do_stop_task(T, #stop_modes{permanent = Permanent}).
 
 -spec delete_task(binary()) -> ok | {error, not_found} | {error, task_is_running}.
 delete_task(TaskId) ->

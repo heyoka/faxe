@@ -82,12 +82,20 @@
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 -record(task_modes, {
-  temporary = false    :: true|false,
-  temp_ttl = infinity  :: infinity|non_neg_integer(),
-  permanent = false    :: true|false,
-  run_mode = push      :: push|pull,
-  concurrency = 1      :: non_neg_integer()
+  temporary = false     :: true|false,
+  temp_ttl = infinity   :: infinity|non_neg_integer(),
+  permanent = false     :: true|false,
+  run_mode = push       :: push|pull,
+  concurrency = 1       :: non_neg_integer(),
+  %% whether the current task-start is automatic, because it is permanent and the faxe instance has been (re)started
+  auto_start = false    :: true|false
 
+}).
+
+-record(stop_modes, {
+  permanent   = false :: true|false,
+  %% whether to keep flow-state, when stopping the flow
+  keep_states = false :: true|false
 }).
 
 
