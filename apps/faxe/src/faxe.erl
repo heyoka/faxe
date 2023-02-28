@@ -97,15 +97,18 @@ get_task(TaskId) ->
       #task{name = Id} = T ->
          Running = supervisor:which_children(graph_sup),
          case lists:keyfind(Id, 1, Running) of
-            Y when is_tuple(Y) -> T#task{is_running = true};
-            false -> T
+            {Id, Child, _, _} when is_pid(Child) -> T#task{is_running = is_process_alive(Child)};
+            _ -> T#task{is_running = false}
          end
    end.
 
 %% @doc get the graph definition (nodes and edges) as a map
 -spec get_graph(non_neg_integer()|binary()|#task{}) -> map() | {error, term()}.
-get_graph(#task{is_running = true} = T) -> task_to_graph_running(T);
-get_graph(#task{} = T) -> task_to_graph(T);
+get_graph(#task{} = T) ->
+   case is_task_alive(T) of
+      true -> task_to_graph_running(T);
+      false -> task_to_graph(T)
+   end;
 get_graph(TaskId) ->
    case get_task(TaskId) of
       #task{} = T1 -> get_graph(T1);
@@ -179,8 +182,8 @@ add_running_flag(TaskList) when is_list(TaskList) ->
    F =
       fun(#task{name = Id} = T) ->
          case lists:keyfind(Id, 1, Running) of
-            Y when is_tuple(Y) -> T#task{is_running = true};
-            false -> T#task{is_running = false}
+            {Id, Child, _, _} when is_pid(Child) -> T#task{is_running = is_process_alive(Child)};
+            _ -> T#task{is_running = false}
          end
       end,
    lists:map(F, TaskList);
