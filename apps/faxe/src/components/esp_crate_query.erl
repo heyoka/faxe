@@ -101,30 +101,33 @@ process(_In, _B = #data_batch{}, State = #state{}) ->
 handle_info(query,
     State = #state{timer = Timer, client = C, period = Period, fn_id = FnId, resp_def = RespDef}) ->
    QueryMark = Timer#faxe_timer.last_time,
+   FromTs = QueryMark-Period,
 %%   lager:notice("query: ~p with ~p from: ~p, to :~p",
 %%      [Q, [QueryMark-Period, QueryMark], faxe_time:to_iso8601(QueryMark-Period), faxe_time:to_iso8601(QueryMark)]),
    NewTimer = faxe_time:timer_next(Timer),
    %% do query
-   {TsMy, Resp} = timer:tc(epgsql, prepared_query, [C, ?STMT, [QueryMark-Period, QueryMark]]),
+   {TsMy, Resp} = timer:tc(epgsql, prepared_query, [C, ?STMT, [FromTs, QueryMark]]),
    %%   lager:info("reading time: ~pms", [round(TsMy/1000)]),
    node_metrics:metric(?METRIC_READING_TIME, round(TsMy/1000), FnId),
 %%   Resp = epgsql:prepared_query(C, ?STMT, [QueryMark-Period, QueryMark]),
 %%   lager:debug("Resp: ~p",[Resp]),
 %%   handle_response(Resp, RType, State#state{timer = NewTimer});
    NewState = State#state{timer = NewTimer},
-   Result = faxe_epgsql_response:handle(Resp, RespDef),
-%%   lager:notice("result: ~p",[Result]),
-   case Result of
+
+   case catch faxe_epgsql_response:handle(Resp, RespDef) of
       ok ->
          {ok, NewState};
-      {ok, Data} ->
+      {ok, Data, NewResponseDef} ->
+%%         lager:notice("JB: ~s",[flowdata:to_json(Data)]),
          node_metrics:metric(?METRIC_ITEMS_IN, 1, FnId),
-         {emit, {1, Data}, NewState};
+         {emit, {1, Data#data_batch{start = FromTs}}, NewState#state{resp_def = NewResponseDef}};
       {error, Error} ->
-         lager:warning("Error response from Crate: ", [Error]),
-         {ok, NewState}
+         lager:warning("Error response from Crate: ~p", [Error]),
+         {ok, NewState};
+      What ->
+         lager:error("Error handling CRATE response: ~p",[What]),
+         {stop, invalid, NewState}
    end;
-
 
 handle_info({'EXIT', _C, Reason}, State = #state{timer = Timer}) ->
    lager:warning("EXIT epgsql with reason: ~p",[Reason]),

@@ -27,13 +27,14 @@ handle({ok, Count}, _ResponseDef) ->
 handle({ok, Count, Columns, Rows}, _ResponseDef) ->
   lager:notice("count, col, rows response: ~p",[{Count, Columns, Rows}]),
   ok;
+handle({ok, Columns, _Rows}=Result, ResponseDef = #faxe_epgsql_response{field_names_validated = false}) ->
+  check_column_names(Columns),
+  handle(Result, ResponseDef#faxe_epgsql_response{field_names_validated = true});
 handle({ok, Columns, Rows}=_R, ResponseDef = #faxe_epgsql_response{}) ->
-%%  lager:info("IN: ~p",[length(Rows)]),
+  check_column_names(Columns),
   ColumnNames = columns(Columns, []),
-%%   lager:notice("result ROWS: ~p",[Rows]),
   Batch = handle_result(ColumnNames, Rows, ResponseDef),
-%%  lager:info("OUT: ~p",[Batch]),
-  {ok, Batch};
+  {ok, Batch, ResponseDef};
 handle(Other, _ResponseDef) ->
   Other.
 
@@ -68,7 +69,6 @@ row_to_datapoint([], [], Point, _TimeField) ->
 row_to_datapoint([TimeField|Columns], [null|Row], Point, TimeField) ->
   row_to_datapoint(Columns, Row, Point, TimeField);
 row_to_datapoint([TimeField|Columns], [Ts|Row], Point, TimeField) ->
-  lager:info("got ts: ~p",[Ts]),
   P = Point#data_point{ts = decode_ts(Ts)},
   row_to_datapoint(Columns, Row, P, TimeField);
 row_to_datapoint([C|Columns], [Val|Row], Point, TimeField) ->
@@ -85,6 +85,18 @@ decode_ts({Date, {Hour, Minute, SecondFrac}} = _DateTime) ->
 %% datetime string, we assume it is in iso8601 format
 decode_ts(DtString) when is_binary(DtString) ->
   time_format:iso8601_to_ms(DtString).
+
+check_column_names([]) -> ok;
+check_column_names([{column, <<"ts">>, _Type, _, _, _, _, _, _} | Names]) ->
+  check_column_names(Names);
+check_column_names([{column, Name, _Type, _, _, _, _, _, _} | Names]) ->
+  case binary:match(Name, [<<"[">>]) of
+    nomatch -> check_column_names(Names);
+    _ ->
+      erlang:error("invalid fieldname " ++ unicode:characters_to_list(Name)
+        ++ " got from query result, please use or change alias (AS) in your query!")
+  end.
+
 
 -ifdef(TEST).
 first_test() ->

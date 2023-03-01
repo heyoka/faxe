@@ -12,7 +12,8 @@
   time_field :: undefined | binary(),
   response_type = batch :: atom(),
   point_root_object :: undefined | binary(),
-  default_timestamp :: non_neg_integer()
+  default_timestamp :: non_neg_integer(),
+  field_names_validated = false :: true|false
 }).
 
 -type faxe_epgsql_response() :: #faxe_epgsql_response{}.
