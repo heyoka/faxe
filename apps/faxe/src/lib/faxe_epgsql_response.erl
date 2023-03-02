@@ -118,6 +118,7 @@ first_test() ->
       ]
     },
 
+  Def = #faxe_epgsql_response{time_field = <<"dt_ts">>, response_type = batch},
   DataOut =
     {ok,{data_batch,undefined,
       [{data_point,1636329690000,
@@ -142,7 +143,8 @@ first_test() ->
             <<"ReactiveEnergyRcvd">> => 26404.832},
             <<"id">> => <<"data/556/reg1/em/energy/v1">>},
           #{},undefined,<<>>}],
-      undefined,undefined,undefined}},
+      undefined,undefined,undefined},
+      Def#faxe_epgsql_response{field_names_validated = true}},
 
   Def = #faxe_epgsql_response{time_field = <<"dt_ts">>, response_type = batch},
   ?assertEqual(DataOut, handle(DataIn, Def)).
