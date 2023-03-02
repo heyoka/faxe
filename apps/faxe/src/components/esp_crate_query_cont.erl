@@ -423,18 +423,19 @@ do_query(State = #state{client = C, period = Period, query_mark = QueryMark, res
    lager:notice("from: ~p, to :~p (~p sec)",
       [faxe_time:to_iso8601(QueryMark-Period), faxe_time:to_iso8601(QueryMark), round(Period/1000)]),
 %%   Result = faxe_epgsql_response:handle(Resp, RespDef#faxe_epgsql_response{default_timestamp = FromTs}),
-%%   faxe_db:save_node_state(FnId, NewState),
-   Result = faxe_epgsql_response:handle(Resp, RespDef),
-   case Result of
+   case catch faxe_epgsql_response:handle(Resp, RespDef) of
       ok ->
          {ok, NewState};
-      {ok, Data} ->
+      {ok, Data, NewResponseDef} ->
 %%         lager:notice("JB: ~s",[flowdata:to_json(Data)]),
          node_metrics:metric(?METRIC_ITEMS_IN, 1, FnId),
-         {emit, {1, Data#data_batch{start = FromTs}}, NewState};
+         {emit, {1, Data#data_batch{start = FromTs}}, NewState#state{response_def = NewResponseDef}};
       {error, Error} ->
          lager:warning("Error response from Crate: ~p", [Error]),
-         {ok, NewState}
+         {ok, NewState};
+      What ->
+         lager:error("Error handling CRATE response: ~p",[What]),
+         {stop, invalid, NewState}
    end.
 
 next_query(#state{min_interval = Min, interval = Min}) ->
