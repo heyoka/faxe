@@ -327,8 +327,8 @@ maybe_query_setup(S = #state{setup_query = SetupQuery, setup_vars = [], client =
       response_def = RespDef, setup_ts = Ts, start = StartTime}) ->
    Query = prepare_setup_query(SetupQuery, <<>>, StartTime),
    case do_setup_query(C, Query, RespDef#faxe_epgsql_response{default_timestamp = Ts}) of
-      {ok, R} ->
-%%         lager:notice("result from setup query: ~p",[R]),
+      {ok, R, _} ->
+         lager:notice("result from setup query: ~p",[R]),
          dataflow:emit(R#data_batch{start = Ts});
       _ -> ok
    end,
@@ -339,14 +339,14 @@ maybe_query_setup(S = #state{setup_query = SetupQuery, setup_vars = Vars, client
    fun(Var, Acc = #data_batch{points = AccPoints}) ->
       Q = prepare_setup_query(SetupQuery, Var, StartTime),
       case do_setup_query(C, Q, RespDef#faxe_epgsql_response{default_timestamp = Ts}) of
-         {ok, #data_batch{points = Points}} ->
+         {ok, #data_batch{points = Points}, _} ->
             Acc#data_batch{points = AccPoints++Points};
          {error, _What} ->
             Acc
       end
    end,
    ResDataBatch = lists:foldl(FoldFun, #data_batch{start = Ts}, Vars),
-%%   lager:notice("result from setup QUERY: ~p",[ResDataBatch]),
+   lager:notice("result from setup QUERY: ~p",[ResDataBatch]),
    dataflow:emit(ResDataBatch),
    start(S).
 
@@ -355,7 +355,7 @@ prepare_setup_query(SetupQuery, Var, StartTime) ->
    binary:replace(Q0, ?SETUP_QUERY_START_PLACEHOLDER, integer_to_binary(StartTime), [global]).
 
 do_setup_query(Client, Query, RespDef) ->
-%%   lager:notice("setup query ~p",[Query]),
+   lager:notice("setup query ~p",[Query]),
    case catch epgsql:equery(Client, Query) of
       {ok, _, _} = Res ->
           faxe_epgsql_response:handle(Res, RespDef);
