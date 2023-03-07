@@ -104,6 +104,23 @@ check_options() ->
             (S)->  faxe_util:check_select_statement(S)
          end,
          <<" seems not to be a valid sql select statement">>},
+      %% check if setup_ts option is given as a valid iso8601 datetime string or an integer
+      {func, setup_ts,
+         fun
+            (Value) when is_binary(Value) ->
+               case catch(time_format:iso8601_to_ms(Value)) of
+                  Ts when is_integer(Ts) ->
+                     true;
+                  _ ->
+                     false
+               end;
+            (ValueInt) when is_integer(ValueInt) ->
+               true;
+            (_) ->
+               false
+         end,
+         <<" seems not to be a ISO8601 datetime string or an integer">>
+      },
       %% check if timefilter key is used in query
       {func, query,
          fun
@@ -150,7 +167,7 @@ metrics() ->
 
 init(NodeId, _Inputs, Opts = #{
    host := Host0, port := Port, user := User, pass := Pass, ssl := Ssl, database := DB, start_delay := Delay,
-   setup_query := SetupQuery, setup_vars := SetupVars, setup_ts := SetupTs,
+   setup_query := SetupQuery, setup_vars := SetupVars, setup_ts := SetupTs0,
    result_time_field := ResTimeField0, result_type := RType, filter_time_field := FilterTime, stop_flow := StopFlow}) ->
 
    process_flag(trap_exit, true),
@@ -165,6 +182,7 @@ init(NodeId, _Inputs, Opts = #{
    connection_registry:reg(NodeId, Host, Port, <<"pgsql">>),
 
    StartDelay = case Delay of undefined -> 0; _ -> faxe_time:duration_to_ms(Delay) end,
+   SetupTs = case SetupTs0 of undefined -> undefined; STs when is_binary(STs) -> time_format:iso8601_to_ms(STs); _ -> SetupTs0 end,
    %% init after maybe startdelay
    erlang:send_after(StartDelay, self(), {init2, Opts}),
    NewState = #state{
@@ -335,6 +353,7 @@ maybe_query_setup(S = #state{setup_query = SetupQuery, setup_vars = [], client =
    start(S);
 maybe_query_setup(S = #state{setup_query = SetupQuery, setup_vars = Vars, client = C,
       response_def = RespDef, setup_ts = Ts, start = StartTime}) ->
+   lager:notice("setup query with ~p vars",[length(Vars)]),
    FoldFun =
    fun(Var, Acc = #data_batch{points = AccPoints}) ->
       Q = prepare_setup_query(SetupQuery, Var, StartTime),
