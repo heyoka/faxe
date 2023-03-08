@@ -107,6 +107,7 @@ check_options() ->
       %% check if setup_ts option is given as a valid iso8601 datetime string or an integer
       {func, setup_ts,
          fun
+            (undefined) -> true;
             (Value) when is_binary(Value) ->
                case catch(time_format:iso8601_to_ms(Value)) of
                   Ts when is_integer(Ts) ->
