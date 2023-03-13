@@ -17,7 +17,7 @@
 %% API
 -export([init/3, process/3, options/0
 %%   , check_options/0
-   , wants/0, emits/0, handle_info/2, check_options/0, do_process/2, shutdown/1]).
+   , wants/0, emits/0, handle_info/2, check_options/0, do_process/2, shutdown/1, init/4]).
 
 -define(UPDATE_NEVER, <<"never">>).
 
@@ -126,6 +126,15 @@ init(NodeId, _Ins, #{
          include_removed = InclRem,
          tag_value = TagVal,
          merge = Merge}}.
+
+init(NodeId, Ins, Opts,
+    #node_state{state = #{buffer := Buffer, current_batch_start := BatchStart, newest_timestamp = NTs}}) ->
+   {ok, all, State} = init(NodeId, Ins, Opts),
+   %% start the timers, @todo check if special timer handling is necessary (see batch node for reference)
+   maybe_start_emit_timeout(State),
+   start_age_timeout(State),
+   %% inject persisted values into state
+   {ok, all, State#state{buffer = Buffer, current_batch_start = BatchStart, newest_timestamp = NTs}}.
 
 process(Port, Item, State = #state{buffer = undefined}) ->
    maybe_start_emit_timeout(State),
