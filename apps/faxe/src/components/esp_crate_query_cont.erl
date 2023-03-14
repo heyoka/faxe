@@ -351,7 +351,7 @@ maybe_query_setup(S = #state{setup_query = SetupQuery, setup_vars = [], client =
 
    Query = prepare_setup_query(SetupQuery, <<>>, StartTime),
    case do_setup_query(C, Query, RespDef#faxe_epgsql_response{default_timestamp = Ts}) of
-      {ok, R} ->
+      {ok, R, _} ->
 %%         lager:notice("result from setup query: ~p",[R]),
          dataflow:emit(R#data_batch{start = Ts});
       _ -> ok
@@ -363,7 +363,7 @@ maybe_query_setup(S = #state{setup_query = SetupQuery, setup_vars = Vars, client
    fun(Var, Acc = #data_batch{points = AccPoints}) ->
       Q = prepare_setup_query(SetupQuery, Var, StartTime),
       case do_setup_query(C, Q, RespDef#faxe_epgsql_response{default_timestamp = Ts}) of
-         {ok, #data_batch{points = Points}} ->
+         {ok, #data_batch{points = Points}, _} ->
             Acc#data_batch{points = AccPoints++Points};
          {error, _What} ->
             Acc
@@ -427,7 +427,6 @@ do_query(State = #state{client = C, period = Period, query_mark = QueryMark, res
       ok ->
          {ok, NewState};
       {ok, Data, NewResponseDef} ->
-%%         lager:notice("JB: ~s",[flowdata:to_json(Data)]),
          node_metrics:metric(?METRIC_ITEMS_IN, 1, FnId),
          {emit, {1, Data#data_batch{start = FromTs}}, NewState#state{response_def = NewResponseDef}};
       {error, Error} ->

@@ -41,7 +41,10 @@
    stop_debug_to_json/2,
    start_group_to_json/2,
    stop_group_to_json/2,
-   set_group_size_to_json/2, from_upsert_task/2, start_metrics_trace_to_json/2, stop_metrics_trace_to_json/2]).
+   set_group_size_to_json/2,
+   from_upsert_task/2,
+   start_metrics_trace_to_json/2,
+   stop_metrics_trace_to_json/2]).
 
 -include("faxe.hrl").
 

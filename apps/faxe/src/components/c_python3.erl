@@ -17,7 +17,7 @@
    init/3, process/3,
    handle_info/2, options/0,
    call_options/2, get_python/1,
-   shutdown/1]).
+   shutdown/1, init/4, fetch_deps/2]).
 
 -callback execute(tuple(), term()) -> tuple().
 
@@ -34,6 +34,7 @@
 
 %% python method calls
 -define(PYTHON_INFO, info).
+-define(PYTHON_DEPS, fetch_deps).
 -define(PYTHON_INIT, <<"init">>).
 -define(PYTHON_BATCH, <<"batch">>).
 -define(PYTHON_POINT, <<"point">>).
@@ -50,14 +51,25 @@ options() -> [{cb_module, atom}, {cb_class, atom}, {as, string, undefined}].
 %% @doc get the options to recognize in dfs for the python node (from the callback class)
 -spec call_options(atom(), atom()) -> list(tuple()).
 call_options(Module, Class) ->
+   case static_call(Module, Class, ?PYTHON_INFO) of
+      B when is_list(B) -> [{as, string, undefined}] ++ B;
+      Other -> Other
+   end.
 
+fetch_deps(Module, Class) ->
+   case static_call(Module, Class, ?PYTHON_DEPS) of
+      Imports when is_list(Imports) -> {ok, Imports};
+      Other -> Other
+   end.
+
+static_call(Module, Class, Function) ->
    process_flag(trap_exit, true),
    P = get_python(Class),
    ModClass = list_to_atom(atom_to_list(Module)++"."++atom_to_list(Class)),
-%%   lager:notice("call options ~p",[{Module, Class, ModClass}]),
+   Path = lists:last(get_path()),
    Res =
-      try pythra:func(P, ModClass, ?PYTHON_INFO, [Class]) of
-         B when is_list(B) -> [{as, string, undefined}] ++ B
+      try pythra:func(P, ModClass, Function, [Class, list_to_binary(Path)]) of
+         Result -> Result
       catch
          _:{python,'builtins.ModuleNotFoundError', Reason,_}:_Stack ->
             Err = lists:flatten(io_lib:format("python module not found: ~s",[Reason])),
@@ -66,10 +78,18 @@ call_options(Module, Class) ->
    python:stop(P),
    Res.
 
-init(NodeId, _Ins, #{cb_module := Callback, cb_class := CBClass, as := As} = Args) ->
+
+init(NodeId, _Ins, #{cb_module := Callback} = Args, State = #node_state{state = Persisted}) ->
+   lager:warning("~p got persisted state: ~p",[Callback, State]),
+   init_all(NodeId, #{<<"_state">> => Persisted}, Args).
+init(NodeId, _Ins, #{} = Args) ->
+   init_all(NodeId, #{}, Args).
+init_all(NodeId, AddPyOpts, #{cb_module := Callback, cb_class := CBClass, as := As} = Args) ->
    PInstance = get_python(CBClass),
    %% create an instance of the callback class
-   PyOpts = maps:without([cb_module, cb_class], Args#{<<"erl">> => self()}),
+   Path = lists:last(get_path()),
+   PyOpts0 = maps:without([cb_module, cb_class], Args#{<<"_erl">> => self(), <<"_ppath">> => list_to_binary(Path)}),
+   PyOpts = maps:merge(PyOpts0, AddPyOpts),
    pythra:cast(PInstance, [?PYTHON_INIT, CBClass, PyOpts]),
    State = #state{
       callback_module = Callback,
@@ -112,6 +132,10 @@ handle_info({emit_data, #{<<"points">> := Points}=BatchData}, State = #state{as 
 handle_info({emit_data, Data}, State = #state{}) when is_list(Data) ->
    BatchData = jiffy:decode(Data, [return_maps, {null_term, undefined}]),
    handle_info({emit_data, BatchData}, State);
+handle_info({persist_state, PythonState}, State = #state{node_id = NId}) ->
+%%   lager:warning("persist state for ~p ~p",[NId, PythonState]),
+   dataflow:persist(NId, PythonState),
+   {ok, State};
 handle_info({python_error, Error}, State) ->
    lager:error("~p", [Error]),
    {ok, State};
@@ -158,13 +182,20 @@ from_map(P = #data_point{fields = Fields}, As) ->
 
 
 get_python(CBClass) ->
-   {ok, PythonParams} = application:get_env(faxe, python),
-   Path = proplists:get_value(script_path, PythonParams, "./python"),
-   FaxePath = filename:join(code:priv_dir(faxe), "python/"),
-   {ok, Python} = pythra:start_link([FaxePath, Path]),
+   Path = get_path(),
+%%   {ok, PythonParams} = application:get_env(faxe, python),
+%%   Path = proplists:get_value(script_path, PythonParams, "./python"),
+%%   FaxePath = filename:join(code:priv_dir(faxe), "python/"),
+   {ok, Python} = pythra:start_link(Path),
 %%   lager:notice("~p",[{faxe_handler, register_handler, [CBClass]}]),
    ok = pythra:func(Python, faxe_handler, register_handler, [CBClass]),
    Python.
+
+get_path() ->
+   {ok, PythonParams} = application:get_env(faxe, python),
+   Path = proplists:get_value(script_path, PythonParams, "./python"),
+   FaxePath = filename:join(code:priv_dir(faxe), "python/"),
+   [FaxePath, Path].
 
 log_level(<<"debug">>) -> debug;
 log_level(<<"info">>) -> info;

@@ -14,6 +14,7 @@ class Double(Faxe):
     def init(self, args=None):
         self.fieldname = args["field"]
         self.asfieldname = args["as"]
+        self.completely_other_member_var = 9999.33
 
     def handle_point(self, point_data):
         self.emit(self.calc(point_data))

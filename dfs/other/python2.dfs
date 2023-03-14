@@ -1,21 +1,21 @@
 |value_emitter()
-    .every(200ms)
-    .type(point)
+    .every(2s)
+    .type('point')
     ._name('emitter')
 
-|default()
-    .fields('id', 'df', 'vs')
-    .field_values('oi23u4oi23u4oi32u34oi2u3', '02.005', 1)
+%|default()
+%    .fields('id', 'df', 'vs')
+%    .field_values('oi23u4oi23u4oi32u34oi2u3', '02.005', 1)
 
 @double()
     .field('val')
     .as('double_val')
     ._name('python_double')
 
-|batch(5)
+%|batch(5)
 
-@callback()
-._name('python_passthrough')
+%@callback()
+%._name('python_passthrough')
 
-|debug()
+%|debug()
 

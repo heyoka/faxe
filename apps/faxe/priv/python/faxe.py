@@ -1,10 +1,15 @@
+import importlib
 import json
+import os
 import time
 from functools import cmp_to_key
 from jsonpath_ng import parse
 
 from erlport.erlterms import Atom, Map, List
 from erlport.erlang import cast
+
+import inspect
+import faxe_modulefinder
 
 
 class Faxe:
@@ -13,16 +18,21 @@ class Faxe:
     """
 
     def __init__(self, args):
-        self.erlang_pid = args['erl']
-        self.init(Faxe.decode_args(args))
-        self.current_chunked = dict()
+        self._erlang_pid = args['_erl']
+        decoded = Faxe.decode_args(args)
+        self._pstate = None
+        if '_state' in args:
+            self._pstate = decoded['_state']
+            del decoded['_state']
+        del decoded['_ppath']
+        del decoded['_erl']
+        # init subclass
+        self.init(decoded)
 
     @staticmethod
-    def info(clname):
-        classname = clname
-        modname = classname.lower()
-        module = __import__(modname)
-        cls = getattr(module, classname)
+    def info(clname, _spath):
+        _modname, module = Faxe.import_module(clname)
+        cls = getattr(module, clname)
         method = getattr(cls, "options")
         outlist = []
         for i, x in enumerate(method()):
@@ -32,8 +42,20 @@ class Faxe:
             lout[0] = Atom(to_bytes(lout[0]))
             lout[1] = Atom(to_bytes(lout[1]))
             outlist.append(tuple(lout))
-
         return outlist
+
+    @staticmethod
+    def fetch_deps(clname, spath):
+        modname, module = Faxe.import_module(clname)
+        module_path = os.path.abspath(module.__file__)
+        deps_list = get_imported_modules(module_path, spath)
+        return deps_list
+
+    @staticmethod
+    def import_module(clname):
+        modname = clname.lower()
+        module = importlib.import_module(modname)
+        return modname, module
 
     @staticmethod
     def options():
@@ -85,17 +107,79 @@ class Faxe:
             data = encode_data(emit_data)
 
         if data is not None:
-            cast(self.erlang_pid, (Atom(b'emit_data'), data))
-        # else:
-        #     self.log(f'Invalid emit data given. {emit_data}', 'error')
+            cast(self._erlang_pid, (Atom(b'emit_data'), data))
 
+        if self._state_opts() == 'emit':
+            self.persist_state()
+
+    # persisted state handling #######################################################
+
+    def _state_opts(self):
+        return self.state_mode()
+
+    def state_mode(self):
+        """
+        overwrite this method in subclasses to return one of the state modes
+        :return:
+        """
+        # state_mode:
+        #   ('auto'(every occasion/init+emit+handle) )
+        #   'handle'(after every handle_point and/or handle_batch function)
+        #   'emit'(after every call to self.emit)
+        #   'manual'(call state_persist on you own)
+        #   'none'(no persistent state handling)
+        return 'none'
+
+    def send_state(self, state_data):
+        cast(self._erlang_pid, (Atom(b'persist_state'), json.dumps(state_data).encode()))
+
+    def format_state(self):
+        myvars = vars(self)
+        pdata = dict()
+        for ename, evalue in myvars.items():
+            if type(evalue) in (str, int, float, dict, list, tuple, set, complex, range, bool, bytes, bytearray):
+                pdata[ename] = evalue
+        return pdata
+
+    def persist_state(self, state=None):
+        print("persist state", self._state_opts(), state)
+        pdata = state
+        if pdata is None:
+            pdata = self.format_state()
+        # delete Faxe members
+        if type(pdata) is dict:
+            Faxe.dict_del(pdata, '_pstate')
+            Faxe.dict_del(pdata, '_erlang_pid')
+        # send to erl
+        self.send_state(pdata)
+
+    def get_state(self):
+        """
+        get the last persisted state data, that was given to this node
+        :return: any
+        """
+        return self._pstate
+
+    def get_state_value(self, key, default):
+        """
+        get a specific entry from the state, if state is a dict, otherwise returns 'default'
+        :param key: string
+        :param default: any
+        :return: any
+        """
+        if type(self._pstate) == dict:
+            if key in self._pstate:
+                return self._pstate[key]
+        return default
+
+    # logging ###############################################################
     def error(self, error):
         """
         @deprecated use log(msg, level='error') instead
         used to send an error back to faxe
         :param error: string
         """
-        cast(self.erlang_pid, (Atom(b'python_error'), error))
+        cast(self._erlang_pid, (Atom(b'python_error'), error))
 
     def log(self, msg, level='notice'):
         """
@@ -103,7 +187,7 @@ class Faxe:
         :param msg: string
         :param level: 'debug' | 'info' | 'notice' | 'warning' | 'error' | 'critical' | 'alert'
         """
-        cast(self.erlang_pid, (Atom(b'python_log'), msg, level))
+        cast(self._erlang_pid, (Atom(b'python_log'), msg, level))
 
     @staticmethod
     def now():
@@ -115,25 +199,24 @@ class Faxe:
 
     def point(self, req):
         self.handle_point(dict(req))
+        if self._state_opts() in ['auto', 'handle']:
+            self.persist_state()
         return self
 
     def batch(self, req):
         self.handle_batch(req)
+        if self._state_opts() in ['auto', 'handle']:
+            self.persist_state()
         return self
 
-    def batch_chunk(self, chunk_data):
-        if 'points' in self.current_chunked:
-            points = Batch.points(chunk_data)
-            self.current_chunked['points'].append(points)
-        else:
-            self.current_chunked = chunk_data
+    @staticmethod
+    def dict_del(data_dict, dict_key):
+        if dict_key in data_dict:
+            del data_dict[dict_key]
 
-        return self
-
-    def batch_chunked_end(self):
-        self.handle_batch(self.current_chunked)
-        self.current_chunked = dict()
-        return self
+    @staticmethod
+    def is_nonclass_type(val):
+        return getattr(val, "__dict__", None) is not None
 
     @staticmethod
     def decode_args(args):
@@ -149,6 +232,8 @@ class Faxe:
                     args[i] = outl
             elif isinstance(arg, bytes):
                 args[i] = arg.decode('utf-8')
+            elif isinstance(arg, Map):
+                args[i] = Faxe.decode_args(arg)
 
         return args
 
@@ -470,3 +555,14 @@ def to_bytes(ele):
         return [to_bytes(d) for d in ele]
 
     return ele
+
+
+def get_imported_modules(module_path, spath):
+    out_list = list()
+    finder = faxe_modulefinder.ModuleFinder(path=[os.path.dirname(spath)])
+    finder.run_script(module_path)
+    for name, mod in finder.modules.items():
+        filepath = str(mod.__file__)
+        if filepath.startswith(spath) and filepath != module_path and name != '__main__':
+            out_list.append(name.encode("utf-8"))
+    return out_list

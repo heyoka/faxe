@@ -96,6 +96,9 @@ init([]) ->
    ok = new_table(decoded_json, set),
    ok = new_table(select_cache, set),
 
+   %% cache for python deps
+   ok = new_table(python_deps, set),
+
    {ok, #state{}}.
 
 

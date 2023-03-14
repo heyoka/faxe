@@ -41,15 +41,28 @@ from_data(Req, State) ->
 
 save_data(Files, Mode) ->
    Path0 = get_filepath(Mode),
+   case Mode of
+      python -> lager:notice("python upload");
+      _ -> ok
+   end,
    Fun =
       fun({FileName, Bin}, Acc) ->
          Path = filename:join(Path0, FileName),
+         lager:info("filename ~p",[FileName]),
          case file:write_file(Path, Bin) of
-            ok -> [#{uploaded => FileName, stored => Path} | Acc];
-            {error, What} -> [#{error => FileName, message => What } | Acc]
+            ok ->
+               clear_python_deps_cache(FileName),
+               [#{uploaded => FileName, stored => Path} | Acc];
+            {error, What} ->
+               [#{error => FileName, message => What } | Acc]
          end
       end,
    lists:foldl(Fun, [], Files).
+
+clear_python_deps_cache(FileName) when is_binary(FileName) ->
+   Mod = binary:replace(FileName, <<".py">>, <<>>),
+   lager:warning("try delete ~p from python deps cache",[Mod]),
+   ets:delete(python_deps, Mod).
 
 get_filepath(Mode) ->
    Ops = faxe_config:get(Mode),

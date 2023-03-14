@@ -162,12 +162,16 @@ config_all_json(Req, State) ->
 python_list_json(Req, State) ->
    Ops = faxe_config:get(python),
    Path = proplists:get_value(script_path, Ops),
-   {ok, Out0} = file:list_dir(Path),
-   Out = [list_to_binary(Py) || Py <- Out0],
+   Out = [list_to_binary(Py) || Py <- filelib:wildcard("*.py", Path)],
+   Executable =
+      case catch list_to_binary(os:find_executable("python")) of
+         E when is_binary(E) -> E;
+         _ -> <<>>
+      end,
    {jiffy:encode(
       #{
          <<"vsn">> => list_to_binary(string:trim(os:cmd("python --version"))),
-         <<"executable">> => list_to_binary(os:find_executable("python")),
+         <<"executable">> => Executable,
          <<"modules">> => Out,
          <<"path">> => list_to_binary(Path)
       }, []), Req, State}.
@@ -221,16 +225,27 @@ lager_handlers() ->
 check_custom_nodes(_GraphDef = #{edges := _, nodes := Nodes}) when is_list(Nodes) ->
    Fun =
    fun
-      ({_NodeName, c_python3, #{cb_class := _CallbackClass, cb_module := CallbackModule}}, Acc) ->
+      ({_NodeName, c_python3, #{cb_class := CallbackClass, cb_module := CallbackModule}}, Acc) ->
          case lists:member(CallbackModule, Acc) of
             true -> Acc;
-            false -> Acc ++ [CallbackModule]
+            false ->
+               Deps = fetch_python_deps(CallbackClass, CallbackModule),
+               Acc ++ [CallbackModule] ++ Deps
          end;
 
-%%         check_python_deps(CallbackClass, CallbackModule);
+
       (_, Acc) -> Acc
    end,
-   lists:foldl(Fun, [], Nodes).
+   List = lists:foldl(Fun, [], Nodes),
+   sets:to_list(sets:from_list(List)).
 
-%%check_python_deps(PClass, PModule) ->
-%%   c_python3:call_options(PModule, PClass).
+fetch_python_deps(PClass, PModule) when is_atom(PModule) ->
+   PModuleBin = atom_to_binary(PModule),
+   case ets:lookup(python_deps, PModuleBin) of
+      [] ->
+         {ok, Deps} = c_python3:fetch_deps(PModule, PClass),
+         lager:notice("fetched python deps for ~p -->  ~p",[PClass, Deps]),
+         ets:insert(python_deps, {PModuleBin, Deps}),
+         Deps;
+      [{PModuleBin, DepsCached}] -> DepsCached
+   end.

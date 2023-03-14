@@ -65,7 +65,7 @@
    reset_templates/0,
    stop_all/0
 %%   , do_start_task/2
-]).
+   , start_file_temp/3]).
 
 start_permanent_tasks() ->
    Tasks = faxe_db:get_permanent_tasks(),
@@ -419,13 +419,17 @@ get_file_dfs(DfsFile) ->
 
 start_file_temp(DfsScript, TTL) ->
    start_temp(DfsScript, file, TTL).
+start_file_temp(DfsScript, TTL, Id) ->
+   start_temp(DfsScript, file, TTL, Id).
 
 start_temp(DfsScript, TTL) ->
    start_temp(DfsScript, data, TTL).
 start_temp(DfsScript, Type, TTL) ->
+   start_temp(DfsScript, Type, TTL, list_to_binary(faxe_util:uuid_string())).
+start_temp(DfsScript, Type, TTL, Id) ->
    case eval_dfs(DfsScript, Type) of
       {DFS, Def} when is_map(Def) ->
-         Id = list_to_binary(faxe_util:uuid_string()),
+%%         Id = list_to_binary(faxe_util:uuid_string()),
          case dataflow:create_graph(Id, Def) of
             {ok, Graph} ->
                _Task = #task{
@@ -625,6 +629,7 @@ do_stop_task(T = #task{pid = Graph, group_leader = _Leader, group = _Group},
             false -> faxe_db:delete_flow_states(NewT);
             true -> ok
          end,
+
 %%         flow_changed({task, T#task.name, stop}),
          Res;
 %%         case Leader of

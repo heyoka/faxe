@@ -309,8 +309,9 @@ get_flow_states(FlowId) ->
 delete_flow_states(#task{name = FlowId}) ->
    delete_flow_states(FlowId);
 delete_flow_states(FlowId) ->
-   lager:notice("delete flow states for flow: ~p",[FlowId]),
-   [mnesia:dirty_delete_object(NodeState) || NodeState <- get_flow_states(FlowId)].
+   ok.
+%%   lager:notice("delete flow states for flow: ~p",[FlowId]),
+%%   [mnesia:dirty_delete_object(NodeState) || NodeState <- get_flow_states(FlowId)].
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%% table management %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
