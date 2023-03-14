@@ -233,7 +233,6 @@ check_custom_nodes(_GraphDef = #{edges := _, nodes := Nodes}) when is_list(Nodes
                Acc ++ [CallbackModule] ++ Deps
          end;
 
-
       (_, Acc) -> Acc
    end,
    List = lists:foldl(Fun, [], Nodes),
@@ -244,7 +243,6 @@ fetch_python_deps(PClass, PModule) when is_atom(PModule) ->
    case ets:lookup(python_deps, PModuleBin) of
       [] ->
          {ok, Deps} = c_python3:fetch_deps(PModule, PClass),
-         lager:notice("fetched python deps for ~p -->  ~p",[PClass, Deps]),
          ets:insert(python_deps, {PModuleBin, Deps}),
          Deps;
       [{PModuleBin, DepsCached}] -> DepsCached

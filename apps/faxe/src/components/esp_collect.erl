@@ -128,7 +128,7 @@ init(NodeId, _Ins, #{
          merge = Merge}}.
 
 init(NodeId, Ins, Opts,
-    #node_state{state = #{buffer := Buffer, current_batch_start := BatchStart, newest_timestamp = NTs}}) ->
+    #node_state{state = #{buffer := Buffer, current_batch_start := BatchStart, newest_timestamp := NTs}}) ->
    {ok, all, State} = init(NodeId, Ins, Opts),
    %% start the timers, @todo check if special timer handling is necessary (see batch node for reference)
    maybe_start_emit_timeout(State),
