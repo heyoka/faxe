@@ -85,6 +85,7 @@ init(NodeId, _Ins, #{cb_module := Callback} = Args, State = #node_state{state = 
 init(NodeId, _Ins, #{} = Args) ->
    init_all(NodeId, #{}, Args).
 init_all(NodeId, AddPyOpts, #{cb_module := Callback, cb_class := CBClass, as := As} = Args) ->
+   process_flag(trap_exit, true),
    PInstance = get_python(CBClass),
    %% create an instance of the callback class
    Path = lists:last(get_path()),
@@ -133,7 +134,7 @@ handle_info({emit_data, Data}, State = #state{}) when is_list(Data) ->
    BatchData = jiffy:decode(Data, [return_maps, {null_term, undefined}]),
    handle_info({emit_data, BatchData}, State);
 handle_info({persist_state, PythonState}, State = #state{node_id = NId}) ->
-%%   lager:warning("persist state for ~p ~p",[NId, PythonState]),
+   lager:warning("persist state for ~p size ~p",[NId, byte_size(PythonState)]),
    dataflow:persist(NId, PythonState),
    {ok, State};
 handle_info({python_error, Error}, State) ->
@@ -145,6 +146,13 @@ handle_info({python_log, Message, Level0} = _L, State) ->
    {ok, State};
 %%%
 handle_info(start_debug, State) ->
+   {ok, State};
+handle_info({'EXIT', _Pid, normal}, State) ->
+   {ok, State};
+handle_info({'EXIT', Pid, Why}, State) ->
+   {message_handler_error, {python, PyError, PyErrorMsg,{'$erlport.opaque',python, PyStack}}} = Why,
+%%   PyStack = io_lib:format("~s",[unicode:characters_to_list(PyStack0, latin1)]),
+   lager:error("Pid ~p exited with reason ~p, Stack ~s",[Pid, PyErrorMsg, unicode:characters_to_list(PyStack, latin1)]),
    {ok, State};
 handle_info(Request, State) ->
    lager:notice("got unexpected: ~p", [Request]),

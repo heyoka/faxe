@@ -1,9 +1,11 @@
 import importlib
 import json
 import os
+import sys
 import time
 from functools import cmp_to_key
 from jsonpath_ng import parse
+import pickle
 
 from erlport.erlterms import Atom, Map, List
 from erlport.erlang import cast
@@ -19,11 +21,13 @@ class Faxe:
 
     def __init__(self, args):
         self._erlang_pid = args['_erl']
-        decoded = Faxe.decode_args(args)
+        self._last_state = None
         self._pstate = None
         if '_state' in args:
-            self._pstate = decoded['_state']
-            del decoded['_state']
+            self._pstate = pickle.loads(args['_state'])
+            del args['_state']
+        decoded = Faxe.decode_args(args)
+        # print("state", self.get_state())
         del decoded['_ppath']
         del decoded['_erl']
         # init subclass
@@ -31,6 +35,7 @@ class Faxe:
 
     @staticmethod
     def info(clname, _spath):
+        print("system encoding", sys.getfilesystemencoding())
         _modname, module = Faxe.import_module(clname)
         cls = getattr(module, clname)
         method = getattr(cls, "options")
@@ -131,7 +136,15 @@ class Faxe:
         return 'none'
 
     def send_state(self, state_data):
-        cast(self._erlang_pid, (Atom(b'persist_state'), json.dumps(state_data).encode()))
+        pickle_start = time.time_ns()
+        state = pickle.dumps(state_data, protocol=pickle.HIGHEST_PROTOCOL)
+        dur = int((time.time_ns() - pickle_start) / 1000)
+        print("state size", sys.getsizeof(state), "took my", dur)
+        if state != self._last_state:
+            cast(self._erlang_pid, (Atom(b'persist_state'), state))
+        else:
+            print("--------> state is equal")
+        self._last_state = state
 
     def format_state(self):
         myvars = vars(self)
@@ -142,7 +155,6 @@ class Faxe:
         return pdata
 
     def persist_state(self, state=None):
-        print("persist state", self._state_opts(), state)
         pdata = state
         if pdata is None:
             pdata = self.format_state()
@@ -150,8 +162,11 @@ class Faxe:
         if type(pdata) is dict:
             Faxe.dict_del(pdata, '_pstate')
             Faxe.dict_del(pdata, '_erlang_pid')
+            Faxe.dict_del(pdata, '_last_state')
         # send to erl
-        self.send_state(pdata)
+        if pdata is not None:
+            # print("persist state", self._state_opts(), pdata)
+            self.send_state(pdata)
 
     def get_state(self):
         """
