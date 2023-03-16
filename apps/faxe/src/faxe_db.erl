@@ -50,7 +50,9 @@
 %% state persistence
 -export([
    save_node_state/2
-   , get_flow_states/1, delete_flow_states/1]).
+   , get_flow_states/1,
+   delete_flow_states/1,
+   clear_flow_states/0]).
 
 
 
@@ -313,6 +315,8 @@ delete_flow_states(FlowId) ->
 %%   lager:notice("delete flow states for flow: ~p",[FlowId]),
 %%   [mnesia:dirty_delete_object(NodeState) || NodeState <- get_flow_states(FlowId)].
 
+clear_flow_states() ->
+   [mnesia:dirty_delete(node_state, Id) || Id <- mnesia:dirty_all_keys(node_state)].
 %%%%%%%%%%%%%%%%%%%%%%%%%%%% table management %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 db_init() ->

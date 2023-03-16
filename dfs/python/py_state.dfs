@@ -1,0 +1,25 @@
+def data =
+|json_emitter(
+    '{"val1": 1, "val2": "2"}',
+    '{"val3": 2, "val2": "21"}',
+    '{"val1": 3, "val2": "9"}',
+    '{"val4": 4, "val2": "28"}',
+    '{"val1": 5, "val2": "2"}',
+    '{"val5": 6, "val2": "02"}',
+    '{"val6": 7, "val2": "20"}',
+    '{"val7": 8, "val2": "_2"}'
+)
+.select('seq')
+
+%data
+%@count()
+%|debug()
+
+data
+|collect()
+.key_fields('val1')
+.keep('val1')
+.update(true)
+.emit_unchanged(true)
+
+|debug('info')

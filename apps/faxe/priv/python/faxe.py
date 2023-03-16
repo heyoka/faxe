@@ -19,26 +19,48 @@ class Faxe:
     base class for faxe's custom user nodes, written in python
     """
 
+    LOG_LEVEL_DEBUG = 'debug'
+    LOG_LEVEL_INFO = 'info'
+    LOG_LEVEL_NOTICE = 'notice'
+    LOG_LEVEL_WARNING = 'warning'
+    LOG_LEVEL_ERROR = 'error'
+    LOG_LEVEL_CRITICAL = 'critical'
+    LOG_LEVEL_ALERT = 'alert'
+
+    STATE_MODE_HANDLE   = 'handle'
+    STATE_MODE_EMIT     = 'emit'
+    STATE_MODE_MANUAL   = 'manual'
+
+    ERL_CAST_PERSIST_STATE = Atom(b'persist_state')
+    ERL_CAST_EMIT = Atom(b'emit_data')
+    ERL_CAST_ERROR = Atom(b'python_error')
+    ERL_CAST_LOG = Atom(b'python_log')
+
+    ARGS_ERL_PID = '_erl'
+    ARGS_STATE = '_state'
+    ARGS_PATH = '_ppath'
+
+    CALLBACK_OPTIONS = 'options'
+
     def __init__(self, args):
-        self._erlang_pid = args['_erl']
+        self._erlang_pid = args[Faxe.ARGS_ERL_PID]
         self._last_state = None
         self._pstate = None
-        if '_state' in args:
-            self._pstate = pickle.loads(args['_state'])
-            del args['_state']
+        if Faxe.ARGS_STATE in args:
+            self._pstate = pickle.loads(args[Faxe.ARGS_STATE])
+            del args[Faxe.ARGS_STATE]
         decoded = Faxe.decode_args(args)
         # print("state", self.get_state())
-        del decoded['_ppath']
-        del decoded['_erl']
+        del decoded[Faxe.ARGS_PATH]
+        del decoded[Faxe.ARGS_ERL_PID]
         # init subclass
         self.init(decoded)
 
     @staticmethod
     def info(clname, _spath):
-        print("system encoding", sys.getfilesystemencoding())
         _modname, module = Faxe.import_module(clname)
         cls = getattr(module, clname)
-        method = getattr(cls, "options")
+        method = getattr(cls, Faxe.CALLBACK_OPTIONS)
         outlist = []
         for i, x in enumerate(method()):
             lout = list(x)
@@ -112,9 +134,9 @@ class Faxe:
             data = encode_data(emit_data)
 
         if data is not None:
-            cast(self._erlang_pid, (Atom(b'emit_data'), data))
+            cast(self._erlang_pid, (Faxe.ERL_CAST_EMIT, data))
 
-        if self._state_opts() == 'emit':
+        if self._state_opts() == Faxe.STATE_MODE_EMIT:
             self.persist_state()
 
     # persisted state handling #######################################################
@@ -133,7 +155,7 @@ class Faxe:
         #   'emit'(after every call to self.emit)
         #   'manual'(call state_persist on you own)
         #   'none'(no persistent state handling)
-        return 'none'
+        return Faxe.STATE_MODE_MANUAL
 
     def send_state(self, state_data):
         pickle_start = time.time_ns()
@@ -141,7 +163,7 @@ class Faxe:
         dur = int((time.time_ns() - pickle_start) / 1000)
         print("state size", sys.getsizeof(state), "took my", dur)
         if state != self._last_state:
-            cast(self._erlang_pid, (Atom(b'persist_state'), state))
+            cast(self._erlang_pid, (Faxe.ERL_CAST_PERSIST_STATE, state))
         else:
             print("--------> state is equal")
         self._last_state = state
@@ -164,7 +186,7 @@ class Faxe:
             Faxe.dict_del(pdata, '_erlang_pid')
             Faxe.dict_del(pdata, '_last_state')
         # send to erl
-        if pdata is not None:
+        if pdata is not None: # why not ?
             # print("persist state", self._state_opts(), pdata)
             self.send_state(pdata)
 
@@ -194,15 +216,15 @@ class Faxe:
         used to send an error back to faxe
         :param error: string
         """
-        cast(self._erlang_pid, (Atom(b'python_error'), error))
+        cast(self._erlang_pid, (Faxe.ERL_CAST_ERROR, error))
 
-    def log(self, msg, level='notice'):
+    def log(self, msg, level=LOG_LEVEL_NOTICE):
         """
         used to send a log message
         :param msg: string
         :param level: 'debug' | 'info' | 'notice' | 'warning' | 'error' | 'critical' | 'alert'
         """
-        cast(self._erlang_pid, (Atom(b'python_log'), msg, level))
+        cast(self._erlang_pid, (Faxe.ERL_CAST_LOG, msg, level))
 
     @staticmethod
     def now():
@@ -214,13 +236,13 @@ class Faxe:
 
     def point(self, req):
         self.handle_point(dict(req))
-        if self._state_opts() in ['auto', 'handle']:
+        if self._state_opts() == Faxe.STATE_MODE_HANDLE:
             self.persist_state()
         return self
 
     def batch(self, req):
         self.handle_batch(req)
-        if self._state_opts() in ['auto', 'handle']:
+        if self._state_opts() == Faxe.STATE_MODE_HANDLE:
             self.persist_state()
         return self
 
@@ -306,7 +328,7 @@ class Point:
     @staticmethod
     def values(point_data, paths, value=None):
         """
-        get or set a specific field
+        get or set a list of fields
         :param point_data: dict
         :param paths: list
         :param value: any

@@ -143,11 +143,13 @@ process(Port, Item, State = #state{buffer = undefined}) ->
 process(_Port, #data_point{ts = Ts} = Point, State = #state{fields = _Field}) ->
    NewState = State#state{newest_timestamp = Ts},
    Res = do_process(Point, NewState),
+   {Changed, ChangedState} =
    case Res of
-      {ok, NewState} -> {ok, NewState};
-      {Changed, ChangedState} ->
-         maybe_emit(Changed, ChangedState)
-   end;
+      {ok, NewState} ->
+         {false, NewState};
+      O -> O
+   end,
+   maybe_emit(Changed, ChangedState);
 process(Port, Batch = #data_batch{}, State = #state{buffer = undefined}) ->
    process(Port, Batch, State#state{buffer = []});
 process(_Port, B = #data_batch{points = Points}, State) ->
@@ -158,9 +160,7 @@ process(_Port, B = #data_batch{points = Points}, State) ->
       ChangedNew = (Changed0 == true orelse Changed1 == true),
       {ChangedNew, NewState, max(Ts, CurrentTs)}
    end,
-%%   {T, {Changed, ResState}} = timer:tc(lists, foldl, [ProcessFun, {false, NewState0}, Points]),
    {Changed, ResState, LatestTs} = lists:foldl(ProcessFun, {false, NewState0, 0}, Points),
-%%   lager:notice("it took ~p my to process ~p points (changed: ~p)",[T, length(Points), Changed]),
    maybe_emit(Changed, ResState#state{newest_timestamp = LatestTs}).
 
 handle_info(emit_timeout, State = #state{}) ->
@@ -277,7 +277,10 @@ maybe_emit(_, State = #state{emit_interval = undefined, emit_unchanged = true}) 
    do_emit(State);
 maybe_emit(true, State = #state{emit_interval = undefined}) ->
    do_emit(State);
-maybe_emit(_, State = #state{}) ->
+maybe_emit(true, State = #state{}) ->
+   write_state(State),
+   {ok, State};
+maybe_emit(false, State = #state{}) ->
    {ok, State}.
 
 do_emit(State = #state{buffer = Buff, tag_value = _TagVal, merge = Merge, newest_timestamp = Ts}) ->
@@ -299,9 +302,24 @@ do_emit(State = #state{buffer = Buff, tag_value = _TagVal, merge = Merge, newest
    end,
    %%
    %% now cleanup removed and added tags
-   NewState = buffer_cleanup(State),
+   NewState0 = buffer_cleanup(State),
+   NewState = NewState0#state{current_batch_start = undefined},
 %%   lager:notice("buffer length after emit: ~p",[length(NewState#state.buffer)]),
-   {emit, Out, NewState#state{current_batch_start = undefined}}.
+   write_state(NewState),
+   {emit, Out, NewState}.
+
+write_state(State=#state{node_id = NId, buffer = Buffer}) ->
+%%   lager:info("~p write state ~p",[?MODULE, #{
+%%      buffer => Buffer,
+%%      current_batch_start => State#state.current_batch_start,
+%%      newest_timestamp => State#state.newest_timestamp}]),
+   dataflow:persist(NId,
+      #{
+         buffer => Buffer,
+         current_batch_start => State#state.current_batch_start,
+         newest_timestamp => State#state.newest_timestamp}
+   ),
+   ok.
 
 buffer_cleanup(State = #state{tag_added = false, include_removed = false, tag_updated = false}) ->
    State;

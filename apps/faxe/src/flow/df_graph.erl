@@ -418,7 +418,7 @@ start_async(Nodes0, Subscriptions, RunMode, Id) ->
    %% state persistence
    AllStates0 = faxe_db:get_flow_states(Id),
    AllStates = [{NodeId, NState} || #node_state{flownode_id = {Id, NodeId}} = NState <- AllStates0],
-   lager:notice("All node-states from flow ~p: ~p",[Id, AllStates]),
+%%   lager:notice("All node-states from flow ~p: ~p",[Id, AllStates]),
    %% start the nodes with subscriptions
    %% do we have mem nodes present ? then sync start them first
    {Mems, Others} = lists:partition(fun(#node{component = Comp}) -> Comp =:= esp_mem end, Nodes0),
