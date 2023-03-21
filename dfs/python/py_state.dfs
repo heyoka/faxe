@@ -11,15 +11,6 @@ def data =
 )
 .select('seq')
 
-%data
-%@count()
-%|debug()
+@count()
 
-data
-|collect()
-.key_fields('val1')
-.keep('val1')
-.update(true)
-.emit_unchanged(true)
-
-|debug('info')
+|debug()

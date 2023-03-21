@@ -344,7 +344,7 @@ start(ModeOpts=#task_modes{run_mode = _RunMode, temporary = Temp, temp_ttl = TTL
    NewState#state{running = true, started = true,
       timeout_ref = TimerRef, start_mode = ModeOpts}.
 
-make_start_nodes(NodeIds, #task_modes{run_mode = RunMode},
+make_start_nodes(NodeIds, #task_modes{run_mode = RunMode} = StartContext,
     State = #state{graph = G, id = Id, nodes = Nodes0}) when is_list(NodeIds) ->
 
    %% builds : [{NodeId, Component, Pid}]
@@ -354,7 +354,7 @@ make_start_nodes(NodeIds, #task_modes{run_mode = RunMode},
    %% register our pid along with all node(component)-pids for graph ets table handling
    register_nodes(Nodes),
    %% start the nodes with subscriptions
-   start_async(Nodes, Subscriptions, RunMode, Id),
+   start_async(Nodes, Subscriptions, StartContext, Id),
    State#state{nodes = Nodes0++Nodes}.
 
 -spec build_nodes(list(binary()), digraph:graph(), binary()) -> [{NodeId :: binary(), Component :: atom(), pid()}].
@@ -414,10 +414,10 @@ build_node_subscriptions(Graph, Node, Nodes, FlowMode) ->
    {Inports, Subscriptions}.
 
 -spec start_async(list({binary(), atom(), pid()}), list(), push|pull, binary()) -> ok.
-start_async(Nodes0, Subscriptions, RunMode, Id) ->
+start_async(Nodes0, Subscriptions, StartContext = #task_modes{run_mode = RunMode}, Id) ->
    %% state persistence
    AllStates0 = faxe_db:get_flow_states(Id),
-   AllStates = [{NodeId, NState} || #node_state{flownode_id = {Id, NodeId}} = NState <- AllStates0],
+   AllStates = [{NodeId, NState} || #node_state{flownode_id = {_Id, NodeId}} = NState <- AllStates0],
 %%   lager:notice("All node-states from flow ~p: ~p",[Id, AllStates]),
    %% start the nodes with subscriptions
    %% do we have mem nodes present ? then sync start them first
@@ -428,7 +428,7 @@ start_async(Nodes0, Subscriptions, RunMode, Id) ->
          {Inputs, Subs} = proplists:get_value(NodeId, Subscriptions),
          df_subscription:save_subscriptions({Id, NodeId}, Subs),
 %%         node_metrics:setup(Id, NodeId, Comp),
-         df_component:start_node(NPid, Inputs, RunMode)
+         df_component:start_node(NPid, Inputs, StartContext)
       end,
       Mems),
    lists:foreach(
@@ -437,7 +437,12 @@ start_async(Nodes0, Subscriptions, RunMode, Id) ->
          df_subscription:save_subscriptions({Id, NodeId}, Subs),
 %%         node_metrics:setup(Id, NodeId, Comp),
 %%         df_component:start_async(NPid, Inputs, RunMode)
-         df_component:start_async(NPid, Inputs, RunMode, proplists:get_value(NodeId, AllStates))
+         PersistedState =
+         case StartContext#task_modes.state_persistence of
+            true -> proplists:get_value(NodeId, AllStates);
+            false -> undefined
+         end,
+         df_component:start_async(NPid, Inputs, StartContext, PersistedState)
       end,
       Others),
    %% if in pull mode, initially let all components send requests to their producers
@@ -449,7 +454,7 @@ clone_and_start_subgraph(FromVertex, State = #state{subgraphs = Subgraphs, graph
 
    clone_and_start_subgraph(FromVertex, State#state{subgraphs = Subgraphs#{FromVertex => Subgraph}});
 clone_and_start_subgraph(FromVertex,
-    State = #state{graph = G, start_mode = RunModes, nodes = ExistingNodes, subgraphs = Subgraphs}) ->
+    State = #state{graph = G, start_mode = StartContext, nodes = ExistingNodes, subgraphs = Subgraphs}) ->
 
    _S = #subgraph{
       vertices = ReachableVertices,
@@ -499,7 +504,7 @@ clone_and_start_subgraph(FromVertex,
    %% not quite elegant here (the next two statements)
    AllNodes = NodesNew++ExistingNodes,
    %% rebuild subscriptions for all nodes ?
-   Subscriptions = build_subscriptions(AllNodes, G, RunModes#task_modes.run_mode),
+   Subscriptions = build_subscriptions(AllNodes, G, StartContext#task_modes.run_mode),
 
    %% tell the root-node (FromVertex) about it's new subscriptions
    {_Inputs, Subs} = proplists:get_value(FromVertex, Subscriptions),
@@ -511,7 +516,7 @@ clone_and_start_subgraph(FromVertex,
    register_nodes(NodesNew),
 
    %% start the nodes with subscriptions
-   start_async(NodesNew, Subscriptions, RunModes#task_modes.run_mode, State#state.id),
+   start_async(NodesNew, Subscriptions, StartContext, State#state.id),
 
    {NewOutPort, State#state{nodes = AllNodes}}.
 

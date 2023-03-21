@@ -457,6 +457,7 @@ start_temp(DfsScript, Type, TTL, Id) ->
 start_task(TaskId) ->
    start_task(TaskId, false).
 start_task(TaskId, #task_modes{run_mode = _RunMode} = Mode) ->
+   lager:notice("start ~p with context ~p",[TaskId, lager:pr(Mode, ?MODULE)]),
    case faxe_db:get_task(TaskId) of
       {error, not_found} -> {error, task_not_found};
       T = #task{} -> graph_starter:start_graph(T, Mode), {ok, enqueued_to_start}

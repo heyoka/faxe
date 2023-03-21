@@ -9,10 +9,11 @@ class Count(Faxe):
         # return Faxe.STATE_MODE_HANDLE
         return Faxe.STATE_MODE_EMIT
 
-    # def format_state(self):
-    #     return {'count': self.count, 'since': self.since}
+    def format_state(self):
+        return {'count': self.count, 'since': self.since}
 
     def init(self, _args):
+        self.log(f"state for {__name__} : {self.get_state()}")
         self.count = self.get_state_value('count', 0)
         self.since = self.get_state_value('since', Faxe.now())
 
@@ -30,5 +31,5 @@ class Count(Faxe):
         Point.value(out, 'count_since', datetime.fromtimestamp(self.since/1000.0).strftime("%m/%d/%Y, %H:%M:%S"))
         Point.value(out, 'seconds_ago', (Faxe.now() - self.since)//1000)
         self.emit(out)
-        # self.persist_state({'count': self.count})
+        # self.persist_state()
 

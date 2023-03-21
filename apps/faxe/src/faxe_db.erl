@@ -67,29 +67,29 @@ get_all(Table) ->
 
 get_task(TaskId) when is_integer(TaskId) ->
    case mnesia:dirty_read(task, TaskId) of
-      [#task{definition = Def} = T] -> T#task{definition = maps:from_list(Def)};
+      [#task{} = T] -> T;
       [] -> {error, not_found}
    end;
 get_task(TaskName) ->
    case mnesia:dirty_index_read(task, TaskName, #task.name) of
-      [#task{definition = Def} = T] -> T#task{definition = maps:from_list(Def)};
+      [#task{} = T] -> T;
       [] -> {error, not_found}
    end.
 
 get_template(TId) when is_integer(TId) ->
    case mnesia:dirty_read(template, TId) of
-      [#template{definition = Def} = T] -> T#template{definition = maps:from_list(Def)};
+      [#template{} = T] -> T;
       [] -> {error, not_found}
    end;
 get_template(TemplateName) ->
    case mnesia:dirty_index_read(template, TemplateName, #template.name) of
-      [#template{definition = Def} = T] -> T#template{definition = maps:from_list(Def)};
+      [#template{} = T] -> T;
       [] -> {error, not_found}
    end.
 
 get_tasks_by_group(GroupName) ->
    case mnesia:dirty_index_read(task, GroupName, #task.group) of
-      [#task{} | _] = L -> [T#task{definition = maps:from_list(Def)} || T=#task{definition = Def} <- L];
+      [#task{} | _] = L -> L;
       [] -> {error, not_found}
    end.
 
@@ -118,18 +118,18 @@ get_tasks_by_template(TemplateName) ->
 get_permanent_tasks() ->
    mnesia:dirty_index_read(task, true, #task.permanent).
 
-save_template(#template{id = undefined, definition = Def} = Template) ->
-   mnesia:dirty_write(Template#template{id = next_id(template), definition = maps:to_list(Def)});
-save_template(#template{definition = Def} = T) ->
-   mnesia:dirty_write(T#template{definition = maps:to_list(Def)}).
+save_template(#template{id = undefined} = Template) ->
+   mnesia:dirty_write(Template#template{id = next_id(template)});
+save_template(#template{} = T) ->
+   mnesia:dirty_write(T).
 
 -spec save_task(#task{}) -> ok|{error, term()}.
-save_task(#task{id = undefined, definition = Def} = Task) ->
+save_task(#task{id = undefined} = Task) ->
    NewTask = sort_tags(Task),
-   mnesia:dirty_write(NewTask#task{id = next_id(task), definition = maps:to_list(Def)});
-save_task(#task{definition = Def} = T) ->
+   mnesia:dirty_write(NewTask#task{id = next_id(task)});
+save_task(#task{} = T) ->
    NewTask = sort_tags(T),
-   mnesia:dirty_write(NewTask#task{definition = maps:to_list(Def)}).
+   mnesia:dirty_write(NewTask).
 
 sort_tags(Task = #task{tags = Tags}) ->
    %% sort tags alphabetically

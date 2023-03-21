@@ -339,11 +339,12 @@ from_ping_to_json(Req, State=#state{task_id = TaskId}) ->
    end.
 
 start_to_json(Req, State = #state{task_id = Id}) ->
-   case faxe:start_task(Id, is_permanent(Req)) of
+   Qs = cowboy_req:parse_qs(Req),
+   StatePersistence = state_persistence(Qs),
+   case faxe:start_task(Id, #task_modes{permanent = is_permanent(Req), state_persistence = StatePersistence}) of
       {ok, _Graph} ->
          rest_helper:success(Req, State);
       {error, already_started} ->
-         Qs = cowboy_req:parse_qs(Req),
          case lists:keyfind(<<"quiet">>, 1, Qs) of
             {_, <<"true">>} -> rest_helper:success(Req, State);
             _ -> rest_helper:error(Req, State, <<"already_started">>)
@@ -458,6 +459,12 @@ remove_tags_from_json(Req, State = #state{task_id = TaskId, tags = Tags}) ->
 is_permanent(Req) ->
    Permanent = cowboy_req:binding(permanent, Req, <<"false">>),
    Permanent == <<"true">>.
+
+state_persistence(Qs) ->
+   case lists:keyfind(<<"persistence">>, 1, Qs) of
+      {_, <<"true">>} -> true;
+      _ -> false
+   end.
 
 stop_mode(Req) ->
    Qs = cowboy_req:parse_qs(Req),
