@@ -28,6 +28,7 @@ check_options() ->
    [{not_empty, [file]}].
 
 init(_NodeId, _Inputs, #{file := File, format := Format0, field := Field}) ->
+   ok = filelib:ensure_dir(File),
    {ok, F} = file:open(File, [append, delayed_write]),
    Format = case Field of undefined -> Format0; _ -> <<"raw">> end,
    {ok, all, #state{file = F, field = Field, format = Format}}.
