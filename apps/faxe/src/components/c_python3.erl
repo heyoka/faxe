@@ -134,7 +134,8 @@ handle_info({emit_data, Data}, State = #state{}) when is_list(Data) ->
    BatchData = jiffy:decode(Data, [return_maps, {null_term, undefined}]),
    handle_info({emit_data, BatchData}, State);
 handle_info({persist_state, PythonState}, State = #state{node_id = NId}) ->
-   lager:warning("persist state for ~p size ~p",[NId, byte_size(PythonState)]),
+   StateSize = byte_size(PythonState),
+   lager:warning("persist state for ~p size ~p",[NId, StateSize]),
    dataflow:persist(NId, PythonState),
    {ok, State};
 handle_info({python_error, Error}, State) ->

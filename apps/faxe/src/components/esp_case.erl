@@ -60,6 +60,9 @@ process(_Inport, #data_point{} = Point,
    NewValue = eval(Point, LambdaFuns, Values, As, Def),
    {emit, NewValue, State}.
 
+%% if default is undefined, we will not set it and leave the data_point untouched
+eval(#data_point{} = P, [], [], _As, undefined) ->
+   P;
 eval(#data_point{} = P, [], [], As, Default) ->
 %%   lager:warning("no lambda matched!!"),
    flowdata:set_field(P, As, Default);
