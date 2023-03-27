@@ -1,0 +1,15 @@
+|json_emitter()
+.json(
+      '{"address": "cond_vac", "value": 99}',
+      '{"address": "cond_scale", "value": 94}',
+      '{"address": "cond_robot", "value": 95}'
+      )
+.as('data')
+
+|if()
+.if_lambda(lambda: "data.address" != 'cond_vac')
+.then('address is not cond_vac')
+.else(lambda: str_concat('address is cond_vac and value is ', "data.value"))
+.as('data.desc')
+
+|debug()
