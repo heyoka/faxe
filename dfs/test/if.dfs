@@ -6,10 +6,11 @@
       )
 .as('data')
 
-|if()
-.if_lambda(lambda: "data.address" != 'cond_vac')
+|debug('info')
+
+|if(lambda: "data.address" != 'cond_vac')
 .then('address is not cond_vac')
-.else(lambda: str_concat('address is cond_vac and value is ', "data.value"))
+.else(lambda: str_concat('address is cond_vac and value is ', string("data.value")))
 .as('data.desc')
 
 |debug()
