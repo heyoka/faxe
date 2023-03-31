@@ -38,7 +38,8 @@
    fn_id,
    debug_mode = false,
    use_pool = false :: true|false,
-   pool_connected = false :: true|false
+   pool_connected = false :: true|false,
+   delete_mode = false %% if true, an empty message will be published instead of the actuall message, this leads to del topic (retaineds)
 }).
 %% state for direct publish mode
 
@@ -56,7 +57,9 @@ options() -> [
    {ssl, is_set, {mqtt, ssl, enable}},
    {safe, boolean, false},
    {max_mem_queue_size, integer, 100},
-   {use_pool, boolean, {mqtt_pub_pool, enable}}
+   {use_pool, boolean, {mqtt_pub_pool, enable}},
+   %% experimental delete mode
+   {'_delete', boolean, false}
 ].
 
 check_options() ->
@@ -91,7 +94,7 @@ init(NodeId, _Ins, #{safe := false} = Opts) ->
 
 init_all(
     #{safe := Safe, topic := Topic, topic_lambda := LTopic, topic_field := TField,
-       use_pool := Pool, host := Host, port := Port} = Opts, State = #state{fn_id = NId}) ->
+       use_pool := Pool, host := Host, port := Port, '_delete' := Delete} = Opts, State = #state{fn_id = NId}) ->
    %% when using the connection pool, we have to take care of the connection_registry ourselves
    case Pool of
       true -> connection_registry:reg(NId, Host, Port, <<"mqtt">>);
@@ -99,13 +102,15 @@ init_all(
    end,
    {ok, all,
       State#state{
-         options = Opts, safe = Safe, topic = Topic, topic_lambda = LTopic, topic_field = TField, use_pool = Pool}
+         options = Opts, safe = Safe, topic = Topic, topic_lambda = LTopic, topic_field = TField, use_pool = Pool,
+         delete_mode = Delete}
    }.
 
-prepare_opts({GId, NId}=GNId, Opts0 = #{client_id := CId, host := Host0}) ->
+prepare_opts({GId, NId}=GNId, Opts0 = #{client_id := CId, host := Host0, '_delete' := DelMode, retained := Ret}) ->
    Host = binary_to_list(Host0),
    ClientId = case CId of undefined -> <<GId/binary, "_", NId/binary>>; _ -> CId end,
-   Opts0#{host => Host, client_id => ClientId, node_id => GNId}.
+   Retained = case DelMode of true -> true; _ -> Ret end,
+   Opts0#{host => Host, client_id => ClientId, node_id => GNId, retained => Retained}.
 
 %% safe state
 process(_In, Item, State = #state{safe = true, queue = Q, fn_id = FNId}) ->
@@ -148,6 +153,8 @@ handle_info(_E, S) ->
 shutdown(#state{publisher = P}) ->
    catch gen_server:stop(P).
 
+build_message(Item, State = #state{fn_id = _FNId, delete_mode = true}) ->
+   {get_topic(Item, State), <<>>};
 build_message(Item, State = #state{fn_id = FNId}) ->
    Json = flowdata:to_json(Item),
    node_metrics:metric(?METRIC_BYTES_SENT, byte_size(Json), FNId),

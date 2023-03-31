@@ -214,6 +214,8 @@ handle_call(Req, _From, State) ->
 
 
 -spec terminate(atom(), state()) -> ok.
+terminate(normal, State=#state{channel = Channel, connection = Conn}) ->
+   close(Channel, Conn, State);
 terminate(Reason, State=#state{channel = Channel, connection = Conn}) ->
    close(Channel, Conn, State),
    lager:notice("~p ~p terminating with reason: ~p",[?MODULE, self(), Reason]).

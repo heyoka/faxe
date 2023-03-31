@@ -332,7 +332,7 @@
 
 %% @doc whether to use the optimized s7 reader
 {mapping, "s7reader.optimized", "faxe.s7reader.optimized",
-    [{default, off}, {datatype, flag}]
+    [{default, on}, {datatype, flag}]
 }.
 
 %% @doc -------------------------------------------------------------------------------

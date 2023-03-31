@@ -22,6 +22,7 @@
    subject :: binary(),
    body,
    body_field,
+   subject_field,
    template,
    smtp_relay,
    smtp_user,
@@ -34,17 +35,18 @@
 wants() -> point.
 
 options() -> [
-   {from_address, binary,           {email, from_address}},
-   {smtp_relay,   binary,           {email, smtp_relay}  },
-   {smtp_user,    any,              {email, smtp_user}   },
-   {smtp_pass,    any,              {email, smtp_pass}   },
-   {smtp_port,    integer,          {email, smtp_port}   },
-   {smtp_tls,     is_set,           {email, smtp_tls}    },
-   {template,     binary,           {email, template}    },
-   {to,           string_list                            },
-   {subject,      string                                 },
-   {body,         string_template,  undefined            },
-   {body_field,   string, undefined                      }
+   {from_address,    binary,           {email, from_address}},
+   {smtp_relay,      binary,           {email, smtp_relay}  },
+   {smtp_user,       any,              {email, smtp_user}   },
+   {smtp_pass,       any,              {email, smtp_pass}   },
+   {smtp_port,       integer,          {email, smtp_port}   },
+   {smtp_tls,        is_set,           {email, smtp_tls}    },
+   {template,        binary,           {email, template}    },
+   {to,              string_list                            },
+   {subject,         string_template,  undefined            },
+   {body,            string_template,  undefined            },
+   {body_field,      string, undefined                      },
+   {subject_field,   string, undefined                      }
 ].
 
 check_options() ->
@@ -62,7 +64,7 @@ check_email(Address) when is_binary(Address) ->
 init({FId, _N} = NodeId, _Ins, #{
    from_address := From, smtp_relay := SmtpRelay, template := Template0,
    smtp_user := User, smtp_pass := Pass, smtp_port := SmtpPort, smtp_tls := Tls,
-   to := To0, subject := Subj, body := Body, body_field := BodyField}) ->
+   to := To0, subject := Subj, body := Body, body_field := BodyField, subject_field := SubjField}) ->
 
    %% prepare template
    TemplateFile = binary_to_list(Template0),
@@ -74,6 +76,7 @@ init({FId, _N} = NodeId, _Ins, #{
    State = #state{
       to = To0,
       subject = Subj,
+      subject_field = SubjField,
       body = Body,
       body_field = BodyField,
       node_id = NodeId,
@@ -90,11 +93,12 @@ init({FId, _N} = NodeId, _Ins, #{
 
    {ok, all, State}.
 
-process(_In, P = #data_point{}, State = #state{from = From, to = To, subject = Subj}) ->
+process(_In, P = #data_point{}, State = #state{from = From, to = To}) ->
    Body = body(P, State),
+   Subject = subject(P, State),
    Res =
    gen_smtp_client:send(
-      {From, To, mime(From, To, Subj, Body)},
+      {From, To, mime(From, To, Subject, Body)},
       email_options(State)
    ),
    lager:notice("sent email to ~p, result: ~p",[To, Res]),
@@ -116,6 +120,11 @@ content(P, #state{body = Body, body_field = undefined}) ->
    string_template:eval(Body, P);
 content(P, #state{body_field = BodyField}) ->
    flowdata:field(P, BodyField, <<"">>).
+
+subject(P, #state{subject = SubjectTemplate, subject_field = undefined}) ->
+   string_template:eval(SubjectTemplate, P);
+subject(P, #state{subject_field = SubjectField}) ->
+   flowdata:field(P, SubjectField, <<"">>).
 
 mime(From, To0, Subject, Body) ->
    To = iolist_to_binary(lists:join(<<",">>, To0)),

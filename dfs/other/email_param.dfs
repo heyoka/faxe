@@ -1,4 +1,14 @@
+|json_emitter(
+'{"sub_topic": "A-140-2", "body_string": "schallalallala"}',
+'{"sub_topic": "A-183-1", "body_string": "trollolololo"}',
+'{"sub_topic": "A-111-2", "body_string": "trallalalala"}'
+
+)
+.every(5s)
+.select('rand')
+|eval(lambda: str_concat('Doepfer-Module ', "sub_topics")).as('email_subject')
 |email()
-.to(<<<amini@kar12.com>>>)
-.subject('wurscht')
-.body('a wurscht')
+.to('amini@kar12.com')
+.subject_field('email_subject')
+.body('a {{"body_string"}}')
+.template('/home/heyoka/workspace/faxe/_build/dev1/rel/faxe/templates/email_template.html')
