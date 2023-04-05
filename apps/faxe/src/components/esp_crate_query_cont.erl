@@ -177,7 +177,6 @@ init(NodeId, _Inputs, Opts = #{
       ssl => Ssl, password => faxe_util:to_list(Pass), database => DB},
    DBOpts = maps:merge(?DB_OPTIONS, DBOpts0),
 
-   lager:info("~p db opts: ~p",[?MODULE, DBOpts]),
    ResTimeField = case ResTimeField0 of undefined -> FilterTime; _ -> ResTimeField0 end,
    Response = faxe_epgsql_response:new(ResTimeField, erlang:binary_to_existing_atom(RType), <<"data">>),
 
