@@ -173,10 +173,11 @@ init(NodeId, _Inputs, Opts = #{
 
    process_flag(trap_exit, true),
    Host = binary_to_list(Host0),
-   DBOpts0 = #{host => Host, port => Port, username => binary_to_list(User), ssl => Ssl, %ssl_opts => [],
-      password => binary_to_list(Pass), database => DB},
+   DBOpts0 = #{host => Host, port => Port, username => faxe_util:to_list(User),
+      ssl => Ssl, password => faxe_util:to_list(Pass), database => DB},
    DBOpts = maps:merge(?DB_OPTIONS, DBOpts0),
 
+   lager:info("~p db opts: ~p",[?MODULE, DBOpts]),
    ResTimeField = case ResTimeField0 of undefined -> FilterTime; _ -> ResTimeField0 end,
    Response = faxe_epgsql_response:new(ResTimeField, erlang:binary_to_existing_atom(RType), <<"data">>),
 
@@ -244,7 +245,7 @@ shutdown(#state{client = C, stmt = _Stmt} = S) ->
 
 connect(State = #state{db_opts = Opts, query = Q}) ->
    connection_registry:connecting(),
-%%   lager:info("db opts: ~p",[Opts]),
+%%   lager:info("~p db opts: ~p",[?MODULE, Opts]),
    case epgsql:connect(Opts) of
       {ok, C} ->
          connection_registry:connected(),

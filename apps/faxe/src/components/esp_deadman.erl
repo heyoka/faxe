@@ -92,7 +92,7 @@ handle_info(_R, State) ->
 
 
 build_message(S=#state{repeat_last = true, repeat_interval = Interval, last_point = P=#data_point{ts = Ts}, last_ts = LastTs})
-   when is_integer(Interval) ->
+      when is_integer(Interval) ->
    NewTs =
    case LastTs of
       undefined -> Ts + Interval;

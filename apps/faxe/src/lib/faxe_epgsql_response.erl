@@ -12,7 +12,7 @@
 -include("faxe.hrl").
 -include("faxe_epgsql_response.hrl").
 %% API
--export([new/3, handle/2]).
+-export([new/2, new/3, handle/2]).
 
 new(TimeField, ResponseType, PointRootObject) ->
   #faxe_epgsql_response{
@@ -20,6 +20,13 @@ new(TimeField, ResponseType, PointRootObject) ->
     response_type = ResponseType,
     point_root_object = PointRootObject
   }.
+
+new(TimeField, ResponseType) ->
+  #faxe_epgsql_response{
+    time_field = TimeField,
+    response_type = ResponseType
+  }.
+
 
 handle({ok, Count}, _ResponseDef) ->
   lager:notice("count response: ~p",[Count]),
@@ -41,15 +48,21 @@ handle(Other, _ResponseDef) ->
 
 columns([], ColumnNames) ->
   lists:reverse(ColumnNames);
-columns([{column, Name, _Type, _, _, _, _, _, _}=C|RestC], ColumnNames) ->
+columns([{column, Name0, _Type, _, _, _, _, _, _}=_C|RestC], ColumnNames) ->
+  Name = binary:replace(Name0, [<<".">>,<<" ">>], <<"_">>, [global]),
   columns(RestC, [Name|ColumnNames]).
 
 handle_result(Columns, Rows, ResponseDef = #faxe_epgsql_response{response_type = batch}) ->
   to_flowdata(Columns, Rows, ResponseDef);
 handle_result(Columns, Rows, ResponseDef = #faxe_epgsql_response{response_type = point, point_root_object = Root}) ->
-  Batch = to_flowdata(Columns, Rows, ResponseDef),
-  FieldsList = [Fields || #data_point{fields = Fields} <- Batch#data_batch.points],
-  #data_point{ts = faxe_time:now(), fields = #{Root => FieldsList}}.
+  %% @todo find best timestamp
+  case to_flowdata(Columns, Rows, ResponseDef) of
+    #data_batch{points = []} ->
+      flowdata:set_root(flowdata:new(), Root);
+    #data_batch{start = Ts, points = DataPoints} ->
+      Point = flowdata:merge_points(DataPoints),
+      flowdata:set_root(Point#data_point{ts = Ts}, Root)
+  end.
 
 
 to_flowdata(Columns, ValueRows, ResponseDef = #faxe_epgsql_response{default_timestamp = QueryStart}) ->

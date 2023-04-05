@@ -39,7 +39,8 @@
    debug_mode = false,
    flow_inputs,
    ignore_resp_timeout,
-   error_trace = false
+   error_trace = false,
+   pg_client :: pid()
 }).
 
 -define(QUOTEABLE, [
@@ -66,8 +67,8 @@ options() ->
       {user, string, {crate_http, user}},
       {pass, string, {crate_http, pass}},
       {database, string, <<"doc">>},
-      {db_fields, list},
-      {faxe_fields, string_list},
+      {db_fields, list, undefined},
+      {faxe_fields, string_list, undefined},
       {remaining_fields_as, string, undefined},
       {max_retries, integer, ?FAILED_RETRIES},
       {error_trace, boolean, false},
@@ -79,8 +80,10 @@ check_options() ->
       {func, table, fun(E) -> is_function(E) orelse is_binary(E) end,
          <<" must be either a string or a lambda function">>},
       {func, db_fields,
-         fun(Fields) ->
-            lists:all(fun(E) -> is_function(E) orelse is_binary(E) end, Fields)
+         fun
+            (undefined) -> true;
+            (Fields) ->
+               lists:all(fun(E) -> is_function(E) orelse is_binary(E) end, Fields)
             end,
             <<" list may only contain strings and lambda functions">>}
 
@@ -94,28 +97,37 @@ metrics() ->
 
 init(NodeId, Inputs,
     #{host := Host0, port := Port, database := DB, table := Table, user := User, pass := Pass,
-       tls := Tls, db_fields := DBFields, faxe_fields := FaxeFields, error_trace := ETrace,
+       tls := Tls, db_fields := DBFields0, faxe_fields := FaxeFields, error_trace := ETrace,
        remaining_fields_as := RemFieldsAs, max_retries := MaxRetries,
        ignore_response_timeout := IgnoreRespTimeout}) ->
 
    Host = binary_to_list(Host0),
-   erlang:send_after(0, self(), start_client),
+   erlang:send_after(0, self(), query_init),
 %%   Query = maybe_build_query(DBFields, Table, RemFieldsAs),
    connection_registry:reg(NodeId, Host, Port, <<"http">>),
    %% use fully qualified table name here, ie. doc."0x23d"
    Path = case ETrace of false -> ?PATH; true -> <<?PATH/binary, ?ACTIVE_ERROR_TRACE/binary>> end,
+
+   DBFields =
+   case DBFields0 of
+      undefined -> undefined;
+      _ when is_list(DBFields0) -> [quote_identifier(DBField) || DBField <- DBFields0]
+   end,
    State = #state{
       host = Host, port = Port,
       database = quote_identifier(DB),
       user = User, pass = Pass,
-      failed_retries = MaxRetries, remaining_fields_as = RemFieldsAs, tls = Tls, path = Path,
+      failed_retries = MaxRetries,
+      remaining_fields_as = RemFieldsAs,
+      tls = Tls, path = Path,
       table = quote_identifier(Table),
-      db_fields = [quote_identifier(DBField) || DBField <- DBFields],
-      faxe_fields = FaxeFields, error_trace = ETrace,
+      db_fields = DBFields,
+      faxe_fields = FaxeFields,
+      error_trace = ETrace,
       fn_id = NodeId, flow_inputs = Inputs, ignore_resp_timeout = IgnoreRespTimeout},
-   NewState = query_init(State),
+%%   NewState = query_init(State),
 %%   lager:warning("QUERY INIT Schema:~p ~p",[DB, {NewState#state.query, NewState#state.query_from_lambda}]),
-   {ok, all, NewState}.
+   {ok, all,State}.
 
 %%% DATA IN
 %% empyt batch -> continue
@@ -144,6 +156,22 @@ handle_info({'DOWN', _MonitorRef, _Type, Pid, _Info}, State = #state{client = Pi
    connection_registry:disconnected(),
    lager:warning("gun is down"),
    handle_info(start_client, State#state{client = undefined});
+
+handle_info(query_init, State=#state{faxe_fields = undefined, db_fields = undefined}) ->
+   %% special case to retrieve column names automatically
+   NewState =
+   case get_fields(State) of
+      {ok, NewState1} ->
+         erlang:send_after(0, self(), query_init),
+         NewState1;
+      {_, NewState2} -> NewState2
+   end,
+   {ok, NewState};
+handle_info(query_init, State) ->
+   NewState = query_init(State),
+%%   lager:warning("after query init ~p",[lager:pr(NewState, ?MODULE)]),
+   erlang:send_after(0, self(), start_client),
+   {ok, NewState};
 handle_info(start_client, State) ->
    NewState = start_client(State),
    {ok, NewState};
@@ -357,6 +385,51 @@ handle_response_message(RespMessage) ->
                {error, retry_single}
          end
       end.
+
+
+
+get_fields(State = #state{table = Tab0, database = Db0}) ->
+   Tab = binary:replace(Tab0, <<"\"">>, <<>>, [global]),
+   Db = binary:replace(Db0, <<"\"">>, <<>>, [global]),
+   Stmt = [
+      <<"SELECT column_name FROM information_schema.columns WHERE table_schema = '">>,
+         <<Db/binary>>,<<"' AND table_name = '">>, <<Tab/binary>>,
+      <<"' AND column_name NOT IN ('ts', 'ts_partition') AND column_details['path'] = []">>],
+   {PgClient, NewState} = get_pg_client(State),
+   receive
+      {faxe_epgsql_stmt, connected} ->
+         Res = faxe_epgsql_stmt:execute(PgClient, Stmt),
+%%         lager:info("Result from column statement: ~p",[Res]),
+         case Res of
+            {ok,[{column,<<"column_name">>,varchar,_,_,_,_,_,_}], Columns} ->
+               ColumnNames = lists:map(fun({ColName}) -> ColName end, Columns),
+               DbFields = [quote_identifier(DbF) || DbF <- ColumnNames],
+               gen_server:stop(PgClient),
+               {ok, NewState#state{faxe_fields = ColumnNames, db_fields = DbFields, pg_client = undefined}};
+            O ->
+               lager:warning("cannot get column names: ~p",[O]),
+               erlang:send_after(2000, self(), query_init),
+               {false, NewState}
+         end
+   after 4000 ->
+      lager:error("error getting column names from table"),
+      erlang:send_after(2000, self(), query_init),
+      {false, NewState}
+   end.
+
+get_pg_client(State = #state{pg_client = C}) when is_pid(C) ->
+   {C, State};
+get_pg_client(State = #state{pg_client = undefined,
+   host = Host, port = Port, user = User, pass = Pass, database = Db0}) ->
+   Db = binary:replace(Db0, <<"\"">>, <<>>, [global]),
+   {ok, PgClient} = faxe_epgsql_stmt:start_link(
+      #{host => Host, port => Port,
+         username => faxe_util:to_list(User),
+         password => faxe_util:to_list(Pass),
+         database => Db}
+   ),
+   {PgClient, State#state{pg_client = PgClient}}.
+
 
 
 check_table_identifier(<<"_", _/binary>>) -> false;
