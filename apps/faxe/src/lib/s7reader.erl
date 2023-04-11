@@ -85,6 +85,10 @@ add_read_stats(Ip, Stats) ->
   .
 
 get_stats(Ip) ->
+  NumClients = case ets:lookup(s7reader_clients, Ip) of
+              [] -> 0;
+              [{Ip, Clients}] -> length(Clients)
+            end,
   case ets:lookup(s7reader_stats, Ip) of
     [] ->
       #{<<"avg_time">> => 0, <<"avg_num_req">> => 0, <<"avg_num_conn">> => 0};
@@ -96,12 +100,13 @@ get_stats(Ip) ->
         end,
 
       {Times, Reqs, Conns} = lists:foldl(StatsFun, {[], [], []}, Stats),
-      #{<<"read_time">> =>
-        #{<<"avg">> => round(lists:sum(Times)/Length), <<"min">> => lists:min(Times), <<"max">> => lists:max(Times)},
-        <<"read_num_req">> =>
-        #{<<"avg">> => round(lists:sum(Reqs)/Length), <<"min">> => lists:min(Reqs), <<"max">> => lists:max(Reqs)},
-        <<"read_num_conn">> =>
-        #{<<"avg">> => round(lists:sum(Conns)/Length), <<"min">> => lists:min(Conns), <<"max">> => lists:max(Conns)}
+      #{<<"read_time_ms">> =>
+        #{<<"avg">> => round(lists:sum(Times)/Length),
+          <<"min">> => lists:min(Times),
+          <<"max">> => lists:max(Times)},
+        <<"read_num_req">> => #{<<"avg">> => round(lists:sum(Reqs)/Length)},
+        <<"read_num_conn">> => #{<<"avg">> => round(lists:sum(Conns)/Length)},
+        <<"num_client_nodes">> => NumClients
       }
   end.
 
