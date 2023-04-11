@@ -10,7 +10,7 @@
 -behavior(df_component).
 %% API
 -export([init/3, process/3, options/0, handle_info/2, do_send/5, shutdown/1, metrics/0,
-   check_options/0, quote_identifier/1, check_table_identifier/1, check_column_identifier/1]).
+   check_options/0, quote_identifier/1, check_table_identifier/1, check_column_identifier/1, is_idle/1]).
 
 -record(state, {
    host :: string(),
@@ -146,6 +146,10 @@ process(_In, DataItem, State = #state{query_from_lambda = true,
    do_process(DataItem, State#state{query = Query, query_point = Point});
 process(_In, DataItem, State) ->
    do_process(DataItem, State#state{query_point = get_query_point(DataItem)}).
+
+%% idle stop feature
+is_idle(State) ->
+   {false, State}.
 
 do_process(DataItem, State = #state{fn_id = _FNId}) ->
    _NewState = send(DataItem, State),

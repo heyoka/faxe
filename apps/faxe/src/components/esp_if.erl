@@ -1,7 +1,7 @@
 %% Date: 27.03.23 - 14:11
 %% Ⓒ 2023 heyoka
 %% @doc
-%% if then else node
+%% simple if then else node
 %% @end
 -module(esp_if).
 -author("Alexander Minichmair").
@@ -25,7 +25,7 @@
 options() -> [
    {test, lambda},
    {then, any},
-   {else, any, undefined},
+   {'else', any, undefined},
    {as, string}].
 
 check_options() ->
@@ -33,7 +33,7 @@ check_options() ->
 %%      {same_length, [lambdas, as]}
    ].
 
-init(NodeId, _Ins, #{test := IfLambda, as := As, then := True, else := False}) ->
+init(NodeId, _Ins, #{test := IfLambda, as := As, then := True, 'else' := False}) ->
    {ok, all, #state{if_lambda = IfLambda, node_id = NodeId, as = As, true_expression = True, false_expression = False}}.
 
 process(_In, #data_batch{points = Points} = Batch, State = #state{}) ->

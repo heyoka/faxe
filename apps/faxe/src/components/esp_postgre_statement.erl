@@ -40,7 +40,7 @@ options() ->
    [
       {host, string, {crate, host}},
       {port, integer, {crate, port}},
-      {ssl, boolean, {crate, tls, enable}},
+      {tls, boolean, {crate, tls, enable}},
       {user, string, {crate, user}},
       {pass, string, <<>>},
       {statement, string, undefined},
@@ -67,7 +67,7 @@ check_options() ->
 
 
 init(NodeId, _Inputs, #{host := Host0, port := Port, user := User, pass := Pass,
-   statement := Q0, statement_field := StmtField, retries := Retries, ssl := Ssl,
+   statement := Q0, statement_field := StmtField, retries := Retries, tls := Ssl,
    result_type := RType0, start_on_trigger := OnTrigger}) ->
 
    process_flag(trap_exit, true),

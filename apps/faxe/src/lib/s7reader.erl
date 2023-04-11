@@ -9,12 +9,14 @@
 
 -behaviour(gen_server).
 
--export([start_link/1, register/3]).
+-export([start_link/1, register/3, get_stats/1, add_read_stats/2]).
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2, terminate/2,
   code_change/3]).
 
 -define(SERVER, ?MODULE).
 -define(EMPTY_RETRY_INTERVAL, 300).
+
+-define(STAT_LIST_LENGTH, 50).
 
 -include("faxe.hrl").
 
@@ -71,7 +73,37 @@ start_reader(Opts = #{ip := _Ip}) ->
   {ok, ServerPid} = s7reader_sup:start_reader(Opts),
   ServerPid.
 
+add_read_stats(Ip, Stats) ->
+  NewStats =
+  case ets:lookup(s7reader_stats, Ip) of
+    [] -> [Stats];
+    [{Ip, Stats0}] ->
+      Stats1 = [Stats|Stats0],
+      lists:sublist(Stats1, ?STAT_LIST_LENGTH)
+  end,
+  ets:insert(s7reader_stats, {Ip, NewStats})
+  .
 
+get_stats(Ip) ->
+  case ets:lookup(s7reader_stats, Ip) of
+    [] ->
+      #{<<"avg_time">> => 0, <<"avg_num_req">> => 0, <<"avg_num_conn">> => 0};
+    [{Ip, Stats}] when is_list(Stats) ->
+      Length = length(Stats),
+      StatsFun =
+        fun(#{time := T, num_req := NumReq, num_conn := NumConn}, {Ts, Rs, Cs})
+          -> {[T|Ts], [NumReq|Rs], [NumConn|Cs]}
+        end,
+
+      {Times, Reqs, Conns} = lists:foldl(StatsFun, {[], [], []}, Stats),
+      #{<<"read_time">> =>
+        #{<<"avg">> => round(lists:sum(Times)/Length), <<"min">> => lists:min(Times), <<"max">> => lists:max(Times)},
+        <<"read_num_req">> =>
+        #{<<"avg">> => round(lists:sum(Reqs)/Length), <<"min">> => lists:min(Reqs), <<"max">> => lists:max(Reqs)},
+        <<"read_num_conn">> =>
+        #{<<"avg">> => round(lists:sum(Conns)/Length), <<"min">> => lists:min(Conns), <<"max">> => lists:max(Conns)}
+      }
+  end.
 
 start_link(Opts) ->
   gen_server:start_link(?MODULE, Opts, []).
@@ -359,7 +391,7 @@ read(Requests, Opts, Ip) ->
     false -> lager:warning("~p no connection when trying to read vars", [?MODULE]), {error, no_connection}
   end.
 
-do_read(Requests, Opts, RunWith) ->
+do_read(Requests, Opts=#{ip := Ip}, RunWith) ->
   ElFun =
     fun
       ({Vars, Aliases}, {true, Results}) ->
@@ -373,10 +405,15 @@ do_read(Requests, Opts, RunWith) ->
       ({_Vars, _Aliases}, {false, _} = R) ->
         R
     end,
-  ReadResult = plists:fold(ElFun, {true, []}, Requests, {processes, RunWith}),
-%%  {Time, ReadResult} = timer:tc(plists, fold, [ElFun, {true, []}, Requests, {processes, RunWith}]),
+%%  ReadResult = plists:fold(ElFun, {true, []}, Requests, {processes, RunWith}),
+  {Time, ReadResult} = timer:tc(plists, fold, [ElFun, {true, []}, Requests, {processes, RunWith}]),
+  TimeMillis = erlang:round(Time/1000),
+  NumReqs = length(Requests),
+  add_read_stats(Ip, #{time => TimeMillis, num_req => NumReqs, num_conn => RunWith}),
 %%  lager:warning("Time to read ~p requests: ~p millis with ~p processes/connections",
 %%    [length(Requests), erlang:round(Time/1000), RunWith]),
+  %% do the stats
+
   ReadResult.
 
 emit_results([FirstResult|RequestResults], Ts) ->
@@ -466,7 +503,7 @@ decode(d_int, Data) ->
 decode(word, Data) ->
   [Res || <<Res:16/unsigned>> <= Data];
 decode(d_word, Data) ->
-  [Res || <<Res:32/float-unsigned>> <= Data];
+  [Res || <<Res:32/unsigned>> <= Data];
 decode(float, Data) ->
   [Res || <<Res:32/float-signed>> <= Data];
 decode(_, Data) -> Data.

@@ -1,16 +1,31 @@
+%|json_emitter()
+%.json(
+%      '{"address": "cond_vac", "value": 99}',
+%      '{"address": "cond_scale", "value": 94}',
+%      '{"address": "cond_robot", "value": 95}'
+%      )
+%.as('data')
+%
+%|if(lambda: "data.address" != 'cond_vac')
+%.then('address is not cond_vac')
+%.else(lambda: str_concat('address is cond_vac and value is ', string("data.value")))
+%.as('data.desc')
+%
+%|debug()
+
+
+
 |json_emitter()
 .json(
-      '{"address": "cond_vac", "value": 99}',
+      '{"address": "", "value": 99}',
       '{"address": "cond_scale", "value": 94}',
       '{"address": "cond_robot", "value": 95}'
       )
 .as('data')
 
-|debug('info')
-
-|if(lambda: "data.address" != 'cond_vac')
-.then('address is not cond_vac')
-.else(lambda: str_concat('address is cond_vac and value is ', string("data.value")))
-.as('data.desc')
+|if(lambda: "data.address" == '')
+.then('address is empty')
+%.else(lambda: str_concat(['address is ', "data.address", ' and value is ', string("data.value")]))
+.as('data.note')
 
 |debug()
