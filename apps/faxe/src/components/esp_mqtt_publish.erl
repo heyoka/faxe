@@ -65,7 +65,11 @@ options() -> [
 check_options() ->
    [
       {one_of_params, [topic, topic_lambda, topic_field]},
-      {func, topic, fun(T) -> faxe_util:check_publisher_mqtt_topic(T) end, <<": ">>}
+      {func, topic,
+         fun
+            (undefined) -> true;
+            (T) -> faxe_util:check_publisher_mqtt_topic(T)
+         end, <<": ">>}
    ].
 
 metrics() ->
