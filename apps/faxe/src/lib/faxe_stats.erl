@@ -76,9 +76,8 @@ handle_call(get, _From, State=#state{stats = Stats}) ->
       fun({Key1, Conns1}) ->
          Ip = faxe_util:to_bin(Key1),
          S7Clients = s7pool_manager:get_clients(Key1),
-         #{<<"peer">> => Ip, <<"num_connections">> => length(Conns1),
-            <<"clients">> => length(S7Clients),
-            <<"reader_stats">> => s7reader:get_stats(Ip)}
+         #{<<"reader_stats">> => s7reader:get_stats(Ip), <<"peer">> => Ip,
+            <<"num_connections">> => length(Conns1), <<"clients">> => length(S7Clients)}
       end,
       ets:tab2list(s7_pools)),
    {reply, Stats#{

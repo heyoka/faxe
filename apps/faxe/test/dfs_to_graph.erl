@@ -50,7 +50,9 @@ bridge_test() ->
     {<<"mqtt_subscribe1">>,1,<<"debug2">>,1,[]}],
     nodes =>
     [{<<"amqp_publish5">>,esp_amqp_publish,
-      #{'_name' => <<"amqp_publish5">>,
+      #{'_idle_time' => <<"5m">>,
+        '_name' => <<"amqp_publish5">>,
+        '_stop_idle' => false,
         exchange => <<"x_root_fanout">>,
         host => <<"15.45.48.1">>,
         pass => <<"dfwefwef8ePI78we">>,persistent => false,
@@ -61,7 +63,9 @@ bridge_test() ->
         user => <<"rabbitmq-cluster-user">>,
         vhost => <<"/">>}},
       {<<"amqp_publish4">>,esp_amqp_publish,
-        #{'_name' => <<"amqp_publish4">>,
+        #{'_idle_time' => <<"5m">>,
+          '_name' => <<"amqp_publish4">>,
+          '_stop_idle' => false,
           exchange => <<"x_root_fanout">>,
           host => <<"some.other_amqp_host">>,
           pass => <<"adfafdwewef3">>,persistent => false,
@@ -72,7 +76,9 @@ bridge_test() ->
           user => <<"rabbitmq-cluster-user">>,
           vhost => <<"/">>}},
       {<<"amqp_publish3">>,esp_amqp_publish,
-        #{'_name' => <<"amqp_publish3">>,
+        #{'_idle_time' => <<"5m">>,
+          '_name' => <<"amqp_publish3">>,
+          '_stop_idle' => false,
           exchange => <<"x_root_fanout">>,
           host => <<"some.amqp_host">>,
           pass => <<"asdf323232">>,persistent => false,
@@ -83,10 +89,13 @@ bridge_test() ->
           user => <<"rabbitmq-cluster-user">>,
           vhost => <<"/">>}},
       {<<"debug2">>,esp_debug,
-        #{'_name' => <<"debug2">>,level => <<"notice">>,
+        #{'_idle_time' => <<"5m">>,'_name' => <<"debug2">>,
+          '_stop_idle' => false,level => <<"notice">>,
           message => <<>>,where => undefined}},
       {<<"mqtt_subscribe1">>,esp_mqtt_subscribe,
-        #{'_name' => <<"mqtt_subscribe1">>,as => undefined,
+        #{'_idle_time' => <<"5m">>,
+          '_name' => <<"mqtt_subscribe1">>,
+          '_stop_idle' => false,as => undefined,
           client_id => undefined,dt_field => <<"ts">>,
           dt_format => <<"millisecond">>,
           host => <<"10.102.1.102">>,include_topic => true,
@@ -94,11 +103,7 @@ bridge_test() ->
           ssl => false,
           topic => <<"some/crazy/topic/this/is">>,
           topic_as => <<"topic">>,topics => undefined,
-          user => undefined}}]}
-
-
-
-  ,
+          user => undefined}}]},
   ?assertEqual(Expected, compile_helper("mqtt_amqp_bridge_test.dfs")).
 
 
@@ -110,7 +115,9 @@ bridge_expr_test() ->
     {<<"mqtt_subscribe1">>,1,<<"debug2">>,1,[]}],
     nodes =>
     [{<<"amqp_publish5">>,esp_amqp_publish,
-      #{'_name' => <<"amqp_publish5">>,
+      #{'_idle_time' => <<"5m">>,
+        '_name' => <<"amqp_publish5">>,
+        '_stop_idle' => false,
         exchange => <<"x_root_fanout">>,
         host => <<"15.45.48.1">>,
         pass => <<"dfwefwef8ePI78we">>,persistent => false,
@@ -121,7 +128,9 @@ bridge_expr_test() ->
         user => <<"rabbitmq-cluster-user">>,
         vhost => <<"/">>}},
       {<<"amqp_publish4">>,esp_amqp_publish,
-        #{'_name' => <<"amqp_publish4">>,
+        #{'_idle_time' => <<"5m">>,
+          '_name' => <<"amqp_publish4">>,
+          '_stop_idle' => false,
           exchange => <<"x_root_fanout">>,
           host => <<"some.other_amqp_host">>,
           pass => <<"adfafdwewef3">>,persistent => false,
@@ -132,7 +141,9 @@ bridge_expr_test() ->
           user => <<"rabbitmq-cluster-user">>,
           vhost => <<"/">>}},
       {<<"amqp_publish3">>,esp_amqp_publish,
-        #{'_name' => <<"amqp_publish3">>,
+        #{'_idle_time' => <<"5m">>,
+          '_name' => <<"amqp_publish3">>,
+          '_stop_idle' => false,
           exchange => <<"x_root_fanout">>,
           host => <<"some.amqp_host">>,
           pass => <<"asdf323232">>,persistent => false,
@@ -143,10 +154,13 @@ bridge_expr_test() ->
           user => <<"rabbitmq-cluster-user">>,
           vhost => <<"/">>}},
       {<<"debug2">>,esp_debug,
-        #{'_name' => <<"debug2">>,level => <<"notice">>,
+        #{'_idle_time' => <<"5m">>,'_name' => <<"debug2">>,
+          '_stop_idle' => false,level => <<"notice">>,
           message => <<>>,where => undefined}},
       {<<"mqtt_subscribe1">>,esp_mqtt_subscribe,
-        #{'_name' => <<"mqtt_subscribe1">>,as => undefined,
+        #{'_idle_time' => <<"5m">>,
+          '_name' => <<"mqtt_subscribe1">>,
+          '_stop_idle' => false,as => undefined,
           client_id => undefined,dt_field => <<"ts">>,
           dt_format => <<"millisecond">>,
           host => <<"10.102.1.102">>,include_topic => true,
@@ -154,9 +168,6 @@ bridge_expr_test() ->
           ssl => false,
           topic => <<"some/crazy/topic/this/is">>,
           topic_as => <<"topic">>,topics => undefined,
-          user => undefined}}]}
-
-
-  ,
+          user => undefined}}]},
   ?assertEqual(Expected, compile_helper("script_expr_test.dfs")).
 
