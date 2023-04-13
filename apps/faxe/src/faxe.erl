@@ -95,6 +95,7 @@ get_task(TaskId) ->
    case faxe_db:get_task(TaskId) of
       {error, not_found} -> {error, not_found};
       #task{name = Id} = T ->
+         lager:info("get task from db pid ~p", [T#task.pid]),
          Running = supervisor:which_children(graph_sup),
          case lists:keyfind(Id, 1, Running) of
             {Id, Child, _, _} when is_pid(Child) -> T#task{is_running = is_process_alive(Child)};
@@ -574,7 +575,8 @@ stop_task(_T=#task{pid = Graph}) when is_pid(Graph) ->
    case is_process_alive(Graph) of
       true ->
          df_graph:stop(Graph);
-      false -> {error, not_running}
+      false ->
+         {error, not_running}
    end;
 
 stop_task(TaskId) ->
@@ -696,9 +698,20 @@ reset_templates() ->
    {atomic, ok} = faxe_db:reset_tasks(),
    ok.
 
+%% ask the supervisor, if a task (df_graph process is alive)
+is_task_alive_sup(#task{name = Id}) ->
+   lager:notice("is_task_alive_sup ~p",[Id]),
+   Running = supervisor:which_children(graph_sup),
+   case lists:keyfind(Id, 1, Running) of
+      {Id, Child, _, _} when is_pid(Child) -> is_process_alive(Child);
+      _ -> false
+   end.
 
-is_task_alive(#task{pid = Graph}) when is_pid(Graph) ->
-   is_process_alive(Graph) =:= true;
+is_task_alive(T = #task{pid = Graph}) ->
+   case catch is_process_alive(Graph) of
+      true -> true;
+      _ -> is_task_alive_sup(T)
+   end;
 is_task_alive(_) -> false.
 
 -spec ping_task(term()) -> {ok, NewTimeout::non_neg_integer()} | {error, term()}.
@@ -713,8 +726,8 @@ get_stats(TaskId) ->
    T = faxe_db:get_task(TaskId),
    case T of
       {error, not_found} -> {error, not_found};
-      #task{pid = Graph} when is_pid(Graph) ->
-         case is_process_alive(Graph) of
+      #task{pid = Graph} = Task ->
+         case is_task_alive(Task) of
             true -> df_graph:get_stats(Graph);
             false -> {error, task_not_running}
          end;
@@ -722,14 +735,14 @@ get_stats(TaskId) ->
    end.
 
 -spec start_trace(non_neg_integer()|binary(), non_neg_integer()|undefined) -> {ok, pid()} | {error, not_found} | {error_task_not_running}.
-start_trace(TaskId, DrationMs) ->
+start_trace(TaskId, DurationMs) ->
    T = faxe_db:get_task(TaskId),
    case T of
       {error, not_found} -> {error, not_found};
-      #task{pid = Graph} when is_pid(Graph) ->
-         case is_process_alive(Graph) of
+      #task{pid = Graph} = Task ->
+         case is_task_alive(Task) of
             true ->
-               df_graph:start_trace(Graph, trace_duration(DrationMs)),
+               df_graph:start_trace(Graph, trace_duration(DurationMs)),
                {ok, Graph};
             false -> {error, task_not_running}
          end;
@@ -746,8 +759,8 @@ stop_trace(TaskId) ->
    T = faxe_db:get_task(TaskId),
    case T of
       {error, not_found} -> {error, not_found};
-      #task{pid = Graph} when is_pid(Graph) ->
-         case is_process_alive(Graph) of
+      #task{pid = Graph} = Task ->
+         case is_task_alive(Task) of
             true -> df_graph:stop_trace(Graph), {ok, Graph};
             false -> {error, task_not_running}
          end;
@@ -760,8 +773,8 @@ start_metrics_trace(TaskId, DurationMs) ->
    T = faxe_db:get_task(TaskId),
    case T of
       {error, not_found} -> {error, not_found};
-      #task{pid = Graph} when is_pid(Graph) ->
-         case is_process_alive(Graph) of
+      #task{pid = Graph} = Task ->
+         case is_task_alive(Task) of
             true ->
                df_graph:start_metrics_trace(Graph, trace_duration(DurationMs)),
                {ok, Graph};
@@ -775,8 +788,8 @@ stop_metrics_trace(TaskId) ->
    T = faxe_db:get_task(TaskId),
    case T of
       {error, not_found} -> {error, not_found};
-      #task{pid = Graph} when is_pid(Graph) ->
-         case is_process_alive(Graph) of
+      #task{pid = Graph} = Task ->
+         case is_task_alive(Task) of
             true -> df_graph:stop_metrics_trace(Graph), {ok, Graph};
             false -> {error, task_not_running}
          end;

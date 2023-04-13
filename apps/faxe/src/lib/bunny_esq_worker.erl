@@ -221,9 +221,9 @@ terminate(Reason, State=#state{channel = Channel, connection = Conn}) ->
    lager:notice("~p ~p terminating with reason: ~p",[?MODULE, self(), Reason]).
 
 close(Channel, Conn, #state{queue = _Q, last_confirmed_dtag = _LastTag, pending_acks = _Pending, deq_timer_ref = T}) ->
-   unlink(Conn),
-   unlink(Channel),
-   amqp_connection:close(Conn),
+   catch unlink(Conn),
+   catch unlink(Channel),
+   catch amqp_connection:close(Conn),
    catch (erlang:cancel_timer(T)).
 %%   amqp_channel:unregister_confirm_handler(Channel),
 %%   amqp_channel:unregister_return_handler(Channel),

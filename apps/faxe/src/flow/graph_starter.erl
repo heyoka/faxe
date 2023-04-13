@@ -103,7 +103,7 @@ do_start(T = #task{name = Name, definition = GraphDef},
           lager:error("graph_start_error ~p: ~p", [Name, E]),
           {error, {graph_start_error, E}}
       end;
-    {error, {already_started, _Pid}} ->
-      lager:notice("task already started: ~p", [Name]),
+    {error, {already_started, Pid}} ->
+      lager:notice("task already started: ~p - ~p", [Name, Pid]),
       {error, already_started}
   end.
