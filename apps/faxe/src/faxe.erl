@@ -710,7 +710,10 @@ is_task_alive_sup(#task{name = Id}) ->
 is_task_alive(T = #task{pid = Graph}) ->
    case catch is_process_alive(Graph) of
       true -> true;
-      _ -> is_task_alive_sup(T)
+      _ ->
+         %% it is possible, that we do not have the current pid in the database,
+         %% so we ask the supervisor about the child
+         is_task_alive_sup(T)
    end;
 is_task_alive(_) -> false.
 
@@ -730,8 +733,7 @@ get_stats(TaskId) ->
          case is_task_alive(Task) of
             true -> df_graph:get_stats(Graph);
             false -> {error, task_not_running}
-         end;
-      #task{} -> {ok, []}
+         end
    end.
 
 -spec start_trace(non_neg_integer()|binary(), non_neg_integer()|undefined) -> {ok, pid()} | {error, not_found} | {error_task_not_running}.
@@ -745,8 +747,7 @@ start_trace(TaskId, DurationMs) ->
                df_graph:start_trace(Graph, trace_duration(DurationMs)),
                {ok, Graph};
             false -> {error, task_not_running}
-         end;
-      #task{} -> {error, task_not_running}
+         end
    end.
 
 trace_duration(undefined) ->
@@ -763,8 +764,7 @@ stop_trace(TaskId) ->
          case is_task_alive(Task) of
             true -> df_graph:stop_trace(Graph), {ok, Graph};
             false -> {error, task_not_running}
-         end;
-      #task{} -> {error, task_not_running}
+         end
    end.
 
 -spec start_metrics_trace(non_neg_integer()|binary(), undefined|non_neg_integer()) ->
@@ -779,8 +779,7 @@ start_metrics_trace(TaskId, DurationMs) ->
                df_graph:start_metrics_trace(Graph, trace_duration(DurationMs)),
                {ok, Graph};
             false -> {error, task_not_running}
-         end;
-      #task{} -> {error, task_not_running}
+         end
    end.
 
 -spec stop_metrics_trace(non_neg_integer()|binary()) -> {ok, pid()} | {error, not_found} | {error_task_not_running}.
@@ -792,8 +791,7 @@ stop_metrics_trace(TaskId) ->
          case is_task_alive(Task) of
             true -> df_graph:stop_metrics_trace(Graph), {ok, Graph};
             false -> {error, task_not_running}
-         end;
-      #task{} -> {error, task_not_running}
+         end
    end.
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
