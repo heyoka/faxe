@@ -239,6 +239,7 @@ handle_info(_What, State) ->
    {ok, State}.
 
 shutdown(#state{client = C, stmt = _Stmt} = S) ->
+   connection_registry:disconnected(),
    cancel_timer(S),
    catch epgsql:close(C).
 

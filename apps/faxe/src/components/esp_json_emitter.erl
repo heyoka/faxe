@@ -39,7 +39,7 @@ options() ->
          desc => <<"emit interval">>},
       #{name => jitter, type => duration, default => <<"0ms">>,
          desc => <<"max random value for added time jitter added to every">>},
-      #{name => align, type => bool, default => false,
+      #{name => align, type => bool, default => true,
          desc => <<"whether to align to full occurencies of the every parameter">>},
       #{name => json, type => string_list,
          desc => <<"list of json strings to use">>},

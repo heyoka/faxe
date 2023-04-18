@@ -185,6 +185,7 @@ handle_info(_Req, State) ->
    {ok, State}.
 
 shutdown(#state{client = C}) ->
+   connection_registry:disconnected(),
    gun:close(C).
 
 -spec start_client(#state{}) -> #state{}.
