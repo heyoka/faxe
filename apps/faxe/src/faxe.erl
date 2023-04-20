@@ -707,13 +707,13 @@ is_task_alive_sup(#task{name = Id}) ->
       _ -> false
    end.
 
-is_task_alive(T = #task{pid = Graph}) ->
+is_task_alive(_T = #task{pid = Graph}) ->
    case catch is_process_alive(Graph) of
       true -> true;
-      _ ->
+      _ -> false
          %% it is possible, that we do not have the current pid in the database,
          %% so we ask the supervisor about the child
-         is_task_alive_sup(T)
+%%         is_task_alive_sup(T)
    end;
 is_task_alive(_) -> false.
 
