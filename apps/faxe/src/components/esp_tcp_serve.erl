@@ -97,8 +97,8 @@ handle_info(E, S) ->
   lager:warning("unexpected: ~p~n", [E]),
   {ok, S}.
 
-shutdown(#state{ranch_sup_pid = Server}) ->
-  catch ranch:stop_listener(Server).
+shutdown(#state{fn_id = NodeId}) ->
+  catch ranch:stop_listener(NodeId).
 
 
 build(Item, #state{field = undefined, format = <<"json">>}) ->
