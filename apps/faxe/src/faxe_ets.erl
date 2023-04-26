@@ -65,6 +65,7 @@ init([]) ->
    ok = new_table(s7_pools, set),
    ok = new_table(s7_pools_index, set),
    ok = new_table(s7reader_clients, set),
+   ok = new_table(s7reader_stats, set),
 
    %% s7 pool native
    ok = new_table(s7_pools_native, set),

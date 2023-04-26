@@ -13,15 +13,18 @@
 -export([init/3, process/3, options/0, handle_info/2, check_options/0, shutdown/1]).
 
 -record(state, {
-   host        :: string(),
-   port        :: non_neg_integer(),
-   user        :: string(),
-   pass        :: string(),
-   client,
-   statement   :: iodata(),
-   retried = 0 :: non_neg_integer(),
-   retries = 2 :: non_neg_integer(),
-   db_opts     :: map(),
+   host              :: string(),
+   port              :: non_neg_integer(),
+   user              :: string(),
+   pass              :: string(),
+   client            :: pid(),
+   statement         :: iodata(),
+   statement_field   :: binary(),
+   retried = 0       :: non_neg_integer(),
+   retries = 2       :: non_neg_integer(),
+   db_opts           :: map(),
+   on_trigger        :: true|false,
+   response_def      :: faxe_epgsql_response(),
    fn_id
 }).
 
@@ -30,44 +33,78 @@
    timeout => 5000
 }).
 
+-define(RETRY_INTERVAL, 1000).
+
 
 options() ->
    [
       {host, string, {crate, host}},
       {port, integer, {crate, port}},
+      {tls, boolean, {crate, tls, enable}},
       {user, string, {crate, user}},
       {pass, string, <<>>},
-      {statement, string},
-      {retries, integer, 2}
+      {statement, string, undefined},
+      {statement_field, string, undefined},
+      {retries, integer, 2},
+      {start_on_trigger, boolean, false},
+      {result_type, string, <<"batch">>}
    ].
 
 check_options() ->
    [
-%%      {one_of, result_type, [<<"batch">>, <<"point">>]},
-%%      {func, statement, fun faxe_util:check_select_statement/1, <<"seems not to be a valid sql select statement">>}
+      {one_of, result_type, [<<"batch">>, <<"point">>]},
+      {one_of_params, [statement, statement_field]}
+      ,
+      {func, statement_field,
+         fun(Value, #{start_on_trigger := Trig}) ->
+            case {Value, Trig} of
+               {Bin, false} when is_binary(Bin) -> false;
+               _ -> true
+            end
+         end,
+         <<" can only be used, when 'start_on_trigger' is true">>}
    ].
 
 
 init(NodeId, _Inputs, #{host := Host0, port := Port, user := User, pass := Pass,
-   statement := Q0, retries := Retries}) ->
+   statement := Q0, statement_field := StmtField, retries := Retries, tls := Ssl,
+   result_type := RType0, start_on_trigger := OnTrigger}) ->
 
    process_flag(trap_exit, true),
    Host = binary_to_list(Host0),
-   Opts = #{host => Host, port => Port, username => User, password => Pass},
+   Opts = #{
+      host => Host, port => Port, username => faxe_util:to_list(User),
+      password => faxe_util:to_list(Pass), ssl => Ssl},
    DBOpts = maps:merge(?DB_OPTIONS, Opts),
+   RType = erlang:binary_to_existing_atom(RType0),
+   Response = faxe_epgsql_response:new(<<"ts">>, RType),
 
    State = #state{
-      host = Host, port = Port, user = User, pass = Pass,
-      statement = Q0, retries = max(1, Retries),
-      db_opts = DBOpts, fn_id = NodeId},
+      host = Host, port = Port, user = User, pass = Pass, db_opts = DBOpts, fn_id = NodeId,
+      statement = Q0, statement_field = StmtField, retries = max(1, Retries),
+      on_trigger = OnTrigger, response_def = Response},
+
    connection_registry:reg(NodeId, Host, Port, <<"pgsql">>),
    erlang:send_after(0, self(), reconnect),
    {ok, all, State}.
 
-process(_In, _P = #data_point{}, State = #state{}) ->
+process(_In, _Item, State = #state{on_trigger = false}) ->
+   lager:info("item received, but on_trigger is false"),
    {ok, State};
-process(_In, _B = #data_batch{}, State = #state{}) ->
-   {ok, State}.
+process(_In, Item, State = #state{on_trigger = true, statement_field = SField, statement = Stmt}) ->
+   NewStatement =
+   case SField of
+      undefined -> Stmt;
+      _ when is_binary(SField) ->
+         Point =
+         case is_record(Item, data_batch) of
+            true -> [P|_] = Item#data_batch.points, P;
+            false -> Item
+         end,
+         flowdata:field(Point, SField)
+   end,
+   send_execute(),
+   {ok, State#state{statement = NewStatement}}.
 
 handle_info(execute_statement, State = #state{retries = Tries, retried = Tries}) ->
    %% reached max retries
@@ -78,7 +115,7 @@ handle_info(execute_statement, State = #state{retried = Tried}) ->
    NewState = execute(State#state{retried = Tried + 1}),
    {ok, NewState};
 handle_info({'EXIT', _C, normal}, State = #state{}) ->
-   {ok, State#state{client = undefine}};
+   {ok, State#state{client = undefined}};
 handle_info({'EXIT', _C, Reason}, State = #state{}) ->
    lager:warning("EXIT epgsql with reason: ~p",[Reason]),
    NewState = connect(State),
@@ -94,16 +131,27 @@ shutdown(State = #state{client = _C}) ->
 
 connect(State = #state{db_opts = Opts}) ->
    connection_registry:connecting(),
-%%   lager:info("db opts: ~p",[Opts]),
    case epgsql:connect(Opts) of
       {ok, C} ->
          connection_registry:connected(),
-         erlang:send_after(0, self(), execute_statement),
-         State#state{client = C};
+         NewState = State#state{client = C},
+         maybe_send_execute(NewState),
+         NewState;
       {error, What} ->
          lager:warning("Error connecting to crate: ~p",[What]),
          State
    end.
+
+maybe_send_execute(#state{on_trigger = true}) ->
+   lager:info("WAITING FOR TRIGGER ...."),
+   ok;
+maybe_send_execute(#state{on_trigger = false}) ->
+   send_execute().
+
+send_execute() ->
+   send_execute(0).
+send_execute(Timeout) ->
+   erlang:send_after(Timeout, self(), execute_statement).
 
 execute(State = #state{}) ->
    case do_execute(State) of
@@ -112,34 +160,40 @@ execute(State = #state{}) ->
          dataflow:emit(flowdata:new()),
          %% close connection, we are done here
          close(State);
+      {true, Item} ->
+         %% done emit result data
+         dataflow:emit(Item),
+         %% close connection, we are done here
+         close(State);
       false ->
-         erlang:send_after(500, self(), execute_statement),
+         send_execute(?RETRY_INTERVAL),
          State
    end.
 
-do_execute(_State = #state{client = C, statement = Statement}) ->
-   case epgsql:squery(C, Statement) of
-      {ok, Count , Cols , Rows } ->
-         lager:notice("ok executing statement: Count ~p, Cols ~p, Rows ~p",[Count, Cols, Rows]),
-         true;
-      {ok, Cols , Rows } ->
-         lager:notice("ok executing statement: Cols ~p, Rows ~p",[Cols, Rows]),
-         true;
-      {ok, Count} ->
-         lager:notice("ok executing statement: Count: ~p",[Count]),
-         true;
+do_execute(_State = #state{client = C, statement = Statement, response_def = ResDef}) ->
+   ResponseDef = ResDef#faxe_epgsql_response{default_timestamp = faxe_time:now()},
+   Response = epgsql:squery(C, Statement),
+%%   lager:info("response from query ~p",[Response]),
+   case catch faxe_epgsql_response:handle(Response, ResponseDef) of
       ok ->
-         lager:notice("ok executing statement"),
          true;
+      {ok, Data, _NewResponseDef} ->
+%%         lager:notice("got response data: ~p",[Data]),
+         {true, Data};
       {error, {error,error,<<"XX000">>,internal_error, ErrorMessage, _Trace}} ->
          lager:error("Error executing Statement: ~p",[ErrorMessage]),
          false;
       {error, What} ->
          lager:error("Error executing Statement: ~p",[What]),
+         false;
+      What ->
+         lager:error("Error handling CRATE response: ~p",[What]),
          false
    end.
+
 
 close(State = #state{client = C}) ->
    catch epgsql:close(C),
    connection_registry:disconnected(),
-   State#state{client = undefined}.
+   %% set on_trigger to false, to avoid re-trigger by next incoming item
+   State#state{client = undefined, on_trigger = false}.

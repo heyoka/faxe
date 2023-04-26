@@ -62,8 +62,21 @@ options() -> [
 
 check_options() ->
    [
-      {one_of_params, [topic, topics]}
+      {one_of_params, [topic, topics]},
+      {func, topic,
+         fun
+            (undefined) -> true;
+            (T) -> faxe_util:check_mqtt_topic(T)
+         end,
+         <<": ">>},
+      {func, topics, fun check_topics/1, <<" at least one of the topics seems to be invalid">>}
    ].
+
+check_topics(undefined) -> true;
+check_topics(T) when is_binary(T) ->
+   faxe_util:check_mqtt_topic(T) == true;
+check_topics(Ts) when is_list(Ts) ->
+   lists:all(fun(E) -> check_topics(E) end, Ts).
 
 metrics() ->
    [

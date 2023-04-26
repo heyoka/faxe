@@ -29,7 +29,6 @@
   socket,
   as,
   extract = false,
-  timer_ref,
   reconnector,
   parser = undefined :: undefined|atom(), %% parser module
   changes = false,
@@ -99,6 +98,7 @@ process(_In, #data_batch{points = _Points} = _Batch, State = #state{}) ->
 process(_Inport, #data_point{} = _Point, State = #state{}) ->
   {ok, State}.
 
+
 handle_info({tcp, Socket, Data0}, State=#state{fn_id = FNId, packet = Packet}) ->
   node_metrics:metric(?METRIC_ITEMS_IN, 1, FNId),
   node_metrics:metric(?METRIC_BYTES_READ, faxe_util:bytes(Data0), FNId),
@@ -128,8 +128,7 @@ handle_info(do_reconnect, State=#state{ip = Ip, port = Port, packet = Packet, re
 handle_info(_E, S) ->
   {ok, S}.
 
-shutdown(#state{socket = Sock, timer_ref = Timer}) ->
-  catch (erlang:cancel_timer(Timer)),
+shutdown(#state{socket = Sock}) ->
   catch (gen_tcp:close(Sock)).
 
 try_reconnect(State=#state{reconnector = Reconnector}) ->

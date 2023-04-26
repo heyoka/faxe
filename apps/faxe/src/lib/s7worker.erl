@@ -90,7 +90,8 @@ handle_info({'DOWN', _MonitorRef, _Type, Client, _Info}, State=#state{client = C
   Owner ! {s7_disconnected, self()},
   try_reconnect(State#state{client = undefined});
 %% old DOWN message from already restarted client process
-handle_info({'DOWN', _MonitorRef, _Type, _Object, _Info}, State) ->
+handle_info({'DOWN', _MonitorRef, _Type, Object, Info}, State) ->
+  lager:notice("~p got DOWN message from unknown object ~p (~p)",[?MODULE, Object, Info]),
   {noreply, State};
 handle_info(connect,
     State=#state{ip = Ip, port = Port, rack = Rack, slot = Slot}) ->

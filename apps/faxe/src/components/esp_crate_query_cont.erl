@@ -177,8 +177,8 @@ init(NodeId, _Inputs, Opts = #{
 
    process_flag(trap_exit, true),
    Host = binary_to_list(Host0),
-   DBOpts0 = #{host => Host, port => Port, username => binary_to_list(User), ssl => Ssl, %ssl_opts => [],
-      password => binary_to_list(Pass), database => DB},
+   DBOpts0 = #{host => Host, port => Port, username => faxe_util:to_list(User),
+      ssl => Ssl, password => faxe_util:to_list(Pass), database => DB},
    DBOpts = maps:merge(?DB_OPTIONS, DBOpts0),
 
    ResTimeField = case ResTimeField0 of undefined -> FilterTime; _ -> ResTimeField0 end,
@@ -253,12 +253,13 @@ handle_info(_What, State) ->
    {ok, State}.
 
 shutdown(#state{client = C, stmt = _Stmt} = S) ->
+   connection_registry:disconnected(),
    cancel_timer(S),
    catch epgsql:close(C).
 
 connect(State = #state{db_opts = Opts, query = Q}) ->
    connection_registry:connecting(),
-%%   lager:info("db opts: ~p",[Opts]),
+%%   lager:info("~p db opts: ~p",[?MODULE, Opts]),
    case epgsql:connect(Opts) of
       {ok, C} ->
          connection_registry:connected(),
