@@ -86,6 +86,7 @@ handle_info({demand, Num}, State = #state{pool = Pool, waiting_cons = Waiting, m
   case Num of
     0 ->
       remove_all(State),
+      lager:notice("stop ~p [~p] because demand is 0",[?MODULE, State#state.ip]),
       {stop, normal, State};
     _ ->
       NState =
@@ -113,8 +114,10 @@ handle_info({'EXIT', Pid, Why}, State = #state{pool = Pool, waiting_cons = Waiti
   update_pool(NewState),
   {noreply, NewState}.
 
-terminate(_Reason, _State = #state{pool = P, waiting_cons = Waiting}) ->
-  [stop_worker(Con) || Con <- P ++ Waiting].
+terminate(_Reason, _State = #state{pool = P, waiting_cons = Waiting, ip = Ip}) ->
+  [stop_worker(Con) || Con <- P ++ Waiting],
+  %% ???
+  ets:insert(s7_pools, {Ip, []}).
 
 code_change(_OldVsn, State = #state{}, _Extra) ->
   {ok, State}.
