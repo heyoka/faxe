@@ -24,7 +24,7 @@
 -define(TOTAL_NAME, <<"_total">>).
 
 %% API
--export([init/3, process/3, options/0, check_options/0, wants/0, emits/0]).
+-export([init/3, process/3, options/0, check_options/0, wants/0, emits/0, init/4, format_state/1]).
 
 -record(state, {
    node_id,
@@ -37,7 +37,6 @@
    entered_keep = [],
    left_keep = [],
    keep = [],
-   unit,
    state_change,
    prefix
 }).
@@ -61,6 +60,9 @@ check_options() ->
       {oneplus_of_params, [enter, leave]}
    ].
 
+format_state(#state{state_change = StateTracker}) ->
+   #{state_change => StateTracker}.
+
 wants() -> point.
 emits() -> point.
 
@@ -82,7 +84,11 @@ init(_NodeId, _Ins, #{lambda := Lambda, enter_as := EnteredAs, leave_as := LeftA
       prefix = Prefix
    },
    NewState = eval_keep(State),
-   {ok, all, NewState}.
+   {ok, true, NewState}.
+
+init(NodeId, Ins, Opts, #node_state{state = #{state_change := StateTracker}}) ->
+   {ok, Mode, InitState} = init(NodeId, Ins, Opts),
+   {ok, Mode, InitState#state{state_change = StateTracker}}.
 
 
 eval_keep(State = #state{entered_keep = EKeep, left_keep = LKeep, keep = KeepAll}) ->

@@ -23,14 +23,13 @@
 
 -include("faxe.hrl").
 %% API
--export([init/3, process/3, options/0, handle_info/2, inports/0, wants/0, emits/0]).
+-export([init/3, process/3, options/0, handle_info/2, inports/0, wants/0, emits/0, init/4]).
 
 
 -record(state, {
    node_id,
    row_length :: non_neg_integer(),
    row_list :: list(),
-   lookup = [] :: list(), %% buffer-keys
    buffer = [],
    prefix,
    full,
@@ -39,7 +38,6 @@
    m_timeout,
    timers = []
 }).
-
 
 wants() -> point.
 emits() -> point.
@@ -74,11 +72,46 @@ init(NodeId, Ins,
       undefined -> lists:zip(lists:seq(1, RowLength), Prefix);
       _ -> nil
    end,
-   lager:notice("Opts: ~p",[Opts]),
-   {ok, all,
+%%   lager:notice("Opts: ~p",[Opts]),
+   {ok, true,
       #state{node_id = NodeId, prefix = Prefix1, field_merge = FMerge, row_length = RowLength,
       tolerance = faxe_time:duration_to_ms(Tol), row_list = RowList,
       m_timeout = faxe_time:duration_to_ms(MTimeOut), full = Full}}.
+
+
+init(NodeId, Ins, Opts, #node_state{state = PState, ts = PTs}) ->
+   {ok, Mode, InitState} = init(NodeId, Ins, Opts),
+   NewTimeouts = init_timeouts(PState, PTs),
+   lager:notice("all new timeouts: ~p",[NewTimeouts]),
+   {ok, Mode, InitState#state{timers = NewTimeouts}}.
+
+init_timeouts(#state{buffer = undefined}, _StateTime) ->
+   [];
+init_timeouts(#state{buffer = Buffer, timers = TimerList, m_timeout = MTimeout}, StateTime) ->
+   lager:warning("Buffer is ~p ~n~n TimerList is : ~p", [Buffer, TimerList]),
+   BufferTsList = proplists:get_keys(Buffer),
+   lists:foldl(
+      fun(BufferEntryTs, AllTimersSoFar) ->
+         %% get all rows for this timestamp
+         lager:notice("BufferEntryTs ~p",[BufferEntryTs]),
+         RowList = proplists:get_value(BufferEntryTs, Buffer),
+         lists:foldl(
+            fun({RowId, _Entries}, TimersSoFar) ->
+               TimeOut =
+                  case proplists:get_value({BufferEntryTs, RowId}, TimerList) of
+                     undefined ->
+                        MTimeout;
+                     {_TRef, TimerStartTs} ->
+                        max(MTimeout - abs(StateTime - TimerStartTs), 0)
+                  end,
+               lager:warning("new timeout for ~p: ~p", [{BufferEntryTs, RowId}, TimeOut]),
+               new_timeout(TimeOut, {BufferEntryTs, RowId}, TimersSoFar)
+            end,
+            AllTimersSoFar,
+            RowList
+         )
+      end, [], BufferTsList).
+
 
 process(Inport, #data_point{ts = Ts} = Point, State = #state{buffer = [], m_timeout = M, timers = TList}) ->
 %%   lager:warning("+++ buffer empty ~p",[Ts]),
@@ -149,7 +182,7 @@ do_process(Inport, #data_point{ts = Ts} = Point, State = #state{buffer = Buffer,
                      end
                end,
             FRes = lists:foldl(NotFindFun, {false, All, TimerList}, All),
-%%         lager:info("FRES ~p ",[FRes]),
+         lager:info("FRES ~p ",[FRes]),
             Res =
                case FRes of
                   %% no row was found, to add the entry to, so start a new row for this Key
@@ -158,23 +191,24 @@ do_process(Inport, #data_point{ts = Ts} = Point, State = #state{buffer = Buffer,
 %%                     lager:info("New RowId ~p for ~p",[NewId, LookupTs]),
                      NewAll = All ++ [{NewId, [{Inport, Point}]}],
                      %% start a timeout for the newly added row
-                     NewTimerListRes = new_timeout(200, {LookupTs, NewId}, RTimerList),
+                     NewTimerListRes = new_timeout(MTimeout, {LookupTs, NewId}, RTimerList),
                      {proplists:delete(LookupTs, Buffer) ++ [{LookupTs, NewAll}], NewTimerListRes};
                   %% we added the new entry to an existing row
                   {true, [], RTimerList} -> {proplists:delete(LookupTs, Buffer), RTimerList};
                   {true, NewAll, RTimerList} -> {proplists:delete(LookupTs, Buffer) ++ [{LookupTs, NewAll}], RTimerList}
                end,
-%%         lager:notice("BAG: ~n~p~nResult: ~n~p",[Buffer, Res]),
+         lager:notice("BAG: ~n~p~nResult: ~n~p",[Buffer, Res]),
             Res
 %%         lager:info("incoming point (~p) added to: ~p",[Point, {LookupTs, Inport}]),
 %%         {LookupTs, [{Inport, Point}| orddict:fetch(LookupTs, Buffer)]}
       end,
-%%   lager:warning("NewBuffer: ~p ~n NewTsList: ~p",[NewBuffer, NewTimerList]),
+   lager:warning("NewBuffer: ~p ~n NewTsList: ~p",[NewBuffer, NewTimerList]),
    {ok, State#state{buffer = NewBuffer, timers = NewTimerList}}.
 
 
 %% missing timeout
 handle_info({tick, TsKey}, State = #state{buffer = [], timers = TList}) ->
+   lager:info("tick empty buffer",[]),
    {ok, State#state{timers = proplists:delete(TsKey, TList), buffer = undefined}};
 handle_info({tick, {Ts, Id} = TsKey}, State = #state{buffer = Buffer, timers = TList}) ->
 %%   lager:info("tick ~p",[TsKey]),
@@ -252,18 +286,34 @@ nearest_ts(Ts, TsList) ->
          end
       end, 0, TsList).
 
-new_timeout(T, {_Ts, _Id} = TsKey, TimerList) ->
+
+new_timeout(T, {_Ts, _RowId} = TsKey, TimerList) ->
    TRef = erlang:send_after(T, self(), {tick, TsKey}),
-   [{TsKey, TRef}|TimerList].
+   [{TsKey, {TRef, faxe_time:now()}}|TimerList].
 
 clear_timeout({_Ts, _RId} = TsKey, TimerList) ->
+   lager:info("clear_timeout for ~p, ~p",[TsKey, TimerList]),
    case proplists:get_value(TsKey, TimerList) of
-      Ref when is_reference(Ref) ->
+      {Ref, _TimerStarted} when is_reference(Ref) ->
          catch(erlang:cancel_timer(Ref)),
          proplists:delete(TsKey, TimerList);
       undefined -> TimerList
    end
-   .
+.
+
+
+%%new_timeout(T, {_Ts, _Id} = TsKey, TimerList) ->
+%%   TRef = erlang:send_after(T, self(), {tick, TsKey}),
+%%   [{TsKey, TRef}|TimerList].
+
+%%clear_timeout({_Ts, _RId} = TsKey, TimerList) ->
+%%   case proplists:get_value(TsKey, TimerList) of
+%%      Ref when is_reference(Ref) ->
+%%         catch(erlang:cancel_timer(Ref)),
+%%         proplists:delete(TsKey, TimerList);
+%%      undefined -> TimerList
+%%   end
+%%   .
 
 %% take a row of data from the Buffer structure
 -spec take(non_neg_integer(), non_neg_integer(), list()) -> undefined|{ResultRow::list(), NewBuffer::list()}.
@@ -288,7 +338,7 @@ fill(_) -> true.
 is_full_row(Row, #state{row_list = RowList, row_length = _RowLen}) ->
    case RowList -- proplists:get_keys(Row) of
       [] -> true;
-      Left  -> false
+      _  -> false
    end.
 
 merge(M1, M2) when is_map(M1), is_map(M2) -> mapz:deep_merge(merge_fun(), #{}, [M1, M2]);

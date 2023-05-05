@@ -19,7 +19,7 @@
 
 -include("faxe.hrl").
 %% API
--export([init/3, process/3, options/0, handle_info/2, check_options/0]).
+-export([init/3, process/3, options/0, handle_info/2, check_options/0, init/4, format_state/1]).
 
 
 -record(state, {
@@ -56,6 +56,14 @@ options() -> [
 
 check_options() -> [{same_length, [fields, field_values]}].
 
+format_state(#state{last_ts = LastTs, last_point = LastPoint}) ->
+   #{last_ts => LastTs, last_point => LastPoint}.
+
+init(NodeId, Ins, Opts, #node_state{state = #{last_ts := LastTs, last_point := LastPoint}}) ->
+   {ok, Mode, InitState} = init(NodeId, Ins, Opts),
+   NewState = InitState#state{last_point = LastPoint, last_ts = LastTs, is_quiet = false},
+   {ok, Mode, NewState}.
+
 init(NodeId, _Ins,
     #{timeout := Timeout0, fields := Fields, repeat_last := Repeat, no_forward := NoForward,
        trigger_on_value := Trigger, field_values := Vals, silent_time := QTime0,
@@ -70,7 +78,7 @@ init(NodeId, _Ins,
          repeat_with_new_ts = NewTs, node_id = NodeId, field_vals = Vals, silent_time = QTimeout,
          trigger_on_value = Trigger, repeat_interval = TsInterval},
 
-   {ok, all, maybe_trigger_restart_timer(State)}.
+   {ok, true, maybe_trigger_restart_timer(State)}.
 
 process(_In, Data=#data_point{ts = Ts}, State = #state{no_forward = true}) ->
    NewState = State#state{last_point = Data, last_ts = Ts},
@@ -91,7 +99,8 @@ handle_info(_R, State) ->
    {ok, State}.
 
 
-build_message(S=#state{repeat_last = true, repeat_interval = Interval, last_point = P=#data_point{ts = Ts}, last_ts = LastTs})
+build_message(
+    S=#state{repeat_last = true, repeat_interval = Interval, last_point = P=#data_point{ts = Ts}, last_ts = LastTs})
       when is_integer(Interval) ->
    NewTs =
    case LastTs of

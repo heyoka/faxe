@@ -19,7 +19,7 @@
 -include("faxe.hrl").
 
 %% API
--export([init/3, process/3, handle_info/2, options/0, wants/0, emits/0]).
+-export([init/3, process/3, handle_info/2, options/0, wants/0, emits/0, init/4]).
 
 -record(state, {
    window :: queue:queue(),
@@ -38,7 +38,10 @@ emits() -> batch.
 init(_NodeId, _Inputs, #{session_timeout := STimeout}) ->
    GapSize = faxe_time:duration_to_ms(STimeout),
    State = #state{window = queue:new(), inactivity_gap = GapSize},
-   {ok, all, State}.
+   {ok, true, State}.
+
+init(_NodeId, _Inputs, _Opts, #node_state{state = PState}) ->
+   {ok, true, PState}.
 
 process(_Inport, Point = #data_point{ts = Ts}, State = #state{window = Win, last_ts = undefined}) ->
    {ok, State#state{last_ts = Ts, window = queue:in(Point, Win)}};

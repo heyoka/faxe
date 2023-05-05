@@ -26,7 +26,7 @@
 
 -include("faxe.hrl").
 %% API
--export([init/3, process/3, options/0, handle_info/2]).
+-export([init/3, process/3, options/0, handle_info/2, format_state/1, init/4]).
 
 -record(state, {
    node_id,
@@ -44,11 +44,20 @@ options() -> [
    {timeout, duration, undefined}
 ].
 
-init(_NodeId, _Ins, #{fields := FieldList, reset_timeout := ResetTimeout, timeout := TOut}) ->
+
+format_state(#state{values = Values}) ->
+   #{values => Values}.
+
+init(NodeId, Ins, Opts, #node_state{state = #{values := StateValues}}) ->
+   {ok, false, State} = init(NodeId, Ins, Opts),
+   {ok, false, State#state{values = StateValues}}.
+
+init(NodeId, _Ins, #{fields := FieldList, reset_timeout := ResetTimeout, timeout := TOut}) ->
    ResetTime = timer_interval(ResetTimeout),
    TimeOut = timer_interval(TOut),
    Timer = start_timeout(TimeOut),
-   {ok, all, #state{fields = FieldList, reset_timeout = ResetTime, timeout = TimeOut, timer = Timer}}.
+   {ok, false,
+      #state{fields = FieldList, reset_timeout = ResetTime, timeout = TimeOut, timer = Timer, node_id = NodeId}}.
 
 process(_In, #data_batch{points = Points} = Batch,
     State = #state{fields = FieldNames, values = Vals, reset_timer = TRef, reset_timeout = Time}) ->
@@ -57,7 +66,9 @@ process(_In, #data_batch{points = Points} = Batch,
    NewState = State#state{values = LastValues, reset_timer = reset_timeout(Time)},
    case NewPoints of
       [] -> {ok, NewState};
-      Es when is_list(Es) -> {emit, Batch#data_batch{points = NewPoints}, NewState}
+      Es when is_list(Es) ->
+         persist(NewState),
+         {emit, Batch#data_batch{points = NewPoints}, NewState}
    end;
 process(_Inport, #data_point{} = Point,
     State = #state{fields = Fields, values = LastValues, reset_timer = TRef, reset_timeout = Time}) ->
@@ -66,7 +77,9 @@ process(_Inport, #data_point{} = Point,
 %%   lager:info("new last values: ~p" ,[NewValues]),
    NewState = State#state{values = NewValues, reset_timer = reset_timeout(Time)},
    case Filtered of
-      Point -> {emit, Point, NewState};
+      Point ->
+         persist(NewState),
+         {emit, Point, NewState};
       _ -> {ok, NewState}
    end
    .
@@ -143,6 +156,8 @@ cancel_timer(TimerRef) when is_reference(TimerRef) ->
 timer_interval(undefined) -> undefined;
 timer_interval(Duration) -> faxe_time:duration_to_ms(Duration).
 
+persist(S = #state{node_id = NodeId}) ->
+   dataflow:persist(NodeId, format_state(S)).
 
 -ifdef(TEST).
 process_point_monitor_last_test() ->

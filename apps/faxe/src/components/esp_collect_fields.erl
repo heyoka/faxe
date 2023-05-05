@@ -18,7 +18,7 @@
 %% API
 -export([init/3, process/3, options/0
    , check_options/0
-   , wants/0, emits/0]).
+   , wants/0, emits/0, init/4, format_state/1]).
 
 -record(state, {
    node_id,
@@ -33,22 +33,25 @@ options() -> [
 ].
 
 check_options() ->
-   [
-%%      {same_length, [keep, keep_as]}
-   ].
+   [].
 
 wants() -> point.
 emits() -> point.
 
+format_state(#state{current = Current}) ->
+   #{current => Current}.
+
 init(NodeId, _Ins, #{fields := Fields, default := Default}) ->
-   {ok, all,
+   {ok, true,
       #state{node_id = NodeId, fields = Fields, default = Default}}.
+init(NodeId, Ins, Opts, #node_state{state = #{current := CurrentItem}}) ->
+   {ok, true, State} = init(NodeId, Ins, Opts),
+   {ok, true, State#state{current = CurrentItem}}.
 
 process(_Port, #data_point{ts = Ts, dtag = DTag, tags = Tags} = Point,
     State = #state{current = Current, fields = Fields, default = Default}) ->
    CollectedVals = flowdata:fields(Point, Fields),
    All = lists:zip(Fields, CollectedVals),
-   lager:notice("all vals: ~p",[All]),
    UpdateFun =
    fun
       ({FName, undefined}, CPoint) ->

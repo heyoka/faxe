@@ -19,7 +19,7 @@
 
 -include("faxe.hrl").
 %% API
--export([init/3, process/3, options/0]).
+-export([init/3, process/3, options/0, format_state/1, init/4]).
 
 -record(state, {
    node_id :: {binary(), binary()},
@@ -33,8 +33,15 @@ options() -> [
    {default, any, 0}
 ].
 
+format_state(#state{last_timestamp = LTs}) ->
+   #{last_timestamp => LTs}.
+
+init(NodeId, Ins, Opts, #node_state{state = #{last_timestamp := LastTime}}) ->
+   {ok, true, State} = init(NodeId, Ins, Opts),
+   {ok, true, State#state{last_timestamp = LastTime}}.
+
 init(NodeId, _Ins, #{as := As, default := Default}) ->
-   {ok, all, #state{node_id = NodeId, as = As, default = Default}}.
+   {ok, true, #state{node_id = NodeId, as = As, default = Default}}.
 
 process(_In, #data_batch{points = Points} = B, State = #state{last_timestamp = LT, as = As, default = Def}) ->
    {NewPoints, LastTime} = process_points(Points, LT, As, Def),

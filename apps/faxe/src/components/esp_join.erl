@@ -23,14 +23,13 @@
 
 -include("faxe.hrl").
 %% API
--export([init/3, process/3, options/0, handle_info/2, inports/0, wants/0, emits/0]).
+-export([init/3, process/3, options/0, handle_info/2, inports/0, wants/0, emits/0, init/4]).
 
 
 -record(state, {
    node_id,
    row_length :: non_neg_integer(),
    row_list :: list(),
-   lookup = [] :: list(), %% buffer-keys
    buffer, %% orddict with timstamps as keys
    prefix,
    full,
@@ -62,6 +61,31 @@ options() -> [
    {full, boolean, true} %% replaces 'fill'
 ].
 
+init(NodeId, Ins, Opts, #node_state{state = PState, ts = PTs}) ->
+   {ok, Mode, InitState} = init(NodeId, Ins, Opts),
+   NewTimeouts = init_timeouts(PState, PTs),
+   {ok, Mode, InitState#state{timers = NewTimeouts}}.
+
+init_timeouts(#state{buffer = undefined}, _StateTime) ->
+   [];
+init_timeouts(#state{buffer = Buffer, timers = TimerList, m_timeout = MTimeout}, StateTime) ->
+   lager:warning("Buffer is ~p ~n~n TimerList is : ~p", [Buffer, TimerList]),
+   BufferTsList = orddict:fetch_keys(Buffer),
+   lists:foldl(
+      fun(BufferEntryTs, TimersSoFar) ->
+         lager:notice("BufferEntryTs ~p",[BufferEntryTs]),
+         TimeOut =
+         case proplists:get_value(BufferEntryTs, TimerList) of
+            undefined ->
+               MTimeout;
+            {_TRef, TimerStartTs} ->
+               max(MTimeout - abs(StateTime - TimerStartTs), 0)
+         end,
+         lager:warning("new timeout for ~p: ~p", [BufferEntryTs, TimeOut]),
+         new_timeout(TimeOut, BufferEntryTs, TimersSoFar)
+      end, [], BufferTsList).
+
+
 init(NodeId, Ins,
     #{
        prefix := Prefix, missing_timeout := MTimeOut, full := Full,
@@ -76,7 +100,7 @@ init(NodeId, Ins,
       _ -> nil
    end,
 
-   {ok, all,
+   {ok, true,
       #state{node_id = NodeId, prefix = Prefix1, field_merge = FMerge, row_length = RowLength,
       tolerance = faxe_time:duration_to_ms(Tol), row_list = RowList,
       m_timeout = faxe_time:duration_to_ms(MTimeOut), full = FullFill}}.
@@ -124,10 +148,12 @@ process(Inport, #data_point{ts = Ts} = Point, State = #state{buffer = Buffer, ti
          end
 
    end,
+   lager:notice("Buffer after new item ~p, ~p", [NewBuffer, NewTimerList]),
    {ok, State#state{buffer = NewBuffer, timers = NewTimerList}}.
 
 %% missing timeout
 handle_info({tick, Ts}, State = #state{buffer = [], timers = TList}) ->
+   lager:info("tick, when buffer is empty, timerlist is ~p",[TList]),
    {ok, State#state{timers = proplists:delete(Ts, TList), buffer = undefined}};
 handle_info({tick, Ts}, State = #state{buffer = Buffer, timers = TList}) ->
    NewBuffer =
@@ -207,11 +233,12 @@ nearest_ts(Ts, TsList) ->
 
 new_timeout(T, Ts, TimerList) ->
    TRef = erlang:send_after(T, self(), {tick, Ts}),
-   [{Ts, TRef}|TimerList].
+   [{Ts, {TRef, faxe_time:now()}}|TimerList].
 
 clear_timeout(Ts, TimerList) ->
+   lager:info("clear_timeout for ~p, ~p",[Ts, TimerList]),
    case proplists:get_value(Ts, TimerList) of
-      Ref when is_reference(Ref) ->
+      {Ref, _TimerStarted} when is_reference(Ref) ->
          catch(erlang:cancel_timer(Ref)),
          proplists:delete(Ts, TimerList);
       undefined -> TimerList

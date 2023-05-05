@@ -1,13 +1,14 @@
 def v1 =
     |value_emitter()
     .every(1s)
-    .type(point)
+    .type('point')
+    .align()
 
 def window =
 v1
     |win_time()
     .every(5s)
-
+|debug('info')
 
 window
     |aggregate()

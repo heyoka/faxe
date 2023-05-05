@@ -12,7 +12,7 @@
 -include("faxe.hrl").
 
 %% API
--export([init/3, process/3, handle_info/2, options/0, wants/0, emits/0]).
+-export([init/3, process/3, handle_info/2, options/0, wants/0, emits/0, init/4]).
 
 -record(state, {
    every,
@@ -41,7 +41,11 @@ init(_NodeId, _Inputs, #{period := Period, every := Every, fill_period := Fill})
    %% fill_period does not make sense, if every is less than period
    DoFill = (Fill == true) andalso (Per > Ev),
    State = #state{period = Per, every = Ev, fill_period = DoFill, window = queue:new()},
-   {ok, all, State}.
+   {ok, true, State}.
+
+%% init with persisted state
+init(_NodeId, _Inputs, _Opts, #node_state{state = PState}) ->
+   {ok, true, PState}.
 
 
 process(_Inport, #data_point{} = Point, State=#state{} ) ->

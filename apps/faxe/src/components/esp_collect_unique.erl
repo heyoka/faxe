@@ -35,7 +35,7 @@
 %% API
 -export([init/3, process/3, options/0
    , check_options/0
-   , wants/0, emits/0]).
+   , wants/0, emits/0, init/4]).
 
 -record(state, {
    node_id,
@@ -65,13 +65,23 @@ check_options() ->
 wants() -> point.
 emits() -> point.
 
+%% init with persistent state
+init(NodeId, Ins, Opts, #node_state{state = #{row_buffer := StateBuffer}}) ->
+   {ok, W, InitState} = init(NodeId, Ins, Opts),
+   {ok, W, InitState#state{row_buffer = StateBuffer}}.
+
 init(NodeId, _Ins, #{field := Field, min_vals := Min, keep := Keep, keep_as := KeepAs, as := As, max_age := MaxAge0}) ->
    MaxAge = case MaxAge0 of undefined -> undefined; Age -> faxe_time:duration_to_ms(Age) end,
    {ok, all,
       #state{node_id = NodeId, field = Field, min_count = Min, keep = Keep, keep_as = KeepAs, as = As, max_age = MaxAge}}.
 
-process(_Port, #data_point{} = Point, State = #state{min_count = Min, row_buffer = Buf, as = As}) ->
+process(_Port, #data_point{} = Point, State = #state{min_count = Min, row_buffer = Buf, as = As, node_id = NId}) ->
    NewBuffer = maybe_add_point(Point, State),
+   %% maybe persist state
+   case Buf /= NewBuffer of
+      true -> dataflow:persist(NId, #{row_buffer => NewBuffer});
+      false -> ok
+   end,
    NewState = State#state{row_buffer = NewBuffer},
    case NewBuffer /= Buf andalso maps:size(NewBuffer) >= Min of
       true ->

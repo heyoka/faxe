@@ -13,7 +13,7 @@
 
 -include("faxe.hrl").
 %% API
--export([init/3, process/3, options/0, check_options/0, wants/0, emits/0]).
+-export([init/3, process/3, options/0, check_options/0, wants/0, emits/0, init/4, format_state/1]).
 
 -define(MODE_ABS, <<"abs">>).
 -define(MODE_CP, <<"c-p">>).
@@ -38,6 +38,9 @@ options() -> [
 check_options() ->
    [{one_of, mode, [?MODE_ABS, ?MODE_CP, ?MODE_PC]}].
 
+format_state(#state{field_states = States}) ->
+   #{field_states => States}.
+
 wants() -> point.
 emits() -> point.
 
@@ -46,7 +49,11 @@ init(NodeId, _Ins, #{fields := Fields, as := As0, default := Default, mode := Mo
    As = lists:zip(Fields, As1),
    DiffFun = diff_fun(Mode),
    S = #state{node_id = NodeId, fields = Fields, as = As, default = Default, diff_fun = DiffFun},
-   {ok, all, S}.
+   {ok, true, S}.
+
+init(NodeId, Ins, Opts, #node_state{state = #{field_states := FieldStates}}) ->
+   {ok, Mode, InitState} = init(NodeId, Ins, Opts),
+   {ok, Mode, InitState#state{field_states = FieldStates}}.
 
 process(_Inport, P = #data_point{} = Point, State = #state{fields = FieldList}) ->
    FieldVals = flowdata:fields(P, FieldList),

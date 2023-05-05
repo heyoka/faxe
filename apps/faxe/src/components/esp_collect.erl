@@ -309,17 +309,12 @@ do_emit(State = #state{buffer = Buff, tag_value = _TagVal, merge = Merge, newest
    {emit, Out, NewState}.
 
 write_state(State=#state{node_id = NId, buffer = Buffer}) ->
-%%   lager:info("~p write state ~p",[?MODULE, #{
-%%      buffer => Buffer,
-%%      current_batch_start => State#state.current_batch_start,
-%%      newest_timestamp => State#state.newest_timestamp}]),
    dataflow:persist(NId,
       #{
          buffer => Buffer,
          current_batch_start => State#state.current_batch_start,
          newest_timestamp => State#state.newest_timestamp}
-   ),
-   ok.
+   ).
 
 buffer_cleanup(State = #state{tag_added = false, include_removed = false, tag_updated = false}) ->
    State;

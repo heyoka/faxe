@@ -1,11 +1,12 @@
 def emit_every = 2s
 def debug_type = 'info'
 
-|json_emitter()
-    .every(emit_every)
-    .json(
-        <<<{"condition": {"state": "IDLE"}, "topic": "in2"} >>>
-        )
+|json_emitter(
+'{"condition": {"state": "IDLE"}, "topic": "in2"}',
+'{"condition": {"state": "IDLE"}, "topic": "in2"}',
+'{"condition": {"state": "IDLE"}, "topic": "in1"}'
+)
+.every(emit_every)
 
 |debug(debug_type)
 |change_detect()

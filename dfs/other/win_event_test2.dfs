@@ -1,8 +1,7 @@
-|value_emitter()
+|json_emitter('{"data": {"event_no": 3}}')
 .every(2s)
-.type(point)
 
 |win_event()
 .every(5)
 
-|debug('warning')
+|debug()

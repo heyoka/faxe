@@ -14,7 +14,7 @@
 
 -include("faxe.hrl").
 %% API
--export([init/3, process/3, options/0, handle_info/2, check_options/0]).
+-export([init/3, process/3, options/0, handle_info/2, check_options/0, init/4]).
 
 -record(state, {
    node_id,
@@ -44,7 +44,12 @@ init(NodeId, _Ins, #{rate := Rate}) ->
          State#state{rate_interval = Interval}
    end,
    start_timer(NewState),
-   {ok, all, NewState}.
+   {ok, true, NewState}.
+
+init(NodeId, Ins, Opts, #node_state{state = #{point_count := PCount}}) ->
+   {ok, Mode, InitState} = init(NodeId, Ins, Opts),
+   {ok, Mode, InitState#state{point_count = PCount}}.
+
 
 process(_In, Item, State = #state{rate_interval = undefined, rate_count = Count, point_count = Count}) ->
    {emit, Item, State#state{point_count = 1}};

@@ -28,7 +28,7 @@
 -define(PLACE_HOLDER, <<"$field">>).
 
 %% API
--export([init/3, process/3, options/0, check_options/0, build_fun/2, wants/0, emits/0]).
+-export([init/3, process/3, options/0, check_options/0, build_fun/2, wants/0, emits/0, format_state/1, init/4]).
 
 -record(state, {
    node_id,
@@ -72,6 +72,9 @@ check_options() ->
       {one_of_params, [lambda_pattern, state_value]}
    ].
 
+format_state(#state{state_changes = NewStates, last_data = FieldMap}) ->
+   #{state_changes => NewStates, last_data => FieldMap}.
+
 wants() -> point.
 emits() -> point.
 
@@ -79,7 +82,7 @@ init(_NodeId, _Ins, #{lambda_pattern := Lambda_Pattern, enter_as := EnteredAs, l
    leave := EmitLeft, enter_keep := KeepFieldsEntered, leave_keep := KeepFieldsLeft, prefix := Prefix, field := Field,
    exclude_fields := Excluded, state_value := StateValue, state_id_as := SIdAs}) ->
 
-   {ok, all,
+   {ok, true,
       #state{
          field = Field,
          excluded = Excluded,
@@ -95,6 +98,11 @@ init(_NodeId, _Ins, #{lambda_pattern := Lambda_Pattern, enter_as := EnteredAs, l
          left_keep = KeepFieldsLeft,
          prefix = Prefix
          }}.
+
+
+init(NodeId, Ins, Opts, #node_state{state = #{state_changes := StateTrackers, last_data := LastData}}) ->
+   {ok, Mode, InitState} = init(NodeId, Ins, Opts),
+   {ok, Mode, InitState#state{state_changes = StateTrackers, last_data = LastData}}.
 
 process(_In, #data_batch{points = _Points} = _Batch, _State = #state{state_lambdas = _Lambda}) ->
    {error, not_implemented};

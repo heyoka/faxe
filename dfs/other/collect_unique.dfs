@@ -2,25 +2,25 @@
 
 
 |json_emitter()
-.every(3s)
-.json(<<< {"condition": {"id": 0, "name": "OK"}, "condition_reason": "OK-Reason", "predicted_maintenance_time": 1584246411783,
-        "vac_on_without_contact": [1.2, 2.5, 4.33], "vac_on_with_contact": [5.6, 45.98, 7.012]} >>>,
-      <<< {"condition": {"id": 1, "name": "Warning"}, "condition_reason": "bad succer", "predicted_maintenance_time": 1583246411783,
-         "vac_on_without_contact": [0.2, 2.5, 8.01], "vac_on_with_contact": [6.001, 4.798, 7.012]} >>>,
-         <<< {"condition": {"id": 1, "name": "Warning"}, "condition_reason": "bad suxxer", "predicted_maintenance_time": 1583246411783,
-                  "vac_on_without_contact": [0.2, 2.5, 8.01], "vac_on_with_contact": [6.001, 4.798, 7.012]} >>>,
-       <<< {"condition": {"idx": 1, "name": "Warning"}, "condition_reason": "bad suxxer", "predicted_maintenance_time": 1583246411783,
-                         "vac_on_without_contact": [0.2, 2.5, 8.01], "vac_on_with_contact": [6.001, 4.798, 7.012]} >>>,
-      <<< {"condition": {"id": 2, "name": "Error"}, "condition_reason": "something went really wrong!", "predicted_maintenance_time": 1582246411783,
-         "vac_on_without_contact": [0.5, 2.5, 0.44], "vac_on_with_contact": [2.06, 4.98, 2.901]} >>>)
+.every(2s)
+.json(' {"condition": {"id": 0, "name": "OK"}, "condition_reason": "OK-Reason", "predicted_maintenance_time": 1584246411783,
+        "vac_on_without_contact": [1.2, 2.5, 4.33], "vac_on_with_contact": [5.6, 45.98, 7.012]} ',
+      ' {"condition": {"id": 1, "name": "Warning"}, "condition_reason": "bad succer", "predicted_maintenance_time": 1583246411783,
+         "vac_on_without_contact": [0.2, 2.5, 8.01], "vac_on_with_contact": [6.001, 4.798, 7.012]} ',
+         ' {"condition": {"id": 1, "name": "Warning"}, "condition_reason": "bad suxxer", "predicted_maintenance_time": 1583246411783,
+                  "vac_on_without_contact": [0.2, 2.5, 8.01], "vac_on_with_contact": [6.001, 4.798, 7.012]} ',
+       ' {"condition": {"idx": 1, "name": "Warning"}, "condition_reason": "bad suxxer", "predicted_maintenance_time": 1583246411783,
+                         "vac_on_without_contact": [0.2, 2.5, 8.01], "vac_on_with_contact": [6.001, 4.798, 7.012]} ',
+      ' {"condition": {"id": 2, "name": "Error"}, "condition_reason": "something went really wrong!", "predicted_maintenance_time": 1582246411783,
+         "vac_on_without_contact": [0.5, 2.5, 0.44], "vac_on_with_contact": [2.06, 4.98, 2.901]} ')
 
-
+.as('data')
     %|debug()
 
     |collect_unique('data.condition.id')
     .keep('data.condition_reason', 'data.condition.name', 'data.condition.id')
     .keep_as('condition_reason', 'condition_name', 'condition_id')
-    .min_vals(2)
+    .min_vals(1)
 %    .max_age(7s)
 
     |debug('warning')

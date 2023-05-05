@@ -19,7 +19,10 @@
 
 -include("faxe.hrl").
 %% API
--export([init/3, process/3, options/0]).
+-export([init/3, process/3, options/0
+%%   ,
+%%   init/4, format_state/1
+]).
 
 -record(state, {
    node_id :: {binary(), binary()},
@@ -33,8 +36,15 @@ options() -> [
    {default, any, 0}
 ].
 
+%%format_state(#state{last_time = LTs}) ->
+%%   #{last_time => LTs}.
+%%
+%%init(NodeId, Ins, Opts, #node_state{state = #{last_time := LastTime}, ts = _StateTime}) ->
+%%   {ok, true, State} = init(NodeId, Ins, Opts),
+%%   {ok, true, State#state{last_time = LastTime}}.
+
 init(NodeId, _Ins, #{as := As, default := Default}) ->
-   {ok, all, #state{node_id = NodeId, as = As, default = Default}}.
+   {ok, false, #state{node_id = NodeId, as = As, default = Default}}.
 
 process(_In, Item, State = #state{last_time = undefined, as = As, default = Def}) ->
    {emit, flowdata:set_field(Item, As, Def), State#state{last_time = faxe_time:now()}};

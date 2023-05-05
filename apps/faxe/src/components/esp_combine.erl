@@ -31,7 +31,7 @@
 
 -include("faxe.hrl").
 %% API
--export([init/3, process/3, options/0, inports/0, check_options/0, wants/0, emits/0]).
+-export([init/3, process/3, options/0, inports/0, check_options/0, wants/0, emits/0, init/4]).
 
 -define(PREFIX_DEL, <<"_">>).
 
@@ -70,6 +70,10 @@ check_options() ->
 wants() -> point.
 emits() -> point.
 
+init(NodeId, Ins, Opts, #node_state{state = #{row_buffer := Row}}) ->
+   {ok, R, State} = init(NodeId, Ins, Opts),
+   {ok, R, State#state{row_buffer = Row}}.
+
 init(NodeId, _Ins, #{fields := undefined, merge_field := MergeField, nofill := NoFill}) ->
    {ok, all, #state{node_id = NodeId, merge_field = MergeField, no_fill = NoFill}};
 init(NodeId, _Ins, #{fields := Fields, aliases := Aliases, prefix := Prefix, prefix_delimiter := PFL, nofill := NoFill}) ->
@@ -98,7 +102,9 @@ process(1, #data_point{} = Point, State = #state{fields = Fs, row_buffer = Buffe
    Combined = combine(Point, Buffer, Fs, NP),
    {emit, Combined, State}
 ;
-process(2, #data_point{} = Point, State = #state{}) ->
+process(2, #data_point{} = Point, State = #state{node_id = NId}) ->
+   %% make combine data persistent
+   dataflow:persist(NId, #{row_buffer => Point}),
    {ok, State#state{row_buffer = Point}};
 process(_Port, #data_batch{}, State = #state{}) ->
    {ok, State}.

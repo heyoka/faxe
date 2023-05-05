@@ -1,11 +1,12 @@
 def in =
     |value_emitter()
     .every(3s)
-    .type(point)
+    .type('point')
     .fields('value', 'value2')
-|debug('info')
+%|debug('info')
     |value_diff()
     .fields('value', 'randval', 'irgendwashere')
     .as('value_diff', 'randval_diff', 'wurschtmir')
     .default(0)
+
 |debug()
