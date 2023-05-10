@@ -404,21 +404,16 @@ do_read(Requests, Opts=#{ip := Ip}, RunWith) ->
           {ok, Res} ->
             {true, [handle_result(Res, Aliases)|Results]};
           Other ->
-            lager:warning("Not ok when reading vars: ~p",[Other]),
+            lager:warning("Error reading vars: ~p",[Other]),
             {false, Results}
         end;
       ({_Vars, _Aliases}, {false, _} = R) ->
         R
     end,
-%%  ReadResult = plists:fold(ElFun, {true, []}, Requests, {processes, RunWith}),
   {Time, ReadResult} = timer:tc(plists, fold, [ElFun, {true, []}, Requests, {processes, RunWith}]),
   TimeMillis = erlang:round(Time/1000),
   NumReqs = length(Requests),
   add_read_stats(Ip, #{time => TimeMillis, num_req => NumReqs, num_conn => RunWith}),
-%%  lager:warning("Time to read ~p requests: ~p millis with ~p processes/connections",
-%%    [length(Requests), erlang:round(Time/1000), RunWith]),
-  %% do the stats
-
   ReadResult.
 
 emit_results([FirstResult|RequestResults], Ts) ->

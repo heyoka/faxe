@@ -95,7 +95,7 @@ get_task(TaskId) ->
    case faxe_db:get_task(TaskId) of
       {error, not_found} -> {error, not_found};
       #task{name = Id} = T ->
-         lager:info("get task from db pid ~p", [T#task.pid]),
+%%         lager:info("get task from db pid ~p", [T#task.pid]),
          Running = supervisor:which_children(graph_sup),
          case lists:keyfind(Id, 1, Running) of
             {Id, Child, _, _} when is_pid(Child) -> T#task{is_running = is_process_alive(Child)};

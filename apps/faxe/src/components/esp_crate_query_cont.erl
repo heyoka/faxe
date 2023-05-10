@@ -326,9 +326,8 @@ setup_query_start(S=#state{start = Start}) ->
 start_setup(S=#state{setup_start = false}) ->
    maybe_query_setup(S);
 start_setup(S=#state{start = Start, client = Client}) ->
-
    case catch epgsql:equery(Client, Start) of
-      {ok,[_TsCol],[{TimeStampString}]} ->
+      {ok,[_TsCol],[{TimeStampString}]} when is_binary(TimeStampString) ->
          NewState = prepare_start(S#state{start = TimeStampString, setup_start = false}),
          maybe_query_setup(NewState);
       W ->
