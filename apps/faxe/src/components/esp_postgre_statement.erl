@@ -25,6 +25,7 @@
    db_opts           :: map(),
    on_trigger        :: true|false,
    response_def      :: faxe_epgsql_response(),
+   interval          :: pos_integer(),
    fn_id
 }).
 
@@ -33,7 +34,7 @@
    timeout => 5000
 }).
 
--define(RETRY_INTERVAL, 1000).
+-define(RETRY_INTERVAL, 700).
 
 
 options() ->
@@ -47,6 +48,7 @@ options() ->
       {statement_field, string, undefined},
       {retries, integer, 2},
       {start_on_trigger, boolean, false},
+      {every, duration, undefined},
       {result_type, string, <<"batch">>}
    ].
 
@@ -68,7 +70,7 @@ check_options() ->
 
 init(NodeId, _Inputs, #{host := Host0, port := Port, user := User, pass := Pass,
    statement := Q0, statement_field := StmtField, retries := Retries, tls := Ssl,
-   result_type := RType0, start_on_trigger := OnTrigger}) ->
+   result_type := RType0, start_on_trigger := OnTrigger, every := Every0}) ->
 
    process_flag(trap_exit, true),
    Host = binary_to_list(Host0),
@@ -78,11 +80,12 @@ init(NodeId, _Inputs, #{host := Host0, port := Port, user := User, pass := Pass,
    DBOpts = maps:merge(?DB_OPTIONS, Opts),
    RType = erlang:binary_to_existing_atom(RType0),
    Response = faxe_epgsql_response:new(<<"ts">>, RType),
+   Every = case faxe_time:is_duration_string(Every0) of true -> faxe_time:duration_to_ms(Every0); _ -> undefined end,
 
    State = #state{
       host = Host, port = Port, user = User, pass = Pass, db_opts = DBOpts, fn_id = NodeId,
       statement = Q0, statement_field = StmtField, retries = max(1, Retries),
-      on_trigger = OnTrigger, response_def = Response},
+      on_trigger = OnTrigger, response_def = Response, interval = Every},
 
    connection_registry:reg(NodeId, Host, Port, <<"pgsql">>),
    erlang:send_after(0, self(), reconnect),
@@ -108,7 +111,15 @@ process(_In, Item, State = #state{on_trigger = true, statement_field = SField, s
 
 handle_info(execute_statement, State = #state{retries = Tries, retried = Tries}) ->
    %% reached max retries
-   NewState = close(State),
+   NewState =
+   case State#state.interval of
+      undefined -> close(State);
+      Interval ->
+         send_execute(Interval),
+%%         erlang:send_after(Interval, self(), execute_statement),
+         State#state{retried = 0}
+   end,
+%%   NewState = close(State),
    lager:warning("Could not execute statement with ~p retries!",[Tries]),
    {ok, NewState};
 handle_info(execute_statement, State = #state{retried = Tried}) ->
@@ -159,12 +170,12 @@ execute(State = #state{}) ->
          %% done emit empty data-point
          dataflow:emit(flowdata:new()),
          %% close connection, we are done here
-         close(State);
+         close_or_execute(State);
       {true, Item} ->
          %% done emit result data
          dataflow:emit(Item),
          %% close connection, we are done here
-         close(State);
+         close_or_execute(State);
       false ->
          send_execute(?RETRY_INTERVAL),
          State
@@ -191,6 +202,11 @@ do_execute(_State = #state{client = C, statement = Statement, response_def = Res
          false
    end.
 
+close_or_execute(State = #state{interval = undefined}) ->
+   close(State);
+close_or_execute(State = #state{interval = Interval}) ->
+   send_execute(Interval),
+   State#state{retried = 0}.
 
 close(State = #state{client = C}) ->
    catch epgsql:close(C),
