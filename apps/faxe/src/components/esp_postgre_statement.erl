@@ -30,7 +30,9 @@
 }).
 
 -define(DB_OPTIONS, #{
-   codecs => [{faxe_epgsql_codec, nil}, {epgsql_codec_json, {jiffy, [], [return_maps]}}],
+   codecs => [
+      {faxe_epgsql_codec, nil},
+      {epgsql_codec_json, {jiffy, [], [return_maps]}}],
    timeout => 5000
 }).
 
@@ -183,7 +185,7 @@ execute(State = #state{}) ->
 
 do_execute(_State = #state{client = C, statement = Statement, response_def = ResDef}) ->
    ResponseDef = ResDef#faxe_epgsql_response{default_timestamp = faxe_time:now()},
-   Response = epgsql:squery(C, Statement),
+   Response = epgsql:equery(C, Statement),
 %%   lager:info("response from query ~p",[Response]),
    case catch faxe_epgsql_response:handle(Response, ResponseDef) of
       ok ->

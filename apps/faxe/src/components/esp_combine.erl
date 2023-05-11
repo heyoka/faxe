@@ -64,13 +64,14 @@ options() -> [
 
 check_options() ->
    [
-      {one_of_params, [fields, merge_field]}
+%%      {one_of_params, [fields, merge_field]}
    ].
 
 wants() -> point.
 emits() -> point.
 
-init(NodeId, _Ins, #{fields := undefined, merge_field := MergeField, nofill := NoFill}) ->
+init(NodeId, _Ins, #{fields := undefined, merge_field := MergeField0, nofill := NoFill}) ->
+   MergeField = case MergeField0 of undefined -> all; _ -> MergeField0 end,
    {ok, all, #state{node_id = NodeId, merge_field = MergeField, no_fill = NoFill}};
 init(NodeId, _Ins, #{fields := Fields, aliases := Aliases, prefix := Prefix, prefix_delimiter := PFL, nofill := NoFill}) ->
    Asses =
