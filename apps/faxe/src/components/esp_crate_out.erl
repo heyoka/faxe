@@ -447,12 +447,8 @@ check_table_identifier(Ident) ->
 check_column_identifier(Ident) ->
    binary:match(Ident, [<<"[">>, <<"]">>, <<".">>]) == nomatch.
 
+%% always quote identifiers (table and column names)
 quote_identifier(<<"\"", _/binary>> = Ident) ->
    Ident;
-quote_identifier(<<F:1/binary, _R/binary>> = Ident) ->
-   case lists:member(F, ?QUOTEABLE) of
-      true -> <<"\"", Ident/binary, "\"">>;
-      false -> Ident
-   end;
-quote_identifier(Other) ->
-   Other.
+quote_identifier(Identifier) when is_binary(Identifier) ->
+   <<"\"", Identifier/binary, "\"">>.
