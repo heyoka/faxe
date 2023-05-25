@@ -17,6 +17,8 @@
 -define(RECON_MIN_INTERVAL, 10).
 -define(RECON_MAX_INTERVAL, 400).
 -define(RECON_MAX_RETRIES, infinity).
+%% max number of consecutive reading errors, before the connection process gets killed
+-define(MAX_READ_FAILS, 3).
 
 
 -record(state, {
@@ -26,7 +28,8 @@
   slot,
   rack,
   reconnector,
-  owner
+  owner,
+  failed_counter = 0
 }).
 
 %%%===================================================================
@@ -61,17 +64,37 @@ init(#{ip := Ip, port := Port, slot := Slot, rack := Rack, owner := Owner}) ->
     owner = Owner
   }}.
 
-handle_call({read, Opts}, _From, State = #state{client = Client, ip = _Ip}) ->
+
+handle_call({read, Opts}, _From, State = #state{client = Client, ip = _Ip, failed_counter = FCount}) ->
   Res = (catch snapclient:read_multi_vars(Client, Opts)),
-  Ret =
   case Res of
-    {error,#{es7 := errCliInvalidPlcAnswer}} ->
+    {ok, _} = R -> {reply, R, State#state{failed_counter = 0}};
+    {error, #{es7 := errCliInvalidPlcAnswer}} ->
       lager:notice("errCliInvalidPlcAnswer workaround kicked in"),
       exit(Client, kill),
-      {error, failed};
-    _ -> Res
-  end,
-  {reply, Ret, State};
+      {reply, {error, failed}, State};
+    No ->
+      NewFCount = FCount+1,
+      case NewFCount > ? MAX_READ_FAILS of
+        true ->
+          %% new client
+          exit(Client, kill),
+          {reply, No, State};
+        false -> {reply, No, State#state{failed_counter = NewFCount}}
+      end
+  end;
+
+%%handle_call({read, Opts}, _From, State = #state{client = Client, ip = _Ip}) ->
+%%  Res = (catch snapclient:read_multi_vars(Client, Opts)),
+%%  Ret =
+%%  case Res of
+%%    {error,#{es7 := errCliInvalidPlcAnswer}} ->
+%%      lager:notice("errCliInvalidPlcAnswer workaround kicked in"),
+%%      exit(Client, kill),
+%%      {error, failed};
+%%    _ -> Res
+%%  end,
+%%  {reply, Ret, State};
 handle_call({get_pdu_size}, _From, State = #state{client = Client}) ->
   Res = (catch snapclient:get_pdu_length(Client)),
   {reply, Res, State};
@@ -97,7 +120,7 @@ handle_info(connect,
     State=#state{ip = Ip, port = Port, rack = Rack, slot = Slot}) ->
   case connect(Ip, Rack, Slot) of
     {ok, Client} ->
-      {noreply, State#state{client = Client}};
+      {noreply, State#state{client = Client, failed_counter = 0}};
     {error, Error} ->
       lager:error("[~p] Error connecting to PLC ~p: ~p",[?MODULE, {Ip, Port},Error]),
       try_reconnect(State)

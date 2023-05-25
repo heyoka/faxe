@@ -136,7 +136,10 @@ handle_info({publish, Topic, Data}, State = #state{publisher = Publisher}) ->
 handle_info({'EXIT', OldPublisher, _Reason}, State = #state{publisher = OldPublisher, publisher_opts = Opts}) ->
    %% publisher died
    {ok, Publisher} = mqtt_publisher:start_link(Opts),
-   {ok, State#state{publisher = Publisher}}.
+   {ok, State#state{publisher = Publisher}};
+handle_info(What, State) ->
+   lager:info("~p got info ~p",[?MODULE, What]),
+   {ok, State}.
 
 %%--------------------------------------------------------------------
 %% @private
