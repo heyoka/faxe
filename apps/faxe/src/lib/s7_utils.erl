@@ -119,7 +119,7 @@ build_addresses(Addresses, PDUSize) ->
       A = NewBoolParts ++ NewParts ++ Rest,
       A
   end,
-  NumReadTags = lists:foldl(fun(ReqList, Acc) ->  length(ReqList) + Acc end, 0, All),
+  NumReadTags = lists:foldl(fun({ReqList, _}, Acc) ->  length(ReqList) + Acc end, 0, All),
 %%  [lager:info("request num items: ~p - ~p byte",[length(Req), byte_count(Req)]) || {Req, _} <- All],
   {NumReadTags, All}.
 
