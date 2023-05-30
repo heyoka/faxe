@@ -134,7 +134,7 @@ get_tag_stats(Ip) ->
         fun(#{num_tags := NumTags, num_read_tags := NumRTags}, {Tags, ReadTags}) ->
           {[NumTags|Tags], [NumRTags|ReadTags]}
         end,
-      {AllNumTags, AllReadNumTags} = lists:foldl(StatsFun, [], Stats),
+      {AllNumTags, AllReadNumTags} = lists:foldl(StatsFun, {[],[]}, Stats),
       #{<<"avg_addresses">> => round(lists:sum(AllNumTags)/Length),
         <<"avg_read_addresses">> => round(lists:sum(AllReadNumTags)/Length)}
   end.
