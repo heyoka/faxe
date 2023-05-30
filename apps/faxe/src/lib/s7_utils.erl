@@ -118,9 +118,10 @@ build_addresses(Addresses, PDUSize) ->
         Rest0),
       A = NewBoolParts ++ NewParts ++ Rest,
       A
-end,
+  end,
+  NumReadTags = lists:foldl(fun(ReqList, Acc) ->  length(ReqList) + Acc end, 0, All),
 %%  [lager:info("request num items: ~p - ~p byte",[length(Req), byte_count(Req)]) || {Req, _} <- All],
-  All.
+  {NumReadTags, All}.
 
 
 find_contiguous([], _PDUSize) -> {[], {[], []}};
