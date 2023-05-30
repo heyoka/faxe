@@ -125,7 +125,7 @@ get_stats(Ip) ->
   maps:merge(OutStats, get_tag_stats(Ip)).
 
 get_tag_stats(Ip) ->
-  case ets:lookup(s7reader_stats, Ip) of
+  case ets:lookup(s7reader_tag_stats, Ip) of
     [] ->
       #{<<"avg_addresses">> => 0, <<"avg_read_addresses">> => 0};
     [{Ip, Stats}] when is_list(Stats) ->
