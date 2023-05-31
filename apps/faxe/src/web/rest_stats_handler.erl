@@ -51,6 +51,11 @@ stats_json(Req, State=#state{mode = faxe}) ->
    Stats = faxe_stats:get_stats(),
    {jiffy:encode(Stats), Req, State};
 
+%% FAXE STATS
+stats_json(Req, State=#state{mode = s7}) ->
+  Stats = faxe_s7_stats:get_stats(),
+  {jiffy:encode(Stats), Req, State};
+
 %% Processes by reductions STATS
 stats_json(Req, State=#state{mode = reds}) ->
   Stats = process_stats:get_top_reds(20),

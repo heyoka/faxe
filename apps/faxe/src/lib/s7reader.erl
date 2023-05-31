@@ -249,7 +249,10 @@ handle_info({'CHANGE', _MonitorReference, time_offset, clock_service, _NewTimeOf
 handle_info(_Info, State = #state{}) ->
   maybe_next(State).
 
-terminate(_Reason, _State = #state{s7_ip = _Ip}) ->
+terminate(_Reason, _State = #state{s7_ip = Ip}) ->
+  %% cleanup stats entries
+  catch ets:delete(s7reader_stats, Ip),
+  catch ets:delete(s7reader_tag_stats, Ip),
   ok.
 
 code_change(_OldVsn, State = #state{}, _Extra) ->
