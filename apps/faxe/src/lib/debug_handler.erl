@@ -5,6 +5,8 @@
 
 -behaviour(gen_event).
 
+-include("faxe.hrl").
+
 %% API
 -export([start_link/1,
    add_handler/1]).
@@ -20,10 +22,9 @@
 -define(SERVER, ?MODULE).
 
 -record(state, {
-   publisher,
-   host,
-   port,
-   topic
+   parent,
+   flow_id,
+   node_id
 }).
 
 %%%===================================================================
@@ -67,8 +68,8 @@ add_handler(EventMgrName) ->
    {ok, State :: #state{}} |
    {ok, State :: #state{}, hibernate} |
    {error, Reason :: term()}).
-init(_Args) ->
-   {ok, #state{}}.
+init(#{parent := Parent, flow_id := FlowId, node_id := NodeId} = _Opts) ->
+   {ok, #state{parent = Parent, flow_id = FlowId, node_id = NodeId}}.
 
 %%--------------------------------------------------------------------
 %% @private
@@ -85,8 +86,15 @@ init(_Args) ->
    {swap_handler, Args1 :: term(), NewState :: #state{},
       Handler2 :: (atom() | {atom(), Id :: term()}), Args2 :: term()} |
    remove_handler).
-handle_event({Key, {_FlowId, _NodeID} = FNId, Port, Item}, State = #state{}) ->
-   lager:info("DEBUG [~p] :: ~p on Port ~p~n~p",[FNId, Key, Port, flowdata:to_json(Item)]),
+handle_event({Key, {FlowId, NodeId} = _FNId, Port, Item}, State = #state{flow_id = FlowId, parent = Parent}) ->
+   K = atom_to_binary(Key, utf8),
+   Out0 = #data_point{ts = faxe_time:now(), fields = #{<<"data_item">> => flowdata:to_json(Item)}},
+   Out = flowdata:set_fields(Out0,
+      [<<"meta.type">>, <<"meta.flow_id">>, <<"meta.node_id">>, <<"meta.port">>],
+      [K, FlowId, NodeId, Port]),
+   Parent ! {debug, Out},
+   {ok, State};
+handle_event(_, State) ->
    {ok, State}.
 
 %%--------------------------------------------------------------------
@@ -123,7 +131,8 @@ handle_call(_Request, State) ->
    {swap_handler, Args1 :: term(), NewState :: #state{},
       Handler2 :: (atom() | {atom(), Id :: term()}), Args2 :: term()} |
    remove_handler).
-handle_info(_Info, State) ->
+handle_info(Info, State) ->
+   lager:info("~p got info ~p",[Info, State]),
    {ok, State}.
 
 %%--------------------------------------------------------------------
@@ -139,8 +148,8 @@ handle_info(_Info, State) ->
 -spec(terminate(Args :: (term() | {stop, Reason :: term()} | stop |
 remove_handler | {error, {'EXIT', Reason :: term()}} |
 {error, term()}), State :: term()) -> term()).
-terminate(_Arg, #state{publisher = P}) ->
-   catch gen_server:stop(P).
+terminate(_Arg, #state{}) ->
+   ok.
 
 %%--------------------------------------------------------------------
 %% @private

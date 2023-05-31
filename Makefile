@@ -35,6 +35,9 @@ dev1:
 	export FAXE_FLOW_AUTO_RELOAD=off && \
 	export FAXE_ALLOW_ANONYMOUS=true && \
 	export FAXE_HTTP_API_TLS_ENABLE=off && \
+	export FAXE_HTTP_API_SSL_KEY_FILE='' && \
+	export FAXE_HTTP_API_SSL_CERTFILE='' && \
+	export FAXE_HTTP_API_SSL_CACERTFILE='' && \
 	export FAXE_CONN_STATUS_HANDLER_MQTT_ENABLE=on && \
 	export FAXE_DEBUG_HANDLER_MQTT_ENABLE=on && \
 	export FAXE_METRICS_HANDLER_MQTT_ENABLE=on && \

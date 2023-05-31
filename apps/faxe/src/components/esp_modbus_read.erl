@@ -122,6 +122,8 @@ init(NodeId, _Ins, #{timeout := Timeout} = Opts) ->
    erlang:monitor(time_offset, clock_service),
    {ok, all, NewState}.
 
+init_opts([], State) ->
+   State;
 init_opts([{'_name', _DisplayName}|Opts], State) ->
    init_opts(Opts, State);
 init_opts([{ip, Ip0}|Opts], State) ->
@@ -148,8 +150,8 @@ init_opts([{align, Align}|Opts], State) ->
    init_opts(Opts, State#state{align = Align});
 init_opts([{round, Prec}|Opts], State) ->
    init_opts(Opts, State#state{round = Prec});
-init_opts(_O, State) ->
-   State.
+init_opts([_|ROpts], State) ->
+   init_opts(ROpts, State).
 
 process(_Inport, _Item, State = #state{connected = false}) ->
    {ok, State};

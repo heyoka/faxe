@@ -15,7 +15,7 @@
 -export([task_to_map/1, task_to_map/2, template_to_map/1, do_register/6,
    reg_fun/3, report_malformed/3, add_tags/2, set_tags/2,
    get_task_or_template_id/2, is_authorized/1, is_authorized/2,
-   success/2, success/3, error/2, error/3, int_or_bin/1]).
+   success/2, success/3, error/2, error/3, int_or_bin/1, msg_success/1, msg_error/1]).
 
 
 -spec is_authorized(term()) -> {true, Username::binary()} | false.
@@ -149,15 +149,21 @@ get_task_or_template_id(TName, _) ->
 success(Req, State) ->
    resp(Req, State, #{<<"success">> => <<"true">>}).
 success(Req, State, Message) ->
-   resp(Req, State, #{<<"success">> => <<"true">>, <<"message">> => Message}).
+   resp(Req, State, msg_success(Message)).
 
 error(Req, State) ->
    resp(Req, State, #{<<"success">> => <<"false">>}).
 error(Req, State, Error) ->
-   resp(Req, State, #{<<"success">> => <<"false">>, <<"error">> => Error}).
+   resp(Req, State, msg_error(Error)).
 
 resp(Req, State, RespMap) ->
    {jiffy:encode(RespMap), Req, State}.
+
+msg_success(Msg) when is_binary(Msg) ->
+   #{<<"success">> => <<"true">>, <<"message">> => Msg}.
+
+msg_error(Msg) when is_binary(Msg) ->
+   #{<<"success">> => <<"false">>, <<"error">> => Msg}.
 
 
 int_or_bin(Bin) ->

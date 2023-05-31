@@ -65,7 +65,8 @@
    reset_templates/0,
    stop_all/0
 %%   , do_start_task/2
-   , start_file_temp/3]).
+   , start_file_temp/3
+   , get_task_node_pids/1, list_connection_status/1]).
 
 start_permanent_tasks() ->
    Tasks = faxe_db:get_permanent_tasks(),
@@ -95,13 +96,26 @@ get_task(TaskId) ->
    case faxe_db:get_task(TaskId) of
       {error, not_found} -> {error, not_found};
       #task{name = Id} = T ->
-         lager:info("get task from db pid ~p", [T#task.pid]),
+%%         lager:info("get task from db pid ~p", [T#task.pid]),
          Running = supervisor:which_children(graph_sup),
          case lists:keyfind(Id, 1, Running) of
-            {Id, Child, _, _} when is_pid(Child) -> T#task{is_running = is_process_alive(Child)};
+            {Id, Child, _, _} when is_pid(Child) -> T#task{is_running = is_process_alive(Child), pid = Child};
             _ -> T#task{is_running = false}
          end
    end.
+
+%% get a list of #node records from a task-graph process
+get_task_node_pids(TaskId) ->
+   case get_task(TaskId) of
+      #task{is_running = true, pid = GPid} ->
+         df_graph:nodes(GPid);
+      _ -> []
+   end.
+
+list_connection_status(TaskId) ->
+   NodePids= [NodePid || #node{pid = NodePid} <- get_task_node_pids(TaskId)] ,
+   connection_registry:get_connection_msgs(NodePids).
+
 
 %% @doc get the graph definition (nodes and edges) as a map
 -spec get_graph(non_neg_integer()|binary()|#task{}) -> map() | {error, term()}.
@@ -562,6 +576,7 @@ stop_task(_T=#task{pid = Graph}) when is_pid(Graph) ->
       false ->
          {error, not_running}
    end;
+
 stop_task(TaskId) ->
    stop_task(TaskId, #stop_modes{permanent = false}).
 

@@ -84,11 +84,24 @@ add_read_stats(Ip, Stats) ->
   ets:insert(s7reader_stats, {Ip, NewStats})
   .
 
+add_tag_stats(Ip, Stats) ->
+  NewStats =
+    case ets:lookup(s7reader_tag_stats, Ip) of
+      [] -> [Stats];
+      [{Ip, Stats0}] ->
+        Stats1 = [Stats|Stats0],
+        lists:sublist(Stats1, ?STAT_LIST_LENGTH)
+    end,
+  ets:insert(s7reader_tag_stats, {Ip, NewStats})
+.
+
+
 get_stats(Ip) ->
   NumClients = case ets:lookup(s7reader_clients, Ip) of
               [] -> 0;
               [{Ip, Clients}] -> length(Clients)
             end,
+  OutStats =
   case ets:lookup(s7reader_stats, Ip) of
     [] ->
       #{<<"avg_time">> => 0, <<"avg_num_req">> => 0, <<"avg_num_conn">> => 0};
@@ -108,7 +121,24 @@ get_stats(Ip) ->
         <<"read_num_conn">> => #{<<"avg">> => round(lists:sum(Conns)/Length)},
         <<"num_client_nodes">> => NumClients
       }
+  end,
+  maps:merge(OutStats, get_tag_stats(Ip)).
+
+get_tag_stats(Ip) ->
+  case ets:lookup(s7reader_tag_stats, Ip) of
+    [] ->
+      #{<<"avg_addresses">> => 0, <<"avg_read_addresses">> => 0};
+    [{Ip, Stats}] when is_list(Stats) ->
+      Length = length(Stats),
+      StatsFun =
+        fun(#{num_tags := NumTags, num_read_tags := NumRTags}, {Tags, ReadTags}) ->
+          {[NumTags|Tags], [NumRTags|ReadTags]}
+        end,
+      {AllNumTags, AllReadNumTags} = lists:foldl(StatsFun, {[],[]}, Stats),
+      #{<<"avg_addresses">> => round(lists:sum(AllNumTags)/Length),
+        <<"avg_read_addresses">> => round(lists:sum(AllReadNumTags)/Length)}
   end.
+
 
 start_link(Opts) ->
   gen_server:start_link(?MODULE, Opts, []).
@@ -219,7 +249,10 @@ handle_info({'CHANGE', _MonitorReference, time_offset, clock_service, _NewTimeOf
 handle_info(_Info, State = #state{}) ->
   maybe_next(State).
 
-terminate(_Reason, _State = #state{s7_ip = _Ip}) ->
+terminate(_Reason, _State = #state{s7_ip = Ip}) ->
+  %% cleanup stats entries
+  catch ets:delete(s7reader_stats, Ip),
+  catch ets:delete(s7reader_tag_stats, Ip),
   ok.
 
 code_change(_OldVsn, State = #state{}, _Extra) ->
@@ -327,7 +360,8 @@ get_requests(IntervalList, S = #state{current_addresses = Slots}) ->
   build_requests(IntervalList, Addresses, S).
 
 build_requests(IntervalList, Addresses, S=#state{pdu_size = PDUSize, request_cache = Cache}) ->
-  {_T, BuiltRequests} = timer:tc(s7_utils, build_addresses, [Addresses, PDUSize]),
+  {_T, {NumReadReq, BuiltRequests}} = timer:tc(s7_utils, build_addresses, [Addresses, PDUSize]),
+  add_tag_stats(S#state.s7_ip, #{num_tags => length(Addresses), num_read_tags => NumReadReq}),
   {BuiltRequests, S#state{request_cache = Cache#{IntervalList => BuiltRequests}, cache_pdu_size = PDUSize}}.
 
 
@@ -404,21 +438,16 @@ do_read(Requests, Opts=#{ip := Ip}, RunWith) ->
           {ok, Res} ->
             {true, [handle_result(Res, Aliases)|Results]};
           Other ->
-            lager:warning("Not ok when reading vars: ~p",[Other]),
+            lager:warning("Error reading vars: ~p",[Other]),
             {false, Results}
         end;
       ({_Vars, _Aliases}, {false, _} = R) ->
         R
     end,
-%%  ReadResult = plists:fold(ElFun, {true, []}, Requests, {processes, RunWith}),
   {Time, ReadResult} = timer:tc(plists, fold, [ElFun, {true, []}, Requests, {processes, RunWith}]),
   TimeMillis = erlang:round(Time/1000),
   NumReqs = length(Requests),
   add_read_stats(Ip, #{time => TimeMillis, num_req => NumReqs, num_conn => RunWith}),
-%%  lager:warning("Time to read ~p requests: ~p millis with ~p processes/connections",
-%%    [length(Requests), erlang:round(Time/1000), RunWith]),
-  %% do the stats
-
   ReadResult.
 
 emit_results([FirstResult|RequestResults], Ts) ->

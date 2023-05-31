@@ -43,9 +43,6 @@
    pg_client :: pid()
 }).
 
--define(QUOTEABLE, [
-   <<"0">>, <<"1">>, <<"2">>, <<"3">>, <<"4">>, <<"5">>, <<"6">>, <<"7">>, <<"8">>, <<"9">>]).
-
 -define(KEY, <<"stmt">>).
 -define(PATH, <<"/_sql">>).
 -define(ACTIVE_ERROR_TRACE, <<"?error_trace=true">>).
@@ -448,12 +445,10 @@ check_table_identifier(Ident) ->
 check_column_identifier(Ident) ->
    binary:match(Ident, [<<"[">>, <<"]">>, <<".">>]) == nomatch.
 
+%% always quote identifiers (table and column names)
 quote_identifier(<<"\"", _/binary>> = Ident) ->
    Ident;
-quote_identifier(<<F:1/binary, _R/binary>> = Ident) ->
-   case lists:member(F, ?QUOTEABLE) of
-      true -> <<"\"", Ident/binary, "\"">>;
-      false -> Ident
-   end;
+quote_identifier(Identifier) when is_binary(Identifier) ->
+   <<"\"", Identifier/binary, "\"">>;
 quote_identifier(Other) ->
    Other.
