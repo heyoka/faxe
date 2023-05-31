@@ -1,5 +1,5 @@
 %% Date: 31.03.23 - 09:40
-%% execute a one shot statement against a postgreSQL compatible db, (PostGre, Crate, ...)
+%% execute a statement in a one-shot manner or periodically against a postgreSQL compatible db, (PostGre, Crate, ...)
 %% Ⓒ 2023 heyoka
 %%
 -module(esp_postgre_statement).
@@ -10,7 +10,7 @@
 
 -behavior(df_component).
 %% API
--export([init/3, process/3, options/0, handle_info/2, check_options/0, shutdown/1]).
+-export([init/3, process/3, options/0, handle_info/2, check_options/0, shutdown/1, init/4, format_state/1]).
 
 -record(state, {
    host              :: string(),
@@ -26,6 +26,7 @@
    on_trigger        :: true|false,
    response_def      :: faxe_epgsql_response(),
    interval          :: pos_integer(),
+   is_done = false   :: true|false,
    fn_id
 }).
 
@@ -70,6 +71,21 @@ check_options() ->
    ].
 
 
+format_state(State) ->
+   State#state{client = undefined}.
+
+
+init(NodeId, Ins, Opts, #node_state{state = State=#state{is_done = IsDone}}) ->
+   case IsDone of
+      true ->
+         %% we are done, do nothing, additionally prevent trigger from message (in case)
+         lager:warning("init with state, we are done already, so do nothing"),
+         {ok, all, State#state{on_trigger = false}};
+      false ->
+         %% not done, init normally, then
+         {ok, Mode, _NewState} = init(NodeId, Ins, Opts),
+         {ok, Mode, State}
+   end.
 init(NodeId, _Inputs, #{host := Host0, port := Port, user := User, pass := Pass,
    statement := Q0, statement_field := StmtField, retries := Retries, tls := Ssl,
    result_type := RType0, start_on_trigger := OnTrigger, every := Every0}) ->
@@ -91,7 +107,7 @@ init(NodeId, _Inputs, #{host := Host0, port := Port, user := User, pass := Pass,
 
    connection_registry:reg(NodeId, Host, Port, <<"pgsql">>),
    erlang:send_after(0, self(), reconnect),
-   {ok, all, State}.
+   {ok, true, State}.
 
 process(_In, _Item, State = #state{on_trigger = false}) ->
    lager:info("item received, but on_trigger is false"),
@@ -142,6 +158,9 @@ handle_info(What, State) ->
 shutdown(State = #state{client = _C}) ->
    close(State).
 
+%% when done, then do nothing
+connect(State = #state{is_done = true}) ->
+   State;
 connect(State = #state{db_opts = Opts}) ->
    connection_registry:connecting(),
    case epgsql:connect(Opts) of
@@ -214,4 +233,4 @@ close(State = #state{client = C}) ->
    catch epgsql:close(C),
    connection_registry:disconnected(),
    %% set on_trigger to false, to avoid re-trigger by next incoming item
-   State#state{client = undefined, on_trigger = false}.
+   State#state{client = undefined, on_trigger = false, is_done = true}.
