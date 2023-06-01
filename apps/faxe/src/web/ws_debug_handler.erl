@@ -14,7 +14,7 @@
 -export([websocket_handle/2]).
 -export([websocket_info/2]).
 
--define(SOCKET_IDLE_TIMEOUT, 60000).
+-define(SOCKET_IDLE_TIMEOUT, 180000).
 -define(MAX_FRAME_SIZE, 5000000).
 
 -define(WS_OPTS, #{
@@ -24,27 +24,43 @@
 -record(state, {
   opts,
   username,
+  authorized = false,
   conn_status_subs = [],
   debug_subs = []
 }).
 
-init(Req = #{headers := Headers}, Opts) ->
+init(Req = #{}, Opts) ->
   State = #state{opts = Opts},
-%%  lager:notice("ws_handler is_authorized : Headers ~p", [Headers]),
-  case rest_helper:is_authorized(Req) of
-    {true, Username} ->
-      NewState = State#state{username = faxe_util:to_bin(Username)},
-      lager:notice("authorized for user ~p",[Username]),
-      {cowboy_websocket, Req, NewState, ?WS_OPTS};
-  false ->
-    {stop, State}
-  end.
+  {cowboy_websocket, Req, State, ?WS_OPTS}.
 
-websocket_init(State = #state{username = User}) ->
-  lager:notice("~p (~p) for ~p", [?MODULE, self(), User]),
+websocket_init(State = #state{}) ->
   {[], State}.
 
-websocket_handle({text, Msg}, State=#state{username = _User}) ->
+
+
+%%websocket_handle({text, W}, State) ->
+%%  lager:notice("websocket_handle : ~p",[W]),
+%%  {[], State};
+
+websocket_handle({text, AuthMsg}, State = #state{authorized = false}) ->
+  case catch jiffy:decode(AuthMsg, [return_maps]) of
+    #{<<"user">> := User, <<"pass">> := Pass} ->
+      case faxe_db:has_user_with_pw(User, Pass) of
+        true ->
+          lager:info("User ~p logged in",[User]),
+          {[], State#state{username = User, authorized = true}};
+        false ->
+          case faxe_config:get(allow_anonymous, false) of
+            true ->
+              lager:info("User ~p logged in",[<<"anon">>]),
+              {[], State#state{username = <<"anon">>, authorized = true}};
+            false -> {[{close, 1000, <<"unauthorized">>}], State}
+          end
+      end;
+    _ ->
+      {[{text, jiffy:encode(rest_helper:msg_error(<<"user-pass auth frame expected">>))}], State}
+  end;
+websocket_handle({text, Msg}, State = #state{}) ->
   {ReturnList, NewState} =
   case catch jiffy:decode(Msg, [return_maps]) of
     DecodedMsg when is_map(DecodedMsg) -> handle_msg(DecodedMsg, State);

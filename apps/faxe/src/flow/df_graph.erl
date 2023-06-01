@@ -298,10 +298,10 @@ code_change(_OldVsn, State, _Extra) ->
 %%%===================================================================
 do_stop(#state{running = Running, nodes = Nodes, id = Id}) ->
    lager_emit_backend:stop_trace(Id),
-   lager:info("stop graph when running:~p",[Running]),
    case Running of
       %% stop all components
       true ->
+         lager:info("stop graph ~p when running",[Id]),
          %% destroy all metrics (NOT)
 %%         lists:foreach(fun({NodeId, Comp, _NPid}) -> node_metrics:destroy(Id, NodeId, Comp) end, Nodes),
          lists:foreach(fun(#node{pid = NPid}) -> NPid ! stop end, Nodes);
