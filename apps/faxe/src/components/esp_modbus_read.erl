@@ -120,6 +120,7 @@ init(NodeId, _Ins, #{timeout := Timeout} = Opts) ->
    erlang:send_after(0, self(), connect),
    %% monitor time_offsets
    erlang:monitor(time_offset, clock_service),
+   lager:notice("init: ~p",[lager:pr(NewState, ?MODULE)]),
    {ok, all, NewState}.
 
 init_opts([], State) ->
