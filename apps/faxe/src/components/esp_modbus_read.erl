@@ -316,6 +316,7 @@ do_read(
          {error, _Reason};
       {ok, TId} ->
          case recv(TId, Timeout) of
+            {ok, []} -> {error, response_empty};
             {ok, Data} -> lists:zip(As, Data);
             Other -> Other
          end
