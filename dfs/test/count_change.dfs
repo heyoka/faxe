@@ -1,6 +1,7 @@
+def data =
 |json_emitter(
     '{"data": {"hello": "Francis"}}',
-    '{"data": {"hello": "Robert"}}',
+    '{"data": {"hello": "Roberto"}}',
     '{"data": {"hello": "Roberto"}}',
     '{"data": {"hello": "Carol"}}',
     '{"data": {"hello": "Jim"}}',
@@ -11,9 +12,18 @@
 .select('batch')
 
 
+data
+|aggregate()
+.fields('data.hello')
+.as('changed_agg')
+.functions('count_change')
+.keep_tail(false)
+|debug('info')
+
+data
 |count_change()
 .field('data.hello')
 .as('changed')
-.keep_last(true)
+.keep_last(false)
 
 |debug()

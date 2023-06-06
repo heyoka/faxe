@@ -173,8 +173,8 @@ handle_info(poll, State = #state{client = Client, requests = Requests,
       end,
    Res = read(Client, Requests, #data_point{ts = Ts}, Timeout),
    case Res of
-      {error, _Reason} ->
-         lager:warning("error when reading from modbus, request cancelled: ~p",[_Reason]),
+      {error, Reason} ->
+         lager:warning("error when reading from modbus: ~p",[Reason]),
          {ok, State#state{timer = faxe_time:timer_next(Timer)}};
       OutPoint when is_record(OutPoint, data_point) ->
          node_metrics:metric(?METRIC_BYTES_READ, State#state.byte_size_total, Id),
@@ -317,7 +317,7 @@ do_read(
          {error, _Reason};
       {ok, TId} ->
          case recv(TId, Timeout) of
-            {ok, []} -> {error, response_empty};
+            {ok, []} -> {error, <<"empty response, check 'output' param">>};
             {ok, Data} -> lists:zip(As, Data);
             Other -> Other
          end
