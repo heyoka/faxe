@@ -17,7 +17,7 @@
    groups = #{},
    nodeid,
    debatch = false,
-
+   emit_empty = false,
    group_last_seen = #{},
    reset_timeout,
    reset_check_interval = 30000
@@ -28,7 +28,8 @@ options() -> [
    {lambda, lambda, undefined},
    %% not used yet:
    {reset_timeout, duration, <<"2m">>},
-   {debatch, boolean, false}
+   {debatch, boolean, false},
+   {emit_empty, boolean, false}
 ].
 
 check_options() ->
@@ -38,13 +39,14 @@ check_options() ->
 wants() -> both.
 emits() -> both.
 
-init({_GId, NodeId}, _Ins, #{reset_timeout := RTimeout, debatch := Debatch} = Opts) ->
+init({_GId, NodeId}, _Ins, #{reset_timeout := RTimeout, debatch := Debatch, emit_empty := EmitEmpty} = Opts) ->
    ResetTimeout = faxe_time:duration_to_ms(RTimeout),
    State = #state{
       nodeid = NodeId,
       reset_timeout = ResetTimeout,
       groupval_fun = init_groupfun(Opts),
-      debatch = Debatch},
+      debatch = Debatch,
+      emit_empty = EmitEmpty},
    %% start reset interval (not used/properly implemented at the moment)
 %%   erlang:send_after(State#state.reset_check_interval, self(), check_reset),
    {ok, all, State}.
@@ -57,6 +59,10 @@ init_groupfun(#{fields := Fields}) ->
 process(_In, P = #data_point{}, State = #state{}) ->
    {Out, NewState} = prepare(P, State),
    {emit, Out, NewState};
+process(_In, B = #data_batch{points = []}, State = #state{emit_empty = true, debatch = false, groups = Groups}) ->
+   %% output the empty batch to all the groups currently known I guess
+   OutList = lists:map(fun(Port) -> {Port, B} end, maps:values(Groups)),
+   {emit, OutList, State};
 process(_In, #data_batch{points = Points, start = BatchStart}, State = #state{debatch = false}) ->
    F =
       fun(Point, {OutAcc, StateAcc}) ->
