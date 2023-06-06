@@ -44,12 +44,14 @@ init(NodeId, _Ins, #{fields := Fields, as := As0, time_offset := Offset0}) ->
    As = case As0 of undefined -> Fields; _ -> As0 end,
    {ok, all, #state{fields = Fields, node_id = NodeId, as = As, offset = Offset}}.
 
-process(_Inport, #data_point{ts = TsStart} = Point, State = #state{fields = Fields, as = As}) ->
-   [{_Alias, List}|_R] = DataList = lists:zip(As, flowdata:fields(Point, Fields)),
+process(_Inport, #data_point{ts = TsStart} = Point, State = #state{fields = Fields, as = As, offset = Offset}) ->
+   DataList0 = lists:zip(As, flowdata:fields(Point, Fields)),
+   %% filter non existing fields
+   [{_Alias, List}|_R] = DataList = [{A, DEntry} || {A, DEntry} <- DataList0, DEntry /= undefined],
    OutPort = 1,
    {_,InitPoints} = lists:foldl(
       fun(_, {TimeStamp, PList}) ->
-         {TimeStamp + State#state.offset, PList ++ [{OutPort, #data_point{ts = TimeStamp}}]}
+         {TimeStamp + Offset, PList ++ [{OutPort, #data_point{ts = TimeStamp}}]}
       end, {TsStart, []}, List),
 
    Out = map_data(DataList, InitPoints),
@@ -57,8 +59,6 @@ process(_Inport, #data_point{ts = TsStart} = Point, State = #state{fields = Fiel
 
 map_data([], PointsAcc) ->
    PointsAcc;
-map_data([{_AsName, undefined}|DataList], PointsAcc) ->
-   map_data(DataList, PointsAcc);
 map_data([{AsName, DList}|DataList], PointsAcc) ->
    NewAcc =
    lists:map(
