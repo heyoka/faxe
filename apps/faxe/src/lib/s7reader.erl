@@ -85,14 +85,15 @@ add_read_stats(Ip, Stats) ->
   .
 
 add_tag_stats(Ip, Stats) ->
-  NewStats =
-    case ets:lookup(s7reader_tag_stats, Ip) of
-      [] -> [Stats];
-      [{Ip, Stats0}] ->
-        Stats1 = [Stats|Stats0],
-        lists:sublist(Stats1, ?STAT_LIST_LENGTH)
-    end,
-  ets:insert(s7reader_tag_stats, {Ip, NewStats})
+%%  NewStats =
+%%    case ets:lookup(s7reader_tag_stats, Ip) of
+%%      [] -> [Stats];
+%%      [{Ip, Stats0}] ->
+%%        Stats1 = [Stats|Stats0],
+%%        lists:sublist(Stats1, ?STAT_LIST_LENGTH)
+%%    end,
+%%  ets:insert(s7reader_tag_stats, {Ip, NewStats})
+  ets:insert(s7reader_tag_stats, {Ip, Stats})
 .
 
 
@@ -128,15 +129,18 @@ get_tag_stats(Ip) ->
   case ets:lookup(s7reader_tag_stats, Ip) of
     [] ->
       #{<<"avg_addresses">> => 0, <<"avg_read_addresses">> => 0};
-    [{Ip, Stats}] when is_list(Stats) ->
-      Length = length(Stats),
-      StatsFun =
-        fun(#{num_tags := NumTags, num_read_tags := NumRTags}, {Tags, ReadTags}) ->
-          {[NumTags|Tags], [NumRTags|ReadTags]}
-        end,
-      {AllNumTags, AllReadNumTags} = lists:foldl(StatsFun, {[],[]}, Stats),
-      #{<<"avg_addresses">> => round(lists:sum(AllNumTags)/Length),
-        <<"avg_read_addresses">> => round(lists:sum(AllReadNumTags)/Length)}
+    [{Ip, #{num_tags := NumTags, num_read_tags := NumRTags}}] ->
+      #{<<"avg_addresses">> => NumTags, <<"avg_read_addresses">> => NumRTags}
+
+%%    [{Ip, Stats}] when is_list(Stats) ->
+%%      Length = length(Stats),
+%%      StatsFun =
+%%        fun(#{num_tags := NumTags, num_read_tags := NumRTags}, {Tags, ReadTags}) ->
+%%          {[NumTags|Tags], [NumRTags|ReadTags]}
+%%        end,
+%%      {AllNumTags, AllReadNumTags} = lists:foldl(StatsFun, {[],[]}, Stats),
+%%      #{<<"avg_addresses">> => round(lists:sum(AllNumTags)/Length),
+%%        <<"avg_read_addresses">> => round(lists:sum(AllReadNumTags)/Length)}
   end.
 
 

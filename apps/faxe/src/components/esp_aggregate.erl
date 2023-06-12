@@ -1,5 +1,5 @@
-%% Date: 09.01.21 - 10:02
-%% Ⓒ 2021 TGW-Group
+%% Date: 06.06.23 - 10:02
+%% Ⓒ 2023
 -module(esp_aggregate).
 -author("Alexander Minichmair").
 
@@ -9,6 +9,7 @@
 -behavior(df_component).
 %% API
 -export([init/3, process/3, handle_info/2, options/0, check_options/0, wants/0, emits/0]).
+-export([prepare_data/2, prepare_each/3, get_path_value/2]).
 
 -define(FUNCTIONS,
    [
@@ -17,13 +18,14 @@
       <<"min">>,
       <<"max">>,
       <<"stddev">>,
-      <<"first">>,
-      <<"last">>,
+%%      <<"first">>,
+%%      <<"last">>,
       <<"avg">>,
       <<"count">>,
       <<"count_distinct">>,
       <<"count_change">>,
       <<"mean">>,
+      <<"geometric_mean">>,
       <<"median">>,
       <<"range">>,
       <<"skew">>
@@ -32,20 +34,21 @@
 
 -record(state, {
    node_id :: binary(),
-   fields :: list(),
-   modules :: list(),
-   module_state,
+   module_states,
    as :: binary(),
    keep :: list(),
    default_ts :: non_neg_integer(),
-   last_point = undefined :: undefined | #data_point{}
+   last_point = undefined :: undefined | #data_point{},
+   mod_paths_as = [],
+   keep_tail = true
 }).
 
 options() -> [
    {fields, string_list},
    {as, string_list, undefined},
    {functions, string_list},
-   {keep, string_list, []}
+   {keep, string_list, []},
+   {keep_tail, boolean, true}
 ].
 
 check_options() ->
@@ -57,11 +60,16 @@ check_options() ->
 wants() -> batch.
 emits() -> point.
 
-init(NodeId, _Ins, #{fields := Fields, functions := Mods, keep := Keep} = Args) ->
-   Modules = [binary_to_atom(<<"esp_", Mod/binary>>, latin1) || Mod <- Mods],
+init(NodeId, _Ins, #{fields := Fields, functions := Funcs, keep := Keep, keep_tail := KeepTail} = Args) ->
+
    As = init_as(Args),
-   State = #state{fields = Fields, node_id = NodeId, as = As, keep = Keep, modules = Modules},
-   {ok, all, State#state{module_state = Args}}.
+   MStates = [Args || _F <- Fields],
+
+   State = #state{
+      node_id = NodeId, as = As, keep = Keep,
+      mod_paths_as = lists:zip3(Funcs, Fields, As),
+      keep_tail = KeepTail},
+   {ok, all, State#state{module_states = MStates}}.
 
 init_as(#{as := undefined, fields := Fields, functions := Funs}) ->
    [<<Field/binary, "_", Fun/binary>> || {Field, Fun} <- lists:zip(Fields, Funs)];
@@ -79,31 +87,25 @@ process(_Inport, #data_batch{points = [], start = BatchStart}, State = #state{as
    NewPoint = flowdata:set_fields(#data_point{ts = Ts}, NewFields),
    %% emit zeroed fields
    {emit, NewPoint, State};
-process(_Inport, #data_batch{points = Points, start = BatchStart} = Batch,
-    State = #state{modules = Mods, module_state = MState, fields = Fields, as = As, keep = KeepFields}) ->
-
-   DefaultTs = faxe_time:now(),
-   Ps = [flowdata:tss_fields(Batch, F) || F <- Fields],
-   MStates = [MState || _F <- Fields],
-
-   %% if there is no timestamp present in the result, we use the ts field form the last point from incoming data_batch
-   {Ts, Results} =
-   case call(Ps, Mods, MStates, As, {0, []}, DefaultTs) of
-      {Ts1, Results1} when is_integer(Ts1) -> {Ts1, Results1};
-      {_, Results2} -> {DefaultTs, Results2}
-   end,
+process(_Inport, #data_batch{start = BatchStart} = Batch,
+    State = #state{mod_paths_as = ModPathsAs, last_point = LastPoint, keep = KeepFields, keep_tail = KeepLast}) ->
+   {FirstPoint = #data_point{ts = Ts}, NewLastPoint, CalcData} =
+      prepare_data(Batch, ModPathsAs),
+%%   lager:warning("prepared data ~p ~n LASTPOINT:~p",[CalcData, State#state.last_point]),
+   Results = do_process(ModPathsAs, CalcData, LastPoint, []),
    TsBatch =
-   case BatchStart of
-      undefined -> Ts;
-      _ when is_integer(BatchStart) -> BatchStart
-   end,
-   %% handle keep fields
-   KeepPoint = lists:last(Points),
-   KeepKV = lists:zip(KeepFields, flowdata:fields(KeepPoint, KeepFields)),
+      case BatchStart of
+         undefined -> Ts;
+         _ when is_integer(BatchStart) -> BatchStart
+      end,
+%% handle keep fields
+   KeepKV = lists:zip(KeepFields, flowdata:fields(FirstPoint, KeepFields)),
    NewPoint0 = flowdata:set_fields(#data_point{ts = TsBatch}, KeepKV),
    NewPoint = flowdata:set_fields(NewPoint0, Results),
-   %% emit
-   {emit, NewPoint, State};
+%% emit
+   Last = case KeepLast of true -> NewLastPoint; false -> nil end,
+   {emit, NewPoint, State#state{last_point = Last}};
+
 process(_, #data_point{}, _State) ->
    {error, datapoint_not_supported}.
 
@@ -112,18 +114,149 @@ handle_info(_Request, State) ->
 
 %%%%%%%%%%%%%%%%%%%% internal %%%%%%%%%%%%
 
-call([], [], [], [], Results, _DefaultTs) ->
-   Results;
-call([Point|Points], [Mod|Modules], [MState|MStates], [As|Aliases], {_Ts, Acc}, DefaultTs) ->
-   Res = call(Point, Mod, MState, As),
-   ResVal =
-   case flowdata:field(Res, As, 0) of
-      [] -> 0;
-      Val -> Val
-   end,
-   Result = {As, ResVal},
-   call(Points, Modules, MStates, Aliases, {flowdata:ts(Res, DefaultTs), [Result]++Acc}, DefaultTs).
+prepare_data(#data_batch{points = Points}, ModPathsAs) when is_list(ModPathsAs) ->
+   lists:foldl(
+      fun
+         (#data_point{}=P, {FirstPoint0, _LastPoint, FieldsVals}) ->
+            FirstPoint = case FirstPoint0 of undefined -> P; _ -> FirstPoint0 end,
+            Data = prepare_each(P, ModPathsAs, FieldsVals),
+            {FirstPoint, P, Data}
+      end,
+      {undefined, undefined, #{}},
+      Points
+   ).
 
--spec call(tuple(), atom(), term(), binary()) -> #data_batch{} | #data_point{}.
-call({Tss,_Vals}=Data, Module, MState, As) when is_list(Tss) ->
-   c_agg:call(Data, Module, MState, As).
+prepare_each(P = #data_point{}, ModPathsAs, AccMap) ->
+   lists:foldl(
+      fun
+         ({Mod, Path, _As}, InnerValMap) ->
+            Key = {Mod, Path},
+            Val = get_path_value(Path, P),
+            case Val of
+               undefined ->
+                  InnerValMap;
+               _ ->
+                  FEntry = #{count := PCount} =
+                     case maps:get(Key, InnerValMap, undefined) of
+                        undefined -> #{count => 0};
+                        FCurrent -> FCurrent
+                     end,
+                  VMap = prepare_mod(Mod, FEntry, Val),
+                  InnerValMap#{Key => VMap#{count => PCount+1}}
+            end
+      end,
+      AccMap,
+      ModPathsAs).
+
+get_path_value(Path, Point=#data_point{}) ->
+   flowdata:field(Point, Path);
+get_path_value(_Path, _Point) ->
+   undefined.
+
+do_process([], _, _LastP, Acc) ->
+   Acc;
+do_process([{Mod, Path, As}|ModsPathsAs], DataMap, LastPoint, Acc) when is_map_key({Mod, Path}, DataMap) ->
+   Data = maps:get({Mod, Path}, DataMap),
+   NewValue =
+      case Mod =:= <<"count_change">> of
+         true ->
+            LastVal =
+               case is_record(LastPoint, data_point) of
+                  true -> flowdata:field(LastPoint, Path, nil);
+                  false -> nil
+               end,
+            agg_count_change(Data, LastVal);
+         false ->
+            agg(Mod, Data)
+      end,
+   NewAcc = [{As, NewValue}|Acc],
+   do_process(ModsPathsAs, DataMap, LastPoint, NewAcc);
+do_process([{_Mod, _Path, As}|ModsPathsAs], DataMap, LastPoint, Acc) ->
+   NewAcc = [{As, 0}|Acc],
+   do_process(ModsPathsAs, DataMap, LastPoint, NewAcc).
+
+
+%% prepare for each aggregation function
+prepare_mod(<<"count">>, Data, _NewVal) ->
+   Data;
+prepare_mod(<<"sum">>, Data = #{sum := Sum}, NewVal) ->
+   Data#{sum => Sum + NewVal};
+prepare_mod(<<"sum">>, Data = #{}, NewVal) ->
+   Data#{sum => NewVal};
+prepare_mod(<<"min">>, Data = #{min := CurrentMin}, NewVal) ->
+   Data#{min => min(CurrentMin, NewVal)};
+prepare_mod(<<"min">>, Data = #{}, NewVal) ->
+   Data#{min => NewVal};
+prepare_mod(<<"max">>, Data = #{max := CurrentMin}, NewVal) ->
+   Data#{max => max(CurrentMin, NewVal)};
+prepare_mod(<<"max">>, Data = #{}, NewVal) ->
+   Data#{max => NewVal};
+prepare_mod(<<"avg">>, Data, NewVal) ->
+   prepare_mod(<<"sum">>, Data, NewVal);
+prepare_mod(<<"mean">>, Data, NewVal) ->
+   prepare_mod(<<"sum">>, Data, NewVal);
+prepare_mod(<<"range">>, Data = #{min := Min, max := Max}, NewVal) ->
+   Data#{min => min(Min, NewVal), max => max(Max, NewVal)};
+prepare_mod(<<"range">>, Data, NewVal) ->
+   Data#{min => NewVal, max => NewVal};
+%% for all other mods, we collect the values in a list
+prepare_mod(_, Data = #{vals := Vals}, NewVal) ->
+   Data#{vals => [NewVal|Vals]};
+prepare_mod(_, Data, NewVal) ->
+   Data#{vals => [NewVal]}.
+
+%% actual aggregation
+agg(<<"count">>, #{count := Count}) ->
+   Count;
+agg(<<"sum">>, #{sum := Sum}) ->
+   Sum;
+agg(<<"min">>, #{min := Min}) ->
+   Min;
+agg(<<"max">>, #{max := Max}) ->
+   Max;
+agg(<<"avg">>, #{sum := Sum, count := Count}) ->
+   Sum/Count;
+agg(<<"mean">>, Data) ->
+   agg(<<"avg">>, Data);
+agg(<<"geometric_mean">>, #{count := Count, vals := Values}) ->
+   [First|Values1] = Values,
+   Prod = lists:foldl(
+      fun(E, Acc) -> E * Acc end,
+      First, Values1
+   ),
+   mathex:nth_root(Count, Prod);
+agg(<<"median">>, #{vals := Vals, count := Count}) ->
+   Sorted = lists:sort(Vals),
+   case (Count rem 2) == 0 of
+      false ->
+         lists:nth(trunc((Count+1)/2), Sorted);
+      true ->
+         Nth = trunc(Count/2),
+         (lists:nth(Nth, Sorted) + lists:nth(Nth+1, Sorted)) / 2
+   end;
+agg(<<"variance">>, #{vals := Vals}) ->
+   mathex:variance(Vals);
+agg(<<"stddev">>, #{vals := Vals}) ->
+   mathex:stdev_sample(Vals);
+agg(<<"count_distinct">>, #{vals := Vals}) ->
+   sets:size(sets:from_list(Vals));
+agg(<<"range">>, #{min := Min, max := Max}) ->
+   Max-Min;
+agg(<<"skew">>, #{vals := Vals}) ->
+   mathex:skew(Vals);
+agg(What, _) ->
+   lager:error("aggregation type ~p not implemented", [What]),
+   0.
+
+agg_count_change(#{vals := Vals}, LastVal) ->
+   F = fun
+          (Last, {Last, Count}) -> {Last, Count};
+          (E, {_Last, Count}) -> {E, Count+1}
+       end,
+   {_L, Counter} = lists:foldr(F, {LastVal, 0}, Vals),
+   Counter.
+
+
+
+
+

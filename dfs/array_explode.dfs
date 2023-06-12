@@ -1,0 +1,8 @@
+|json_emitter(
+    '{"drive.motor.ap": [1,2,3,4,5,6,7,8,9], "torque": [6,7,8,9,1,2,3,4,5], "zip": [4,5,6,7,8,9,1,2,3]}'
+    )
+|debug('info')
+|array_explode()
+.fields('drive*motor*ap', 'zip', 'zap', 'storque')
+.as('data.ex_drive', 'data.ex_zip', 'data.ex_zap', 'data.ex_torque')
+|debug()
