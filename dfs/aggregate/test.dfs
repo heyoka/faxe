@@ -1,0 +1,55 @@
+%def target_topic = 'tgw/data/lenze/diagnosis'
+%def target_topic = 'tgw/data/lenze/lifediagnosis'
+
+def percent = 50
+
+def data =
+|json_emitter(
+'{"val1": 13, "val2": 3.453, "added": 1}',
+'{"val1": 16, "val2": 3.453, "added": 0}',
+'{"val1": 7, "val2": 3.453}',
+'{"val1": 18, "val2": 3.453}',
+'{"val1": 24, "val2": 3.453, "added": 1}',
+'{"val1": 32, "val2": 3.453}',
+'{"val1": 11, "val2": 3.453,"added": 0}',
+'{"val1": 4, "val2": 3.453,"added": 1}'
+)
+.select('batch')
+
+data
+|percentile()
+.fields('val1')
+.as('prec_{{percent}}_val1')
+.at(percent)
+
+|debug('info')
+
+
+data
+|aggregate_opt()
+.functions(
+    'count',
+    'sum',
+    'avg',
+    'range',
+    'count_distinct',
+    'count_change',
+    'geometric_mean')
+.fields(
+    'added',
+    'added',
+    'val1',
+    'val2',
+    'added',
+    'added',
+    'val1')
+.as(
+    'agg.count_added',
+    'agg.sum_added',
+    'agg.avg_val1',
+    'agg.range_val2',
+    'agg.countd_added',
+    'agg.countc_added',
+    'agg.geommean_val1')
+
+|debug()

@@ -24,7 +24,7 @@
 }).
 
 options() -> [
-   {field, string, undefined},
+   {field, string},
    {as, string, undefined},
    {keep_last, boolean, true}
 ].
