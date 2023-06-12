@@ -8,7 +8,10 @@
 
 -behavior(df_component).
 %% API
--export([init/3, process/3, handle_info/2, options/0, check_options/0, wants/0, emits/0]).
+-export([
+   init/3, process/3, handle_info/2, options/0,
+   check_options/0, wants/0, emits/0, init/4, format_state/1]).
+
 -export([prepare_data/2, prepare_each/3, get_path_value/2]).
 
 -define(FUNCTIONS,
@@ -60,6 +63,14 @@ check_options() ->
 wants() -> batch.
 emits() -> point.
 
+format_state(#state{last_point = LP}) ->
+   LP.
+
+init(NodeId, Ins, #{keep_tail := false} = Args, #node_state{}) ->
+   init(NodeId, Ins, Args);
+init(NodeId, Ins, #{keep_tail := true} = Args, #node_state{state = TailPoint}) ->
+   {ok, _, InitState} = init(NodeId, Ins, Args),
+   {ok, true, InitState#state{last_point = TailPoint}}.
 init(NodeId, _Ins, #{fields := Fields, functions := Funcs, keep := Keep, keep_tail := KeepTail} = Args) ->
 
    As = init_as(Args),
