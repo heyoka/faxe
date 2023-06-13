@@ -67,6 +67,7 @@ format_state(#state{last_point = LP}) ->
    LP.
 
 init(NodeId, Ins, #{keep_tail := false} = Args, #node_state{}) ->
+   lager:info("init4 called for ~p",[?MODULE]),
    init(NodeId, Ins, Args);
 init(NodeId, Ins, #{keep_tail := true} = Args, #node_state{state = TailPoint}) ->
    {ok, _, InitState} = init(NodeId, Ins, Args),
@@ -80,7 +81,7 @@ init(NodeId, _Ins, #{fields := Fields, functions := Funcs, keep := Keep, keep_ta
       node_id = NodeId, as = As, keep = Keep,
       mod_paths_as = lists:zip3(Funcs, Fields, As),
       keep_tail = KeepTail},
-   {ok, all, State#state{module_states = MStates}}.
+   {ok, KeepTail, State#state{module_states = MStates}}.
 
 init_as(#{as := undefined, fields := Fields, functions := Funs}) ->
    [<<Field/binary, "_", Fun/binary>> || {Field, Fun} <- lists:zip(Fields, Funs)];

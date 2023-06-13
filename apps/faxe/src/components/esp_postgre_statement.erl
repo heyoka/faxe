@@ -79,7 +79,7 @@ init(NodeId, Ins, Opts, #node_state{state = State=#state{is_done = IsDone}}) ->
    case IsDone of
       true ->
          %% we are done, do nothing, additionally prevent trigger from message (in case)
-         lager:warning("init with state, we are done already, so do nothing"),
+         lager:notice("init with state, we are done already, so do nothing"),
          {ok, all, State#state{on_trigger = false}};
       false ->
          %% not done, init normally, then
@@ -90,6 +90,7 @@ init(NodeId, _Inputs, #{host := Host0, port := Port, user := User, pass := Pass,
    statement := Q0, statement_field := StmtField, retries := Retries, tls := Ssl,
    result_type := RType0, start_on_trigger := OnTrigger, every := Every0}) ->
 
+%%   lager:warning("STATEMENT is ~p",[Q0]),
    process_flag(trap_exit, true),
    Host = binary_to_list(Host0),
    Opts = #{
