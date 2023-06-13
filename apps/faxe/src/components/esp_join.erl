@@ -54,7 +54,7 @@ options() -> [
    %% @todo maybe this should be aligned to wall clock ?
    %% a wall-clock timeout will be set up per time unit to collect all values,
    %% values that do not arrive within the given timeout will be treated as missing, in ms
-   {missing_timeout, duration, <<"20s">>},
+   {missing_timeout, duration, <<"30s">>},
    %% timestamp tolerance in ms
    {tolerance, duration, <<"2s">>},
    %% missing-value handling

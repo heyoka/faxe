@@ -47,7 +47,8 @@
    codecs => [
       {faxe_epgsql_codec, nil},
       {epgsql_codec_json, {jiffy, [], [return_maps]}}],
-   timeout => 4000
+   timeout => 4000,
+   tcp_opts => [{keepalive, true}]
 }).
 
 -define(TIMEFILTER_KEY, <<"$__timefilter">>).
@@ -174,7 +175,7 @@ init(NodeId, _Inputs, Opts = #{
    process_flag(trap_exit, true),
    Host = binary_to_list(Host0),
    DBOpts0 = #{host => Host, port => Port, username => faxe_util:to_list(User),
-      ssl => Ssl, password => faxe_util:to_list(Pass), database => DB},
+      ssl => Ssl, password => faxe_util:to_list(Pass), database => DB, async => self()},
    DBOpts = maps:merge(?DB_OPTIONS, DBOpts0),
 
    ResTimeField = case ResTimeField0 of undefined -> FilterTime; _ -> ResTimeField0 end,
@@ -225,7 +226,7 @@ handle_info({'EXIT', C, normal}, State = #state{client = C}) ->
    {ok, State};
 handle_info({'EXIT', _C, Reason}, State = #state{}) ->
    case Reason of
-      sock_closed -> ok;
+      sock_closed -> lager:warning("EXIT epgsql with reason: sock_closed");
       Err -> lager:warning("EXIT epgsql with reason: ~p",[Err])
    end,
    State0 = cancel_timer(State),
@@ -235,7 +236,8 @@ handle_info(reconnect, State) ->
    {ok, connect(State)};
 handle_info(start_setup, State) ->
    {ok, start_setup(State)};
-handle_info(_What, State) ->
+handle_info(What, State) ->
+   lager:alert("info from epgsql client: ~p",[What]),
    {ok, State}.
 
 shutdown(#state{client = C, stmt = _Stmt} = S) ->
@@ -324,11 +326,13 @@ setup_query_start(S=#state{start = Start}) ->
    end.
 
 start_setup(S=#state{setup_start = false}) ->
+   %% do the setup query here
    maybe_query_setup(S);
 start_setup(S=#state{start = Start, client = Client}) ->
    case catch epgsql:equery(Client, Start) of
       {ok,[_TsCol],[{TimeStampString}]} when is_binary(TimeStampString) ->
          NewState = prepare_start(S#state{start = TimeStampString, setup_start = false}),
+         %% do the setup query here
          maybe_query_setup(NewState);
       W ->
          lager:info("did not get starttime with query: ~p | ~p",[Start, W]),
@@ -395,13 +399,6 @@ do_query(State = #state{query_mark = QMark, stop = Stop, client = C}) when Stop 
    lager:notice("stop is reached: ~p > ~p",[faxe_time:to_iso8601(QMark), faxe_time:to_iso8601(Stop)]),
    epgsql:close(C),
    {ok, State};
-%%   case State#state.stop_flow of
-%%      true ->
-%%%%         dataflow:send_done(State#state.fn_id);
-%%%%         {stop, normal, State};
-%%         ok;
-%%      false -> {ok, State}
-%%   end;
 do_query(State = #state{client = C, period = Period, query_mark = QueryMark, response_def = RespDef, fn_id = FnId}) ->
    %% do query
    FromTs = QueryMark-Period,
