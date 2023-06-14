@@ -43,7 +43,7 @@ init(NodeId, _Ins, #{fields := Fields, as := As0, at := At}) ->
    {ok, all, S}.
 
 process(_Inport, B=#data_batch{start = BatchStart}, State = #state{mods_paths_as = MPA, at = At}) ->
-  {_FirstPoint = #data_point{ts = Ts}, _LastPoint, CalcData} = esp_aggregate:prepare_data(B, MPA),
+  {_FirstPoint = #data_point{ts = Ts}, _LastPoint, CalcData} = esp_aggregate:prepare_data(B, MPA, nil),
   Ts = case BatchStart of undefined -> Ts; _-> BatchStart end,
   OutPoint = do_process(MPA, CalcData, At, #data_point{ts = Ts}),
    {emit, OutPoint, State}.

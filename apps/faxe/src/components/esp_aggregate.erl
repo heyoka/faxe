@@ -8,11 +8,8 @@
 
 -behavior(df_component).
 %% API
--export([
-   init/3, process/3, handle_info/2, options/0,
-   check_options/0, wants/0, emits/0, init/4, format_state/1]).
-
--export([prepare_data/2, prepare_each/3, get_path_value/2]).
+-export([init/3, process/3, handle_info/2, options/0, check_options/0, wants/0, emits/0]).
+-export([prepare_data/3, prepare_each/4, get_path_value/2]).
 
 -define(FUNCTIONS,
    [
@@ -102,9 +99,9 @@ process(_Inport, #data_batch{points = [], start = BatchStart}, State = #state{as
 process(_Inport, #data_batch{start = BatchStart} = Batch,
     State = #state{mod_paths_as = ModPathsAs, last_point = LastPoint, keep = KeepFields, keep_tail = KeepLast}) ->
    {FirstPoint = #data_point{ts = Ts}, NewLastPoint, CalcData} =
-      prepare_data(Batch, ModPathsAs),
+      prepare_data(Batch, ModPathsAs, LastPoint),
 %%   lager:warning("prepared data ~p ~n LASTPOINT:~p",[CalcData, State#state.last_point]),
-   Results = do_process(ModPathsAs, CalcData, LastPoint, []),
+   Results = do_process(ModPathsAs, CalcData, []),
    TsBatch =
       case BatchStart of
          undefined -> Ts;
@@ -112,8 +109,8 @@ process(_Inport, #data_batch{start = BatchStart} = Batch,
       end,
 %% handle keep fields
    KeepKV = lists:zip(KeepFields, flowdata:fields(FirstPoint, KeepFields)),
-   NewPoint0 = flowdata:set_fields(#data_point{ts = TsBatch}, KeepKV),
-   NewPoint = flowdata:set_fields(NewPoint0, Results),
+   NewPoint = flowdata:set_fields(#data_point{ts = TsBatch}, KeepKV++Results),
+%%   NewPoint = flowdata:set_fields(NewPoint0, Results),
 %% emit
    Last = case KeepLast of true -> NewLastPoint; false -> nil end,
    {emit, NewPoint, State#state{last_point = Last}};
@@ -126,19 +123,19 @@ handle_info(_Request, State) ->
 
 %%%%%%%%%%%%%%%%%%%% internal %%%%%%%%%%%%
 
-prepare_data(#data_batch{points = Points}, ModPathsAs) when is_list(ModPathsAs) ->
+prepare_data(#data_batch{points = Points}, ModPathsAs, LastPoint) when is_list(ModPathsAs) ->
    lists:foldl(
       fun
          (#data_point{}=P, {FirstPoint0, _LastPoint, FieldsVals}) ->
             FirstPoint = case FirstPoint0 of undefined -> P; _ -> FirstPoint0 end,
-            Data = prepare_each(P, ModPathsAs, FieldsVals),
+            Data = prepare_each(P, ModPathsAs, FieldsVals, LastPoint),
             {FirstPoint, P, Data}
       end,
       {undefined, undefined, #{}},
       Points
    ).
 
-prepare_each(P = #data_point{}, ModPathsAs, AccMap) ->
+prepare_each(P = #data_point{}, ModPathsAs, AccMap, LastPoint) ->
    lists:foldl(
       fun
          ({Mod, Path, _As}, InnerValMap) ->
@@ -150,10 +147,11 @@ prepare_each(P = #data_point{}, ModPathsAs, AccMap) ->
                _ ->
                   FEntry = #{count := PCount} =
                      case maps:get(Key, InnerValMap, undefined) of
-                        undefined -> #{count => 0};
+                        undefined -> #{count => 0, path => Path};
                         FCurrent -> FCurrent
                      end,
-                  VMap = prepare_mod(Mod, FEntry, Val),
+%%                  lager:info("prepare_mode(~p, ~p, ~p, ~p)",[Mod, FEntry, Val, LastPoint]),
+                  VMap = prepare_mod(Mod, FEntry, Val, LastPoint),
                   InnerValMap#{Key => VMap#{count => PCount+1}}
             end
       end,
@@ -165,56 +163,61 @@ get_path_value(Path, Point=#data_point{}) ->
 get_path_value(_Path, _Point) ->
    undefined.
 
-do_process([], _, _LastP, Acc) ->
+do_process([], _, Acc) ->
    Acc;
-do_process([{Mod, Path, As}|ModsPathsAs], DataMap, LastPoint, Acc) when is_map_key({Mod, Path}, DataMap) ->
+do_process([{Mod, Path, As}|ModsPathsAs], DataMap, Acc) when is_map_key({Mod, Path}, DataMap) ->
    Data = maps:get({Mod, Path}, DataMap),
-   NewValue =
-      case Mod =:= <<"count_change">> of
-         true ->
-            LastVal =
-               case is_record(LastPoint, data_point) of
-                  true -> flowdata:field(LastPoint, Path, nil);
-                  false -> nil
-               end,
-            agg_count_change(Data, LastVal);
-         false ->
-            agg(Mod, Data)
-      end,
+   NewValue = agg(Mod, Data),
    NewAcc = [{As, NewValue}|Acc],
-   do_process(ModsPathsAs, DataMap, LastPoint, NewAcc);
-do_process([{_Mod, _Path, As}|ModsPathsAs], DataMap, LastPoint, Acc) ->
+   do_process(ModsPathsAs, DataMap, NewAcc);
+do_process([{_Mod, _Path, As}|ModsPathsAs], DataMap, Acc) ->
    NewAcc = [{As, 0}|Acc],
-   do_process(ModsPathsAs, DataMap, LastPoint, NewAcc).
+   do_process(ModsPathsAs, DataMap, NewAcc).
 
 
 %% prepare for each aggregation function
-prepare_mod(<<"count">>, Data, _NewVal) ->
+prepare_mod(<<"count">>, Data, _NewVal, _LP) ->
    Data;
-prepare_mod(<<"sum">>, Data = #{sum := Sum}, NewVal) ->
+prepare_mod(<<"sum">>, Data = #{sum := Sum}, NewVal, _LP) ->
    Data#{sum => Sum + NewVal};
-prepare_mod(<<"sum">>, Data = #{}, NewVal) ->
+prepare_mod(<<"sum">>, Data = #{}, NewVal, _LP) ->
    Data#{sum => NewVal};
-prepare_mod(<<"min">>, Data = #{min := CurrentMin}, NewVal) ->
+prepare_mod(<<"min">>, Data = #{min := CurrentMin}, NewVal, _LP) ->
    Data#{min => min(CurrentMin, NewVal)};
-prepare_mod(<<"min">>, Data = #{}, NewVal) ->
+prepare_mod(<<"min">>, Data = #{}, NewVal, _LP) ->
    Data#{min => NewVal};
-prepare_mod(<<"max">>, Data = #{max := CurrentMin}, NewVal) ->
+prepare_mod(<<"max">>, Data = #{max := CurrentMin}, NewVal, _LP) ->
    Data#{max => max(CurrentMin, NewVal)};
-prepare_mod(<<"max">>, Data = #{}, NewVal) ->
+prepare_mod(<<"max">>, Data = #{}, NewVal, _LP) ->
    Data#{max => NewVal};
-prepare_mod(<<"avg">>, Data, NewVal) ->
-   prepare_mod(<<"sum">>, Data, NewVal);
-prepare_mod(<<"mean">>, Data, NewVal) ->
-   prepare_mod(<<"sum">>, Data, NewVal);
-prepare_mod(<<"range">>, Data = #{min := Min, max := Max}, NewVal) ->
+prepare_mod(<<"avg">>, Data, NewVal, LP) ->
+   prepare_mod(<<"sum">>, Data, NewVal, LP);
+prepare_mod(<<"mean">>, Data, NewVal, LP) ->
+   prepare_mod(<<"sum">>, Data, NewVal, LP);
+prepare_mod(<<"range">>, Data = #{min := Min, max := Max}, NewVal, _LP) ->
    Data#{min => min(Min, NewVal), max => max(Max, NewVal)};
-prepare_mod(<<"range">>, Data, NewVal) ->
+prepare_mod(<<"range">>, Data, NewVal, _LP) ->
    Data#{min => NewVal, max => NewVal};
+
+prepare_mod(<<"count_change">>, D = #{last := Value}, Value, _LP) ->
+   D;
+prepare_mod(<<"count_change">>, #{change_count := CurrentCount}, NewVal, _LP) ->
+   #{change_count => CurrentCount+1, last => NewVal};
+prepare_mod(<<"count_change">>, #{path := Path}, NewVal, #data_point{} = P) ->
+   LastVal = flowdata:field(P, Path, nil),
+   InitCount =
+   case LastVal =:= NewVal of
+      true -> 0;
+      false -> 1
+   end,
+   #{change_count => InitCount, last => NewVal};
+prepare_mod(<<"count_change">>, #{}, NewVal, _LastP) ->
+   #{change_count => 1, last => NewVal};
+
 %% for all other mods, we collect the values in a list
-prepare_mod(_, Data = #{vals := Vals}, NewVal) ->
+prepare_mod(_, Data = #{vals := Vals}, NewVal, _LP) ->
    Data#{vals => [NewVal|Vals]};
-prepare_mod(_, Data, NewVal) ->
+prepare_mod(_, Data, NewVal, _LP) ->
    Data#{vals => [NewVal]}.
 
 %% actual aggregation
@@ -252,23 +255,13 @@ agg(<<"stddev">>, #{vals := Vals}) ->
    mathex:stdev_sample(Vals);
 agg(<<"count_distinct">>, #{vals := Vals}) ->
    sets:size(sets:from_list(Vals));
+agg(<<"count_change">>, #{change_count := Count}) ->
+   Count;
 agg(<<"range">>, #{min := Min, max := Max}) ->
    Max-Min;
 agg(<<"skew">>, #{vals := Vals}) ->
    mathex:skew(Vals);
 agg(What, _) ->
-   lager:error("aggregation type ~p not implemented", [What]),
+   lager:error("aggregation type ~p not implemented or no values", [What]),
    0.
-
-agg_count_change(#{vals := Vals}, LastVal) ->
-   F = fun
-          (Last, {Last, Count}) -> {Last, Count};
-          (E, {_Last, Count}) -> {E, Count+1}
-       end,
-   {_L, Counter} = lists:foldr(F, {LastVal, 0}, Vals),
-   Counter.
-
-
-
-
 
