@@ -9,7 +9,7 @@ def data =
 '{"val1": 16, "val2": 3.453, "added": 0}',
 '{"val1": 7, "val2": 3.453}',
 '{"val1": 18, "val2": 3.453}',
-'{"val1": 24, "val2": 3.453, "added": 1}',
+'{"val1": 24, "val2": 3.458, "added": 1}',
 '{"val1": 32, "val2": 3.453}',
 '{"val1": 11, "val2": 3.453,"added": 0}',
 '{"val1": 4, "val2": 3.453,"added": 1}'
@@ -26,11 +26,13 @@ data
 
 
 data
-|aggregate_opt()
+|aggregate()
 .functions(
     'count',
     'sum',
     'avg',
+    'min',
+    'max',
     'range',
     'count_distinct',
     'count_change',
@@ -38,6 +40,8 @@ data
 .fields(
     'added',
     'added',
+    'val1',
+    'val1',
     'val1',
     'val2',
     'added',
@@ -47,9 +51,12 @@ data
     'agg.count_added',
     'agg.sum_added',
     'agg.avg_val1',
+    'agg.min_val1',
+    'agg.max_val1',
     'agg.range_val2',
     'agg.countd_added',
     'agg.countc_added',
     'agg.geommean_val1')
+    .keep_tail(false)
 
 |debug()
