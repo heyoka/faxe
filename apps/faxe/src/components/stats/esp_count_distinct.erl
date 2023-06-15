@@ -15,7 +15,7 @@ options() ->
 
 
 execute({Tss, Values}, _Opts) when is_list(Tss) ->
-   Set = sets:from_list(Values),
+   Set = sets:from_list(Values, [{version, 2}]),
    {first, sets:size(Set)}.
 
 -ifdef(TEST).

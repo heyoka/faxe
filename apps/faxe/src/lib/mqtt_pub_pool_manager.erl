@@ -142,8 +142,8 @@ handle_info({'DOWN', _Mon, process, Pid, _Info}, State = #state{pool_user =  Poo
   F = fun({Ip, UserList}, {L, LastIp}) ->
     UList = sets:to_list(UserList),
         case lists:member(Pid, UList) of
-          true -> { [{Ip, sets:from_list(lists:delete(Pid, UList))}|L] , Ip};
-          false -> { [{Ip, sets:from_list(UList)}|L], LastIp }
+          true -> { [{Ip, sets:from_list(lists:delete(Pid, UList), [{version, 2}])}|L] , Ip};
+          false -> { [{Ip, sets:from_list(UList, [{version, 2}])}|L], LastIp }
         end
       end,
   {NewPoolUsers0, Ip} = lists:foldl(F, {[], 0}, maps:to_list(PoolUsers)),
@@ -197,7 +197,7 @@ add_user(Ip, AllUsers, NewUser) ->
       PUsersSet = maps:get(Ip, AllUsers),
       sets:add_element(NewUser, PUsersSet);
     false ->
-      sets:from_list([NewUser])
+      sets:from_list([NewUser], [{version, 2}])
   end,
   AllUsers#{Ip => PoolUsers}.
 

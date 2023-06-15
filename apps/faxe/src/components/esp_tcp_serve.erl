@@ -60,7 +60,7 @@ init(NodeId, _Ins, #{port := Port, packet := Packet0, format := Format, field :=
   {ok, all,
     #state{
       ranch_sup_pid = SPid,
-      listeners = sets:new(),
+      listeners = sets:new([{version, 2}]),
       port = Port,
       packet = Packet,
       last_item = flowdata:new(),

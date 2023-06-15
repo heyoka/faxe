@@ -556,7 +556,8 @@ get_all_nodes() ->
        lists:flatten(string:replace(lists:last(B0), ".beam", ""))
     end
       || FileName <- AllNodePaths],
-   sets:to_list(sets:from_list(Conv)).
+   lists:uniq(Conv).
+%%   sets:to_list(sets:from_list(Conv)).
 
 
 lev_dist(VarName, Opts) ->

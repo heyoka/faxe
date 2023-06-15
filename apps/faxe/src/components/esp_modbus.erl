@@ -204,7 +204,7 @@ handle_info({modbus, Reader, connected}, S = #state{readers = []}) ->
    {ok, S#state{timer = Timer, connected = true, readers = [Reader]}};
 handle_info({modbus, Reader, connected}, S = #state{readers = Readers}) ->
 %%   lager:info("Modbus is connected, already connected ~p other readers ~p",[length(Readers), Readers]),
-   NewReaders = unique([Reader|Readers]),
+   NewReaders = lists:uniq([Reader|Readers]),
    {ok, S#state{readers = NewReaders}};
 %% if disconnected, we just wait for a connected message and stop polling in the mean time
 handle_info({modbus, Reader, disconnected}, State=#state{}) ->
@@ -375,9 +375,6 @@ start_connections(State = #state{ip = Ip, port = Port, device_address = Dev, req
    ),
 %%   lager:info("started ~p reader connections -> ~p",[ConnNum, Procs]),
    State#state{num_readers = ConnNum, reader_processes = Procs}.
-
-unique(List) when is_list(List) ->
-   sets:to_list(sets:from_list(List)).
 
 -ifdef(TEST).
 
