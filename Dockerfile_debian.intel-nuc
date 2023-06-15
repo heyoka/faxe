@@ -2,8 +2,8 @@
 FROM balenalib/intel-nuc-debian-python:3.10.8 as erlang
 
 ### erlang and rebar3
-ENV OTP_VERSION="24.0.6" \
-    REBAR3_VERSION="3.16.1"
+ENV OTP_VERSION="25.3.2.2" \
+    REBAR3_VERSION="3.22.0"
 
 LABEL org.opencontainers.image.version=$OTP_VERSION
 
