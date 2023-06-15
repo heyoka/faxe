@@ -48,7 +48,7 @@ RUN set -xe \
 	  && make install ) \
 	&& find /usr/local -name examples | xargs rm -rf \
 	&& REBAR3_DOWNLOAD_URL="https://github.com/erlang/rebar3/archive/${REBAR3_VERSION}.tar.gz" \
-	&& REBAR3_DOWNLOAD_SHA256="5416c21b4b3adcdd12c04ec37b392811e259daad48717c2e908ca4945b33592f" \
+	&& REBAR3_DOWNLOAD_SHA256="28b256038b445ec818d2cc33000b3217f42a946219ede55ab5970503bfcf6647" \
 	&& mkdir -p /usr/src/rebar3-src \
 	&& curl -fSL -o rebar3-src.tar.gz "$REBAR3_DOWNLOAD_URL" \
 	&& echo "$REBAR3_DOWNLOAD_SHA256 rebar3-src.tar.gz" | sha256sum -c - \
