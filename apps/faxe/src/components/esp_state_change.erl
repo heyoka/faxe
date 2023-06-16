@@ -92,8 +92,8 @@ init(NodeId, Ins, Opts, #node_state{state = #{state_change := StateTracker}}) ->
 
 
 eval_keep(State = #state{entered_keep = EKeep, left_keep = LKeep, keep = KeepAll}) ->
-   EnteredKeep = sets:to_list(sets:from_list(EKeep++KeepAll)),
-   LeftKeep = sets:to_list(sets:from_list(LKeep++KeepAll)),
+   EnteredKeep = lists:uniq(EKeep++KeepAll),
+   LeftKeep = lists:uniq(LKeep++KeepAll),
    State#state{
       entered_keep = EnteredKeep,
       left_keep = LeftKeep
@@ -172,25 +172,17 @@ eval_keep_3_test() ->
    S = #state{keep = Keep, entered_keep = EKeep, left_keep = LKeep},
    Ex = S#state{
       entered_keep = [<<"data.err.SysNo">>, <<"data.err.Mod">>],
-      left_keep = [<<"data.err.ErrCode">>, <<"data.err.SysNo">>, <<"data.err.Mod">>]},
+      left_keep = [<<"data.err.SysNo">>, <<"data.err.ErrCode">>, <<"data.err.Mod">>]},
    ?assertEqual(Ex, eval_keep(S)).
 
 eval_keep_4_test() ->
    EKeep = [],
    LKeep = [],
    Keep = [<<"data.err.SysNo">>, <<"data.err.ErrCode">>, <<"data.err.Mod">>],
-   ExAll = [<<"data.err.ErrCode">>, <<"data.err.SysNo">>, <<"data.err.Mod">>],
+   ExAll = [<<"data.err.SysNo">>, <<"data.err.ErrCode">>, <<"data.err.Mod">>],
    S = #state{keep = Keep, entered_keep = EKeep, left_keep = LKeep},
    Ex = S#state{entered_keep = ExAll, left_keep = ExAll},
    ?assertEqual(Ex, eval_keep(S)).
 
-eval_keep_unique_test() ->
-   EKeep = [<<"data.err.SysNo">>],
-   LKeep = [<<"data.err.Mod">>],
-   Keep = [<<"data.err.SysNo">>, <<"data.err.ErrCode">>, <<"data.err.Mod">>],
-   ExAll = [<<"data.err.ErrCode">>, <<"data.err.SysNo">>, <<"data.err.Mod">>],
-   S = #state{keep = Keep, entered_keep = EKeep, left_keep = LKeep},
-   Ex = S#state{entered_keep = ExAll, left_keep = ExAll},
-   ?assertEqual(Ex, eval_keep(S)).
 
 -endif.

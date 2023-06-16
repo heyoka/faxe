@@ -10,8 +10,8 @@ def path2 = '/faxe_stats'
 |debug()
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-def path = <<</v1/stats/faxe>>>
-def host = <<<127.0.0.1>>>
+def path = '/v1/stats/faxe'
+def host = '127.0.0.1'
 def port = 8081
 
 %% call faxe's own rest api, and get some stats fields

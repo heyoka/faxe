@@ -254,7 +254,7 @@ agg(<<"variance">>, #{vals := Vals}) ->
 agg(<<"stddev">>, #{vals := Vals}) ->
    mathex:stdev_sample(Vals);
 agg(<<"count_distinct">>, #{vals := Vals}) ->
-   sets:size(sets:from_list(Vals));
+   sets:size(sets:from_list(Vals, [{version, 2}]));
 agg(<<"count_change">>, #{change_count := Count}) ->
    Count;
 agg(<<"range">>, #{min := Min, max := Max}) ->

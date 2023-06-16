@@ -173,7 +173,7 @@ get_tasks_by_tag(Tag) ->
    end.
 
 get_tasks_by_tags(Tags) ->
-   sets:to_list(sets:from_list(get_tasks_by_tags(Tags, []))).
+   lists:uniq(get_tasks_by_tags(Tags, [])).
 
 get_tasks_by_tags([], Acc) ->
    Acc;
