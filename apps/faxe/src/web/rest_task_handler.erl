@@ -463,7 +463,7 @@ is_permanent(Req) ->
 state_persistence(Qs) ->
    case lists:keyfind(<<"persistence">>, 1, Qs) of
       {_, <<"true">>} -> true;
-      _ -> false
+      _ -> faxe_config:get_sub(flow_state_persistence, enable, false)
    end.
 
 stop_mode(Req) ->

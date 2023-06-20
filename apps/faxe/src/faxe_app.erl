@@ -67,10 +67,16 @@ print_started(HttpPort) ->
    {ok, _Description} = application:get_key(description),
    {ok, Vsn} = application:get_key(vsn),
    {ok, CurrentDir} = file:get_cwd(),
+   FlowStatePersistenceActive =
+   case faxe_config:get_sub(flow_state_persistence, enable, false) of
+      true -> <<"">>;
+      false -> <<"NOT ">>
+   end,
 
    io:format("~n* Configuration file: ~p - ~p~n",
       ["./etc/faxe.conf", CurrentDir ++ "/etc/faxe.conf"]),
    io:format("** REST Api listening on port: ~p ~n~n", [HttpPort]),
+   io:format("** Flow state persistence is ~sactive~n~n", [FlowStatePersistenceActive]),
    io:format("*** ~s ~s is running now!~n~n", [?APP, Vsn]).
 
 

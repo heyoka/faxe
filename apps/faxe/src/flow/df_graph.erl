@@ -414,11 +414,21 @@ build_node_subscriptions(Graph, Node, Nodes, FlowMode) ->
    {Inports, Subscriptions}.
 
 -spec start_async(list({binary(), atom(), pid()}), list(), push|pull, binary()) -> ok.
-start_async(Nodes0, Subscriptions, StartContext = #task_modes{run_mode = RunMode}, Id) ->
-   %% state persistence
-   AllStates0 = faxe_db:get_flow_states(Id),
-   AllStates = [{NodeId, NState} || #node_state{flownode_id = {_Id, NodeId}} = NState <- AllStates0],
-   lager:notice("All node-states from flow ~p: ~p",[Id, AllStates]),
+start_async(Nodes0, Subscriptions, StartContext = #task_modes{run_mode = RunMode, state_persistence = SPersist}, Id) ->
+   %% for flow state age filter
+   Now = faxe_time:now(),
+   MaxStateAge = faxe_config:get_sub(flow_state_persistence, state_max_age),
+   NodeStates =
+   case SPersist of
+      true ->
+         %% state persistence
+         AllStates0 = faxe_db:get_flow_states(Id),
+         [{NodeId, NState} ||
+            #node_state{flownode_id = {_Id, NodeId}, ts = Ts} = NState <- AllStates0,
+            Ts > Now-MaxStateAge];
+      false -> []
+   end,
+   lager:notice("All node-states from flow ~p: ~p",[Id, NodeStates]),
    %% start the nodes with subscriptions
    %% do we have mem nodes present ? then sync start them first
    {Mems, Others} = lists:partition(fun(#node{component = Comp}) -> Comp =:= esp_mem end, Nodes0),
@@ -438,8 +448,8 @@ start_async(Nodes0, Subscriptions, StartContext = #task_modes{run_mode = RunMode
 %%         node_metrics:setup(Id, NodeId, Comp),
 %%         df_component:start_async(NPid, Inputs, RunMode)
          PersistedState =
-         case StartContext#task_modes.state_persistence of
-            true -> proplists:get_value(NodeId, AllStates);
+         case SPersist of
+            true -> proplists:get_value(NodeId, NodeStates);
             false -> undefined
          end,
          lager:info("persistent state for  ~p : ~p",[NodeId, PersistedState]),

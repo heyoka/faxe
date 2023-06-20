@@ -142,6 +142,24 @@
 }.
 
 %% @doc --------------------------------------------------------------
+%% Flow state persistence
+%%--------------------------------------------------------------
+
+%% default value for all flows started on this node
+{mapping, "flow_state_persistence_enable", "faxe.flow_state_persistence.enable",
+    [{default, false}, {datatype, flag}, {commented, false}]
+}.
+
+%% @doc --------------------------------------------------------------
+%% Flow state persistence
+%%--------------------------------------------------------------
+
+%% default value for all flows started on this node
+{mapping, "flow_state_persistence_state_max_age", "faxe.flow_state_persistence.state_max_age",
+    [{default, "30m"}, {datatype, {duration, ms}}]
+}.
+
+%% @doc --------------------------------------------------------------
 %% DFS
 %%--------------------------------------------------------------
 

@@ -236,7 +236,7 @@ check_custom_nodes(_GraphDef = #{edges := _, nodes := Nodes}) when is_list(Nodes
       (_, Acc) -> Acc
    end,
    List = lists:foldl(Fun, [], Nodes),
-   sets:to_list(sets:from_list(List)).
+   lists:uniq(List).
 
 fetch_python_deps(PClass, PModule) when is_atom(PModule) ->
    PModuleBin = atom_to_binary(PModule),
