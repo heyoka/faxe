@@ -18,7 +18,7 @@
 -define(RECON_MAX_INTERVAL, 400).
 -define(RECON_MAX_RETRIES, infinity).
 %% max number of consecutive reading errors, before the connection process gets killed
--define(MAX_READ_FAILS, 3).
+-define(MAX_READ_FAILS, 2).
 
 
 -record(state, {
