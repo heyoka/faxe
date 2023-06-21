@@ -151,12 +151,19 @@
 }.
 
 %% @doc --------------------------------------------------------------
-%% Flow state persistence
+%% Flow state persistence, max age
 %%--------------------------------------------------------------
 
-%% default value for all flows started on this node
 {mapping, "flow_state_persistence_state_max_age", "faxe.flow_state_persistence.state_max_age",
     [{default, "30m"}, {datatype, {duration, ms}}]
+}.
+
+%% @doc --------------------------------------------------------------
+%% Flow state persistence, max size in bytes
+%%--------------------------------------------------------------
+
+{mapping, "flow_state_persistence_state_max_size", "faxe.flow_state_persistence.state_max_size",
+    [{default, 300000 }, {datatype, integer}]
 }.
 
 %% @doc --------------------------------------------------------------

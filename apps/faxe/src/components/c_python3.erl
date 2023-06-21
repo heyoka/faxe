@@ -28,7 +28,8 @@
    python_instance :: pid()|undefined,
    cb_object :: term(),
    func_calls = [],
-   as :: binary()|undefined
+   as :: binary()|undefined,
+   state_max_size_bytes :: non_neg_integer()
 }).
 
 
@@ -97,6 +98,7 @@ init_all(NodeId, AddPyOpts, #{cb_module := Callback, cb_class := CBClass, as := 
       callback_class =  CBClass,
       node_id = NodeId,
       python_instance = PInstance,
+      state_max_size_bytes = faxe_config:get_sub(flow_state_persistence, state_max_size),
       as = As},
    {ok, all, State}.
 
@@ -133,10 +135,12 @@ handle_info({emit_data, #{<<"points">> := Points}=BatchData}, State = #state{as 
 handle_info({emit_data, Data}, State = #state{}) when is_list(Data) ->
    BatchData = jiffy:decode(Data, [return_maps, {null_term, undefined}]),
    handle_info({emit_data, BatchData}, State);
-handle_info({persist_state, PythonState}, State = #state{node_id = NId}) ->
+handle_info({persist_state, PythonState}, State = #state{node_id = NId, state_max_size_bytes = MaxSize}) ->
    StateSize = byte_size(PythonState),
-   lager:warning("persist state for ~p size ~p",[NId, StateSize]),
-   dataflow:persist(NId, PythonState),
+   case StateSize > MaxSize of
+      true -> lager:warning("cannot persist state, max size exceeded (is ~p bytes, max ~p bytes)",[StateSize, MaxSize]);
+      false -> dataflow:persist(NId, PythonState)
+   end,
    {ok, State};
 handle_info({python_error, Error}, State) ->
    lager:error("~p", [Error]),

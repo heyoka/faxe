@@ -94,6 +94,8 @@ allowed_methods(Req, State=#state{mode = delete}) ->
    {[<<"DELETE">>], Req, State};
 allowed_methods(Req, State=#state{mode = delete_group}) ->
    {[<<"DELETE">>], Req, State};
+allowed_methods(Req, State=#state{mode = delete_state}) ->
+   {[<<"DELETE">>], Req, State};
 allowed_methods(Req, State=#state{mode = remove_tags}) ->
    {[<<"POST">>], Req, State};
 allowed_methods(Req, State=#state{mode = add_tags}) ->
@@ -247,6 +249,9 @@ check_resource(TId, Req, State) ->
 delete_resource(Req, State=#state{}) ->
    do_delete(Req, State).
 
+do_delete(Req, State=#state{mode = delete_state, task_id = TaskId}) ->
+   do_delete_state(check_resource(TaskId, Req, State));
+
 %% delete a task-group
 do_delete(Req, State=#state{task_id = undefined}) ->
    GroupName = cowboy_req:binding(groupname, Req),
@@ -278,6 +283,24 @@ do_delete(Req, State=#state{task_id = TaskId, delete_force = Force}) ->
          Req4 = cowboy_req:reply(409, Req3),
          {stop, Req4, State}
    end.
+
+
+do_delete_state({true, Req, State=#state{task = #task{is_running = true}} }) ->
+   Req2 = cowboy_req:set_resp_body(
+      jiffy:encode(#{success => false, error => <<"cannot delete state, flow is runnung">>}), Req),
+   Req3 = cowboy_req:reply(409, Req2),
+   {stop, Req3, State};
+do_delete_state({true, Req, State=#state{task_id = FlowId} }) ->
+   faxe_db:delete_flow_states(FlowId),
+   Req2 = cowboy_req:set_resp_body(jiffy:encode(#{<<"success">> => true}), Req),
+   {true, Req2, State};
+do_delete_state({false, Req, State=#state{task = undefined} }) ->
+   Req2 = cowboy_req:set_resp_body(
+   jiffy:encode(#{success => false, error => <<"flow not found">>}), Req),
+   Req3 = cowboy_req:reply(404, Req2),
+   {stop, Req3, State}.
+
+
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%% costum CALLBACKS %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 
