@@ -138,10 +138,16 @@ handle_info({emit_data, Data}, State = #state{}) when is_list(Data) ->
 handle_info({persist_state, PythonState}, State = #state{node_id = NId, state_max_size_bytes = MaxSize}) ->
    StateSize = byte_size(PythonState),
    case StateSize > MaxSize of
-      true -> lager:warning("cannot persist state, max size exceeded (is ~p bytes, max ~p bytes)",[StateSize, MaxSize]);
-      false -> dataflow:persist(NId, PythonState)
-   end,
-   {ok, State};
+      true ->
+         lager:error("cannot persist state, max size exceeded (is: ~p bytes, max: ~p bytes)",[StateSize, MaxSize]),
+         {stop,
+            iolist_to_binary(
+               io_lib:format("max state size exceeded (is: ~p bytes, max: ~p bytes)", [StateSize, MaxSize]))
+            , State};
+      false ->
+         dataflow:persist(NId, PythonState),
+         {ok, State}
+   end;
 handle_info({python_error, Error}, State) ->
    lager:error("~p", [Error]),
    {ok, State};

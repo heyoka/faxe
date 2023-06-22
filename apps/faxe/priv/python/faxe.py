@@ -161,11 +161,10 @@ class Faxe:
         pickle_start = time.time_ns()
         state = pickle.dumps(state_data, protocol=pickle.HIGHEST_PROTOCOL)
         dur = int((time.time_ns() - pickle_start) / 1000)
-        print("state size", sys.getsizeof(state), "took my", dur)
+        # print("state size", sys.getsizeof(state), "took my", dur)
         if state != self._last_state:
             cast(self._erlang_pid, (Faxe.ERL_CAST_PERSIST_STATE, state))
-        else:
-            print("--------> state is equal")
+
         self._last_state = state
 
     def format_state(self):
