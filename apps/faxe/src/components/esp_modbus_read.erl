@@ -120,7 +120,7 @@ init(NodeId, _Ins, #{timeout := Timeout} = Opts) ->
    erlang:send_after(0, self(), connect),
    %% monitor time_offsets
    erlang:monitor(time_offset, clock_service),
-   lager:notice("init: ~p",[lager:pr(NewState, ?MODULE)]),
+%%   lager:notice("init: ~p",[lager:pr(NewState, ?MODULE)]),
    {ok, all, NewState}.
 
 init_opts([], State) ->
@@ -182,8 +182,8 @@ handle_info(poll, State = #state{client = Client, requests = Requests,
          NewOutPoint = maybe_round(OutPoint, State),
          {emit, {1, NewOutPoint}, State#state{timer = faxe_time:timer_next(Timer)}}
    end;
-handle_info({'DOWN', _MonitorRef, process, Object, _Info}, State=#state{client = Object, timer = Timer}) ->
-   lager:notice("modbus client is DOWN"),
+handle_info({'DOWN', _MonitorRef, process, Object, Info}, State=#state{client = Object, timer = Timer}) ->
+   lager:notice("modbus client is DOWN: ~p", [Info]),
    erlang:send_after(200, self(), connect),
    connection_registry:disconnected(),
    {ok, State#state{client = undefined, connected = false, timer = faxe_time:timer_cancel(Timer)}};
