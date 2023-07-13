@@ -29,7 +29,8 @@
    python_args :: map(),
    cb_object :: term(),
    func_calls = [],
-   as :: binary()|undefined
+   as :: binary()|undefined,
+   stop_on_exit :: boolean()
 }).
 
 
@@ -42,11 +43,25 @@
 -define(BATCH_CHUNK_SIZE, 350).
 
 
+add_options() ->
+   [
+      {as, string, undefined},
+      %% stop node (and therefore flow on exit of python instance)
+      {stop_on_exit, boolean, true}
+   ].
+
 -spec options() -> list(
    {atom(), df_types:option_name()} |
    {atom(), df_types:option_name(), df_types:option_value()}
 ).
-options() -> [{cb_module, atom}, {cb_class, atom}, {as, string, undefined}].
+options() ->
+   [
+      {cb_module, atom},
+      {cb_class, atom}
+   ]
+   ++ add_options().
+
+
 
 %% @doc get the options to recognize in dfs for the python node (from the callback class)
 -spec call_options(atom(), atom()) -> list(tuple()).
@@ -58,7 +73,7 @@ call_options(Module, Class) ->
 %%   lager:notice("call options ~p",[{Module, Class, ModClass}]),
    Res =
       try pythra:func(P, ModClass, ?PYTHON_INFO, [Class]) of
-         B when is_list(B) -> [{as, string, undefined}] ++ B
+         B when is_list(B) -> add_options() ++ B
       catch
          _:{python,'builtins.ModuleNotFoundError', Reason,_}:_Stack ->
             Err = lists:flatten(io_lib:format("python module not found: ~s",[Reason])),
@@ -67,7 +82,7 @@ call_options(Module, Class) ->
    python:stop(P),
    Res.
 
-init(NodeId, _Ins, #{cb_module := Callback, cb_class := CBClass, as := As} = Args) ->
+init(NodeId, _Ins, #{cb_module := Callback, cb_class := CBClass, as := As, stop_on_exit := StopOnExit} = Args) ->
    process_flag(trap_exit, true),
    PInstance = python_init(CBClass, Args),
    State = #state{
@@ -76,7 +91,8 @@ init(NodeId, _Ins, #{cb_module := Callback, cb_class := CBClass, as := As} = Arg
       node_id = NodeId,
       python_instance = PInstance,
       python_args = Args,
-      as = As},
+      as = As,
+      stop_on_exit = StopOnExit},
    {ok, all, State}.
 
 process(_Inp, #data_batch{} = Batch, State = #state{python_instance = Python}) ->
@@ -126,9 +142,10 @@ handle_info({'EXIT', Python,
    {message_handler_error, {python, PErrName, ErrorMsg, {'$erlport.opaque',python, _Bin} }}},
       State = #state{python_instance = Python}) ->
 
-   erlang:send_after(1000, self(), restart_python),
    lager:warning("Python exited with: ~p",[{PErrName, ErrorMsg}]),
-   {ok, State#state{python_instance = undefined}};
+   handle_exit(PErrName, State);
+%%   erlang:send_after(1000, self(), restart_python),
+%%   {ok, State#state{python_instance = undefined}};
 handle_info(restart_python, State = #state{python_args = Args, callback_class = CBClass}) ->
    PInstance = python_init(CBClass, Args),
    {ok, State#state{python_instance = PInstance}};
@@ -182,6 +199,13 @@ python_init(CBClass, Args) ->
    PyOpts = maps:without([cb_module, cb_class], Args#{<<"erl">> => self()}),
    pythra:cast(PInstance, [?PYTHON_INIT, CBClass, PyOpts]),
    PInstance.
+
+handle_exit(Reason, State = #state{stop_on_exit = true}) ->
+   {stop, Reason, State};
+handle_exit(_R, State) ->
+   erlang:send_after(1000, self(), restart_python),
+   {ok, State#state{python_instance = undefined}}.
+
 
 
 log_level(<<"debug">>) -> debug;
