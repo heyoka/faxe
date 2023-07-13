@@ -26,6 +26,7 @@
    callback_module :: atom(),
    callback_class :: atom(),
    python_instance :: pid()|undefined,
+   python_args :: map(),
    cb_object :: term(),
    func_calls = [],
    as :: binary()|undefined
@@ -67,15 +68,14 @@ call_options(Module, Class) ->
    Res.
 
 init(NodeId, _Ins, #{cb_module := Callback, cb_class := CBClass, as := As} = Args) ->
-   PInstance = get_python(CBClass),
-   %% create an instance of the callback class
-   PyOpts = maps:without([cb_module, cb_class], Args#{<<"erl">> => self()}),
-   pythra:cast(PInstance, [?PYTHON_INIT, CBClass, PyOpts]),
+   process_flag(trap_exit, true),
+   PInstance = python_init(CBClass, Args),
    State = #state{
       callback_module = Callback,
       callback_class =  CBClass,
       node_id = NodeId,
       python_instance = PInstance,
+      python_args = Args,
       as = As},
    {ok, all, State}.
 
@@ -122,8 +122,18 @@ handle_info({python_log, Message, Level0} = _L, State) ->
 %%%
 handle_info(start_debug, State) ->
    {ok, State};
-handle_info(Request, State) ->
-   lager:notice("got unexpected: ~p", [Request]),
+handle_info({'EXIT', Python,
+   {message_handler_error, {python, PErrName, ErrorMsg, {'$erlport.opaque',python, _Bin} }}},
+      State = #state{python_instance = Python}) ->
+
+   erlang:send_after(1000, self(), restart_python),
+   lager:warning("Python exited with: ~p",[{PErrName, ErrorMsg}]),
+   {ok, State#state{python_instance = undefined}};
+handle_info(restart_python, State = #state{python_args = Args, callback_class = CBClass}) ->
+   PInstance = python_init(CBClass, Args),
+   {ok, State#state{python_instance = PInstance}};
+handle_info(_Request, State) ->
+%%   lager:notice("got unexpected: ~p", [Request]),
    {ok, State}.
 
 shutdown(#state{python_instance = Python}) ->
@@ -165,6 +175,14 @@ get_python(CBClass) ->
 %%   lager:notice("~p",[{faxe_handler, register_handler, [CBClass]}]),
    ok = pythra:func(Python, faxe_handler, register_handler, [CBClass]),
    Python.
+
+python_init(CBClass, Args) ->
+   PInstance = get_python(CBClass),
+   %% create an instance of the callback class
+   PyOpts = maps:without([cb_module, cb_class], Args#{<<"erl">> => self()}),
+   pythra:cast(PInstance, [?PYTHON_INIT, CBClass, PyOpts]),
+   PInstance.
+
 
 log_level(<<"debug">>) -> debug;
 log_level(<<"info">>) -> info;

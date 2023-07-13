@@ -45,7 +45,7 @@ options() ->
       {port, integer, {crate, port}},
       {tls, boolean, {crate, tls, enable}},
       {user, string, {crate, user}},
-      {pass, string, <<>>},
+      {pass, string, {crate, pass}},
       {statement, string, undefined},
       {statement_field, string, undefined},
       {retries, integer, 2},
