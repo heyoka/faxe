@@ -136,7 +136,6 @@ handle_info({'EXIT', _C, Reason}, State = #state{}) ->
 handle_info(reconnect, State) ->
    {ok, connect(State)};
 handle_info(What, State) ->
-   lager:warning("++other info : ~p",[What]),
    {ok, State}.
 
 shutdown(State = #state{client = _C}) ->
