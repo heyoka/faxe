@@ -48,7 +48,7 @@
    codecs => [
       {faxe_epgsql_codec, nil},
       {epgsql_codec_json, {jiffy, [], [return_maps]}}],
-   timeout => 4000,
+   timeout => 5000,
    tcp_opts => [{keepalive, true}]
 }).
 
@@ -57,7 +57,7 @@
 -define(SETUP_QUERY_START_PLACEHOLDER, <<"$__start">>).
 %%-define(TIMEOUT_STATEMENT, <<"SET statement_timeout = ">>).
 -define(KEEPALIVE_QUERY, <<"SELECT 1">>).
--define(KEEPALIVE_INTERVAL, 40000).
+-define(KEEPALIVE_INTERVAL, 30000).
 -define(START_QUERY_RETRY_INTERVAL, 4000).
 
 -define(STMT, "stmt").
@@ -421,7 +421,7 @@ do_query(State = #state{client = C, period = Period, query_mark = QueryMark, fn_
                QTimer = next_query(State),
                {ok, State#state{timer = QTimer}};
             false ->
-               erlang:send_after(500, self(), reconnect),
+%%               erlang:send_after(500, self(), reconnect),
                {ok, State}
          end
    end.
