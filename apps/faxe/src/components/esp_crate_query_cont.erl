@@ -267,7 +267,7 @@ connect(State = #state{db_opts = Opts, query = Q}) ->
    end.
 
 after_connect(State = #state{setup_done = false}) ->
-   erlang:send_after(0, self(), start_setup),
+   erlang:send_after(50, self(), start_setup),
    State;
 after_connect(State = #state{}) ->
    start(State).
@@ -335,7 +335,7 @@ start_setup(S=#state{setup_start = false}) ->
    %% do the setup query here
    maybe_query_setup(S);
 start_setup(S=#state{start = Start, client = Client}) ->
-   case catch epgsql:equery(Client, Start) of
+   case catch epgsql:squery(Client, Start) of
       {ok,[_TsCol],[{TimeStampString}]} when is_binary(TimeStampString) ->
          NewState = prepare_start(S#state{start = TimeStampString, setup_start = false}),
          %% do the setup query here
