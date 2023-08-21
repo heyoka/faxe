@@ -70,8 +70,13 @@ end,
   Server ! {register, Interval, Vars, self()}.
 
 start_reader(Opts = #{ip := _Ip}) ->
-  {ok, ServerPid} = s7reader_sup:start_reader(Opts),
-  ServerPid.
+  %% we possibly get {error, {already_started, pid()}} here
+  %% maybe with very fast succession of requests to register() ->
+  %% that can happen, if we have multiple s7read nodes in one flow reading form the same plc
+  case s7reader_sup:start_reader(Opts) of
+    {ok, ServerPid} -> ServerPid;
+    {error, {already_started, SPid}} -> SPid
+  end.
 
 add_read_stats(Ip, Stats) ->
   NewStats =
