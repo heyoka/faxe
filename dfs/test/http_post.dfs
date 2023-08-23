@@ -1,9 +1,87 @@
-|value_emitter()
-.every(5s)
+def host = 'tgwcmms.tgw-group.com'
+def path = '/TGW_TSI_TEST_AT_01/IsproWebApi/StandardInterface/SensorValue/Save'
+
+def messageJson = ' [ {
+                   "plantStructure" : {   
+                     "serialNumber": "11271986159872"   
+                   },   
+                   "specificationCode" : "SHx.OpHrRet",   
+                   "value" : 326,   
+                   "readOn" : "2023-08-09T07:41:20.954Z"   
+                 }, {   
+                   "plantStructure" : {   
+                     "serialNumber": "11271986159872"   
+                   },   
+                   "specificationCode" : "SHx.OpDstRet",   
+                   "value" : 2198119,   
+                   "readOn" : "2023-08-09T07:41:20.968Z"   
+                 }, {   
+                   "plantStructure" : {   
+                     "serialNumber": "11271986159872"   
+                   },   
+                   "specificationCode" : "SHz.OpCycRet",   
+                   "value" : 158,   
+                   "readOn" : "2023-08-09T07:41:20.986Z"   
+                 } ]'
+
+def read_result =
+'{"SHx.OpHrRet": 326, "SHx.OpDstRet": 2198119, "SHz.OpCycRet": 158, "plantStructure": {"serialNumber": "11271986159872"}}'
+
+|json_emitter(read_result)
+.every(3s)
+
+|eval(lambda: to_iso8601("ts")).as('readOn')
+
+|fields_to_array()
+.fields('SHx*OpHrRet', 'SHx*OpDstRet', 'SHz*OpCycRet')
+.key_name('specificationCode')
+.value_name('value')
+.as('data')
+.keep('plantStructure', 'readOn')
+
+%|debug()
 
 |http_post()
-.host('http://127.0.0.1')
-.port(8899)
-.path('/')
-.user('alex')
-.pass('hahaha')
+.host(host)
+.port(443)
+.tls()
+.path(path)
+.header_names('X-api-key')
+.header_values('4Efbnpo7PQaWauXkj6IIuFPgytLXuWxWKFgipDoh4_ob')
+.field('data')
+
+
+
+%def barrier = true
+%|http_listen()
+%.port(9192)
+%.user('alex')
+%.pass('hahaha')
+%.payload_type('json')
+%
+%|debug('info')
+
+
+
+%curl -X POST --header 'Content-Type: application/json' --header 'Accept: application/json' --header 'X-api-key: 4Efbnpo7PQaWauXkj6IIuFPgytLXuWxWKFgipDoh4_ob' -d ' [ { \
+%     "plantStructure" : { \
+%       "serialNumber": "11271986159872" \
+%     }, \
+%     "specificationCode" : "SHx.OpHrRet", \
+%     "value" : 326, \
+%     "readOn" : "2023-08-09T07:41:20.954Z" \
+%   }, { \
+%     "plantStructure" : { \
+%       "serialNumber": "11271986159872" \
+%     }, \
+%     "specificationCode" : "SHx.OpDstRet", \
+%     "value" : 2198119, \
+%     "readOn" : "2023-08-09T07:41:20.968Z" \
+%   }, { \
+%     "plantStructure" : { \
+%       "serialNumber": "11271986159872" \
+%     }, \
+%     "specificationCode" : "SHz.OpCycRet", \
+%     "value" : 158, \
+%     "readOn" : "2023-08-09T07:41:20.986Z" \
+%   } ]' 'https://tgwcmms.tgw-group.com/TGW_TSI_TEST_AT_01/IsproWebApi/StandardInterface/SensorValue/Save'

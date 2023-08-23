@@ -78,7 +78,7 @@ start_cowboy(#{path := Route, port := Port, tls := Tls, content_type := ContentT
   Dispatch = cowboy_router:compile(Routes),
   {StartFunction, SockOpts} =
     case Tls of
-      true -> {start_tls, faxe_config:get_http_ssl_opts()};
+      true -> {start_tls, faxe_config:get_http_ssl_opts()++[{fail_if_no_peer_cert, false}]};
       _ -> {start_clear, []}
     end,
   lager:info("cowboy http(s) listener starting with: ~p on Port: ~p", [{StartFunction, SockOpts}, Port]),

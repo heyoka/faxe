@@ -10,7 +10,7 @@
 
 -behavior(df_component).
 %% API
--export([init/3, process/3, options/0, handle_info/2, shutdown/1, metrics/0]).
+-export([init/3, process/3, options/0, handle_info/2, shutdown/1, metrics/0, check_options/0]).
 
 -define(FAILED_RETRIES, 3).
 
@@ -22,6 +22,8 @@
    headers :: list(),
    client,
    failed_retries,
+   without :: list(),
+   field :: binary(),
    tries,
    tls,
    fn_id
@@ -34,23 +36,33 @@ options() ->
       {path, string, <<"/">>},
       {tls, is_set, false},
       {user, string, undefined},
-      {pass, string, undefined}
+      {pass, string, undefined},
+      {header_names, string_list, []},
+      {header_values, string_list, []},
+      {field, string, undefined},
+      {without, string_list, []}
    ].
+
+check_options() ->
+   [{same_length, [header_names, header_values]}].
 
 metrics() ->
    [
       {?METRIC_BYTES_SENT, meter, []}
    ].
 
-init(NodeId, _Inputs, #{host := Host0, port := Port, path := Path, tls := Tls, user := User, pass := Pass}) ->
+init(NodeId, _Inputs, #{host := Host0, port := Port, path := Path, tls := Tls, without := Without, field := Field,
+      user := User, pass := Pass, header_names := CustomHeaderNames, header_values := CustomHeaderValues}) ->
    Host = binary_to_list(Host0),
    connection_registry:reg(NodeId, Host, Port, <<"http">>),
    erlang:send_after(0, self(), start_client),
-   Headers =
-      [{<<"content-type">>, <<"application/json">>}] ++
+   Headers0 =
+      [{<<"content-type">>, <<"application/json">>}, {<<"accept">>, <<"application/json">>}] ++
       http_lib:basic_auth_header(User, Pass) ++ http_lib:user_agent_header(),
+   Headers = Headers0 ++ lists:zip(CustomHeaderNames, CustomHeaderValues),
+%%   lager:notice("all headers are ~p",[Headers]),
    {ok, all,
-      #state{host = Host, port = Port, path = Path, tls = Tls,
+      #state{host = Host, port = Port, path = Path, tls = Tls, without = Without, field = Field,
          failed_retries = ?FAILED_RETRIES, fn_id = NodeId, headers = Headers}}.
 
 process(_In, P = #data_point{}, State = #state{}) ->
@@ -73,9 +85,15 @@ handle_info(_R, State) ->
 shutdown(#state{client = C}) ->
    gun:close(C).
 
-send(Item, State = #state{headers = Headers}) ->
-   M = flowdata:to_mapstruct(Item),
+send(Item, State = #state{headers = Headers, without = Without, field = Field}) ->
+   M0 =
+   case Field of
+      undefined -> flowdata:to_mapstruct(Item);
+      _ -> flowdata:field(Item, Field)
+   end,
+   M = maybe_without(Without, M0),
    Body = jiffy:encode(M),
+%%   lager:notice("Body to send ~p",[Body]),
    do_send(Body, Headers, 0, State).
 
 do_send(_Body, _Headers, MaxFailedRetries, S = #state{failed_retries = MaxFailedRetries}) ->
@@ -139,3 +157,10 @@ handle_response(<<"5", _/binary>>,_BodyJSON) ->
    {failed, server_error};
 handle_response({error, What}, {error, Reason}) ->
    {failed, {What, Reason}}.
+
+maybe_without([], Data) ->
+   Data;
+maybe_without(Without, Data) when is_map(Data) ->
+   maps:without(Without, Data);
+maybe_without(Without, Data) when is_list(Data) ->
+   maps:without(Without, Data).
