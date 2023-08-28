@@ -24,6 +24,7 @@
    failed_retries,
    without :: list(),
    field :: binary(),
+   response_field :: binary(),
    tries,
    tls,
    fn_id
@@ -40,7 +41,8 @@ options() ->
       {header_names, string_list, []},
       {header_values, string_list, []},
       {field, string, undefined},
-      {without, string_list, []}
+      {without, string_list, []},
+      {response_as, string, <<"data">>}
    ].
 
 check_options() ->
@@ -51,8 +53,10 @@ metrics() ->
       {?METRIC_BYTES_SENT, meter, []}
    ].
 
-init(NodeId, _Inputs, #{host := Host0, port := Port, path := Path, tls := Tls, without := Without, field := Field,
-      user := User, pass := Pass, header_names := CustomHeaderNames, header_values := CustomHeaderValues}) ->
+init(NodeId, _Inputs,
+    #{host := Host0, port := Port, path := Path, tls := Tls,
+       without := Without, field := Field, response_as := ResponseAs,
+       user := User, pass := Pass, header_names := CustomHeaderNames, header_values := CustomHeaderValues}) ->
    Host = binary_to_list(Host0),
    connection_registry:reg(NodeId, Host, Port, <<"http">>),
    erlang:send_after(0, self(), start_client),
@@ -62,15 +66,15 @@ init(NodeId, _Inputs, #{host := Host0, port := Port, path := Path, tls := Tls, w
    Headers = Headers0 ++ lists:zip(CustomHeaderNames, CustomHeaderValues),
 %%   lager:notice("all headers are ~p",[Headers]),
    {ok, all,
-      #state{host = Host, port = Port, path = Path, tls = Tls, without = Without, field = Field,
+      #state{host = Host, port = Port, path = Path, tls = Tls,
+         without = Without, field = Field, response_field = ResponseAs,
          failed_retries = ?FAILED_RETRIES, fn_id = NodeId, headers = Headers}}.
 
-process(_In, P = #data_point{}, State = #state{}) ->
-   send(P, State),
+process(_In, _Item, State = #state{client = undefined}) ->
+   lager:warning("cannot send post request, client is not connected"),
    {ok, State};
-process(_In, B = #data_batch{}, State = #state{}) ->
-   send(B, State),
-   {ok, State}.
+process(_In, Item, State = #state{}) ->
+   maybe_emit(send(Item, State)).
 
 handle_info({'DOWN', _MonitorRef, _Type, Pid, _Info}, State = #state{client = Pid}) ->
    connection_registry:disconnected(),
@@ -84,6 +88,12 @@ handle_info(_R, State) ->
 
 shutdown(#state{client = C}) ->
    gun:close(C).
+
+maybe_emit({State = #state{response_field = As}, Response}) ->
+   P = flowdata:set_field(flowdata:new(), As, Response),
+   {emit, P, State};
+maybe_emit(State) ->
+   {ok, State}.
 
 send(Item, State = #state{headers = Headers, without = Without, field = Field}) ->
    M0 =
@@ -102,10 +112,10 @@ do_send(_Body, _Headers, MaxFailedRetries, S = #state{failed_retries = MaxFailed
 do_send(Body, Headers, Retries, S = #state{client = Client, path = Path, fn_id = FNId}) ->
    Ref = gun:post(Client, Path, Headers, Body),
    case catch(get_response(Client, Ref)) of
-      ok ->
+      {ok, ResponseBody} ->
          node_metrics:metric(?METRIC_ITEMS_OUT, 1, FNId),
          node_metrics:metric(?METRIC_BYTES_SENT, byte_size(Body), FNId),
-         S;
+         {S, ResponseBody};
       {error, What} ->
          lager:warning("could not send ~p: invalid request: ~p", [Body, What]),
          S;
@@ -144,9 +154,9 @@ get_response(Client, Ref) ->
 
    end.
 
--spec handle_response(integer(), binary()) -> ok|{error, invalid}|{failed, term()}.
-handle_response(<<"2", _/binary>>, _BodyJSON) ->
-   ok;
+-spec handle_response(integer(), binary()) -> {ok, Data::binary()}|{error, invalid}|{failed, term()}.
+handle_response(<<"2", _/binary>>, BodyJSON) ->
+   {ok, BodyJSON};
 handle_response(<<"4", _/binary>>,_BodyJSON) ->
    lager:error("Error 400: ~p",[_BodyJSON]),
    {error, invalid};
