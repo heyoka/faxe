@@ -41,7 +41,7 @@
    ignore_resp_timeout,
    error_trace = false,
    pg_client :: pid(),
-   buffer :: list()
+   buffer = [] :: list()
 }).
 
 -define(KEY, <<"stmt">>).
