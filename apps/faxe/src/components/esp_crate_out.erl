@@ -26,7 +26,7 @@
    query,
    query_from_lambda = false :: true|false,
    %% the query point is used when the query is built with a lambda and also to get a decent error message
-   %% from CRATE when batch INSERT just returns a -2 for a row, but no error
+   %% from CRATE when batch INSERT just returns a -2 for a row, but no error (message)
    query_point :: undefined|#data_point{},
    db_fields,
    faxe_fields,
@@ -40,7 +40,8 @@
    flow_inputs,
    ignore_resp_timeout,
    error_trace = false,
-   pg_client :: pid()
+   pg_client :: pid(),
+   buffer :: list()
 }).
 
 -define(KEY, <<"stmt">>).
@@ -132,9 +133,10 @@ process(_In, #data_batch{points = []}, State = #state{}) ->
    {ok, State};
 %% not connected -> drop message
 %% @todo buffer these messages when not connected
-process(_In, _DataItem, State = #state{client = undefined}) ->
+process(_In, _DataItem, State = #state{client = undefined, buffer = _Buffer}) ->
    lager:notice("got item when not connected"),
    {ok, State};
+%%   {ok, State#state{buffer = Buffer ++ [DataItem]}};
 %% we do not have a prepare query yet
 process(_In, DataItem, State = #state{query_from_lambda = true,
       table = Table, db_fields = DbFields, database = DB, remaining_fields_as = RemFields}) ->
@@ -199,7 +201,11 @@ start_client(State = #state{host = Host, port = Port, tls = Tls}) ->
          case gun:await_up(C) of
             {ok, _} ->
                connection_registry:connected(),
-               State#state{client = C};
+               NewState = State#state{client = C},
+               %% resend buffered data
+               lager:info("try resending ~p buffered data items",[length(State#state.buffer)]),
+               [process(1, Item, NewState) || Item <- State#state.buffer],
+               NewState#state{buffer = []};
             {error, What} ->
                lager:warning("error connecting to ~p:~p - ~p", [Host, Port, What]),
                recon(State)
@@ -255,6 +261,7 @@ do_send(Item, Body, Headers, Retries, State = #state{client = Client, fn_id = FN
    case catch(get_response(Client, Ref, State#state.ignore_resp_timeout)) of
       ok ->
          dataflow:ack(Item, State#state.flow_inputs),
+%%         lager:info("would ack"),
          dataflow:maybe_debug(item_out, 1, Item, FNId, State#state.debug_mode),
          State;
       {error, retry_single} ->
@@ -263,7 +270,10 @@ do_send(Item, Body, Headers, Retries, State = #state{client = Client, fn_id = FN
       {error, What} ->
 %%         lager:warning("could not send ~p: error in request: ~p", [Body, What]),
          do_send(Item, Body, Headers, Retries+1, State#state{last_error = What});
-
+      {failed, Why} ->
+         %% if the server fails in some way, we just try endlessly with a small nap in between
+         timer:sleep(300),
+         do_send(Item, Body, Headers, Retries, State#state{last_error = Why});
       O ->
          lager:warning("sending gun post: ~p",[O]),
          do_send(Item, Body, Headers, Retries+1, State#state{last_error = O})
