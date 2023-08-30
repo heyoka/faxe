@@ -41,7 +41,8 @@
    ignore_resp_timeout,
    error_trace = false,
    pg_client :: pid(),
-   buffer = [] :: list()
+   buffer = [] :: list(),
+   use_flow_ack = false :: true|false
 }).
 
 -define(KEY, <<"stmt">>).
@@ -70,7 +71,8 @@ options() ->
       {remaining_fields_as, string, undefined},
       {max_retries, integer, ?FAILED_RETRIES},
       {error_trace, boolean, false},
-      {ignore_response_timeout, boolean, true}
+      {ignore_response_timeout, boolean, true},
+      {use_flow_ack, boolean, false}
    ].
 
 check_options() ->
@@ -97,7 +99,7 @@ init(NodeId, Inputs,
     #{host := Host0, port := Port, database := DB, table := Table, user := User, pass := Pass,
        tls := Tls, db_fields := DBFields0, faxe_fields := FaxeFields, error_trace := ETrace,
        remaining_fields_as := RemFieldsAs, max_retries := MaxRetries,
-       ignore_response_timeout := IgnoreRespTimeout}) ->
+       ignore_response_timeout := IgnoreRespTimeout, use_flow_ack := FlowAck}) ->
 
    Host = binary_to_list(Host0),
    erlang:send_after(0, self(), query_init),
@@ -122,7 +124,8 @@ init(NodeId, Inputs,
       db_fields = DBFields,
       faxe_fields = FaxeFields,
       error_trace = ETrace,
-      fn_id = NodeId, flow_inputs = Inputs, ignore_resp_timeout = IgnoreRespTimeout},
+      fn_id = NodeId, flow_inputs = Inputs,
+      ignore_resp_timeout = IgnoreRespTimeout, use_flow_ack = FlowAck},
 %%   NewState = query_init(State),
 %%   lager:warning("QUERY INIT Schema:~p ~p",[DB, {NewState#state.query, NewState#state.query_from_lambda}]),
    {ok, all,State}.
@@ -270,7 +273,7 @@ do_send(Item, Body, Headers, Retries, State = #state{client = Client, fn_id = FN
       {error, What} ->
 %%         lager:warning("could not send ~p: error in request: ~p", [Body, What]),
          do_send(Item, Body, Headers, Retries+1, State#state{last_error = What});
-      {failed, Why} ->
+      {failed, Why} when State#state.use_flow_ack == true ->
          %% if the server fails in some way, we just try endlessly with a small nap in between
          timer:sleep(300),
          do_send(Item, Body, Headers, Retries, State#state{last_error = Why});
