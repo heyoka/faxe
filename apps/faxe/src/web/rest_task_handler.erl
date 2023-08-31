@@ -8,7 +8,7 @@
 %%%-------------------------------------------------------------------
 -module(rest_task_handler).
 
--define(BODY_LENGTH_TIMEOUT, #{length => 250000, period => 5000}).
+-define(BODY_LENGTH_TIMEOUT, #{length => 1000000, period => 10000}).
 
 %%
 %% Cowboy callbacks
@@ -401,7 +401,6 @@ set_group_size_to_json(Req, State) ->
 
 start_metrics_trace_to_json(Req, State = #state{task_id = Id}) ->
    TraceDuration = get_duration(Req),
-   lager:info("start metrics trace: ~p :: ~p",[Id, TraceDuration]),
    case faxe:start_metrics_trace(Id, TraceDuration) of
       {ok, _Graph} ->
          rest_helper:success(Req, State);
@@ -411,7 +410,6 @@ start_metrics_trace_to_json(Req, State = #state{task_id = Id}) ->
 
 start_debug_to_json(Req, State = #state{task_id = Id}) ->
    DebugDuration = get_duration(Req),
-   lager:info("start debug trace: ~p :: ~p",[Id, DebugDuration]),
    case faxe:start_trace(Id, DebugDuration) of
       {ok, _Graph} ->
          rest_helper:success(Req, State);

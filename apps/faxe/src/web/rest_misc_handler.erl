@@ -20,7 +20,7 @@
 -export([
 ]).
 
--define(BODY_LENGTH_TIMEOUT, #{length => 250000, period => 5000}).
+-define(BODY_LENGTH_TIMEOUT, #{length => 1000000, period => 10000}).
 
 -record(state, {mode, dfs, level, backend}).
 

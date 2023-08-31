@@ -8,7 +8,7 @@
 -behaviour(application).
 
 %% Application callbacks
--export([start/2, stop/1, prepare_stop/1]).
+-export([start/2, stop/1, prep_stop/1]).
 
 -define(APP, faxe).
 -define(PRIV_DIR, code:priv_dir(?APP)).
@@ -48,12 +48,15 @@ start(_StartType, _StartArgs) ->
    Res.
 
 %%--------------------------------------------------------------------
-prepare_stop(State) ->
-   lager:notice("Application faxe prepares to stop with state: ~p",[State]),
-   State.
+prep_stop(State) ->
+   NState = faxe_time:now(),
+   faxe:stop_all(),
+   lager:info("Application faxe prepares to stop with state: ~p",[State]),
+   NState.
 
 
-stop(_State) ->
+stop(_PrepTime) ->
+   lager:notice("Faxe on ~p stopping", [faxe_util:device_name()]),
    ok.
 
 %%--------------------------------------------------------------------

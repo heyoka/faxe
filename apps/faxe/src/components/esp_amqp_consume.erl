@@ -200,7 +200,7 @@ handle_info(_R, State) ->
 handle_ack(_, _, State=#state{flow_ack = false}) ->
    {ok, State};
 handle_ack(Mode, DTag, State=#state{consumer = Consumer}) ->
-   lager:info("got ack ~p for Tag: ~p",[Mode, DTag]),
+%%   lager:info("got ack ~p for Tag: ~p",[Mode, DTag]),
    Func = case Mode of single -> ack; multi -> ack_multiple end,
    carrot:Func(Consumer, DTag),
    {ok, State}.

@@ -41,6 +41,7 @@
    fn_id,
    debug_mode = false,
    response_def :: faxe_epgsql_response(),
+   setup_done = false :: true|false, %% whether setup is done already
 
    %% done flags
 %%   setup_time_query_done = false :: true|false,
@@ -51,7 +52,7 @@
    codecs => [
       {faxe_epgsql_codec, nil},
       {epgsql_codec_json, {jiffy, [], [return_maps]}}],
-   timeout => 4000,
+   timeout => 5000,
    tcp_opts => [{keepalive, true}]
 }).
 
@@ -60,7 +61,7 @@
 -define(SETUP_QUERY_START_PLACEHOLDER, <<"$__start">>).
 %%-define(TIMEOUT_STATEMENT, <<"SET statement_timeout = ">>).
 -define(KEEPALIVE_QUERY, <<"SELECT 1">>).
--define(KEEPALIVE_INTERVAL, 40000).
+-define(KEEPALIVE_INTERVAL, 30000).
 -define(START_QUERY_RETRY_INTERVAL, 4000).
 
 -define(STMT, "stmt").
@@ -236,7 +237,7 @@ handle_info({init2, StartOpts}, State = #state{}) ->
    {ok, State1};
 
 handle_info({'EXIT', C, normal}, State = #state{client = C}) ->
-   lager:info("Client EXITED normal"),
+   lager:notice("epgsql client EXITED normal"),
    {ok, State};
 handle_info({'EXIT', _C, Reason}, State = #state{}) ->
    case Reason of
@@ -244,42 +245,47 @@ handle_info({'EXIT', _C, Reason}, State = #state{}) ->
       Err -> lager:warning("EXIT epgsql with reason: ~p",[Err])
    end,
    State0 = cancel_timer(State),
-   NewState = connect(State0),
-   {ok, NewState};
+   erlang:send_after(1000, self(), reconnect),
+   {ok, State0};
 handle_info(reconnect, State) ->
    {ok, connect(State)};
 handle_info(start_setup, State) ->
    {ok, start_setup(State)};
-handle_info(What, State) ->
-   lager:alert("info from epgsql client: ~p",[What]),
+handle_info(_What, State) ->
    {ok, State}.
 
 shutdown(#state{client = C, stmt = _Stmt} = S) ->
    connection_registry:disconnected(),
    cancel_timer(S),
+   epgsql:cancel(C),
+%%   lager:notice("shutdown"),
    catch epgsql:close(C).
 
 connect(State = #state{db_opts = Opts, query = Q}) ->
    connection_registry:connecting(),
-%%   lager:info("~p db opts: ~p",[?MODULE, Opts]),
+%%   lager:info("CONNECT ~p db opts: ~p",[?MODULE, Opts]),
    case epgsql:connect(Opts) of
       {ok, C} ->
          connection_registry:connected(),
          case epgsql:parse(C, ?STMT, Q, [int8, int8]) of
             {ok, Statement} ->
-               erlang:send_after(0, self(), start_setup),
-               State#state{client = C, stmt = Statement};
-               %% setup start-time with a query:
-%%               lager:notice("start_setup:~p",[lager:pr(NewState0, ?MODULE)]),
+               after_connect(State#state{client = C, stmt = Statement});
             Other ->
                lager:error("Can not parse prepared statement: ~p",[Other]),
-               %error("parsing prepared statement failed!"),
                State
          end;
+
       {error, What} ->
          lager:warning("Error connecting to crate: ~p",[What]),
          State
    end.
+
+after_connect(State = #state{setup_done = false}) ->
+   erlang:send_after(50, self(), start_setup),
+   State;
+after_connect(State = #state{}) ->
+   start(State).
+
 
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -343,7 +349,7 @@ start_setup(S=#state{setup_start = false}) ->
    %% do the setup query here
    maybe_query_setup(S);
 start_setup(S=#state{start = Start, client = Client}) ->
-   case catch epgsql:equery(Client, Start) of
+   case catch epgsql:squery(Client, Start) of
       {ok,[_TsCol],[{TimeStampString}]} when is_binary(TimeStampString) ->
          NewState = prepare_start(S#state{start = TimeStampString, setup_start = false}),
          %% do the setup query here
@@ -408,27 +414,66 @@ do_setup_query(Client, Query, RespDef) ->
 
 start(S = #state{}) ->
    TRef = next_query(S),
-   S#state{timer = TRef}.
+   S#state{timer = TRef, setup_done = true}.
 
 %% stop
 do_query(State = #state{query_mark = QMark, stop = Stop, client = C}) when Stop /= undefined andalso QMark > Stop ->
    lager:notice("stop is reached: ~p > ~p",[faxe_time:to_iso8601(QMark), faxe_time:to_iso8601(Stop)]),
    epgsql:close(C),
    {ok, State};
-do_query(State = #state{client = C, period = Period, query_mark = QueryMark, response_def = RespDef, fn_id = FnId}) ->
+do_query(State = #state{client = C, period = Period, query_mark = QueryMark, fn_id = FnId, stmt = Stmt}) ->
    %% do query
    FromTs = QueryMark-Period,
-   {TsMy, Resp} = timer:tc(epgsql, prepared_query, [C, ?STMT, [FromTs, QueryMark]]),
+%%   lager:notice("from: ~p, to :~p (~p sec)",
+%%      [faxe_time:to_iso8601(QueryMark-Period), faxe_time:to_iso8601(QueryMark), round(Period/1000)]),
+   case catch timer:tc(epgsql, prepared_query, [C, Stmt, [FromTs, QueryMark]]) of
+      {TsMy, Resp} when is_integer(TsMy) ->
+         node_metrics:metric(?METRIC_READING_TIME, round(TsMy/1000), FnId),
+         handle_result(Resp, FromTs, State);
+      Err ->
+         lager:error("Error reading from DB: ~p",[Err]),
+         case is_process_alive(C) of
+            true ->
+               QTimer = next_query(State),
+               {ok, State#state{timer = QTimer}};
+            false ->
+%%               erlang:send_after(500, self(), reconnect),
+               {ok, State}
+         end
+   end.
+%%   {TsMy, Resp} = timer:tc(epgsql, prepared_query, [C, ?STMT, [FromTs, QueryMark]]),
 %%   lager:info("read from ~p to ~p",[FromTs, QueryMark]),
    %%   lager:info("reading time: ~pms", [round(TsMy/1000)]),
-   node_metrics:metric(?METRIC_READING_TIME, round(TsMy/1000), FnId),
+%%   node_metrics:metric(?METRIC_READING_TIME, round(TsMy/1000), FnId),
+
+
+%%   NewQueryMark = QueryMark+Period,
+%%   NewState0 = State#state{query_mark = NewQueryMark},
+%%   NewTimer = next_query(NewState0),
+%%   NewState = NewState0#state{timer = NewTimer},
+%%%%   lager:notice("from: ~p, to :~p (~p sec)",
+%%%%      [faxe_time:to_iso8601(QueryMark-Period), faxe_time:to_iso8601(QueryMark), round(Period/1000)]),
+%%%%   Result = faxe_epgsql_response:handle(Resp, RespDef#faxe_epgsql_response{default_timestamp = FromTs}),
+%%   case catch faxe_epgsql_response:handle(Resp, RespDef) of
+%%      ok ->
+%%         {ok, NewState};
+%%      {ok, Data, NewResponseDef} ->
+%%%%         lager:notice("JB: ~s",[flowdata:to_json(Data)]),
+%%         node_metrics:metric(?METRIC_ITEMS_IN, 1, FnId),
+%%         {emit, {1, Data#data_batch{start = FromTs}}, NewState#state{response_def = NewResponseDef}};
+%%      {error, Error} ->
+%%         lager:warning("Error response from Crate: ~p", [Error]),
+%%         {ok, NewState};
+%%      What ->
+%%         lager:error("Error handling CRATE response: ~p",[What]),
+%%         {stop, invalid, NewState}
+%%   end.
+
+handle_result(Resp, FromTs, State = #state{period = Period, query_mark = QueryMark, response_def = RespDef, fn_id = FnId}) ->
    NewQueryMark = QueryMark+Period,
    NewState0 = State#state{query_mark = NewQueryMark},
    NewTimer = next_query(NewState0),
    NewState = NewState0#state{timer = NewTimer},
-%%   lager:notice("from: ~p, to :~p (~p sec)",
-%%      [faxe_time:to_iso8601(QueryMark-Period), faxe_time:to_iso8601(QueryMark), round(Period/1000)]),
-%%   Result = faxe_epgsql_response:handle(Resp, RespDef#faxe_epgsql_response{default_timestamp = FromTs}),
    case catch faxe_epgsql_response:handle(Resp, RespDef) of
       ok ->
          {ok, NewState};
@@ -443,6 +488,7 @@ do_query(State = #state{client = C, period = Period, query_mark = QueryMark, res
          lager:error("Error handling CRATE response: ~p",[What]),
          {stop, invalid, NewState}
    end.
+
 
 next_query(#state{min_interval = Min, interval = Min}) ->
    erlang:send_after(Min, self(), query);

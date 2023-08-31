@@ -26,9 +26,11 @@
    callback_module :: atom(),
    callback_class :: atom(),
    python_instance :: pid()|undefined,
+   python_args :: map(),
    cb_object :: term(),
    func_calls = [],
    as :: binary()|undefined,
+   stop_on_exit :: boolean(),
    state_max_size_bytes :: non_neg_integer()
 }).
 
@@ -43,11 +45,25 @@
 -define(BATCH_CHUNK_SIZE, 350).
 
 
+add_options() ->
+   [
+      {as, string, undefined},
+      %% stop node (and therefore flow on exit of python instance)
+      {stop_on_exit, boolean, true}
+   ].
+
 -spec options() -> list(
    {atom(), df_types:option_name()} |
    {atom(), df_types:option_name(), df_types:option_value()}
 ).
-options() -> [{cb_module, atom}, {cb_class, atom}, {as, string, undefined}].
+options() ->
+   [
+      {cb_module, atom},
+      {cb_class, atom}
+   ]
+   ++ add_options().
+
+
 
 %% @doc get the options to recognize in dfs for the python node (from the callback class)
 -spec call_options(atom(), atom()) -> list(tuple()).
@@ -69,8 +85,10 @@ static_call(Module, Class, Function) ->
    ModClass = list_to_atom(atom_to_list(Module)++"."++atom_to_list(Class)),
    Path = lists:last(get_path()),
    Res =
-      try pythra:func(P, ModClass, Function, [Class, list_to_binary(Path)]) of
-         Result -> Result
+      try pythra:func(P, ModClass, ?PYTHON_INFO, [Class]) of
+         B when is_list(B) -> add_options() ++ B
+      %try pythra:func(P, ModClass, Function, [Class, list_to_binary(Path)]) of
+      %   Result -> Result
       catch
          _:{python,'builtins.ModuleNotFoundError', Reason,_}:_Stack ->
             Err = lists:flatten(io_lib:format("python module not found: ~s",[Reason])),
@@ -85,7 +103,7 @@ init(NodeId, _Ins, #{cb_module := Callback} = Args, State = #node_state{state = 
    init_all(NodeId, #{<<"_state">> => Persisted}, Args).
 init(NodeId, _Ins, #{} = Args) ->
    init_all(NodeId, #{}, Args).
-init_all(NodeId, AddPyOpts, #{cb_module := Callback, cb_class := CBClass, as := As} = Args) ->
+init_all(NodeId, AddPyOpts, #{cb_module := Callback, cb_class := CBClass, as := As, stop_on_exit := StopOnExit} = Args) ->
    process_flag(trap_exit, true),
    PInstance = get_python(CBClass),
    %% create an instance of the callback class
@@ -98,6 +116,8 @@ init_all(NodeId, AddPyOpts, #{cb_module := Callback, cb_class := CBClass, as := 
       callback_class =  CBClass,
       node_id = NodeId,
       python_instance = PInstance,
+      python_args = Args,
+      stop_on_exit = StopOnExit,
       state_max_size_bytes = faxe_config:get_sub(flow_state_persistence, state_max_size),
       as = As},
    {ok, all, State}.
@@ -158,15 +178,19 @@ handle_info({python_log, Message, Level0} = _L, State) ->
 %%%
 handle_info(start_debug, State) ->
    {ok, State};
-handle_info({'EXIT', _Pid, normal}, State) ->
-   {ok, State};
-handle_info({'EXIT', Pid, Why}, State) ->
-   {message_handler_error, {python, PyError, PyErrorMsg,{'$erlport.opaque',python, PyStack}}} = Why,
-%%   PyStack = io_lib:format("~s",[unicode:characters_to_list(PyStack0, latin1)]),
-   lager:error("Pid ~p exited with reason ~p, Stack ~s",[Pid, PyErrorMsg, unicode:characters_to_list(PyStack, latin1)]),
-   {ok, State};
-handle_info(Request, State) ->
-   lager:notice("got unexpected: ~p", [Request]),
+handle_info({'EXIT', Python,
+   {message_handler_error, {python, PErrName, ErrorMsg, {'$erlport.opaque',python, _Bin} }}},
+      State = #state{python_instance = Python}) ->
+
+   lager:warning("Python exited with: ~p",[{PErrName, ErrorMsg}]),
+   handle_exit(PErrName, State);
+%%   erlang:send_after(1000, self(), restart_python),
+%%   {ok, State#state{python_instance = undefined}};
+handle_info(restart_python, State = #state{python_args = Args, callback_class = CBClass}) ->
+   PInstance = python_init(CBClass, Args),
+   {ok, State#state{python_instance = PInstance}};
+handle_info(_Request, State) ->
+%%   lager:notice("got unexpected: ~p", [Request]),
    {ok, State}.
 
 shutdown(#state{python_instance = Python}) ->
@@ -209,6 +233,21 @@ get_python(CBClass) ->
 %%   lager:notice("~p",[{faxe_handler, register_handler, [CBClass]}]),
    ok = pythra:func(Python, faxe_handler, register_handler, [CBClass]),
    Python.
+
+python_init(CBClass, Args) ->
+   PInstance = get_python(CBClass),
+   %% create an instance of the callback class
+   PyOpts = maps:without([cb_module, cb_class], Args#{<<"erl">> => self()}),
+   pythra:cast(PInstance, [?PYTHON_INIT, CBClass, PyOpts]),
+   PInstance.
+
+handle_exit(Reason, State = #state{stop_on_exit = true}) ->
+   {stop, Reason, State};
+handle_exit(_R, State) ->
+   erlang:send_after(1000, self(), restart_python),
+   {ok, State#state{python_instance = undefined}}.
+
+
 
 get_path() ->
    {ok, PythonParams} = application:get_env(faxe, python),

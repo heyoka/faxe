@@ -46,7 +46,7 @@ options() ->
       {port, integer, {crate, port}},
       {tls, boolean, {crate, tls, enable}},
       {user, string, {crate, user}},
-      {pass, string, <<>>},
+      {pass, string, {crate, pass}},
       {statement, string, undefined},
       {statement_field, string, undefined},
       {retries, integer, 2},
@@ -153,7 +153,6 @@ handle_info({'EXIT', _C, Reason}, State = #state{}) ->
 handle_info(reconnect, State) ->
    {ok, connect(State)};
 handle_info(What, State) ->
-   lager:warning("++other info : ~p",[What]),
    {ok, State}.
 
 shutdown(State = #state{client = _C}) ->
