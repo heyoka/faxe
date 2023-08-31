@@ -69,7 +69,7 @@ options() ->
 -spec call_options(atom(), atom()) -> list(tuple()).
 call_options(Module, Class) ->
    case static_call(Module, Class, ?PYTHON_INFO) of
-      B when is_list(B) -> [{as, string, undefined}] ++ B;
+      B when is_list(B) -> add_options() ++ B;
       Other -> Other
    end.
 
@@ -85,10 +85,10 @@ static_call(Module, Class, Function) ->
    ModClass = list_to_atom(atom_to_list(Module)++"."++atom_to_list(Class)),
    Path = lists:last(get_path()),
    Res =
-      try pythra:func(P, ModClass, ?PYTHON_INFO, [Class]) of
-         B when is_list(B) -> add_options() ++ B
-      %try pythra:func(P, ModClass, Function, [Class, list_to_binary(Path)]) of
-      %   Result -> Result
+%%      try pythra:func(P, ModClass, ?PYTHON_INFO, [Class]) of
+%%         B when is_list(B) -> add_options() ++ B
+      try pythra:func(P, ModClass, Function, [Class, list_to_binary(Path)]) of
+         Result -> Result
       catch
          _:{python,'builtins.ModuleNotFoundError', Reason,_}:_Stack ->
             Err = lists:flatten(io_lib:format("python module not found: ~s",[Reason])),
