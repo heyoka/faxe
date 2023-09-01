@@ -6,6 +6,8 @@
 %%% @end
 %%% Created : $fulldate
 %%%-------------------------------------------------------------------
+%%% search by: Name, Last start, Last stop, Tags, Running, Permanent
+
 -module(rest_tasks_handler).
 
 -include("faxe.hrl").
