@@ -77,4 +77,9 @@ stats_json(Req, State=#state{mode = cpu}) ->
   Stats = #{<<"cpus">> => length(Cpus), <<"busy">> => maps:from_list(Busy), <<"nonbusy">> => maps:from_list(NonBusy)},
   Procs = cpu_sup:nprocs(),
 %%  Load = 100 * (1 - D/(D + Load))
-  {jiffy:encode(Stats#{<<"unix_procs">> => Procs}), Req, State}.
+  {jiffy:encode(Stats#{<<"unix_procs">> => Procs}), Req, State};
+
+stats_json(Req, State=#state{mode = python}) ->
+  Stats = process_stats:get_top_python_nodes(20),
+  {jiffy:encode(Stats), Req, State}.
+

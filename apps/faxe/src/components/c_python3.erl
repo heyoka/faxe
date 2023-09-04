@@ -17,7 +17,7 @@
    init/3, process/3,
    handle_info/2, options/0,
    call_options/2, get_python/1,
-   shutdown/1]).
+   shutdown/1, get_stats/1]).
 
 -callback execute(tuple(), term()) -> tuple().
 
@@ -82,6 +82,7 @@ call_options(Module, Class) ->
    python:stop(P),
    Res.
 
+
 init(NodeId, _Ins, #{cb_module := Callback, cb_class := CBClass, as := As, stop_on_exit := StopOnExit} = Args) ->
    process_flag(trap_exit, true),
    PInstance = python_init(CBClass, Args),
@@ -109,6 +110,10 @@ process(_Inp, #data_point{} = Point, State = #state{python_instance = Python}) -
    Data = to_map(Point),
    pythra:cast(Python, [?PYTHON_POINT, Data]),
    {ok, State}.
+
+get_stats(#state{python_instance = Python}) ->
+   {_, ProcessStats} = pythra:pythra_call(Python, 'faxe_handler', 'process_stats'),
+   ProcessStats.
 
 %% python sends us data
 handle_info({emit_data, #{<<"fields">> := Fs}= Data} , State = #state{as = As}) when is_map(Fs)->

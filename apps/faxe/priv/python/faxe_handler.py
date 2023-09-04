@@ -1,4 +1,5 @@
 import json
+import psutil
 
 from erlport.erlterms import Atom
 from erlport.erlang import set_message_handler
@@ -28,6 +29,27 @@ def register_handler(_classname):
 
     set_message_handler(handler)
     return Atom(b'ok')
+
+
+def py_stats():
+    return [(p.pid, p.info['name'], p.info['username'], p.info['memory_info'].rss) \
+            for p in psutil.process_iter(['name', 'memory_info', 'username'])]
+
+
+def process_stats():
+    return {b'mem': process_mem_usage(), b'cpu_percent': process_cpu_usage()}
+
+
+# MiB of ram residential
+def process_mem_usage():
+    mem = psutil.Process().memory_info()
+    return round(mem.rss / (1024 * 1024), 2)
+
+
+def process_cpu_usage():
+    p = psutil.Process()
+    return p.cpu_percent(interval=0)
+
 
 
 def undefined_to_None(dct):
