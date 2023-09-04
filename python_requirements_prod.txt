@@ -1,5 +1,6 @@
 # pip install --no-cache-dir -r python_requirements.txt
 ###### Requirements without Version Specifiers ######
+psutil
 cytoolz
 jsonpath-ng >= 1.5.2
 numpy
