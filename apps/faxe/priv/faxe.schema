@@ -467,6 +467,12 @@
     [{default, verify_none}, {datatype, {enum,[verify_none, verify_peer]}}, {commented, verify_none}]
 }.
 
+%% @doc special amqp-to-DB message ack mode
+%% enable the use of flow-acknowledgement for amqp consume nodes
+{mapping, "amqp.flow_ack.enable", "faxe.amqp.flow_ack.enable",
+    [{default, off}, {datatype, flag}, {commented, off}]
+}.
+
 %% @doc -------------------------------------------------------------------------------
 %% RabbitMQ defaults
 %% -------------------------------------------------------------------------------

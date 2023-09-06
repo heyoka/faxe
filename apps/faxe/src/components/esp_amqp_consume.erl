@@ -84,7 +84,7 @@ options() -> [
    {prefetch, integer, 70},
    {ack_every, integer, 10},
    {ack_after, duration, <<"5s">>},
-   {use_flow_ack, bool, false},
+   {use_flow_ack, bool, {amqp, flow_ack, enable}},
    {safe, boolean, false},
    {dt_field, string, <<"ts">>},
    {dt_format, string, ?TF_TS_MILLI},

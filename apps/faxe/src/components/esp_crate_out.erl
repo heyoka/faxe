@@ -72,7 +72,7 @@ options() ->
       {max_retries, integer, ?FAILED_RETRIES},
       {error_trace, boolean, false},
       {ignore_response_timeout, boolean, true},
-      {use_flow_ack, boolean, false}
+      {use_flow_ack, boolean, {amqp, flow_ack, enable}}
    ].
 
 check_options() ->
@@ -206,7 +206,7 @@ start_client(State = #state{host = Host, port = Port, tls = Tls}) ->
                connection_registry:connected(),
                NewState = State#state{client = C},
                %% resend buffered data
-               lager:info("try resending ~p buffered data items",[length(State#state.buffer)]),
+%%               lager:info("try resending ~p buffered data items",[length(State#state.buffer)]),
                [process(1, Item, NewState) || Item <- State#state.buffer],
                NewState#state{buffer = []};
             {error, What} ->
@@ -226,6 +226,11 @@ get_query_point(#data_batch{points = [P|_]}) ->
    P;
 get_query_point(#data_point{} = P) ->
    P.
+
+get_query_point(#data_point{} = P, _Idx) ->
+   P;
+get_query_point(#data_batch{points = Points}, ListIndex) ->
+   lists:nth(ListIndex, Points).
 
 %%% DATA OUT
 send(Item, State = #state{query = Q, faxe_fields = Fields, remaining_fields_as = RemFieldsAs,
@@ -267,9 +272,12 @@ do_send(Item, Body, Headers, Retries, State = #state{client = Client, fn_id = FN
 %%         lager:info("would ack"),
          dataflow:maybe_debug(item_out, 1, Item, FNId, State#state.debug_mode),
          State;
-      {error, retry_single} ->
+      {error, retry_single, ListIndex} ->
          %% try with single data-point and done
-         resend_single(State);
+         %% get the point:
+         QueryPoint = get_query_point(Item, ListIndex),
+%%         lager:notice("QueryPoint is ~p",[QueryPoint]),
+         resend_single(State#state{query_point = QueryPoint});
       {error, What} ->
 %%         lager:warning("could not send ~p: error in request: ~p", [Body, What]),
          do_send(Item, Body, Headers, Retries+1, State#state{last_error = What});
@@ -294,7 +302,7 @@ build_value_stmt(P = #data_point{}, Fields, _RemFieldsAs) ->
    DataList ++ [Rem].
 
 build_batch([], _FieldList, _RemFieldsAs, Acc) ->
-   Acc;
+  lists:reverse(Acc);
 build_batch([Point|Points], FieldList, RemFieldsAs, Acc) ->
    NewAcc = [build_value_stmt(Point, FieldList, RemFieldsAs) | Acc],
    build_batch(Points, FieldList, RemFieldsAs, NewAcc).
@@ -383,21 +391,21 @@ handle_response({error, What}, {error, Reason}) ->
 
 handle_response_message(RespMessage) ->
    Response = jiffy:decode(RespMessage, [return_maps]),
-%%   lager:info("res ~p",[Response]),
    case Response of
       #{<<"results">> := Results} ->
          %% count where rows := -2
          NotWritten = lists:foldl(
             fun
-               (#{<<"rowcount">> := -2, <<"error_message">> := E}, {Count, Errors}) -> {Count+1, Errors++[E]};
-               (#{<<"rowcount">> := -2}, {Count, Errors}) -> {Count+1, Errors};
-               (_, Acc) -> Acc
-            end, {0, []}, Results),
+               (#{<<"rowcount">> := -2, <<"error_message">> := E}, {Idx, Count, Errors, _}) -> {Idx+1, Count+1, Errors++[E], Idx};
+               (#{<<"rowcount">> := -2}, {Idx, Count, Errors, _}) -> {Idx+1, Count+1, Errors, Idx};
+               (_, {Idx, Count, Errors, CIdx}) -> {Idx+1, Count, Errors, CIdx}
+            end, {1, 0, [], 0}, Results),
          case NotWritten of
-            {0, []} -> ok;
-            {C, Errs} ->
-               lager:error("CrateDB: ~p of ~p rows not written, errors: ~p, will resend single",[C, length(Results), Errs]),
-               {error, retry_single}
+            {_Idx, 0, [], _} -> ok;
+            {_Idx, C, Errs, ListIndex} ->
+               lager:error("CrateDB: ~p of ~p rows not written, errors: ~p, will resend single (idx: ~p)",
+                  [C, length(Results), Errs, ListIndex]),
+               {error, retry_single, ListIndex}
          end
       end.
 
