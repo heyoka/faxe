@@ -83,12 +83,9 @@ static_call(Module, Class, Function) ->
    process_flag(trap_exit, true),
    P = get_python(Class),
    ModClass = list_to_atom(atom_to_list(Module)++"."++atom_to_list(Class)),
-   Path = lists:last(get_path()),
    Res =
-%%      try pythra:func(P, ModClass, ?PYTHON_INFO, [Class]) of
-%%         B when is_list(B) -> add_options() ++ B
-      try pythra:func(P, ModClass, Function, [Class, list_to_binary(Path)]) of
-         Result -> Result
+      try pythra:func(P, ModClass, ?PYTHON_INFO, [Class]) of
+         B when is_list(B) -> add_options() ++ B
       catch
          _:{python,'builtins.ModuleNotFoundError', Reason,_}:_Stack ->
             Err = lists:flatten(io_lib:format("python module not found: ~s",[Reason])),
@@ -230,11 +227,7 @@ from_map(P = #data_point{fields = Fields}, As) ->
 
 get_python(CBClass) ->
    Path = get_path(),
-%%   {ok, PythonParams} = application:get_env(faxe, python),
-%%   Path = proplists:get_value(script_path, PythonParams, "./python"),
-%%   FaxePath = filename:join(code:priv_dir(faxe), "python/"),
    {ok, Python} = pythra:start_link(Path),
-%%   lager:notice("~p",[{faxe_handler, register_handler, [CBClass]}]),
    ok = pythra:func(Python, faxe_handler, register_handler, [CBClass]),
    Python.
 
