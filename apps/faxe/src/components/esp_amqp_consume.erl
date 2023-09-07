@@ -84,7 +84,7 @@ options() -> [
    {prefetch, integer, 70},
    {ack_every, integer, 10},
    {ack_after, duration, <<"5s">>},
-   {use_flow_ack, bool, false},
+   {use_flow_ack, bool, {amqp, flow_ack, enable}},
    {safe, boolean, false},
    {dt_field, string, <<"ts">>},
    {dt_format, string, ?TF_TS_MILLI},
@@ -164,9 +164,16 @@ handle_info({ {DTag, RKey}, {Payload, CorrelationId, _Headers}, Channel},
    node_metrics:metric(?METRIC_ITEMS_IN, 1, FNId),
 
    NewState = State#state{last_chan = Channel},
-   case CorrelationId /= undefined andalso memory_queue:member(CorrelationId, Dedup) of
+   case
+      State#state.flow_ack /= true andalso
+         CorrelationId /= undefined andalso
+         memory_queue:member(CorrelationId, Dedup)
+   of
       true ->
 %%         lager:info("duplicate message found! [~p]",[CorrelationId]),
+%%         case State#state.flow_ack of
+%%            true -> carrot:ack_multiple(DTag)
+%%         end,
          {ok, maybe_ack(DTag, NewState)};
       false ->
          %% store correlation_id
