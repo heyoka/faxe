@@ -549,7 +549,29 @@ decode(d_word, Data) ->
   [Res || <<Res:32/unsigned>> <= Data];
 decode(float, Data) ->
   [Res || <<Res:32/float-signed>> <= Data];
+decode(ltime, Data) ->
+  [Res || <<Res:64/unsigned>> <= Data];
+decode(dt, Data) ->
+  Dts = [Res || <<Res:64/unsigned>> <= Data],
+  [decode_dt(D) || D <- Dts];
+decode(dtl, Data) ->
+  Dtl = [Res || <<Res:96/unsigned>> <= Data],
+  [decode_dtl(D) || D <- Dtl];
 decode(_, Data) -> Data.
+
+decode_dt(<<DaysSince:32, MilliSince:32>>) ->
+  % first 4 bytes: days since 1.1.1992
+  % second 4 bytes: milliseconds since 00:00:00.000
+  DateStart = qdate:to_date({{1992,1,1}, {0,0,0}}),
+  Date = qdate:add_days(DateStart, DaysSince),
+  Timestamp0 = qdate:to_unixtime(Date) * 1000,
+  Timestamp0 + MilliSince.
+
+
+
+decode_dtl(<<Year:16/unsigned, Month:8, Day:8, _DayOfWeek:8, Hour:8, Minute:8, Second:8, NanoSec:32>>) ->
+  faxe_time:to_ms({{Year, Month, Day}, {{Hour, Minute, Second}, round(NanoSec/1000000)}}).
+
 
 prepare_byte_list(L) ->
   lists:flatten([lists:reverse(LPart) || LPart <- n_length(L,8)]).

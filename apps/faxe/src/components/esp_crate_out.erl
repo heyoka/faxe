@@ -243,9 +243,9 @@ send(Item, State = #state{query = Q, faxe_fields = Fields, remaining_fields_as =
    node_metrics:metric(?METRIC_ITEMS_OUT, 1, State#state.fn_id),
    NewState.
 
-resend_single(State = #state{query = Q, faxe_fields = Fields, remaining_fields_as = RemFieldsAs,
-   user = User, pass = Pass, query_point = Item}) ->
-   Query = build(Item, Q, Fields, RemFieldsAs),
+resend_single(Item, State = #state{query = Q, faxe_fields = Fields, remaining_fields_as = RemFieldsAs,
+   user = User, pass = Pass, query_point = QueryItem}) ->
+   Query = build(QueryItem, Q, Fields, RemFieldsAs),
    Headers = [{<<"content-type">>, <<"application/json">>}] ++ http_lib:basic_auth_header(User, Pass),
    do_send(Item, Query, Headers, State#state.failed_retries-1, State#state{last_error = undefined}).
 
@@ -261,8 +261,9 @@ build(Item, Query, Fields, RemFieldsAs) ->
       end,
    jiffy:encode(#{?KEY => Query, ?ARGS => BulkArgs}).
 
-do_send(_Item, _Body, _Headers, MaxFailedRetries, S = #state{failed_retries = MaxFailedRetries, last_error = Err}) ->
+do_send(Item, _Body, _Headers, MaxFailedRetries, S = #state{failed_retries = MaxFailedRetries, last_error = Err}) ->
    lager:warning("could not send ~p with ~p retries, last error: ~p", [_Body, MaxFailedRetries, Err]),
+   dataflow:ack(Item, S#state.flow_inputs),
    S#state{last_error = undefined};
 do_send(Item, Body, Headers, Retries, State = #state{client = Client, fn_id = FNId, path = Path}) ->
    Ref = gun:post(Client, Path, Headers, Body),
@@ -277,7 +278,7 @@ do_send(Item, Body, Headers, Retries, State = #state{client = Client, fn_id = FN
          %% get the point:
          QueryPoint = get_query_point(Item, ListIndex),
 %%         lager:notice("QueryPoint is ~p",[QueryPoint]),
-         resend_single(State#state{query_point = QueryPoint});
+         resend_single(Item, State#state{query_point = QueryPoint});
       {error, What} ->
 %%         lager:warning("could not send ~p: error in request: ~p", [Body, What]),
          do_send(Item, Body, Headers, Retries+1, State#state{last_error = What});
