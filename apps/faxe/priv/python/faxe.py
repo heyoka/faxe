@@ -57,7 +57,7 @@ class Faxe:
         self.init(decoded)
 
     @staticmethod
-    def info(clname, _spath):
+    def info(clname):
         _modname, module = Faxe.import_module(clname)
         cls = getattr(module, clname)
         method = getattr(cls, Faxe.CALLBACK_OPTIONS)

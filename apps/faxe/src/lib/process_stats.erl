@@ -88,12 +88,23 @@ top_list(Processes, SortBy, N) ->
   AllInfo = lists:map(fun(P) -> erlang:process_info(P) end, Processes),
   Sorted = lists:usort(fun(A, B) -> proplists:get_value(SortBy, A) > proplists:get_value(SortBy, B) end, AllInfo),
   TopList = lists:sublist(Sorted, N),
-  lager:notice("TopList: ~p",[TopList]),
+%%  lager:notice("TopList: ~p",[TopList]),
   F =
     fun(E) ->
       M = maps:from_list(E),
-      Reduced =#{initial_call := InitalCall} = maps:with([registered_name,initial_call,reductions,message_queue_len], M),
-      Reduced#{initial_call => tuple_to_list(InitalCall)}
+
+      Reduced = #{dictionary := Dict, initial_call := InitCall, current_function := CFun} =
+        maps:with([registered_name,total_heap_size,dictionary,initial_call,reductions,message_queue_len,memory,current_function], M),
+      InitialCall = proplists:get_value('$initial_call', Dict, InitCall),
+      Meta = maps:from_list(proplists:get_value('__lager_metadata', Dict, [])),
+      R = maps:without([dictionary],
+        Reduced#{initial_call => mfa_to_bin(InitialCall), current_function => mfa_to_bin(CFun), meta => Meta}),
+%%      lager:info("map form is ~p",[R]),
+      R
     end,
   lists:map(F, TopList).
 
+mfa_to_bin(undefined) ->
+  <<"na">>;
+mfa_to_bin({Module, Function, Arity}) ->
+  list_to_binary(faxe_util:to_list(Module) ++ ":" ++ faxe_util:to_list(Function) ++ "/" ++ integer_to_list(Arity)).
