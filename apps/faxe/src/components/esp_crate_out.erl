@@ -77,13 +77,13 @@ options() ->
 
 check_options() ->
    [
-      {func, table, fun(E) -> is_function(E) orelse is_binary(E) end,
+      {func, table, fun(E) -> faxe_lambda:is_lambda(E) orelse is_binary(E) end,
          <<" must be either a string or a lambda function">>},
       {func, db_fields,
          fun
             (undefined) -> true;
             (Fields) ->
-               lists:all(fun(E) -> is_function(E) orelse is_binary(E) end, Fields)
+               lists:all(fun(E) -> faxe_lambda:is_lambda(E) orelse is_binary(E) end, Fields)
             end,
             <<" list may only contain strings and lambda functions">>}
 
@@ -309,10 +309,10 @@ build_batch([Point|Points], FieldList, RemFieldsAs, Acc) ->
    build_batch(Points, FieldList, RemFieldsAs, NewAcc).
 
 %% build base query
-query_init(State = #state{table = DbTable}) when is_function(DbTable) ->
+query_init(State = #state{table = DbTable}) when is_record(DbTable, faxe_lambda) ->
    State#state{query_from_lambda = true};
 query_init(State = #state{table = Table, db_fields = DbFields, database = DB, remaining_fields_as = RemF}) ->
-   FromLambda = lists:any(fun(F) -> is_function(F) end, DbFields),
+   FromLambda = lists:any(fun(F) -> faxe_lambda:is_lambda(F) end, DbFields),
    case FromLambda of
       false ->
          TableName = <<DB/binary, ".", Table/binary>>,
@@ -326,7 +326,7 @@ query_init(State = #state{table = Table, db_fields = DbFields, database = DB, re
 %% build the query with lambda funs
 build_query(DbFields0, DB, Table0, RemFieldsAs, P=#data_point{}) when is_list(DbFields0) ->
    Table =
-   case is_function(Table0) of
+   case faxe_lambda:is_lambda(Table0) of
       true ->
          TName = faxe_lambda:execute(P, Table0),
          <<DB/binary, ".", TName/binary>>;
@@ -334,7 +334,7 @@ build_query(DbFields0, DB, Table0, RemFieldsAs, P=#data_point{}) when is_list(Db
    end,
    FieldsFun =
    fun(E) ->
-      case is_function(E) of
+      case faxe_lambda:is_lambda(E) of
          true -> faxe_lambda:execute(P, E);
          false -> E
       end

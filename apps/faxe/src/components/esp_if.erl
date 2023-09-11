@@ -53,7 +53,7 @@ process_point(Point, #state{if_lambda = FunIf, true_expression = True, false_exp
          end
    end.
 
-eval(Fun, Point, As) when is_function(Fun) ->
+eval(Fun, Point, As) when is_record(Fun, faxe_lambda) ->
    faxe_lambda:execute(Point, Fun, As);
 eval(Val, Point, As) ->
    flowdata:set_field(Point, As, Val).

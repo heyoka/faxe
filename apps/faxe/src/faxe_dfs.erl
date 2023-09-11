@@ -128,8 +128,8 @@ eval({Nodes, Connections}) ->
             NOptions = convert_options(NName, CompOptions, lists:flatten(Options ++ ParamOptions)),
 %%            lager:warning("here after convert_options"),
             NodeOptions = NOptions ++ NOpts,
-%%            lager:notice("~n~p wants options : ~p~n has options: ~p~n~n NodeParameters: ~p",
-%%               [Component, CompOptions, Options ++ ParamOptions, NodeOptions]),
+            lager:notice("~n~p wants options : ~p~n has options: ~p~n~n NodeParameters: ~p",
+               [Component, CompOptions, Options ++ ParamOptions, NodeOptions]),
             %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
             %% check options with the components option definition
             %% any errors raised here, would be caught in the surrounding call
@@ -492,10 +492,12 @@ make_lambda_fun(LambdaString, FunParams, BinRefs) ->
       {"", 1},
       BinRefs
    ),
-   F =  "fun(Point) -> " ++ Bindings ++ " fun() -> " ++ LambdaString ++ " end end.",
-%%   lager:notice("+++ lambda: ~p",[F]),
-   Fun = parse_fun(F),
-   Fun
+
+%%   LString = "-module(a).\n -export([a/1]). \n " ++ "a(Point) -> " ++ Bindings ++ LambdaString ++ "." ++ " \n",
+   LString = "(Point) -> " ++ Bindings ++ LambdaString ++ ".",
+   FunctionNameString = "lambda_" ++ integer_to_list(erlang:phash2(LString)),
+   Name = list_to_atom(FunctionNameString),
+   #faxe_lambda{string = FunctionNameString++LString, function = Name, module = Name}
 .
 
 bind_lambda_param(PName, BinRef) ->

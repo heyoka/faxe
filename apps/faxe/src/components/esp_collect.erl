@@ -84,7 +84,7 @@ check_options() ->
       {same_length, [keep, keep_as]},
       {func, update,
          fun(Val) ->
-            is_function(Val) orelse lists:member(Val, [undefined, true, false])
+            faxe_lambda:is_lambda(Val) orelse lists:member(Val, [undefined, true, false])
          end,
          <<" can only be a lambda expression, true or false">>},
       {one_of, update_mode, [?UPDATE_MODE_MERGE, ?UPDATE_MODE_MERGE_REVERSE, ?UPDATE_MODE_REPLACE]}

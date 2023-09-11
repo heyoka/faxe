@@ -27,8 +27,8 @@
 }).
 
 options() -> [
-  {field, binary},
-  {as, binary, <<"data">>}, %% alias for fieldname
+  {field, string},
+  {as, string, <<"data">>}, %% alias for fieldname
   {parser, string}, %% parser module to use
   {changed, is_set, false} %% only emit, when new data is different to previous
 ].

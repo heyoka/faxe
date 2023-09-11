@@ -67,7 +67,7 @@ do_delete(Fields, Tags, Item) ->
    flowdata:delete_tags(P, Tags).
 
 eval(_Point, undefined) -> true;
-eval(Point, Fun) when is_function(Fun) -> faxe_lambda:execute_bool(Point, Fun).
+eval(Point, Fun) when is_record(Fun, faxe_lambda) -> faxe_lambda:execute_bool(Point, Fun).
 
 eval_when(P, [], _WhenVal) ->
    P;
