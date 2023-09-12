@@ -128,8 +128,8 @@ eval({Nodes, Connections}) ->
             NOptions = convert_options(NName, CompOptions, lists:flatten(Options ++ ParamOptions)),
 %%            lager:warning("here after convert_options"),
             NodeOptions = NOptions ++ NOpts,
-            lager:notice("~n~p wants options : ~p~n has options: ~p~n~n NodeParameters: ~p",
-               [Component, CompOptions, Options ++ ParamOptions, NodeOptions]),
+%%            lager:notice("~n~p wants options : ~p~n has options: ~p~n~n NodeParameters: ~p",
+%%               [Component, CompOptions, Options ++ ParamOptions, NodeOptions]),
             %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
             %% check options with the components option definition
             %% any errors raised here, would be caught in the surrounding call

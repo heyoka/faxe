@@ -376,7 +376,7 @@ build_nodes(NodeIds, Graph, Id) ->
             end, Metadata),
          BuildTime = erlang:round((erlang:monotonic_time(microsecond)-BuildStart)/1000),
          case BuildTime > 0 of
-            true -> lager:notice("time to compile lambdas: ~pms",[]);
+            true -> lager:notice("time to compile lambdas: ~pms",[BuildTime]);
             false -> ok
          end,
          %%%
