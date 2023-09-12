@@ -26,10 +26,10 @@
 }).
 
 options() -> [
-   {fields, binary_list, []},
+   {fields, string_list, []},
    {field_values, list, []},
-   {tags, binary_list, []},
-   {tag_values, binary_list, []}].
+   {tags, string_list, []},
+   {tag_values, string_list, []}].
 
 check_options() ->
    [

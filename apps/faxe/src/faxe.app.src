@@ -12,6 +12,7 @@
     plists,
     datestring,
     faxe_common,
+    dynamic_compile,
     lager,
     lager_logstash_backend,
     esq,

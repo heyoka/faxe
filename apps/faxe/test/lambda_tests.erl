@@ -125,7 +125,9 @@ grip_rewrite() ->
 lambda_helper(LambdaString, VarList) ->
    VarBindings = [{string:titlecase(Var), list_to_binary(string:lowercase(Var))} || Var <- VarList],
    {Vars, Bindings} = lists:unzip(VarBindings),
-   faxe_dfs:make_lambda_fun(LambdaString, Vars, Bindings).
+   Lambda = faxe_dfs:make_lambda_fun(LambdaString, Vars, Bindings),
+   faxe_lambda:ensure(Lambda),
+   Lambda.
 
 lambda_helper_test() ->
    VarList = ["var1", "someothervar2"],

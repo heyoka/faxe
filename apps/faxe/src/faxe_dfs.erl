@@ -492,10 +492,12 @@ make_lambda_fun(LambdaString, FunParams, BinRefs) ->
       {"", 1},
       BinRefs
    ),
-   F =  "fun(Point) -> " ++ Bindings ++ " fun() -> " ++ LambdaString ++ " end end.",
-%%   lager:notice("+++ lambda: ~p",[F]),
-   Fun = parse_fun(F),
-   Fun
+
+%%   LString = "-module(a).\n -export([a/1]). \n " ++ "a(Point) -> " ++ Bindings ++ LambdaString ++ "." ++ " \n",
+   LString = "(Point) -> " ++ Bindings ++ LambdaString ++ ".",
+   FunctionNameString = "lambda_" ++ integer_to_list(erlang:phash2(LString)),
+   Name = list_to_atom(FunctionNameString),
+   #faxe_lambda{string = FunctionNameString++LString, function = Name, module = Name}
 .
 
 bind_lambda_param(PName, BinRef) ->

@@ -15,7 +15,7 @@
 
 -record(state, {
    node_id              :: binary(),
-   lambda               :: undefined|function(),
+   lambda               :: undefined|#faxe_lambda{},
    emit_empty = false   :: true|false
 }).
 

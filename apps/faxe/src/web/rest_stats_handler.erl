@@ -51,6 +51,13 @@ stats_json(Req, State=#state{mode = faxe}) ->
    Stats = faxe_stats:get_stats(),
    {jiffy:encode(Stats), Req, State};
 
+stats_json(Req, State=#state{mode = lambdas}) ->
+  List = [
+    #{<<"name">> => atom_to_binary(Name), <<"fun">> => list_to_binary(String)} ||
+    {Name, String} <- ets:tab2list(faxe_lambdas)
+  ],
+  {jiffy:encode(List), Req, State};
+
 %% FAXE STATS
 stats_json(Req, State=#state{mode = s7}) ->
   Stats = faxe_s7_stats:get_stats(),
