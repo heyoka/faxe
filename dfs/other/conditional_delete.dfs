@@ -16,6 +16,7 @@ def debug_type = 'info'
         <<<{"condition": {"state": "IDLE"}, "topic": "in1"} >>>,
         <<<{"condition": {"state": "IDLE"}, "topic": "in1"} >>>
         )
+    .as('data')
 
 |debug(debug_type)
 
