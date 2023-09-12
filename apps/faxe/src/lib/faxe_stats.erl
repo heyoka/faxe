@@ -99,9 +99,11 @@ handle_info(gather, State = #state{stats = Stats}) ->
    TasksTemp = faxe:list_temporary_tasks(),
    TasksPermanent = faxe:list_permanent_tasks(),
    TemplatesAll = faxe:list_templates(),
-   Paths = ets:tab2list(field_paths),
+   NumPaths = ets:info(field_paths, size),
+   NumLambdas = ets:info(faxe_lambdas, size),
    S = #{
-      <<"data_paths_known">> => length(Paths),
+      <<"data_paths_known">> => NumPaths,
+      <<"compiled_lambdas">> => NumLambdas,
       <<"faxe_version">> => list_to_binary(FaxeVsn),
       <<"otp_version">> => list_to_binary(faxe_util:get_erlang_version()),
       <<"registered_tasks">> => length(TasksAll),
