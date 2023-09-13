@@ -459,6 +459,7 @@ buffer_update_test() ->
    ?assertEqual(Expected, buffer_update(1, NewPoint, Buffer)).
 
 is_in_true_test() ->
+   faxe_ets:start_link(),
    Buffer = buffer(),
    State = state(),
    Point = #data_point{ts = 1, fields = #{<<"name">> => <<"point_1">>, <<"data_code_id">> => 1}},
