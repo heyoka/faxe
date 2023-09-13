@@ -194,7 +194,7 @@ get_python(CBClass) ->
    Path = proplists:get_value(script_path, PythonParams, "./python"),
    FaxePath = filename:join(code:priv_dir(faxe), "python/"),
    {ok, Python} = pythra:start_link([FaxePath, Path]),
-%%   lager:notice("~p",[{faxe_handler, register_handler, [CBClass]}]),
+%%   lager:notice("python ~p",[Python]),
    ok = pythra:func(Python, faxe_handler, register_handler, [CBClass]),
    Python.
 

@@ -283,9 +283,19 @@ do_send(Item, Body, Headers, Retries, State = #state{client = Client, fn_id = FN
 %%         lager:warning("could not send ~p: error in request: ~p", [Body, What]),
          do_send(Item, Body, Headers, Retries+1, State#state{last_error = What});
       {failed, Why} when State#state.use_flow_ack == true ->
-         %% if the server fails in some way, we just try endlessly with a small nap in between
-         timer:sleep(300),
-         do_send(Item, Body, Headers, Retries, State#state{last_error = Why});
+         %% if the server fails in some way, we just try endlessly with a small nap in between,
+         %% since this could go on forever, we have to make sure at least to get stop signals
+         %% if there is a stop signal, we send it to ourselves once again, but exiting the endless loop
+         %% at the same time
+         receive
+            stop ->
+               erlang:send_after(0, self(), stop),
+               lager:info("should stop")
+         after 300 ->
+            do_send(Item, Body, Headers, Retries, State#state{last_error = Why})
+         end
+%%         timer:sleep(300),
+         ;
       O ->
          lager:warning("sending gun post: ~p",[O]),
          do_send(Item, Body, Headers, Retries+1, State#state{last_error = O})
@@ -383,8 +393,13 @@ handle_response(<<"4", _/binary>> = S,_BodyJSON) ->
    {error, invalid};
 handle_response(<<"503">>, _BodyJSON) ->
    {failed, not_available};
-handle_response(<<"5", _/binary>> = S,_BodyJSON) ->
-   lager:error("Error ~p with body ~p",[S, _BodyJSON]),
+handle_response(<<"5", _/binary>> = S, BodyJSON) ->
+   lager:error("Error ~p with body ~p",[S, BodyJSON]),
+   % <<"{\"error\":{\"message\":\"MaxBytesLengthExceededException[bytes can be at most 32766 in length; got 32910]\",\"code\":5000}}">>
+   case catch jiffy:decode(BodyJSON, [return_maps]) of
+      #{<<"error">> := #{<<"code">> := Code}} -> check_error_code(Code);
+      _ -> ok
+   end,
    {failed, server_error};
 handle_response({error, What}, {error, Reason}) ->
    lager:error("Other err: ~p",[{What, Reason}]),
@@ -410,7 +425,7 @@ handle_response_message(RespMessage) ->
          end
       end.
 
-
+check_error_code(_) -> ok.
 
 get_fields(State = #state{table = Tab0, database = Db0}) ->
    Tab = binary:replace(Tab0, <<"\"">>, <<>>, [global]),
