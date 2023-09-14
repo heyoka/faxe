@@ -289,8 +289,9 @@ do_send(Item, Body, Headers, Retries, State = #state{client = Client, fn_id = FN
          %% at the same time
          receive
             stop ->
+               dataflow:ack(Item, State#state.flow_inputs),
                erlang:send_after(0, self(), stop),
-               lager:info("should stop")
+               lager:info("got stop message while in retry loop")
          after 300 ->
             do_send(Item, Body, Headers, Retries, State#state{last_error = Why})
          end

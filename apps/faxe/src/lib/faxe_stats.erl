@@ -101,7 +101,9 @@ handle_info(gather, State = #state{stats = Stats}) ->
    TemplatesAll = faxe:list_templates(),
    NumPaths = ets:info(field_paths, size),
    NumLambdas = ets:info(faxe_lambdas, size),
+   NumPythonNodesRunning = ets:info(python_procs, size),
    S = #{
+      <<"python_nodes_running">> => NumPythonNodesRunning,
       <<"data_paths_known">> => NumPaths,
       <<"compiled_lambdas">> => NumLambdas,
       <<"faxe_version">> => list_to_binary(FaxeVsn),

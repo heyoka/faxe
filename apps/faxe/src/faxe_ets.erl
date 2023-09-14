@@ -100,6 +100,9 @@ init([]) ->
    ok = new_table(decoded_json, set),
    ok = new_table(select_cache, set),
 
+   %% python nodes - os process pid of python runtime
+   ok = new_table(python_procs, set),
+
    {ok, #state{}}.
 
 

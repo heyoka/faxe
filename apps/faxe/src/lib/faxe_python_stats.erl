@@ -27,9 +27,10 @@
    code_change/3]).
 
 -define(SERVER, ?MODULE).
--define(INTERVAL, 20000).
+-define(INTERVAL, 15000).
 
 -record(state, {
+   python :: undefined|pid(),
    stats = #{}
 }).
 
@@ -52,8 +53,9 @@ start_link() ->
    {ok, State :: #state{}} | {ok, State :: #state{}, timeout() | hibernate} |
    {stop, Reason :: term()} | ignore).
 init([]) ->
+   Python = c_python3:get_python(undefined),
    erlang:send_after(?INTERVAL, self(), gather),
-   {ok, #state{}}.
+   {ok, #state{python = Python}}.
 
 -spec(handle_call(Request :: term(), From :: {pid(), Tag :: term()},
     State :: #state{}) ->
@@ -63,10 +65,12 @@ init([]) ->
    {noreply, NewState :: #state{}, timeout() | hibernate} |
    {stop, Reason :: term(), Reply :: term(), NewState :: #state{}} |
    {stop, Reason :: term(), NewState :: #state{}}).
-handle_call(get, _From, State=#state{stats = Stats}) ->
-   {reply, #{<<"s7_pools">> => Stats}, State};
-handle_call(_Request, _From, State) ->
-   {reply, ok, State}.
+handle_call(get, _From, State=#state{stats = #{<<"proc_list">> := ProcList0} = Stats}) ->
+   ProcList1 = lists:sort(fun(#{<<"mem">> := A}, #{<<"mem">> := B}) -> A > B end, ProcList0),
+   ProcList = lists:sublist(ProcList1, 20),
+   {reply, {ok, Stats#{<<"proc_list">> => ProcList}}, State};
+handle_call(_Request, _From, State=#state{stats = Stats}) ->
+   {reply, {ok, #{}}, State}.
 
 -spec(handle_cast(Request :: term(), State :: #state{}) ->
    {noreply, NewState :: #state{}} |
@@ -80,20 +84,21 @@ handle_cast(_Request, State) ->
    {noreply, NewState :: #state{}} |
    {noreply, NewState :: #state{}, timeout() | hibernate} |
    {stop, Reason :: term(), NewState :: #state{}}).
-handle_info(gather, State = #state{}) ->
+handle_info(gather, State = #state{python = Python}) ->
    erlang:send_after(?INTERVAL, self(), gather),
-   Python = c_python3:get_python(undefined),
-%%   {_, ProcessStats}
-      ProcessStats = pythra:pythra_call(Python, 'faxe_handler', 'py_stats'),
-%%   lager:notice("python stats: ~p",[ProcessStats]),
-   python:stop(Python),
-   {noreply, State#state{stats = ProcessStats}};
+   PythonNodes = ets:tab2list(python_procs),
+   PPids = [{Pid, iolist_to_binary([FId, "-", NId])}
+      || {_P, #{<<"os_pid">> := Pid, <<"flownode">> := {FId, NId}}} <- PythonNodes],
+   {ok, ProcessStats} = pythra:pythra_call(Python, 'faxe_handler', 'py_stats', [maps:from_list(PPids)]),
+   %% #{<<"mem_total">> := Mem, <<"cpu_total">> := CpuPercent, <<"proc_list">> := []}
+   {noreply, State#state{stats = ProcessStats#{<<"nodes_running">> => length(PPids)}}};
 handle_info(_Info, State) ->
    {noreply, State}.
 
 -spec(terminate(Reason :: (normal | shutdown | {shutdown, term()} | term()),
     State :: #state{}) -> term()).
-terminate(_Reason, _State) ->
+terminate(_Reason, #state{python = Python}) ->
+   python:stop(Python),
    ok.
 
 %%--------------------------------------------------------------------
