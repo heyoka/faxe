@@ -16,7 +16,7 @@
 -behaviour(gen_server).
 
 %% API
--export([start_link/0, get_stats/0]).
+-export([start_link/0, get_stats/0, get_stats/2]).
 
 %% gen_server callbacks
 -export([init/1,
@@ -38,7 +38,9 @@
 %%% API
 %%%===================================================================
 get_stats() ->
-   gen_server:call(?SERVER, get).
+   get_stats(<<"mem">>, 20).
+get_stats(SortedBy, N) ->
+   gen_server:call(?SERVER, {get, N, SortedBy}).
 
 -spec(start_link() ->
    {ok, Pid :: pid()} | ignore | {error, Reason :: term()}).
@@ -65,9 +67,9 @@ init([]) ->
    {noreply, NewState :: #state{}, timeout() | hibernate} |
    {stop, Reason :: term(), Reply :: term(), NewState :: #state{}} |
    {stop, Reason :: term(), NewState :: #state{}}).
-handle_call(get, _From, State=#state{stats = #{<<"proc_list">> := ProcList0} = Stats}) ->
-   ProcList1 = lists:sort(fun(#{<<"mem">> := A}, #{<<"mem">> := B}) -> A > B end, ProcList0),
-   ProcList = lists:sublist(ProcList1, 20),
+handle_call({get, N, SortBy}, _From, State=#state{stats = #{<<"proc_list">> := ProcList0} = Stats}) ->
+   ProcList1 = lists:sort(fun(#{SortBy := A}, #{SortBy := B}) -> A > B end, ProcList0),
+   ProcList = lists:sublist(ProcList1, N),
    {reply, {ok, Stats#{<<"proc_list">> => ProcList}}, State};
 handle_call(_Request, _From, State=#state{stats = Stats}) ->
    {reply, {ok, #{}}, State}.

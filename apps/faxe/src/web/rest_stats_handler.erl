@@ -87,6 +87,17 @@ stats_json(Req, State=#state{mode = cpu}) ->
   {jiffy:encode(Stats#{<<"unix_procs">> => Procs}), Req, State};
 
 stats_json(Req, State=#state{mode = python}) ->
-  {ok, Stats} = faxe_python_stats:get_stats(),
+  Qs = cowboy_req:parse_qs(Req),
+  SortBy =
+    case lists:keyfind(<<"sortby">>, 1, Qs) of
+      {_, By} -> By;
+      false -> <<"mem">>
+    end,
+  Num =
+    case lists:keyfind(<<"num">>, 1, Qs) of
+      {_, N} -> binary_to_integer(N);
+      false -> 20
+    end,
+  {ok, Stats} = faxe_python_stats:get_stats(SortBy, Num),
   {jiffy:encode(Stats), Req, State}.
 
