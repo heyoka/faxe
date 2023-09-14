@@ -246,6 +246,7 @@ send(Item, State = #state{query = Q, faxe_fields = Fields, remaining_fields_as =
 resend_single(Item, State = #state{query = Q, faxe_fields = Fields, remaining_fields_as = RemFieldsAs,
    user = User, pass = Pass, query_point = QueryItem}) ->
    Query = build(QueryItem, Q, Fields, RemFieldsAs),
+   lager:notice("retry single item ~p",[QueryItem]),
    Headers = [{<<"content-type">>, <<"application/json">>}] ++ http_lib:basic_auth_header(User, Pass),
    do_send(Item, Query, Headers, State#state.failed_retries-1, State#state{last_error = undefined}).
 
@@ -274,6 +275,7 @@ do_send(Item, Body, Headers, Retries, State = #state{client = Client, fn_id = FN
          dataflow:maybe_debug(item_out, 1, Item, FNId, State#state.debug_mode),
          State;
       {error, retry_single, ListIndex} ->
+         dataflow:ack(Item, State#state.flow_inputs),
          %% try with single data-point and done
          %% get the point:
          QueryPoint = get_query_point(Item, ListIndex),
