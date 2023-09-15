@@ -275,7 +275,7 @@ do_send(Item, Body, Headers, Retries, State = #state{client = Client, fn_id = FN
          dataflow:maybe_debug(item_out, 1, Item, FNId, State#state.debug_mode),
          State;
       {error, retry_single, ListIndex} ->
-         dataflow:ack(Item, State#state.flow_inputs),
+%%         dataflow:ack(Item, State#state.flow_inputs),
          %% try with single data-point and done
          %% get the point:
          QueryPoint = get_query_point(Item, ListIndex),
@@ -296,9 +296,8 @@ do_send(Item, Body, Headers, Retries, State = #state{client = Client, fn_id = FN
                lager:info("got stop message while in retry loop")
          after 300 ->
             do_send(Item, Body, Headers, Retries, State#state{last_error = Why})
-         end
-%%         timer:sleep(300),
-         ;
+         end;
+      %% also {failed, Reason}
       O ->
          lager:warning("sending gun post: ~p",[O]),
          do_send(Item, Body, Headers, Retries+1, State#state{last_error = O})
@@ -415,9 +414,10 @@ handle_response_message(RespMessage) ->
          %% count where rows := -2
          NotWritten = lists:foldl(
             fun
-               (#{<<"rowcount">> := -2, <<"error_message">> := E}, {Idx, Count, Errors, _}) -> {Idx+1, Count+1, Errors++[E], Idx};
-               (#{<<"rowcount">> := -2}, {Idx, Count, Errors, _}) -> {Idx+1, Count+1, Errors, Idx};
-               (_, {Idx, Count, Errors, CIdx}) -> {Idx+1, Count, Errors, CIdx}
+               (#{<<"rowcount">> := -2, <<"error_message">> := E}, {Idx, Count, Errors, _}) ->
+                  {Idx + 1, Count + 1, Errors ++ [E], Idx};
+               (#{<<"rowcount">> := -2}, {Idx, Count, Errors, _}) -> {Idx + 1, Count + 1, Errors, Idx};
+               (_, {Idx, Count, Errors, CIdx}) -> {Idx + 1, Count, Errors, CIdx}
             end, {1, 0, [], 0}, Results),
          case NotWritten of
             {_Idx, 0, [], _} -> ok;
@@ -426,7 +426,7 @@ handle_response_message(RespMessage) ->
                   [C, length(Results), Errs, ListIndex]),
                {error, retry_single, ListIndex}
          end
-      end.
+   end.
 
 check_error_code(_) -> ok.
 
