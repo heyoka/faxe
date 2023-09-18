@@ -1,5 +1,8 @@
 %% Date: 30.12.16 - 23:01
 %% CrateDB Writer that uses crate's http endpoint
+%% @todo 2 issues to be resolved:
+%% 1. duplicate items
+%% 2. when resend_single, do not attempt to retry (in case of {failed, _})
 %% Ⓒ 2019 heyoka
 %%
 -module(esp_crate_out).
