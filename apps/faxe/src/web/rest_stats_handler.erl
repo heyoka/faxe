@@ -51,6 +51,13 @@ stats_json(Req, State=#state{mode = faxe}) ->
    Stats = faxe_stats:get_stats(),
    {jiffy:encode(Stats), Req, State};
 
+stats_json(Req, State=#state{mode = lambdas}) ->
+  List = [
+    #{<<"name">> => atom_to_binary(Name), <<"fun">> => list_to_binary(String)} ||
+    {Name, String} <- ets:tab2list(faxe_lambdas)
+  ],
+  {jiffy:encode(List), Req, State};
+
 %% FAXE STATS
 stats_json(Req, State=#state{mode = s7}) ->
   Stats = faxe_s7_stats:get_stats(),
@@ -80,6 +87,17 @@ stats_json(Req, State=#state{mode = cpu}) ->
   {jiffy:encode(Stats#{<<"unix_procs">> => Procs}), Req, State};
 
 stats_json(Req, State=#state{mode = python}) ->
-  Stats = process_stats:get_top_python_nodes(20),
+  Qs = cowboy_req:parse_qs(Req),
+  SortBy =
+    case lists:keyfind(<<"sortby">>, 1, Qs) of
+      {_, By} -> By;
+      false -> <<"mem">>
+    end,
+  Num =
+    case lists:keyfind(<<"num">>, 1, Qs) of
+      {_, N} -> binary_to_integer(N);
+      false -> 20
+    end,
+  {ok, Stats} = faxe_python_stats:get_stats(SortBy, Num),
   {jiffy:encode(Stats), Req, State}.
 

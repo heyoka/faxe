@@ -83,6 +83,7 @@ static_call(Module, Class, Function) ->
    process_flag(trap_exit, true),
    P = get_python(Class),
    ModClass = list_to_atom(atom_to_list(Module)++"."++atom_to_list(Class)),
+%%   lager:notice("call options ~p",[{Module, Class, ModClass}]),
    Res =
       try pythra:func(P, ModClass, ?PYTHON_INFO, [Class]) of
          B when is_list(B) -> add_options() ++ B
@@ -102,6 +103,7 @@ init(NodeId, _Ins, #{} = Args) ->
    init_all(NodeId, #{}, Args).
 init_all(NodeId, AddPyOpts, #{cb_module := Callback, cb_class := CBClass, as := As, stop_on_exit := StopOnExit} = Args) ->
    process_flag(trap_exit, true),
+   PInstance = python_init(CBClass, Args, NodeId),
    PInstance = get_python(CBClass),
    %% create an instance of the callback class
    Path = lists:last(get_path()),
@@ -134,9 +136,6 @@ process(_Inp, #data_point{} = Point, State = #state{python_instance = Python}) -
    pythra:cast(Python, [?PYTHON_POINT, Data]),
    {ok, State}.
 
-get_stats(#state{python_instance = Python}) ->
-   {_, ProcessStats} = pythra:pythra_call(Python, 'faxe_handler', 'process_stats'),
-   ProcessStats.
 
 %% python sends us data
 handle_info({emit_data, #{<<"fields">> := Fs}= Data} , State = #state{as = As}) when is_map(Fs)->
@@ -187,14 +186,15 @@ handle_info({'EXIT', Python,
    handle_exit(PErrName, State);
 %%   erlang:send_after(1000, self(), restart_python),
 %%   {ok, State#state{python_instance = undefined}};
-handle_info(restart_python, State = #state{python_args = Args, callback_class = CBClass}) ->
-   PInstance = python_init(CBClass, Args),
+handle_info(restart_python, State = #state{python_args = Args, callback_class = CBClass, node_id = NodeId}) ->
+   PInstance = python_init(CBClass, Args, NodeId),
    {ok, State#state{python_instance = PInstance}};
 handle_info(_Request, State) ->
 %%   lager:notice("got unexpected: ~p", [Request]),
    {ok, State}.
 
 shutdown(#state{python_instance = Python}) ->
+   ets:delete(python_procs, self()),
    pythra:stop(Python).
 
 %%%%%%%%%%%%%%%%%%%% internal %%%%%%%%%%%%
@@ -231,8 +231,12 @@ get_python(CBClass) ->
    ok = pythra:func(Python, faxe_handler, register_handler, [CBClass]),
    Python.
 
-python_init(CBClass, Args) ->
+python_init(CBClass, Args, NodeId) ->
    PInstance = get_python(CBClass),
+
+   PythonPid = pythra:pythra_call(PInstance, os, getpid, []),
+   ets:insert(python_procs, {self(), #{<<"os_pid">> => PythonPid, <<"flownode">> => NodeId}}),
+
    %% create an instance of the callback class
    PyOpts = maps:without([cb_module, cb_class], Args#{<<"erl">> => self()}),
    pythra:cast(PInstance, [?PYTHON_INIT, CBClass, PyOpts]),

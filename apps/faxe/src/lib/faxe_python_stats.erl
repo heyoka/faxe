@@ -10,13 +10,13 @@
 %%% num errors
 %%% cluster stats
 %%%-------------------------------------------------------------------
--module(faxe_stats).
+-module(faxe_python_stats).
 -author("heyoka").
 
 -behaviour(gen_server).
 
 %% API
--export([start_link/0, get_stats/0]).
+-export([start_link/0, get_stats/0, get_stats/2]).
 
 %% gen_server callbacks
 -export([init/1,
@@ -27,9 +27,10 @@
    code_change/3]).
 
 -define(SERVER, ?MODULE).
--define(INTERVAL, 20000).
+-define(INTERVAL, 15000).
 
 -record(state, {
+   python :: undefined|pid(),
    stats = #{}
 }).
 
@@ -37,7 +38,9 @@
 %%% API
 %%%===================================================================
 get_stats() ->
-   gen_server:call(?SERVER, get).
+   get_stats(<<"mem">>, 20).
+get_stats(SortedBy, N) ->
+   gen_server:call(?SERVER, {get, N, SortedBy}).
 
 -spec(start_link() ->
    {ok, Pid :: pid()} | ignore | {error, Reason :: term()}).
@@ -52,8 +55,9 @@ start_link() ->
    {ok, State :: #state{}} | {ok, State :: #state{}, timeout() | hibernate} |
    {stop, Reason :: term()} | ignore).
 init([]) ->
+   Python = c_python3:get_python(undefined),
    erlang:send_after(?INTERVAL, self(), gather),
-   {ok, #state{}}.
+   {ok, #state{python = Python}}.
 
 -spec(handle_call(Request :: term(), From :: {pid(), Tag :: term()},
     State :: #state{}) ->
@@ -63,21 +67,12 @@ init([]) ->
    {noreply, NewState :: #state{}, timeout() | hibernate} |
    {stop, Reason :: term(), Reply :: term(), NewState :: #state{}} |
    {stop, Reason :: term(), NewState :: #state{}}).
-handle_call(get, _From, State=#state{stats = Stats}) ->
-   %% add pool stats
-   MQTTPools = lists:map(
-      fun({Key, Conns}) ->
-         {ok, Throughput} = gen_server:call(mqtt_pub_pool_manager, {get_throughput, Key}),
-         Clients = mqtt_pub_pool_manager:get_clients(Key),
-         #{<<"peer">> => faxe_util:to_bin(Key), <<"num_connections">> => length(Conns),
-            <<"throughput">> => Throughput, <<"clients">> => length(Clients)} end,
-      ets:tab2list(mqtt_pub_pools)),
-   {reply, Stats#{
-      <<"mqtt_pub_pools">> => MQTTPools,
-      <<"PCRE_vsn">> => re:version()
-   }, State};
-handle_call(_Request, _From, State) ->
-   {reply, ok, State}.
+handle_call({get, N, SortBy}, _From, State=#state{stats = #{<<"proc_list">> := ProcList0} = Stats}) ->
+   ProcList1 = lists:sort(fun(#{SortBy := A}, #{SortBy := B}) -> A > B end, ProcList0),
+   ProcList = lists:sublist(ProcList1, N),
+   {reply, {ok, Stats#{<<"proc_list">> => ProcList}}, State};
+handle_call(_Request, _From, State=#state{stats = Stats}) ->
+   {reply, {ok, #{}}, State}.
 
 -spec(handle_cast(Request :: term(), State :: #state{}) ->
    {noreply, NewState :: #state{}} |
@@ -91,36 +86,21 @@ handle_cast(_Request, State) ->
    {noreply, NewState :: #state{}} |
    {noreply, NewState :: #state{}, timeout() | hibernate} |
    {stop, Reason :: term(), NewState :: #state{}}).
-handle_info(gather, State = #state{stats = Stats}) ->
+handle_info(gather, State = #state{python = Python}) ->
    erlang:send_after(?INTERVAL, self(), gather),
-   {ok, FaxeVsn} = application:get_key(faxe, vsn),
-   TasksAll = faxe:list_tasks(),
-   TasksRunning = faxe:list_running_tasks(),
-   TasksTemp = faxe:list_temporary_tasks(),
-   TasksPermanent = faxe:list_permanent_tasks(),
-   TemplatesAll = faxe:list_templates(),
-   NumPaths = ets:info(field_paths, size),
-   NumLambdas = ets:info(faxe_lambdas, size),
-   NumPythonNodesRunning = ets:info(python_procs, size),
-   S = #{
-      <<"python_nodes_running">> => NumPythonNodesRunning,
-      <<"data_paths_known">> => NumPaths,
-      <<"compiled_lambdas">> => NumLambdas,
-      <<"faxe_version">> => list_to_binary(FaxeVsn),
-      <<"otp_version">> => list_to_binary(faxe_util:get_erlang_version()),
-      <<"registered_tasks">> => length(TasksAll),
-      <<"running_tasks">> => length(TasksRunning),
-      <<"running_temp_tasks">> => length(TasksTemp),
-      <<"permanent_tasks">> => length(TasksPermanent),
-      <<"registered_templates">> => length(TemplatesAll)
-   },
-   {noreply, State#state{stats = maps:merge(Stats, S)}};
+   PythonNodes = ets:tab2list(python_procs),
+   PPids = [{Pid, iolist_to_binary([FId, "-", NId])}
+      || {_P, #{<<"os_pid">> := Pid, <<"flownode">> := {FId, NId}}} <- PythonNodes],
+   {ok, ProcessStats} = pythra:pythra_call(Python, 'faxe_handler', 'py_stats', [maps:from_list(PPids)]),
+   %% #{<<"mem_total">> := Mem, <<"cpu_total">> := CpuPercent, <<"proc_list">> := []}
+   {noreply, State#state{stats = ProcessStats#{<<"nodes_running">> => length(PPids)}}};
 handle_info(_Info, State) ->
    {noreply, State}.
 
 -spec(terminate(Reason :: (normal | shutdown | {shutdown, term()} | term()),
     State :: #state{}) -> term()).
-terminate(_Reason, _State) ->
+terminate(_Reason, #state{python = Python}) ->
+   python:stop(Python),
    ok.
 
 %%--------------------------------------------------------------------

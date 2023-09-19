@@ -1,5 +1,8 @@
 %% Date: 30.12.16 - 23:01
 %% CrateDB Writer that uses crate's http endpoint
+%% @todo 2 issues to be resolved:
+%% 1. duplicate items
+%% 2. when resend_single, do not attempt to retry (in case of {failed, _})
 %% Ⓒ 2019 heyoka
 %%
 -module(esp_crate_out).
@@ -77,13 +80,13 @@ options() ->
 
 check_options() ->
    [
-      {func, table, fun(E) -> is_function(E) orelse is_binary(E) end,
+      {func, table, fun(E) -> faxe_lambda:is_lambda(E) orelse is_binary(E) end,
          <<" must be either a string or a lambda function">>},
       {func, db_fields,
          fun
             (undefined) -> true;
             (Fields) ->
-               lists:all(fun(E) -> is_function(E) orelse is_binary(E) end, Fields)
+               lists:all(fun(E) -> faxe_lambda:is_lambda(E) orelse is_binary(E) end, Fields)
             end,
             <<" list may only contain strings and lambda functions">>}
 
@@ -246,6 +249,7 @@ send(Item, State = #state{query = Q, faxe_fields = Fields, remaining_fields_as =
 resend_single(Item, State = #state{query = Q, faxe_fields = Fields, remaining_fields_as = RemFieldsAs,
    user = User, pass = Pass, query_point = QueryItem}) ->
    Query = build(QueryItem, Q, Fields, RemFieldsAs),
+   lager:notice("retry single item ~p",[QueryItem]),
    Headers = [{<<"content-type">>, <<"application/json">>}] ++ http_lib:basic_auth_header(User, Pass),
    do_send(Item, Query, Headers, State#state.failed_retries-1, State#state{last_error = undefined}).
 
@@ -275,6 +279,7 @@ do_send(Item, Body, Headers, Retries, State = #state{client = Client, fn_id = FN
          dataflow:maybe_debug(item_out, 1, Item, FNId, State#state.debug_mode),
          State;
       {error, retry_single, ListIndex} ->
+%%         dataflow:ack(Item, State#state.flow_inputs),
          %% try with single data-point and done
          %% get the point:
          QueryPoint = get_query_point(Item, ListIndex),
@@ -284,9 +289,19 @@ do_send(Item, Body, Headers, Retries, State = #state{client = Client, fn_id = FN
 %%         lager:warning("could not send ~p: error in request: ~p", [Body, What]),
          do_send(Item, Body, Headers, Retries+1, State#state{last_error = What});
       {failed, Why} when State#state.use_flow_ack == true ->
-         %% if the server fails in some way, we just try endlessly with a small nap in between
-         timer:sleep(300),
-         do_send(Item, Body, Headers, Retries, State#state{last_error = Why});
+         %% if the server fails in some way, we just try endlessly with a small nap in between,
+         %% since this could go on forever, we have to make sure at least to get stop signals
+         %% if there is a stop signal, we send it to ourselves once again, but exiting the endless loop
+         %% at the same time
+         receive
+            stop ->
+               dataflow:ack(Item, State#state.flow_inputs),
+               erlang:send_after(0, self(), stop),
+               lager:info("got stop message while in retry loop")
+         after 300 ->
+            do_send(Item, Body, Headers, Retries, State#state{last_error = Why})
+         end;
+      %% also {failed, Reason}
       O ->
          lager:warning("sending gun post: ~p",[O]),
          do_send(Item, Body, Headers, Retries+1, State#state{last_error = O})
@@ -310,10 +325,10 @@ build_batch([Point|Points], FieldList, RemFieldsAs, Acc) ->
    build_batch(Points, FieldList, RemFieldsAs, NewAcc).
 
 %% build base query
-query_init(State = #state{table = DbTable}) when is_function(DbTable) ->
+query_init(State = #state{table = DbTable}) when is_record(DbTable, faxe_lambda) ->
    State#state{query_from_lambda = true};
 query_init(State = #state{table = Table, db_fields = DbFields, database = DB, remaining_fields_as = RemF}) ->
-   FromLambda = lists:any(fun(F) -> is_function(F) end, DbFields),
+   FromLambda = lists:any(fun(F) -> faxe_lambda:is_lambda(F) end, DbFields),
    case FromLambda of
       false ->
          TableName = <<DB/binary, ".", Table/binary>>,
@@ -327,7 +342,7 @@ query_init(State = #state{table = Table, db_fields = DbFields, database = DB, re
 %% build the query with lambda funs
 build_query(DbFields0, DB, Table0, RemFieldsAs, P=#data_point{}) when is_list(DbFields0) ->
    Table =
-   case is_function(Table0) of
+   case faxe_lambda:is_lambda(Table0) of
       true ->
          TName = faxe_lambda:execute(P, Table0),
          <<DB/binary, ".", TName/binary>>;
@@ -335,7 +350,7 @@ build_query(DbFields0, DB, Table0, RemFieldsAs, P=#data_point{}) when is_list(Db
    end,
    FieldsFun =
    fun(E) ->
-      case is_function(E) of
+      case faxe_lambda:is_lambda(E) of
          true -> faxe_lambda:execute(P, E);
          false -> E
       end
@@ -384,8 +399,13 @@ handle_response(<<"4", _/binary>> = S,_BodyJSON) ->
    {error, invalid};
 handle_response(<<"503">>, _BodyJSON) ->
    {failed, not_available};
-handle_response(<<"5", _/binary>> = S,_BodyJSON) ->
-   lager:error("Error ~p with body ~p",[S, _BodyJSON]),
+handle_response(<<"5", _/binary>> = S, BodyJSON) ->
+   lager:error("Error ~p with body ~p",[S, BodyJSON]),
+   % <<"{\"error\":{\"message\":\"MaxBytesLengthExceededException[bytes can be at most 32766 in length; got 32910]\",\"code\":5000}}">>
+   case catch jiffy:decode(BodyJSON, [return_maps]) of
+      #{<<"error">> := #{<<"code">> := Code}} -> check_error_code(Code);
+      _ -> ok
+   end,
    {failed, server_error};
 handle_response({error, What}, {error, Reason}) ->
    lager:error("Other err: ~p",[{What, Reason}]),
@@ -398,9 +418,10 @@ handle_response_message(RespMessage) ->
          %% count where rows := -2
          NotWritten = lists:foldl(
             fun
-               (#{<<"rowcount">> := -2, <<"error_message">> := E}, {Idx, Count, Errors, _}) -> {Idx+1, Count+1, Errors++[E], Idx};
-               (#{<<"rowcount">> := -2}, {Idx, Count, Errors, _}) -> {Idx+1, Count+1, Errors, Idx};
-               (_, {Idx, Count, Errors, CIdx}) -> {Idx+1, Count, Errors, CIdx}
+               (#{<<"rowcount">> := -2, <<"error_message">> := E}, {Idx, Count, Errors, _}) ->
+                  {Idx + 1, Count + 1, Errors ++ [E], Idx};
+               (#{<<"rowcount">> := -2}, {Idx, Count, Errors, _}) -> {Idx + 1, Count + 1, Errors, Idx};
+               (_, {Idx, Count, Errors, CIdx}) -> {Idx + 1, Count, Errors, CIdx}
             end, {1, 0, [], 0}, Results),
          case NotWritten of
             {_Idx, 0, [], _} -> ok;
@@ -409,9 +430,9 @@ handle_response_message(RespMessage) ->
                   [C, length(Results), Errs, ListIndex]),
                {error, retry_single, ListIndex}
          end
-      end.
+   end.
 
-
+check_error_code(_) -> ok.
 
 get_fields(State = #state{table = Tab0, database = Db0}) ->
    Tab = binary:replace(Tab0, <<"\"">>, <<>>, [global]),

@@ -6,6 +6,7 @@ import os
 import faxe_modulefinder
 import sys
 import psutil
+import faxe
 
 from erlport.erlterms import Atom
 from erlport.erlang import set_message_handler
@@ -37,9 +38,22 @@ def register_handler(_classname):
     return Atom(b'ok')
 
 
-def py_stats():
-    return [(p.pid, p.info['name'], p.info['username'], p.info['memory_info'].rss) \
-            for p in psutil.process_iter(['name', 'memory_info', 'username'])]
+def py_stats(ppids):
+    pids = dict.keys(ppids)
+    out = {b'mem_total': 0, b'cpu_total': 0, b'proc_list': list()}
+    for p in psutil.process_iter(['pid', 'memory_info', 'cpu_percent']):
+        if p.info['pid'] in pids:
+            pid = p.info['pid']
+            mem = round(p.info['memory_info'].rss / (1024 * 1024), 2)
+            cpu = p.info['cpu_percent']
+            out[b'mem_total'] += mem
+            out[b'cpu_total'] += cpu
+            out[b'proc_list'].append({b'name': faxe.to_bytes(ppids[pid]),
+                                     b'pid': pid,
+                                     b'mem': mem,
+                                     b'cpu_percent': cpu})
+
+    return (Atom(b'ok'), out)
 
 
 def process_stats():
@@ -54,7 +68,7 @@ def process_mem_usage():
 
 def process_cpu_usage():
     p = psutil.Process()
-    return p.cpu_percent(interval=0)
+    return p.cpu_percent(interval=4)
 
 
 

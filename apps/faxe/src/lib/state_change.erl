@@ -41,8 +41,8 @@
   }).
 
 
--spec new(function()) -> #state_change{}.
-new(StateFun) when is_function(StateFun) ->
+-spec new(#faxe_lambda{}) -> #state_change{}.
+new(StateFun = #faxe_lambda{}) ->
   new(StateFun, undefined).
 new(StateFun, FieldPath) ->
   #state_change{state_fun = StateFun, field_path = FieldPath}.
@@ -97,7 +97,7 @@ get_state_id(#state_change{state_id = Id}) ->
 
 execute(State = #state_change{}, Point) ->
   comp((catch exec(Point, State)), State, Point).
-exec(Point, #state_change{state_fun = LFun}) when is_function(LFun) ->
+exec(Point, #state_change{state_fun = LFun}) when is_record(LFun, faxe_lambda) ->
   faxe_lambda:execute(Point, LFun);
 exec(Point, #state_change{field_path = Field, state_fun = Value}) ->
   flowdata:field(Point, Field) == Value.
@@ -134,9 +134,12 @@ enter(State=#state_change{}, P = #data_point{ts = Ts}) ->
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 -ifdef(TEST).
+all_true(_) -> true.
+my_lambda() ->
+  #faxe_lambda{module = ?MODULE, function = all_true}.
 basic_test() ->
 
-  State = state_change:new(fun(_E) -> true end),
+  State = state_change:new(my_lambda()),
 
   ?assertEqual(-1, state_change:get_count(State)),
   ?assertEqual(?Init, state_change:get_state(State)),

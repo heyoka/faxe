@@ -98,7 +98,7 @@ check_options() ->
       %% check for valid select statement
       {func, query,
          fun
-            (SF) when is_function(SF) -> true;
+            (SF) when is_record(SF, faxe_lambda) -> true;
             (S)->  faxe_util:check_select_statement(S)
          end,
          <<" seems not to be a valid sql select statement">>},
@@ -106,7 +106,7 @@ check_options() ->
       {func, setup_query,
          fun
             (undefined) -> true;
-            (SF) when is_function(SF) -> true;
+            (SF) when is_record(SF, faxe_lambda) -> true;
             (S)->  faxe_util:check_select_statement(S)
          end,
          <<" seems not to be a valid sql select statement">>},
@@ -133,7 +133,7 @@ check_options() ->
          fun
             (Select) when is_binary(Select) ->
                check_timefilter(Select);
-            (SF) when is_function(SF) -> true
+            (SF) when is_record(SF, faxe_lambda) -> true
          end,
          <<" timefilter key '", ?TIMEFILTER_KEY/binary, "' missing in query">>
       },
@@ -323,7 +323,7 @@ prepare_start(State = #state{start = Start0, period = Period0, stop = Stop0}) ->
    State#state{start = Start, stop = Stop, period = Period, query_mark = QueryMark}.
 
 %% setup the main query (the continous one)
-setup_query(#{query := Q0, filter_time_field := _FilterTimeField}=QM, S=#state{}) when is_function(Q0) ->
+setup_query(#{query := Q0, filter_time_field := _FilterTimeField}=QM, S=#state{}) when is_record(Q0, faxe_lambda) ->
    Q1 = faxe_lambda:execute(#data_point{}, Q0),
    case check_timefilter(Q1) of
       false -> error("Timefilter not found in statement !");

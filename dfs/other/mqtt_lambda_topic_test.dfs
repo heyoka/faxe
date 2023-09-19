@@ -9,12 +9,12 @@ def topic_base = 'ttgw/test/'
          "vac_on_without_contact": [0.2, 2.5, 8.01], "vac_on_with_contact": [6.001, 4.798, 7.012]} >>>,
       <<< {"condition": {"id": 2, "name": "Error"}, "condition_reason": "something_went_really_wrong", "predicted_maintenance_time": 1582246411783,
          "vac_on_without_contact": [0.5, 2.5, 0.44], "vac_on_with_contact": [2.06, 4.98, 2.901]} >>>)
-
-|debug()
+.as('data')
+%|debug()
 
 %def ignore =
 
 |mqtt_publish()
-.host(mqtt_host)
+%.host(mqtt_host)
 .topic_lambda(lambda: str_concat([ topic_base, str_downcase("data.condition.name"), '/ttw/' , "data.condition_reason"]) )
 .retained()

@@ -201,7 +201,8 @@ build_fun(#state{lambda_pattern = PatternString}, FieldName) when is_binary(Patt
    FunString = binary:replace(PatternString, ?PLACE_HOLDER, string:titlecase(Name), [global]),
    Vars = [string:titlecase(binary_to_list(Name))],
    Bindings = [FieldName],
-   faxe_dfs:make_lambda_fun(binary_to_list(FunString), Vars, Bindings).
+   L = faxe_dfs:make_lambda_fun(binary_to_list(FunString), Vars, Bindings),
+   faxe_lambda:ensure(L).
 
 clean_param_name(Name) when is_binary(Name) ->
    S0 = re:replace(Name, "[^a-zA-Z0-9_.]", <<"_">>, [{return, binary}]),

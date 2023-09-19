@@ -365,6 +365,22 @@ build_nodes(NodeIds, Graph, Id) ->
          #{component := Component, inports := Inports, outports := OutPorts, metadata := Metadata}
             = Label,
          {ok, Pid} = df_component:start_link(Component, Id, NodeId, Inports, OutPorts, Metadata),
+
+         %%% dynamically compiled lambda expressions
+%%         BuildStart = erlang:monotonic_time(microsecond),
+         maps:foreach(
+            fun
+               (_Key, #faxe_lambda{} = Lambda) -> faxe_lambda:ensure(Lambda);
+               (_Key, [#faxe_lambda{}|_] = Lambdas) -> faxe_lambda:ensure(Lambdas);
+               (_Key, _) -> ok
+            end, Metadata),
+%%         BuildTime = erlang:round((erlang:monotonic_time(microsecond)-BuildStart)/1000),
+%%         case BuildTime > 0 of
+%%            true -> lager:notice("time to compile lambdas: ~pms",[BuildTime]);
+%%            false -> ok
+%%         end,
+         %%%
+
          #{'_name' := Name} = Metadata,
          #node{pid = Pid, component = Component, id = NodeId, name = Name}
       end, lists:reverse(NodeIds)),

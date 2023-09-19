@@ -94,12 +94,17 @@ init([]) ->
    %% stores graph pid to component-pid list
    ok = new_table(graph_to_nodes, set),
 
+   %% compiled lambdas
+   ok = new_table(faxe_lambdas, set),
    %% lambda lib caches
    ok = new_table(decoded_json, set),
    ok = new_table(select_cache, set),
 
    %% cache for python deps
    ok = new_table(python_deps, set),
+
+   %% python nodes - os process pid of python runtime
+   ok = new_table(python_procs, set),
 
    {ok, #state{}}.
 

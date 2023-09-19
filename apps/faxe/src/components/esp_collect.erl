@@ -30,7 +30,7 @@
 -define(TAG_REMOVED, <<"removed">>).
 -define(TAG_UPDATED, <<"updated">>).
 
--define(MIN_AGING_INTERVAL, 5*60*1000).
+-define(MIN_AGING_INTERVAL, 7*60*1000).
 
 -record(state, {
    node_id,
@@ -47,6 +47,7 @@
    ,keep_as,
    as,
    max_age,
+   max_ts_age,
    age_timer :: reference(),
    %% tagging and output
    tag_added = false :: true | false,
@@ -54,7 +55,7 @@
    include_removed = false :: true | false,
    tag_value :: term(),
    current_batch_start :: faxe_time:timestamp(),
-   %% holds the newest timestamp from a single data_point
+   %% holds the newest timestamp (we saw) from a single data_point
    newest_timestamp :: faxe_time:timestamp(),
    merge = false :: true|false
 }).
@@ -75,6 +76,7 @@ options() -> [
    {keep_as, string_list, undefined}, %% rename the kept fields
    {as, string, <<"collected">>}, %% (rename the whole field construct on output, but not implemented)
    {max_age, duration, <<"3h">>},
+   {max_ts_age, duration, undefined},
    {tag_value, any, 1},
    {merge, boolean, false} %% condense the buffer into one output data-point, if true
 ].
@@ -84,7 +86,7 @@ check_options() ->
       {same_length, [keep, keep_as]},
       {func, update,
          fun(Val) ->
-            is_function(Val) orelse lists:member(Val, [undefined, true, false])
+            faxe_lambda:is_lambda(Val) orelse lists:member(Val, [undefined, true, false])
          end,
          <<" can only be a lambda expression, true or false">>},
       {one_of, update_mode, [?UPDATE_MODE_MERGE, ?UPDATE_MODE_MERGE_REVERSE, ?UPDATE_MODE_REPLACE]}
@@ -99,12 +101,12 @@ init(NodeId, _Ins, #{
    emit_every := EmitEvery, tag_added := TagAdd, tag_removed := TagRem, tag_updated := TagUpdate,
    include_removed := InclRem0, tag_value := TagVal,
    keep := Keep, keep_as := KeepAs, merge := Merge,
-   as := As, max_age := MaxAge0}
+   as := As, max_age := MaxAge0, max_ts_age := MaxTsAge0}
 ) ->
-
    UpdateFun = case UpStateFun of undefined -> false; _ -> UpStateFun end,
    EmitInterval = case EmitEvery of undefined -> undefined; _ -> faxe_time:duration_to_ms(EmitEvery) end,
    MaxAge = case MaxAge0 of undefined -> undefined; Age -> faxe_time:duration_to_ms(Age) end,
+   MaxTsAge = case MaxTsAge0 of undefined -> undefined; TsAge -> faxe_time:duration_to_ms(TsAge) end,
    Aliases = case KeepAs of [] -> Keep; _ -> KeepAs end,
    InclRem = case TagRem /= false of true -> true; _ -> InclRem0 end,
    {ok, all,
@@ -121,6 +123,7 @@ init(NodeId, _Ins, #{
          keep_as = Aliases,
          as = As,
          max_age = MaxAge,
+         max_ts_age = MaxTsAge,
          tag_added = TagAdd,
          tag_updated = TagUpdate,
          include_removed = InclRem,
@@ -262,8 +265,6 @@ maybe_update_state(Point=#data_point{}, KeyVal, State = #state{update_function =
 maybe_update_state(Point=#data_point{fields = Fields}, KeyVal, State = #state{update_function = Fun, buffer = Buffer}) ->
    StatePoint = buffer_get(KeyVal, Buffer),
    FunPoint = Point#data_point{fields = Fields#{?PREVIOUS_POINT_ROOT => StatePoint#data_point.fields}},
-%%      flowdata:set_field(Point, <<"__state">>, StatePoint#data_point.fields),
-%%   lager:notice("FunPoint is: ~p",[FunPoint]),
    case catch(faxe_lambda:execute(FunPoint, Fun)) of
       true ->
 %%         lager:info("update: ~p ~p",[KeyVal, Point]),
@@ -283,16 +284,13 @@ maybe_emit(true, State = #state{}) ->
 maybe_emit(false, State = #state{}) ->
    {ok, State}.
 
-do_emit(State = #state{buffer = Buff, tag_value = _TagVal, merge = Merge, newest_timestamp = Ts}) ->
-   Points0 = [
-      maybe_rewrite_ts(
-         Point,
-         State)
-      || {_Key, Point, _} <- Buff],
+do_emit(State = #state{merge = Merge, newest_timestamp = Ts}) ->
+   %% get list of points and cleanup the buffer
+   {PointList, NewState} = emit_buffer_cleanup(State),
 
-   %% sort elements by timestamp for data_batch
-   Points = lists:keysort(2, Points0), %% ???
-   Batch = #data_batch{points = Points, start = State#state.current_batch_start},
+   %% sort elements by timestamp for data_batch, only when no batch_start is given
+%%   Points = maybe_batch_sort(PointList, State),
+   Batch = #data_batch{points = PointList, start = State#state.current_batch_start},
    Out =
    case Merge of
       true ->
@@ -301,34 +299,77 @@ do_emit(State = #state{buffer = Buff, tag_value = _TagVal, merge = Merge, newest
       false -> Batch
    end,
    %%
-   %% now cleanup removed and added tags
-   NewState0 = buffer_cleanup(State),
-   NewState = NewState0#state{current_batch_start = undefined},
-%%   lager:notice("buffer length after emit: ~p",[length(NewState#state.buffer)]),
-   write_state(NewState),
-   {emit, Out, NewState}.
+  write_state(NewState),
+   {emit, Out, NewState#state{current_batch_start = undefined}}.
 
 write_state(State=#state{node_id = NId, buffer = Buffer}) ->
-   dataflow:persist(NId,
-      #{
-         buffer => Buffer,
-         current_batch_start => State#state.current_batch_start,
-         newest_timestamp => State#state.newest_timestamp}
-   ).
+  dataflow:persist(NId,
+    #{
+      buffer => Buffer,
+      current_batch_start => State#state.current_batch_start,
+      newest_timestamp => State#state.newest_timestamp}
+  ).
 
-buffer_cleanup(State = #state{tag_added = false, include_removed = false, tag_updated = false}) ->
-   State;
-buffer_cleanup(State = #state{buffer = Buff, tag_value = TagVal}) ->
-   CleanFun =
-      fun({Key, Point, _Ts}, Acc) ->
-         Point0 = flowdata:delete_fields(Point, [?TAG_ADDED, ?TAG_UPDATED]),
-         case flowdata:field(Point0, ?TAG_REMOVED) of
-            TagVal -> buffer_delete(Key, Acc);
-            _ -> buffer_update(Key, Point0, Acc)
-         end
+%% get the list of points (maybe rewrite their timestamps)
+%% clean the buffer from removed (but still included) points
+%% clean points from the added or updated fields
+%% clean buffer from outdated points
+emit_buffer_cleanup(State = #state{buffer = Buff, tag_value = TagVal, newest_timestamp = NewestTs, max_ts_age = Age}) ->
+   NoBufferClean =
+      State#state.tag_added == false andalso
+         State#state.include_removed == false andalso
+         State#state.tag_updated == false,
+   DeleteFields =
+   case {State#state.tag_added, State#state.tag_updated} of
+      {true, true} -> [?TAG_ADDED, ?TAG_UPDATED];
+      {false, true} -> [?TAG_UPDATED];
+      {true, false} -> [?TAG_ADDED];
+      {false, false} -> []
+   end,
+   IncludesRemoved = State#state.include_removed == true,
+   Fun =
+      fun({Key, Point=#data_point{ts = PointTs}, Ts}, {AccBuff, AccPoints}) ->
+         %% clean buffer
+         NewBufferAcc =
+         %% delete entry anyway, because of age (of point timestamp !) ?
+         case (Age /= undefined) andalso ( (NewestTs - Age) > PointTs) of
+            true -> buffer_delete(Key, AccBuff);
+            false ->
+               case NoBufferClean of
+                  true ->
+                     AccBuff;
+                  false ->
+                     case IncludesRemoved andalso (flowdata:field(Point, ?TAG_REMOVED) == TagVal) of
+                        true -> buffer_delete(Key, AccBuff);
+                        false ->
+                           case DeleteFields of
+                              [] -> AccBuff;
+                              _ ->
+                                 Point0 = flowdata:delete_fields(Point, DeleteFields),
+                                 buffer_update(Key, Point0, AccBuff, Ts)
+                           end
+                     end
+               end
+         end,
+         %% maybe rewrite point timestamp
+         {NewBufferAcc, AccPoints ++ [maybe_rewrite_ts(Point, State)]}
       end,
-   CleanedBuffer = lists:foldl(CleanFun, Buff, Buff),
-   State#state{buffer = CleanedBuffer}.
+   {CleanedBuffer, PointList} = lists:foldl(Fun, {Buff, []}, Buff),
+   {PointList, State#state{buffer = CleanedBuffer}}.
+
+%%buffer_cleanup(State = #state{tag_added = false, include_removed = false, tag_updated = false}) ->
+%%   State;
+%%buffer_cleanup(State = #state{buffer = Buff, tag_value = TagVal}) ->
+%%   CleanFun =
+%%      fun({Key, Point, _Ts}, Acc) ->
+%%         Point0 = flowdata:delete_fields(Point, [?TAG_ADDED, ?TAG_UPDATED]),
+%%         case flowdata:field(Point0, ?TAG_REMOVED) of
+%%            TagVal -> buffer_delete(Key, Acc);
+%%            _ -> buffer_update(Key, Point0, Acc)
+%%         end
+%%      end,
+%%   CleanedBuffer = lists:foldl(CleanFun, Buff, Buff),
+%%   State#state{buffer = CleanedBuffer}.
 
 age_cleanup(State = #state{buffer = Buffer, max_age = Age}) ->
    Now = faxe_time:now(),
@@ -369,6 +410,11 @@ maybe_rewrite_ts(Point, #state{current_batch_start = undefined}) ->
    Point;
 maybe_rewrite_ts(Point, #state{current_batch_start = Ts}) ->
    Point#data_point{ts = Ts}.
+%%
+%%maybe_batch_sort(PointList, #state{current_batch_start = undefined}) ->
+%%   lists:keysort(2, PointList);
+%%maybe_batch_sort(PointList, #state{}) ->
+%%   PointList.
 
 add(Key, Point, S = #state{buffer = Buffer0, tag_added = false}) ->
    {true, S#state{buffer = buffer_add(Key, keep(Point, S), Buffer0)}};
@@ -400,17 +446,17 @@ merge(Key, P1, P2, State = #state{buffer = Buff, tag_updated = TagIt, tag_value 
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 buffer_add(Key, Point, Buffer) ->
-   NewBuffer = Buffer ++ [{Key, Point, faxe_time:now()}],
-   NewBuffer.
+   Buffer ++ [{Key, Point, faxe_time:now()}].
 
 buffer_delete(Key, Buffer) ->
-   NewBuffer = lists:keydelete(Key, 1, Buffer),
-   NewBuffer.
+   lists:keydelete(Key, 1, Buffer).
+
+buffer_update(Key, NewPoint, Buffer, Ts) ->
+   lists:keyreplace(Key, 1, Buffer, {Key, NewPoint, Ts}).
 
 buffer_update(Key, Point, Buffer) ->
    {Key, _OldP, Ts} = lists:keyfind(Key, 1, Buffer),
-   NewBuffer = lists:keyreplace(Key, 1, Buffer, {Key, Point, Ts}),
-   NewBuffer.
+   lists:keyreplace(Key, 1, Buffer, {Key, Point, Ts}).
 
 -spec buffer_get(binary(), list()) -> undefined | #data_point{}.
 buffer_get(Key, Buffer) ->
@@ -481,6 +527,7 @@ buffer_update_test() ->
    ?assertEqual(Expected, buffer_update(1, NewPoint, Buffer)).
 
 is_in_true_test() ->
+   faxe_ets:start_link(),
    Buffer = buffer(),
    State = state(),
    Point = #data_point{ts = 1, fields = #{<<"name">> => <<"point_1">>, <<"data_code_id">> => 1}},
@@ -536,8 +583,8 @@ buffer_cleanup_added_test() ->
       {3, #data_point{ts=3, fields = #{<<"name">> => <<"zwei">>}}, 3}
    ],
    State = #state{buffer = Buffer, tag_added = true, tag_value = 1},
-
-   ?assertEqual(State#state{buffer = Expected}, buffer_cleanup(State)).
+   {_L, NewState} = emit_buffer_cleanup(State),
+   ?assertEqual(State#state{buffer = Expected}, NewState).
 
 buffer_cleanup_removed_test() ->
    Buffer = [
@@ -552,8 +599,64 @@ buffer_cleanup_removed_test() ->
       {4, #data_point{ts=4, fields = #{<<"name">> => <<"zwei">>}}, 4}
    ],
    State = #state{buffer = Buffer, tag_added = true, include_removed = true, tag_value = 1},
+   {_L, NewState} = emit_buffer_cleanup(State),
+   ?assertEqual(State#state{buffer = Expected}, NewState).
 
-   ?assertEqual(State#state{buffer = Expected}, buffer_cleanup(State)).
+buffer_cleanup_removed_aged_test() ->
+   Buffer = [
+      {1, #data_point{ts=1, fields = #{<<"name">> => <<"eins">>}}, 1},
+      {2, #data_point{ts=2, fields = #{<<"name">> => <<"zwei">>}}, 2},
+      {3, #data_point{ts=3, fields = #{<<"name">> => <<"zwei">>, <<"removed">> => 1}}, 3},
+      {4, #data_point{ts=4, fields = #{<<"name">> => <<"zwei">>, <<"added">> => 1}}, 4},
+      {5, #data_point{ts=5, fields = #{<<"name">> => <<"drei">>, <<"added">> => 1}}, 5}
+   ],
+   Expected = [
+      {2, #data_point{ts=2, fields = #{<<"name">> => <<"zwei">>}}, 2},
+      {4, #data_point{ts=4, fields = #{<<"name">> => <<"zwei">>}}, 4},
+      {5, #data_point{ts=5, fields = #{<<"name">> => <<"drei">>}}, 5}
+   ],
+   State = #state{buffer = Buffer, tag_added = true, include_removed = true, tag_value = 1,
+      max_ts_age = 3, newest_timestamp = 5},
+   {_L, NewState} = emit_buffer_cleanup(State),
+   ?assertEqual(State#state{buffer = Expected}, NewState).
+
+buffer_cleanup_removed_added_no_age_test() ->
+   Buffer = [
+      {1, #data_point{ts=1, fields = #{<<"name">> => <<"eins">>}}, 1},
+      {2, #data_point{ts=2, fields = #{<<"name">> => <<"zwei">>}}, 2},
+      {3, #data_point{ts=3, fields = #{<<"name">> => <<"zwei">>, <<"removed">> => 1}}, 3},
+      {4, #data_point{ts=4, fields = #{<<"name">> => <<"zwei">>, <<"added">> => 1}}, 4},
+      {5, #data_point{ts=5, fields = #{<<"name">> => <<"drei">>, <<"added">> => 1}}, 5}
+   ],
+   Expected = [
+      {1, #data_point{ts=1, fields = #{<<"name">> => <<"eins">>}}, 1},
+      {2, #data_point{ts=2, fields = #{<<"name">> => <<"zwei">>}}, 2},
+      {4, #data_point{ts=4, fields = #{<<"name">> => <<"zwei">>}}, 4},
+      {5, #data_point{ts=5, fields = #{<<"name">> => <<"drei">>}}, 5}
+   ],
+   State = #state{buffer = Buffer, tag_added = true, include_removed = true, tag_value = 1,
+      max_ts_age = undefined, newest_timestamp = 5},
+   {_L, NewState} = emit_buffer_cleanup(State),
+   ?assertEqual(State#state{buffer = Expected}, NewState).
+
+buffer_cleanup_removed_no_age_test() ->
+   Buffer = [
+      {1, #data_point{ts=1, fields = #{<<"name">> => <<"eins">>}}, 1},
+      {2, #data_point{ts=2, fields = #{<<"name">> => <<"zwei">>}}, 2},
+      {3, #data_point{ts=3, fields = #{<<"name">> => <<"zwei">>, <<"removed">> => 1}}, 3},
+      {4, #data_point{ts=4, fields = #{<<"name">> => <<"zwei">>}}, 4},
+      {5, #data_point{ts=5, fields = #{<<"name">> => <<"drei">>}}, 5}
+   ],
+   Expected = [
+      {1, #data_point{ts=1, fields = #{<<"name">> => <<"eins">>}}, 1},
+      {2, #data_point{ts=2, fields = #{<<"name">> => <<"zwei">>}}, 2},
+      {4, #data_point{ts=4, fields = #{<<"name">> => <<"zwei">>}}, 4},
+      {5, #data_point{ts=5, fields = #{<<"name">> => <<"drei">>}}, 5}
+   ],
+   State = #state{buffer = Buffer, tag_added = false, include_removed = true, tag_value = 1,
+      max_ts_age = undefined, newest_timestamp = 5},
+   {_L, NewState} = emit_buffer_cleanup(State),
+   ?assertEqual(State#state{buffer = Expected}, NewState).
 
 buffer_cleanup_nope_test() ->
    Buffer = [
@@ -563,6 +666,7 @@ buffer_cleanup_nope_test() ->
       {4, #data_point{ts=4, fields = #{<<"name">> => <<"zwei2">>, <<"whatever">> => 1}}, 4}
    ],
    State = #state{buffer = Buffer, tag_added = false, include_removed = false, tag_value = 1},
-   ?assertEqual(State, buffer_cleanup(State)).
+   {_L, NewState} = emit_buffer_cleanup(State),
+   ?assertEqual(State, NewState).
 
 -endif.

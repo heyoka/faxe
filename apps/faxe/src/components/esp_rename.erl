@@ -35,7 +35,8 @@ check_options() ->
       {same_length, [tags, as_tags]}].
 
 init(NodeId, _Ins, #{fields := Fields, tags := _Tags, as_fields := AsFields, as_tags := _AsTags}) ->
-   {FieldsAsFuns, FieldsAsNames} = lists:partition(fun({_FName, E}) -> is_function(E) end, lists:zip(Fields, AsFields)),
+   {FieldsAsFuns, FieldsAsNames} =
+      lists:partition(fun({_FName, E}) -> is_record(E, faxe_lambda) end, lists:zip(Fields, AsFields)),
    {AsNameFields, AsNameFieldNames} = lists:unzip(FieldsAsNames),
    {AsFunFields, AsFunFieldNames} = lists:unzip(FieldsAsFuns),
    {ok, all, #state{
