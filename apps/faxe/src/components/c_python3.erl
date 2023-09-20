@@ -17,7 +17,7 @@
    init/3, process/3,
    handle_info/2, options/0,
    call_options/2, get_python/1,
-   shutdown/1, get_stats/1, init/4, fetch_deps/2]).
+   shutdown/1, init/4, fetch_deps/2]).
 
 -callback execute(tuple(), term()) -> tuple().
 
@@ -104,12 +104,12 @@ init(NodeId, _Ins, #{} = Args) ->
 init_all(NodeId, AddPyOpts, #{cb_module := Callback, cb_class := CBClass, as := As, stop_on_exit := StopOnExit} = Args) ->
    process_flag(trap_exit, true),
    PInstance = python_init(CBClass, Args, NodeId),
-   PInstance = get_python(CBClass),
-   %% create an instance of the callback class
-   Path = lists:last(get_path()),
-   PyOpts0 = maps:without([cb_module, cb_class], Args#{<<"_erl">> => self(), <<"_ppath">> => list_to_binary(Path)}),
-   PyOpts = maps:merge(PyOpts0, AddPyOpts),
-   pythra:cast(PInstance, [?PYTHON_INIT, CBClass, PyOpts]),
+%%   PInstance = get_python(CBClass),
+%%   %% create an instance of the callback class
+%%   Path = lists:last(get_path()),
+%%   PyOpts0 = maps:without([cb_module, cb_class], Args#{<<"_erl">> => self(), <<"_ppath">> => list_to_binary(Path)}),
+%%   PyOpts = maps:merge(PyOpts0, AddPyOpts),
+%%   pythra:cast(PInstance, [?PYTHON_INIT, CBClass, PyOpts]),
    State = #state{
       callback_module = Callback,
       callback_class =  CBClass,
@@ -237,8 +237,9 @@ python_init(CBClass, Args, NodeId) ->
    PythonPid = pythra:pythra_call(PInstance, os, getpid, []),
    ets:insert(python_procs, {self(), #{<<"os_pid">> => PythonPid, <<"flownode">> => NodeId}}),
 
+   Path = lists:last(get_path()),
    %% create an instance of the callback class
-   PyOpts = maps:without([cb_module, cb_class], Args#{<<"erl">> => self()}),
+   PyOpts = maps:without([cb_module, cb_class], Args#{<<"_erl">> => self(), <<"_ppath">> => list_to_binary(Path)}),
    pythra:cast(PInstance, [?PYTHON_INIT, CBClass, PyOpts]),
    PInstance.
 

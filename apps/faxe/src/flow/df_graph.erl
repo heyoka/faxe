@@ -444,7 +444,7 @@ start_async(Nodes0, Subscriptions, StartContext = #task_modes{run_mode = RunMode
             Ts > Now-MaxStateAge];
       false -> []
    end,
-   lager:notice("All node-states from flow ~p: ~p",[Id, NodeStates]),
+   lager:notice("[SP: ~p] All node-states from flow ~p: ~p",[SPersist, Id, NodeStates]),
    %% start the nodes with subscriptions
    %% do we have mem nodes present ? then sync start them first
    {Mems, Others} = lists:partition(fun(#node{component = Comp}) -> Comp =:= esp_mem end, Nodes0),

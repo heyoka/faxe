@@ -48,7 +48,7 @@ dev1:
 	export FAXE_HOST=heyoka_local && \
 	export FAXE_S7POOL_ENABLE=on && \
 	export FAXE_S7READER_OPTIMIZED=on && \
-	export FAXE_FLOW_STATE_PERSISTENCE_ENABLE=on && \
+	export FAXE_FLOW_STATE_PERSISTENCE_ENABLE=off && \
 	export FAXE_FLOW_STATE_PERSISTENCE_STATE_MAX_AGE=2h && \
 	rebar3 as dev1 release && _build/dev1/rel/faxe/bin/faxe console
 
