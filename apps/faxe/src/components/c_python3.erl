@@ -70,24 +70,25 @@ options() ->
 %% @doc get the options to recognize in dfs for the python node (from the callback class)
 -spec call_options(atom(), atom()) -> list(tuple()).
 call_options(Module, Class) ->
-   case static_call(Module, Class, ?PYTHON_INFO) of
+   case static_call(Module, Class, ?PYTHON_INFO, [Class]) of
       B when is_list(B) -> add_options() ++ B;
       Other -> Other
    end.
 
 fetch_deps(Module, Class) ->
-   case static_call(Module, Class, ?PYTHON_DEPS) of
+   Path = lists:last(get_path()),
+   case static_call(Module, Class, ?PYTHON_DEPS, [Class, list_to_binary(Path)]) of
       Imports when is_list(Imports) -> {ok, Imports};
       Other -> Other
    end.
 
-static_call(Module, Class, Function) ->
+static_call(Module, Class, Function, Args) ->
    process_flag(trap_exit, true),
    P = get_python(Class),
    ModClass = list_to_atom(atom_to_list(Module)++"."++atom_to_list(Class)),
 %%   lager:notice("call options ~p",[{Module, Class, ModClass}]),
    Res =
-      try pythra:func(P, ModClass, Function, [Class]) of
+      try pythra:func(P, ModClass, Function, Args) of
          B -> B
       catch
          _:{python,'builtins.ModuleNotFoundError', Reason,_}:_Stack ->
@@ -95,6 +96,7 @@ static_call(Module, Class, Function) ->
             {error, Err}
       end,
    python:stop(P),
+   lager:info("static call returns ~p",[Res]),
    Res.
 
 
