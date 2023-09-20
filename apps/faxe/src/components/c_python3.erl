@@ -17,7 +17,9 @@
    init/3, process/3,
    handle_info/2, options/0,
    call_options/2, get_python/1,
-   shutdown/1]).
+   shutdown/1,
+%%   init/4,
+   fetch_deps/2]).
 
 -callback execute(tuple(), term()) -> tuple().
 
@@ -30,12 +32,14 @@
    cb_object :: term(),
    func_calls = [],
    as :: binary()|undefined,
-   stop_on_exit :: boolean()
+   stop_on_exit :: boolean(),
+   state_max_size_bytes :: non_neg_integer()
 }).
 
 
 %% python method calls
 -define(PYTHON_INFO, info).
+-define(PYTHON_DEPS, fetch_deps).
 -define(PYTHON_INIT, <<"init">>).
 -define(PYTHON_BATCH, <<"batch">>).
 -define(PYTHON_POINT, <<"point">>).
@@ -51,8 +55,8 @@ add_options() ->
    ].
 
 -spec options() -> list(
-   {atom(), df_types:option_name()} |
-   {atom(), df_types:option_name(), df_types:option_value()}
+{atom(), df_types:option_name()} |
+{atom(), df_types:option_name(), df_types:option_value()}
 ).
 options() ->
    [
@@ -66,14 +70,25 @@ options() ->
 %% @doc get the options to recognize in dfs for the python node (from the callback class)
 -spec call_options(atom(), atom()) -> list(tuple()).
 call_options(Module, Class) ->
+   case static_call(Module, Class, ?PYTHON_INFO) of
+      B when is_list(B) -> add_options() ++ B;
+      Other -> Other
+   end.
 
+fetch_deps(Module, Class) ->
+   case static_call(Module, Class, ?PYTHON_DEPS) of
+      Imports when is_list(Imports) -> {ok, Imports};
+      Other -> Other
+   end.
+
+static_call(Module, Class, Function) ->
    process_flag(trap_exit, true),
    P = get_python(Class),
    ModClass = list_to_atom(atom_to_list(Module)++"."++atom_to_list(Class)),
 %%   lager:notice("call options ~p",[{Module, Class, ModClass}]),
    Res =
-      try pythra:func(P, ModClass, ?PYTHON_INFO, [Class]) of
-         B when is_list(B) -> add_options() ++ B
+      try pythra:func(P, ModClass, Function, [Class]) of
+         B -> B
       catch
          _:{python,'builtins.ModuleNotFoundError', Reason,_}:_Stack ->
             Err = lists:flatten(io_lib:format("python module not found: ~s",[Reason])),
@@ -83,7 +98,12 @@ call_options(Module, Class) ->
    Res.
 
 
-init(NodeId, _Ins, #{cb_module := Callback, cb_class := CBClass, as := As, stop_on_exit := StopOnExit} = Args) ->
+%%init(NodeId, _Ins, #{cb_module := Callback} = Args, State = #node_state{state = Persisted}) ->
+%%   lager:warning("~p got persisted state: ~p",[Callback, State]),
+%%   init_all(NodeId, Args#{<<"_state">> => Persisted}).
+init(NodeId, _Ins, #{} = Args) ->
+   init_all(NodeId, Args).
+init_all(NodeId, #{cb_module := Callback, cb_class := CBClass, as := As, stop_on_exit := StopOnExit} = Args) ->
    process_flag(trap_exit, true),
    PInstance = python_init(CBClass, Args, NodeId),
    State = #state{
@@ -92,8 +112,9 @@ init(NodeId, _Ins, #{cb_module := Callback, cb_class := CBClass, as := As, stop_
       node_id = NodeId,
       python_instance = PInstance,
       python_args = Args,
-      as = As,
-      stop_on_exit = StopOnExit},
+      stop_on_exit = StopOnExit,
+      state_max_size_bytes = faxe_config:get_sub(flow_state_persistence, state_max_size),
+      as = As},
    {ok, all, State}.
 
 process(_Inp, #data_batch{} = Batch, State = #state{python_instance = Python}) ->
@@ -120,16 +141,29 @@ handle_info({emit_data, #{<<"points">> := Points}=BatchData}, State = #state{as 
    NewPoints = [from_map(flowdata:point_from_json_map(P), As) || P <- Points],
    Batch0 = #data_batch{points = NewPoints},
    StartTs =
-   case maps:is_key(<<"start_ts">>, BatchData) of
-      true -> maps:get(<<"start_ts">>, BatchData);
-      false -> flowdata:first_ts(Batch0)
-   end,
+      case maps:is_key(<<"start_ts">>, BatchData) of
+         true -> maps:get(<<"start_ts">>, BatchData);
+         false -> flowdata:first_ts(Batch0)
+      end,
    Batch = Batch0#data_batch{start = StartTs},
    {emit, {1, Batch}, State};
 %% json data from python will be transferred as a string
 handle_info({emit_data, Data}, State = #state{}) when is_list(Data) ->
    BatchData = jiffy:decode(Data, [return_maps, {null_term, undefined}]),
    handle_info({emit_data, BatchData}, State);
+handle_info({persist_state, PythonState}, State = #state{node_id = NId, state_max_size_bytes = MaxSize}) ->
+   StateSize = byte_size(PythonState),
+   case StateSize > MaxSize of
+      true ->
+         lager:error("cannot persist state, max size exceeded (is: ~p bytes, max: ~p bytes)",[StateSize, MaxSize]),
+         {stop,
+            iolist_to_binary(
+               io_lib:format("max state size exceeded (is: ~p bytes, max: ~p bytes)", [StateSize, MaxSize]))
+            , State};
+      false ->
+         dataflow:persist(NId, PythonState),
+         {ok, State}
+   end;
 handle_info({python_error, Error}, State) ->
    lager:error("~p", [Error]),
    {ok, State};
@@ -142,7 +176,7 @@ handle_info(start_debug, State) ->
    {ok, State};
 handle_info({'EXIT', Python,
    {message_handler_error, {python, PErrName, ErrorMsg, {'$erlport.opaque',python, _Bin} }}},
-      State = #state{python_instance = Python}) ->
+    State = #state{python_instance = Python}) ->
 
    lager:warning("Python exited with: ~p",[{PErrName, ErrorMsg}]),
    handle_exit(PErrName, State);
@@ -188,11 +222,8 @@ from_map(P = #data_point{fields = Fields}, As) ->
 
 
 get_python(CBClass) ->
-   {ok, PythonParams} = application:get_env(faxe, python),
-   Path = proplists:get_value(script_path, PythonParams, "./python"),
-   FaxePath = filename:join(code:priv_dir(faxe), "python/"),
-   {ok, Python} = pythra:start_link([FaxePath, Path]),
-%%   lager:notice("python ~p",[Python]),
+   Path = get_path(),
+   {ok, Python} = pythra:start_link(Path),
    ok = pythra:func(Python, faxe_handler, register_handler, [CBClass]),
    Python.
 
@@ -202,8 +233,9 @@ python_init(CBClass, Args, NodeId) ->
    PythonPid = pythra:pythra_call(PInstance, os, getpid, []),
    ets:insert(python_procs, {self(), #{<<"os_pid">> => PythonPid, <<"flownode">> => NodeId}}),
 
+   Path = lists:last(get_path()),
    %% create an instance of the callback class
-   PyOpts = maps:without([cb_module, cb_class], Args#{<<"erl">> => self()}),
+   PyOpts = maps:without([cb_module, cb_class], Args#{<<"_erl">> => self(), <<"_ppath">> => list_to_binary(Path)}),
    pythra:cast(PInstance, [?PYTHON_INIT, CBClass, PyOpts]),
    PInstance.
 
@@ -214,6 +246,12 @@ handle_exit(_R, State) ->
    {ok, State#state{python_instance = undefined}}.
 
 
+
+get_path() ->
+   {ok, PythonParams} = application:get_env(faxe, python),
+   Path = proplists:get_value(script_path, PythonParams, "./python"),
+   FaxePath = filename:join(code:priv_dir(faxe), "python/"),
+   [FaxePath, Path].
 
 log_level(<<"debug">>) -> debug;
 log_level(<<"info">>) -> info;
