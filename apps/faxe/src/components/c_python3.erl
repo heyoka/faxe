@@ -98,18 +98,12 @@ static_call(Module, Class, Function) ->
 
 init(NodeId, _Ins, #{cb_module := Callback} = Args, State = #node_state{state = Persisted}) ->
    lager:warning("~p got persisted state: ~p",[Callback, State]),
-   init_all(NodeId, #{<<"_state">> => Persisted}, Args).
+   init_all(NodeId, Args#{<<"_state">> => Persisted}).
 init(NodeId, _Ins, #{} = Args) ->
-   init_all(NodeId, #{}, Args).
-init_all(NodeId, AddPyOpts, #{cb_module := Callback, cb_class := CBClass, as := As, stop_on_exit := StopOnExit} = Args) ->
+   init_all(NodeId, Args).
+init_all(NodeId, #{cb_module := Callback, cb_class := CBClass, as := As, stop_on_exit := StopOnExit} = Args) ->
    process_flag(trap_exit, true),
    PInstance = python_init(CBClass, Args, NodeId),
-%%   PInstance = get_python(CBClass),
-%%   %% create an instance of the callback class
-%%   Path = lists:last(get_path()),
-%%   PyOpts0 = maps:without([cb_module, cb_class], Args#{<<"_erl">> => self(), <<"_ppath">> => list_to_binary(Path)}),
-%%   PyOpts = maps:merge(PyOpts0, AddPyOpts),
-%%   pythra:cast(PInstance, [?PYTHON_INIT, CBClass, PyOpts]),
    State = #state{
       callback_module = Callback,
       callback_class =  CBClass,
