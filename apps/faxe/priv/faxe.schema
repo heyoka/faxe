@@ -568,6 +568,11 @@
     [{default, off}, {datatype, flag}, {commented, off}]
 }.
 
+%% @doc  CrateDB ignore rules
+{mapping, "crate.ignore_rules", "faxe.crate.ignore_rules",
+    [{default, "code=5000,message=example"}, {datatype, string}]
+}.
+
 %% @doc -------------------------------------------------------------------------------
 %% InfluxDB defaults (http api)
 %% -------------------------------------------------------------------------------

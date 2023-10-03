@@ -106,6 +106,9 @@ handle_cast(_Request, State) ->
    {noreply, NewState :: #state{}, timeout() | hibernate} |
    {stop, Reason :: term(), NewState :: #state{}}).
 handle_info(reload_tasks, State) ->
+   %% ignore rules from config
+   crate_ignore_rules:init_rules(),
+
    mnesia:wait_for_tables(task, 3000),
    case faxe_config:get(auto_reload, false) of
       true ->

@@ -106,6 +106,9 @@ init([]) ->
    %% python nodes - os process pid of python runtime
    ok = new_table(python_procs, set),
 
+   %% ignore rules for cratedb 500 responses
+   ok = new_table(crate_ignore_rules, set),
+
    {ok, #state{}}.
 
 

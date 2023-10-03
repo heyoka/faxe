@@ -12,7 +12,7 @@
 
 -behavior(df_component).
 %% API
--export([init/3, process/3, options/0, handle_info/2, do_send/5, shutdown/1, metrics/0,
+-export([init/3, process/3, options/0, handle_info/2, do_send/4, shutdown/1, metrics/0,
    check_options/0, quote_identifier/1, check_table_identifier/1, check_column_identifier/1, is_idle/1]).
 
 -record(state, {
@@ -36,6 +36,7 @@
    remaining_fields_as,
    failed_retries,
    tries,
+   headers :: list(),
    tls,
    fn_id,
    last_error,
@@ -45,20 +46,28 @@
    error_trace = false,
    pg_client :: pid(),
    buffer = [] :: list(),
-   use_flow_ack = false :: true|false
+   busy = false :: true|false,
+   single_resend = false :: true|false,
+   use_flow_ack = false :: true|false,
+
+   pending_data = #{} :: map(),
+   dedup_queue :: memory_queue:memory_queue()
 }).
 
 -define(KEY, <<"stmt">>).
 -define(PATH, <<"/_sql">>).
+-define(HEADERS, [{<<"content-type">>, <<"application/json">>}]).
 -define(ACTIVE_ERROR_TRACE, <<"?error_trace=true">>).
 -define(ARGS, <<"bulk_args">>).
 -define(DEFAULT_SCHEMA_HDR, <<"Default-Schema">>).
 -define(AUTH_HEADER_KEY, <<"Authorization">>).
 -define(QUERY_TIMEOUT, 15000).
 -define(FAILED_RETRIES, 3).
+-define(FAILED_RETRY_INTERVAL, 1000).
 
 -define(CONNECT_OPTS, #{connect_timeout => 3000}).
 
+-define(DEDUP_QUEUE_SIZE, 250).
 
 options() ->
    [
@@ -110,12 +119,14 @@ init(NodeId, Inputs,
    connection_registry:reg(NodeId, Host, Port, <<"http">>),
    %% use fully qualified table name here, ie. doc."0x23d"
    Path = case ETrace of false -> ?PATH; true -> <<?PATH/binary, ?ACTIVE_ERROR_TRACE/binary>> end,
+   Headers = ?HEADERS ++ http_lib:basic_auth_header(User, Pass),
 
    DBFields =
    case DBFields0 of
       undefined -> undefined;
       _ when is_list(DBFields0) -> [quote_identifier(DBField) || DBField <- DBFields0]
    end,
+
    State = #state{
       host = Host, port = Port,
       database = quote_identifier(DB),
@@ -123,33 +134,44 @@ init(NodeId, Inputs,
       failed_retries = MaxRetries,
       remaining_fields_as = RemFieldsAs,
       tls = Tls, path = Path,
+      headers = Headers,
       table = quote_identifier(Table),
       db_fields = DBFields,
       faxe_fields = FaxeFields,
       error_trace = ETrace,
       fn_id = NodeId, flow_inputs = Inputs,
-      ignore_resp_timeout = IgnoreRespTimeout, use_flow_ack = FlowAck},
-%%   NewState = query_init(State),
-%%   lager:warning("QUERY INIT Schema:~p ~p",[DB, {NewState#state.query, NewState#state.query_from_lambda}]),
+      ignore_resp_timeout = IgnoreRespTimeout,
+      use_flow_ack = FlowAck,
+      dedup_queue = memory_queue:new(?DEDUP_QUEUE_SIZE)},
+
    {ok, all,State}.
 
 %%% DATA IN
 %% empyt batch -> continue
 process(_In, #data_batch{points = []}, State = #state{}) ->
    {ok, State};
-%% not connected -> drop message
-%% @todo buffer these messages when not connected
-process(_In, _DataItem, State = #state{client = undefined, buffer = _Buffer}) ->
+%% not connected -> buffer
+process(_In, DataItem, State = #state{client = undefined, buffer = Buffer}) ->
    lager:notice("got item when not connected"),
-   {ok, State};
-%%   {ok, State#state{buffer = Buffer ++ [DataItem]}};
-%% we do not have a prepare query yet
-process(_In, DataItem, State = #state{query_from_lambda = true,
-      table = Table, db_fields = DbFields, database = DB, remaining_fields_as = RemFields}) ->
+   {ok, State#state{buffer = Buffer ++ [DataItem]}};
+%% busy -> buffer
+process(_In, DataItem, State = #state{busy = true, buffer = Buffer}) ->
+   lager:notice("got item when busy"),
+   {ok, State#state{buffer = Buffer ++ [DataItem]}};
+%% buffer not empty -> buffer
+process(_In, DataItem, State = #state{buffer = [_SomeItemm | _] = Buffer}) ->
+   lager:notice("got item when buffer not empty"),
+   {ok, State#state{buffer = Buffer ++ [DataItem]}};
+process(_In, DataItem, State) ->
+%%   lager:notice("got item process right away"),
+   prepare_process(DataItem, State).
+
+prepare_process(DataItem, State = #state{query_from_lambda = true,
+   table = Table, db_fields = DbFields, database = DB, remaining_fields_as = RemFields}) ->
    Point = get_query_point(DataItem),
    Query = build_query(DbFields, DB, Table, RemFields, Point),
    do_process(DataItem, State#state{query = Query, query_point = Point});
-process(_In, DataItem, State) ->
+prepare_process(DataItem, State) ->
    do_process(DataItem, State#state{query_point = get_query_point(DataItem)}).
 
 %% idle stop feature
@@ -157,9 +179,9 @@ is_idle(State) ->
    {false, State}.
 
 do_process(DataItem, State = #state{fn_id = _FNId}) ->
-   _NewState = send(DataItem, State),
+   NewState = send(DataItem, State#state{busy = true}),
 %%   dataflow:maybe_debug(item_in, 1, DataItem, FNId, State#state.debug_mode),
-   {ok, State}.
+   {ok, NewState}.
 
 handle_info({'DOWN', _MonitorRef, _Type, Pid, _Info}, State = #state{client = Pid}) ->
    connection_registry:disconnected(),
@@ -186,6 +208,15 @@ handle_info(start_client, State) ->
    {ok, NewState};
 handle_info(start_debug, State) -> {ok, State#state{debug_mode = true}};
 handle_info(stop_debug, State) -> {ok, State#state{debug_mode = false}};
+handle_info({send_retry, Item, Body, Retries}, State) ->
+   NewState = do_send(Item, Body, Retries, State),
+   {ok, NewState};
+handle_info(continue, State = #state{buffer = []}) ->
+   lager:notice("continue, but buffer is empty"),
+   {ok, State};
+handle_info(continue, State = #state{buffer = [Item|Rest]}) ->
+   lager:notice("continue with item from buffer"),
+   prepare_process(Item, State#state{buffer = Rest});
 handle_info(_Req, State) ->
    {ok, State}.
 
@@ -208,10 +239,7 @@ start_client(State = #state{host = Host, port = Port, tls = Tls}) ->
             {ok, _} ->
                connection_registry:connected(),
                NewState = State#state{client = C},
-               %% resend buffered data
-%%               lager:info("try resending ~p buffered data items",[length(State#state.buffer)]),
-               [process(1, Item, NewState) || Item <- State#state.buffer],
-               NewState#state{buffer = []};
+               maybe_continue(NewState);
             {error, What} ->
                lager:warning("error connecting to ~p:~p - ~p", [Host, Port, What]),
                recon(State)
@@ -236,92 +264,116 @@ get_query_point(#data_batch{points = Points}, ListIndex) ->
    lists:nth(ListIndex, Points).
 
 %%% DATA OUT
-send(Item, State = #state{query = Q, faxe_fields = Fields, remaining_fields_as = RemFieldsAs,
-      user = User, pass = Pass}) ->
-   Query = build(Item, Q, Fields, RemFieldsAs),
-   Headers = [{<<"content-type">>, <<"application/json">>}] ++ http_lib:basic_auth_header(User, Pass),
-   NewState = do_send(Item, Query, Headers, 0, State#state{last_error = undefined}),
+send(Item, State = #state{query = Q, faxe_fields = Fields, remaining_fields_as = RemFieldsAs}) ->
+   {DTag, PHashes, Query} = build(Item, Q, Fields, RemFieldsAs, State),
+%%   lager:info("built query ~p",[Query]),
+   PendingData = #{last_dtag => DTag, item_hashes => PHashes},
+   NewState = do_send(Item, Query, 0, State#state{last_error = undefined, pending_data = PendingData}),
    MBytes = faxe_util:bytes(Query),
    node_metrics:metric(?METRIC_BYTES_SENT, MBytes, State#state.fn_id),
    node_metrics:metric(?METRIC_ITEMS_OUT, 1, State#state.fn_id),
    NewState.
 
 resend_single(Item, State = #state{query = Q, faxe_fields = Fields, remaining_fields_as = RemFieldsAs,
-   user = User, pass = Pass, query_point = QueryItem}) ->
-   Query = build(QueryItem, Q, Fields, RemFieldsAs),
-   lager:notice("retry single item ~p",[QueryItem]),
-   Headers = [{<<"content-type">>, <<"application/json">>}] ++ http_lib:basic_auth_header(User, Pass),
-   do_send(Item, Query, Headers, State#state.failed_retries-1, State#state{last_error = undefined}).
+   query_point = QueryItem}) ->
+   {_, _, Query} = build(QueryItem, Q, Fields, RemFieldsAs, State),
+%%   lager:notice("retry single item ~p",[QueryItem]),
+   do_send(Item, Query, State#state.failed_retries-1, State#state{last_error = undefined, single_resend = true}).
 
-
-%% bind values to the statement
--spec build(#data_point{}|#data_batch{}, binary(), list(), binary()) -> iodata().
-build(Item, Query, Fields, RemFieldsAs) ->
-   BulkArgs0 = build_value_stmt(Item, Fields, RemFieldsAs),
-   BulkArgs =
-      case Item of
-         #data_point{} -> [BulkArgs0];
-         _ -> BulkArgs0
-      end,
-   jiffy:encode(#{?KEY => Query, ?ARGS => BulkArgs}).
-
-do_send(Item, _Body, _Headers, MaxFailedRetries, S = #state{failed_retries = MaxFailedRetries, last_error = Err}) ->
+%% empty query
+do_send(_Item, undefined, _MaxFailedRetries, State) ->
+   lager:notice("no query to send, skip ..."),
+   done_sending(State);
+%% reached max retries
+do_send(_Item, _Body, MaxFailedRetries, S = #state{failed_retries = MaxFailedRetries, last_error = Err}) ->
    lager:warning("could not send ~p with ~p retries, last error: ~p", [_Body, MaxFailedRetries, Err]),
-   dataflow:ack(Item, S#state.flow_inputs),
-   S#state{last_error = undefined};
-do_send(Item, Body, Headers, Retries, State = #state{client = Client, fn_id = FNId, path = Path}) ->
+   done_sending(S);
+do_send(Item, Body, Retries, State = #state{client = Client, path = Path, headers = Headers}) ->
    Ref = gun:post(Client, Path, Headers, Body),
    case catch(get_response(Client, Ref, State#state.ignore_resp_timeout)) of
       ok ->
-         dataflow:ack(Item, State#state.flow_inputs),
-%%         lager:info("would ack"),
-         dataflow:maybe_debug(item_out, 1, Item, FNId, State#state.debug_mode),
-         State;
+         done_sending(State);
       {error, retry_single, ListIndex} ->
-%%         dataflow:ack(Item, State#state.flow_inputs),
          %% try with single data-point and done
-         %% get the point:
          QueryPoint = get_query_point(Item, ListIndex),
-%%         lager:notice("QueryPoint is ~p",[QueryPoint]),
          resend_single(Item, State#state{query_point = QueryPoint});
       {error, What} ->
-%%         lager:warning("could not send ~p: error in request: ~p", [Body, What]),
-         do_send(Item, Body, Headers, Retries+1, State#state{last_error = What});
-      {failed, Why} when State#state.use_flow_ack == true ->
-         %% if the server fails in some way, we just try endlessly with a small nap in between,
-         %% since this could go on forever, we have to make sure at least to get stop signals
-         %% if there is a stop signal, we send it to ourselves once again, but exiting the endless loop
-         %% at the same time
-         receive
-            stop ->
-               dataflow:ack(Item, State#state.flow_inputs),
-               erlang:send_after(0, self(), stop),
-               lager:info("got stop message while in retry loop")
-         after 300 ->
-            do_send(Item, Body, Headers, Retries, State#state{last_error = Why})
-         end;
-      %% also {failed, Reason}
+         do_send(Item, Body, Retries+1, State#state{last_error = What});
+      %% when use_flow_ack retry "endless"
+      {failed, Why} when State#state.use_flow_ack == true andalso State#state.single_resend == false ->
+         %% we do not increase the retry counter, so basically trying endlessly
+         erlang:send_after(?FAILED_RETRY_INTERVAL, self(), {send_retry, Item, Body, Retries}),
+         State#state{last_error = Why};
       O ->
          lager:warning("sending gun post: ~p",[O]),
-         do_send(Item, Body, Headers, Retries+1, State#state{last_error = O})
+         do_send(Item, Body, Retries+1, State#state{last_error = O})
    end.
 
 
-build_value_stmt(_B = #data_batch{points = Points}, Fields, RemFieldsAs) ->
-   build_batch(Points, Fields, RemFieldsAs, []);
-build_value_stmt(P = #data_point{ts = Ts}, Fields, undefined) ->
+done_sending(State = #state{pending_data = #{last_dtag := DTag, item_hashes := HList}, dedup_queue = Queue}) ->
+   dataflow:ack(multi, DTag, State#state.flow_inputs),
+   NewDedupQ = memory_queue:enq(HList, Queue),
+   NewState = State#state{
+      last_error = undefined,
+      busy = false,
+      single_resend = false,
+      pending_data = #{},
+      dedup_queue = NewDedupQ},
+   maybe_continue(NewState).
+
+maybe_continue(State = #state{buffer = []}) ->
+   State;
+maybe_continue(State = #state{}) ->
+   erlang:send_after(0, self(), continue),
+   State#state{busy = true}.
+
+%% bind values to the statement
+-spec build(#data_point{}|#data_batch{}, binary(), list(), binary(), #state{}) -> {integer(), list, iodata()|undefined}.
+build(Item, Query, Fields, RemFieldsAs, #state{dedup_queue = Queue}) ->
+   {DTag, PHashes, BulkArgs0}=Res = build_value_stmt(Item, Fields, RemFieldsAs, Queue),
+%%   lager:notice("got build result ~p",[Res]),
+   JsonQuery =
+   case BulkArgs0 of
+      [] -> undefined;
+      _ ->
+         BulkArgs1 = case Item of #data_point{} -> [BulkArgs0]; _ -> BulkArgs0 end,
+         jiffy:encode(#{?KEY => Query, ?ARGS => BulkArgs1})
+   end,
+   {DTag, PHashes, JsonQuery}.
+
+build_value_stmt(_B = #data_batch{points = Points}, Fields, RemFieldsAs, DedupQ) ->
+   build_batch(Points, Fields, RemFieldsAs, DedupQ, {0, [], []});
+build_value_stmt(P = #data_point{dtag = DTag}, Fields, RemFields, DedupQ) ->
+   PHash = erlang:phash2(P#data_point{dtag = undefined}),
+   case memory_queue:member(PHash, DedupQ) of
+      true -> {DTag, [], []};
+      false -> {DTag, [PHash], build_value_stmt2(P, Fields, RemFields)}
+   end.
+
+build_value_stmt2(P = #data_point{ts = Ts}, Fields, undefined) ->
    DataList0 = [Ts| flowdata:fields(P, Fields, null)],
    DataList0;
-build_value_stmt(P = #data_point{}, Fields, _RemFieldsAs) ->
-   DataList = build_value_stmt(P, Fields, undefined),
+build_value_stmt2(P = #data_point{}, Fields, _RemFieldsAs) ->
+   DataList = build_value_stmt2(P, Fields, undefined),
    Rem = flowdata:to_map_except(P, [<<"ts">>|Fields]),
    DataList ++ [Rem].
 
-build_batch([], _FieldList, _RemFieldsAs, Acc) ->
-  lists:reverse(Acc);
-build_batch([Point|Points], FieldList, RemFieldsAs, Acc) ->
-   NewAcc = [build_value_stmt(Point, FieldList, RemFieldsAs) | Acc],
-   build_batch(Points, FieldList, RemFieldsAs, NewAcc).
+build_batch([], _FieldList, _RemFieldsAs, _DedupQ, {DTag, PHashes, AccArgs}) ->
+   {DTag, lists:reverse(PHashes), lists:reverse(AccArgs)};
+build_batch([Point=#data_point{dtag = PointDTag}|Points], FieldList, RemFieldsAs, DedupQ, {_, PHashes, AccArgs}) ->
+   PHash = erlang:phash2(Point#data_point{dtag = undefined}),
+   NewAcc =
+   case memory_queue:member(PHash, DedupQ) of
+      true ->
+         %% duplicate !!!
+         lager:notice("duplicate item found, will drop it - ~p",[Point]),
+         {PointDTag, PHashes, AccArgs};
+      false ->
+         {PointDTag, [PHash|PHashes], [build_value_stmt2(Point, FieldList, RemFieldsAs) | AccArgs]}
+   end,
+   build_batch(Points, FieldList, RemFieldsAs, DedupQ, NewAcc).
+
+
 
 %% build base query
 query_init(State = #state{table = DbTable}) when is_record(DbTable, faxe_lambda) ->
@@ -375,10 +427,8 @@ build_query(ValueList0, Table, RemFieldsAs) when is_list(ValueList0) ->
 get_response(Client, Ref, Ignore) ->
    case gun:await(Client, Ref, ?QUERY_TIMEOUT) of
       {response, _IsFin, Status, _Headers} ->
-%%   lager:info("response Status: ~p, Headers: ~p" ,[Status, _Headers]),
-         {ok, Message} = gun:await_body(Client, Ref),
-%%   handle_response_message(Message),
-         handle_response(integer_to_binary(Status), Message);
+      {ok, Message} = gun:await_body(Client, Ref),
+      handle_response(integer_to_binary(Status), Message);
       {error, timeout} ->
          case Ignore of
             true ->
@@ -391,6 +441,15 @@ get_response(Client, Ref, Ignore) ->
    end.
 
 -spec handle_response(integer(), binary()) -> ok|{error, invalid}|{failed, term()}.
+%%handle_response(_, _) ->
+%%%%   Err = <<"{\"error\":{\"message\":\"MaxBytesLengthExceededException[bytes can be at most 32766 in length; got 32910]\",\"code\":5000}}">>,
+%%   Err = <<"{\"error\":{\"message\":\"wasistdas\",\"code\":5002}}">>,
+%%   lager:error("Error ~p with body ~p",[500, Err]),
+%%   case catch jiffy:decode(Err, [return_maps]) of
+%%      #{<<"error">> := #{<<"code">> := Code, <<"message">> := ErrMsg}} ->
+%%         crate_ignore_rules:check_ignore_error(Code, ErrMsg);
+%%      _ -> {failed, server_error}
+%%   end;
 handle_response(<<"200">>, BodyJSON) ->
    handle_response_message(BodyJSON);
 handle_response(<<"4", _/binary>> = S,_BodyJSON) ->
@@ -402,10 +461,10 @@ handle_response(<<"5", _/binary>> = S, BodyJSON) ->
    lager:error("Error ~p with body ~p",[S, BodyJSON]),
    % <<"{\"error\":{\"message\":\"MaxBytesLengthExceededException[bytes can be at most 32766 in length; got 32910]\",\"code\":5000}}">>
    case catch jiffy:decode(BodyJSON, [return_maps]) of
-      #{<<"error">> := #{<<"code">> := Code}} -> check_error_code(Code);
-      _ -> ok
-   end,
-   {failed, server_error};
+      #{<<"error">> := #{<<"code">> := Code, <<"message">> := ErrMsg}} ->
+         crate_ignore_rules:check_ignore_error(Code, ErrMsg);
+      _ -> {failed, server_error}
+   end;
 handle_response({error, What}, {error, Reason}) ->
    lager:error("Other err: ~p",[{What, Reason}]),
    {failed, {What, Reason}}.
@@ -421,7 +480,9 @@ handle_response_message(RespMessage) ->
                   {Idx + 1, Count + 1, Errors ++ [E], Idx};
                (#{<<"rowcount">> := -2}, {Idx, Count, Errors, _}) -> {Idx + 1, Count + 1, Errors, Idx};
                (_, {Idx, Count, Errors, CIdx}) -> {Idx + 1, Count, Errors, CIdx}
-            end, {1, 0, [], 0}, Results),
+            end,
+            {1, 0, [], 0}, Results),
+
          case NotWritten of
             {_Idx, 0, [], _} -> ok;
             {_Idx, C, Errs, ListIndex} ->
@@ -430,8 +491,6 @@ handle_response_message(RespMessage) ->
                {error, retry_single, ListIndex}
          end
    end.
-
-check_error_code(_) -> ok.
 
 get_fields(State = #state{table = Tab0, database = Db0}) ->
    Tab = binary:replace(Tab0, <<"\"">>, <<>>, [global]),

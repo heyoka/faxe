@@ -29,7 +29,8 @@
    idx = 1           :: non_neg_integer(),
    current_ts        :: non_neg_integer()|undefined,
    start_ts          :: non_neg_integer()|undefined,
-   one_shot = false  :: true|false
+   one_shot = false  :: true|false,
+   stop_after        :: non_neg_integer()
 }).
 
 
@@ -55,7 +56,9 @@ options() ->
          desc =>
          <<"provide a timestamp, that will be used to base produced message timestamps on, instead of wall-clock timer">>},
       #{name => as, type => string, default => <<>>,
-         desc => <<"root object for output">>}
+         desc => <<"root object for output">>},
+      #{name => stop_after,
+         type => duration, default => undefined, desc => <<"stop sending data after this amount of time">>}
    ].
 
 
@@ -88,7 +91,7 @@ check_start_ts(Start) ->
 
 init(NodeId, _Inputs,
     #{every := Every, align := Unit, jitter := Jitter, json := JS, as := As, select := Sel, modify := Replace,
-       modify_with := Funs0, one_shot := OneShot, start_ts := StartTs} = _Opts) ->
+       modify_with := Funs0, one_shot := OneShot, stop_after := StopAfter0, start_ts := StartTs} = _Opts) ->
 
    NUnit =
       case Unit of
@@ -97,7 +100,11 @@ init(NodeId, _Inputs,
       end,
    JT = faxe_time:duration_to_ms(Jitter),
    EveryMs = faxe_time:duration_to_ms(Every),
-
+   StopAfter = faxe_time:duration_to_ms(StopAfter0),
+   case StopAfter of
+      undefined -> ok;
+      _ -> erlang:send_after(StopAfter, self(), stop_now)
+   end,
 
 
    JSONs = [jiffy:decode(JsonString, [return_maps]) || JsonString <- JS],
@@ -131,6 +138,10 @@ handle_info(emit, State=#state{every = Every, jitter = JT}) ->
    Jitter = round(rand:uniform()*JT),
    After = Every+(Jitter),
    select_emit(After, State);
+handle_info(stop_now, State) ->
+   %% we use the one_shot flag here, to actually stop emitting data
+   lager:warning("STOPPING"),
+   {ok, State#state{one_shot = true}};
 handle_info(_Request, State) ->
    {ok, State}.
 

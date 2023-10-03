@@ -13,7 +13,7 @@
    init/2, allowed_methods/2, config_json/2, content_types_provided/2,
    is_authorized/2, content_types_accepted/2, from_validate_dfs/2,
    malformed_request/2, from_set_loglevel/2, loglevels_json/2, config_all_json/2,
-   lang_nodes_json/2, python_list_json/2]).
+   lang_nodes_json/2, python_list_json/2, from_crate_ignore_rule/2, crate_ignore_rules_json/2]).
 
 %%
 %% Additional callbacks
@@ -22,7 +22,7 @@
 
 -define(BODY_LENGTH_TIMEOUT, #{length => 1000000, period => 10000}).
 
--record(state, {mode, dfs, level, backend}).
+-record(state, {mode, dfs, level, backend, ignore_rule_type, ignore_rule_value}).
 
 init(Req, [{op, Mode}]) ->
    {cowboy_rest, Req, #state{mode = Mode}}.
@@ -38,6 +38,10 @@ allowed_methods(Req, S=#state{mode = loglevel}) ->
    {[<<"POST">>], Req, S};
 allowed_methods(Req, S=#state{mode = validate_dfs}) ->
    {[<<"POST">>], Req, S};
+allowed_methods(Req, S=#state{mode = crate_ignore_rule}) ->
+   {[<<"POST">>], Req, S};
+allowed_methods(Req, S=#state{mode = crate_ignore_rules}) ->
+   {[<<"GET">>], Req, S};
 allowed_methods(Req, State) ->
     Value = [<<"GET">>],
     {Value, Req, State}.
@@ -47,6 +51,9 @@ content_types_accepted(Req = #{method := <<"POST">>}, State = #state{mode = vali
    {Value, Req, State};
 content_types_accepted(Req = #{method := <<"POST">>}, State = #state{mode = loglevel}) ->
    Value = [{{ <<"application">>, <<"x-www-form-urlencoded">>, []}, from_set_loglevel}],
+   {Value, Req, State};
+content_types_accepted(Req = #{method := <<"POST">>}, State = #state{mode = crate_ignore_rule}) ->
+   Value = [{{ <<"application">>, <<"x-www-form-urlencoded">>, []}, from_crate_ignore_rule}],
    {Value, Req, State}.
 
 
@@ -70,6 +77,10 @@ content_types_provided(Req = #{method := <<"GET">>}, State = #state{mode = pytho
    {[
       {{<<"application">>, <<"json">>, []}, python_list_json}
    ], Req, State};
+content_types_provided(Req = #{method := <<"GET">>}, State = #state{mode = crate_ignore_rules}) ->
+   {[
+      {{<<"application">>, <<"json">>, []}, crate_ignore_rules_json}
+   ], Req, State};
 content_types_provided(Req, State) ->
    {
       [{{ <<"application">>, <<"json">>, '*'}, to_json}
@@ -82,6 +93,13 @@ malformed_request(Req, State=#state{mode = validate_dfs}) ->
    Malformed = Dfs == undefined,
    {Malformed, rest_helper:report_malformed(Malformed, Req1, [<<"dfs">>]),
       State#state{dfs = Dfs}};
+malformed_request(Req, State=#state{mode = crate_ignore_rule}) ->
+   {ok, Result, Req1} = cowboy_req:read_urlencoded_body(Req, ?BODY_LENGTH_TIMEOUT),
+   Type = proplists:get_value(<<"type">>, Result, undefined),
+   Value = proplists:get_value(<<"value">>, Result, undefined),
+   Malformed = Type == undefined orelse Value == undefined,
+   {Malformed, rest_helper:report_malformed(Malformed, Req1, [<<"type">>, <<"value">>]),
+      State#state{ignore_rule_type = Type, ignore_rule_value = Value}};
 malformed_request(Req = #{method := <<"POST">>}, State=#state{mode = loglevel}) ->
    {ok, Result, Req1} = cowboy_req:read_urlencoded_body(Req),
    Backend = cowboy_req:binding(backend, Req),
@@ -121,6 +139,19 @@ from_set_loglevel(Req, State = #state{level = Level, backend = Backend}) ->
       <<"message">> => <<"Log level for '", Backend/binary, "' is now '", Level/binary, "'">>},
    Req2 = cowboy_req:set_resp_body(jiffy:encode(Response), Req),
    {true, Req2, State}.
+
+from_crate_ignore_rule(Req, State = #state{ignore_rule_type = Type, ignore_rule_value = Value}) ->
+   lager:notice("add rule ~p" ,[{Type, Value}]),
+   crate_ignore_rules:add_rule(Type, Value),
+   Response = #{<<"success">> => <<"true">>},
+   Req2 = cowboy_req:set_resp_body(jiffy:encode(Response), Req),
+   {true, Req2, State}.
+
+crate_ignore_rules_json(Req, State) ->
+   Rules = crate_ignore_rules:get_rules(),
+   Response = [#{<<"type">> => T, <<"value">> => V} || {T,V} <- Rules],
+   {jiffy:encode(Response, [uescape]), Req, State}.
+
 
 from_validate_dfs(Req, State = #state{dfs = DfsScript}) ->
    Response =
