@@ -1,6 +1,5 @@
 |value_emitter()
     .every(200ms)
-    .type(point)
     ._name('emitter')
 
 |default()

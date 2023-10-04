@@ -162,7 +162,6 @@ from_validate_dfs(Req, State = #state{dfs = DfsScript}) ->
       {error, What} ->
          #{<<"success">> => false, <<"message">> => faxe_util:to_bin(What)}
    end,
-   lager:warning("validate response ~p",[Response]),
    Req2 = cowboy_req:set_resp_body(jiffy:encode(Response), Req),
    {true, Req2, State}.
 

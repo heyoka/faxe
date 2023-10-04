@@ -96,7 +96,6 @@ static_call(Module, Class, Function, Args) ->
             {error, Err}
       end,
    python:stop(P),
-   lager:info("static call returns ~p",[Res]),
    Res.
 
 

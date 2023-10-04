@@ -238,6 +238,7 @@ handle_info(reconnect, State) ->
 handle_info(start_setup, State) ->
    {ok, start_setup(State)};
 handle_info(_What, State) ->
+   lager:notice("unexpected message: ~p", [_What]),
    {ok, State}.
 
 shutdown(#state{client = C, stmt = _Stmt} = S) ->
@@ -425,33 +426,6 @@ do_query(State = #state{client = C, period = Period, query_mark = QueryMark, fn_
                {ok, State}
          end
    end.
-%%   {TsMy, Resp} = timer:tc(epgsql, prepared_query, [C, ?STMT, [FromTs, QueryMark]]),
-%%   lager:info("read from ~p to ~p",[FromTs, QueryMark]),
-   %%   lager:info("reading time: ~pms", [round(TsMy/1000)]),
-%%   node_metrics:metric(?METRIC_READING_TIME, round(TsMy/1000), FnId),
-
-
-%%   NewQueryMark = QueryMark+Period,
-%%   NewState0 = State#state{query_mark = NewQueryMark},
-%%   NewTimer = next_query(NewState0),
-%%   NewState = NewState0#state{timer = NewTimer},
-%%%%   lager:notice("from: ~p, to :~p (~p sec)",
-%%%%      [faxe_time:to_iso8601(QueryMark-Period), faxe_time:to_iso8601(QueryMark), round(Period/1000)]),
-%%%%   Result = faxe_epgsql_response:handle(Resp, RespDef#faxe_epgsql_response{default_timestamp = FromTs}),
-%%   case catch faxe_epgsql_response:handle(Resp, RespDef) of
-%%      ok ->
-%%         {ok, NewState};
-%%      {ok, Data, NewResponseDef} ->
-%%%%         lager:notice("JB: ~s",[flowdata:to_json(Data)]),
-%%         node_metrics:metric(?METRIC_ITEMS_IN, 1, FnId),
-%%         {emit, {1, Data#data_batch{start = FromTs}}, NewState#state{response_def = NewResponseDef}};
-%%      {error, Error} ->
-%%         lager:warning("Error response from Crate: ~p", [Error]),
-%%         {ok, NewState};
-%%      What ->
-%%         lager:error("Error handling CRATE response: ~p",[What]),
-%%         {stop, invalid, NewState}
-%%   end.
 
 handle_result(Resp, FromTs, State = #state{period = Period, query_mark = QueryMark, response_def = RespDef, fn_id = FnId}) ->
    NewQueryMark = QueryMark+Period,
