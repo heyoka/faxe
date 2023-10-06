@@ -553,11 +553,11 @@ decode(float, Data) ->
 decode(ltime, Data) ->
   [Res || <<Res:64/unsigned>> <= Data];
 decode(dt, Data) ->
-  Dts = [Dt || Dt = <<_:64/unsigned>> <= Data],
-  [decode_dt(D) || D <- Dts];
+%%  Dts = [Dt || Dt = <<_:64/unsigned>> <= Data],
+  [decode_dt(D) || D <- Data];
 decode(dtl, Data) ->
-  Dtls = [Dtl || Dtl = <<_:96/unsigned>> <= Data],
-  [decode_dtl(D) || D <- Dtls];
+%%  Dtls = [Dtl || Dtl = <<_:96/unsigned>> <= Data],
+  [decode_dtl(D) || D <- Data];
 decode(_, Data) -> Data.
 
 decode_dt(<<DaysSince:32, MilliSince:32>>) ->
