@@ -553,6 +553,7 @@ decode(float, Data) ->
 decode(ltime, Data) ->
   [Res || <<Res:64/unsigned>> <= Data];
 decode(dt, Data) ->
+  lager:warning("dt data ~p",[Data]),
 %%  Dts = [Dt || Dt = <<_:64/unsigned>> <= Data],
   [decode_dt(DaysSince, MilliSince) || <<DaysSince:32, MilliSince:32>> <= Data];
 decode(dtl, Data) ->
@@ -566,9 +567,11 @@ decode_dt(DaysSince, MilliSince) ->
   % second 4 bytes: milliseconds since 00:00:00.000
 %%  DateStart = qdate:to_date({{1992,1,1}, {0,0,0}}),
   DateStart = qdate:to_date({{1990,1,1}, {0,0,0}}),
-  Date = qdate:add_days(DateStart, DaysSince),
+  Date = qdate:add_days(DaysSince, DateStart),
   Timestamp0 = qdate:to_unixtime(Date) * 1000,
   Timestamp0 + MilliSince.
+
+
 
 
 decode_dtl(Year, Month, Day, Hour, Minute, Second, NanoSec) ->
