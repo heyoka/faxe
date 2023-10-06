@@ -554,13 +554,14 @@ decode(ltime, Data) ->
   [Res || <<Res:64/unsigned>> <= Data];
 decode(dt, Data) ->
 %%  Dts = [Dt || Dt = <<_:64/unsigned>> <= Data],
-  [decode_dt(D) || D <- Data];
+  [decode_dt(DaysSince, MilliSince) || <<DaysSince:32, MilliSince:32>> <= Data];
 decode(dtl, Data) ->
 %%  Dtls = [Dtl || Dtl = <<_:96/unsigned>> <= Data],
-  [decode_dtl(D) || D <- Data];
+  [decode_dtl(Year, Month, Day, Hour, Minute, Second, NanoSec)
+    || <<Year:16/unsigned, Month:8, Day:8, _DayOfWeek:8, Hour:8, Minute:8, Second:8, NanoSec:32>> <= Data];
 decode(_, Data) -> Data.
 
-decode_dt(<<DaysSince:32, MilliSince:32>>) ->
+decode_dt(DaysSince, MilliSince) ->
   % first 4 bytes: days since 1.1.1992 or is it 1990 ?
   % second 4 bytes: milliseconds since 00:00:00.000
 %%  DateStart = qdate:to_date({{1992,1,1}, {0,0,0}}),
@@ -570,8 +571,7 @@ decode_dt(<<DaysSince:32, MilliSince:32>>) ->
   Timestamp0 + MilliSince.
 
 
-
-decode_dtl(<<Year:16/unsigned, Month:8, Day:8, _DayOfWeek:8, Hour:8, Minute:8, Second:8, NanoSec:32>>) ->
+decode_dtl(Year, Month, Day, Hour, Minute, Second, NanoSec) ->
   faxe_time:to_ms({{Year, Month, Day}, {{Hour, Minute, Second}, round(NanoSec/1000000)}}).
 
 
