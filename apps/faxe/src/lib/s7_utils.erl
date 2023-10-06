@@ -276,7 +276,8 @@ word_len_size(d_word) -> 4;
 word_len_size(d_int) -> 4;
 word_len_size(float) -> 4;
 word_len_size(timer) -> 4;
-word_len_size(dt) -> 1;
+word_len_size(dt) -> 4;
+word_len_size(dtl) -> 8;
 word_len_size(counter) -> 4.
 
 

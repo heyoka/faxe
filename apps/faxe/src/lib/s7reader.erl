@@ -370,7 +370,7 @@ get_requests(IntervalList, S = #state{current_addresses = Slots}) ->
 
 build_requests(IntervalList, Addresses, S=#state{pdu_size = PDUSize, request_cache = Cache}) ->
   {_T, {NumReadReq, BuiltRequests}} = timer:tc(s7_utils, build_addresses, [Addresses, PDUSize]),
-  lager:notice("BuiltRequests: ~p",[BuiltRequests]),
+%%  lager:notice("BuiltRequests: ~p",[BuiltRequests]),
   add_tag_stats(S#state.s7_ip, #{num_tags => length(Addresses), num_read_tags => NumReadReq}),
   {BuiltRequests, S#state{request_cache = Cache#{IntervalList => BuiltRequests}, cache_pdu_size = PDUSize}}.
 
@@ -553,11 +553,11 @@ decode(float, Data) ->
 decode(ltime, Data) ->
   [Res || <<Res:64/unsigned>> <= Data];
 decode(dt, Data) ->
-  Dts = [Res || <<Res:64/unsigned>> <= Data],
+  Dts = [Dt || Dt = <<_:64/unsigned>> <= Data],
   [decode_dt(D) || D <- Dts];
 decode(dtl, Data) ->
-  Dtl = [Res || <<Res:96/unsigned>> <= Data],
-  [decode_dtl(D) || D <- Dtl];
+  Dtls = [Dtl || Dtl = <<_:96/unsigned>> <= Data],
+  [decode_dtl(D) || D <- Dtls];
 decode(_, Data) -> Data.
 
 decode_dt(<<DaysSince:32, MilliSince:32>>) ->
