@@ -370,6 +370,7 @@ get_requests(IntervalList, S = #state{current_addresses = Slots}) ->
 
 build_requests(IntervalList, Addresses, S=#state{pdu_size = PDUSize, request_cache = Cache}) ->
   {_T, {NumReadReq, BuiltRequests}} = timer:tc(s7_utils, build_addresses, [Addresses, PDUSize]),
+  lager:notice("BuiltRequests: ~p",[BuiltRequests]),
   add_tag_stats(S#state.s7_ip, #{num_tags => length(Addresses), num_read_tags => NumReadReq}),
   {BuiltRequests, S#state{request_cache = Cache#{IntervalList => BuiltRequests}, cache_pdu_size = PDUSize}}.
 
@@ -560,9 +561,10 @@ decode(dtl, Data) ->
 decode(_, Data) -> Data.
 
 decode_dt(<<DaysSince:32, MilliSince:32>>) ->
-  % first 4 bytes: days since 1.1.1992
+  % first 4 bytes: days since 1.1.1992 or is it 1990 ?
   % second 4 bytes: milliseconds since 00:00:00.000
-  DateStart = qdate:to_date({{1992,1,1}, {0,0,0}}),
+%%  DateStart = qdate:to_date({{1992,1,1}, {0,0,0}}),
+  DateStart = qdate:to_date({{1990,1,1}, {0,0,0}}),
   Date = qdate:add_days(DateStart, DaysSince),
   Timestamp0 = qdate:to_unixtime(Date) * 1000,
   Timestamp0 + MilliSince.
