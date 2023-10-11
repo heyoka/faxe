@@ -20,7 +20,7 @@
 
 %% delay the start of our mqtt publisher
 -define(START_DELAY, 200).
--define(FLOW_LIST_UPDATE_INTERVAL, 1000).
+-define(FLOW_LIST_UPDATE_INTERVAL, 2000).
 
 %%==============================================================================
 %% gen_event callbacks
@@ -67,7 +67,6 @@ handle_event({log, _M}, State = #state{publisher = undefined}) ->
 %%   lager:info("no publisher!"),
    {ok, State};
 handle_event({log, Message}, State = #state{level = Level, flow_ids = Flows}) ->
-%%   lager:notice("log it: ~p",[Message]),
    case lager_util:is_loggable(Message, Level, ?MODULE) of
       true ->
          %% we only log messages concerning dataflows
@@ -123,6 +122,7 @@ code_change(_, State, _) ->
 publish(_F, undefined, _, _S) -> ok;
 publish(FlowId, NodeId, Message, #state{publisher = Publisher, topic = T}) ->
    Topic = <<T/binary, "/", FlowId/binary, "/", NodeId/binary>>,
+%%   io:format("~npublish: ~p",[{Topic, flowdata:to_json(format_data(Message))}]),
    Publisher ! {publish, {Topic, flowdata:to_json(format_data(Message))}}.
 
 

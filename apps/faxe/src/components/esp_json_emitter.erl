@@ -100,12 +100,13 @@ init(NodeId, _Inputs,
       end,
    JT = faxe_time:duration_to_ms(Jitter),
    EveryMs = faxe_time:duration_to_ms(Every),
-   StopAfter = faxe_time:duration_to_ms(StopAfter0),
-   case StopAfter of
-      undefined -> ok;
-      _ -> erlang:send_after(StopAfter, self(), stop_now)
-   end,
 
+   case StopAfter0 of
+      undefined -> ok;
+      _ ->
+         StopAfter = faxe_time:duration_to_ms(StopAfter0),
+         erlang:send_after(StopAfter, self(), stop_now)
+   end,
 
    JSONs = [jiffy:decode(JsonString, [return_maps]) || JsonString <- JS],
    TransformList = case Replace of undefined -> undefined; _ -> lists:zip(Replace, Funs0) end,

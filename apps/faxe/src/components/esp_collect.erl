@@ -277,8 +277,8 @@ do_emit(State = #state{merge = Merge, newest_timestamp = Ts}) ->
    {PointList, NewState} = emit_buffer_cleanup(State),
 
    %% sort elements by timestamp for data_batch, only when no batch_start is given
-%%   Points = maybe_batch_sort(PointList, State),
-   Batch = #data_batch{points = PointList, start = State#state.current_batch_start},
+   Points = maybe_batch_sort(PointList, State),
+   Batch = #data_batch{points = Points, start = State#state.current_batch_start},
    Out =
    case Merge of
       true ->
@@ -336,19 +336,6 @@ emit_buffer_cleanup(State = #state{buffer = Buff, tag_value = TagVal, newest_tim
    {CleanedBuffer, PointList} = lists:foldl(Fun, {Buff, []}, Buff),
    {PointList, State#state{buffer = CleanedBuffer}}.
 
-%%buffer_cleanup(State = #state{tag_added = false, include_removed = false, tag_updated = false}) ->
-%%   State;
-%%buffer_cleanup(State = #state{buffer = Buff, tag_value = TagVal}) ->
-%%   CleanFun =
-%%      fun({Key, Point, _Ts}, Acc) ->
-%%         Point0 = flowdata:delete_fields(Point, [?TAG_ADDED, ?TAG_UPDATED]),
-%%         case flowdata:field(Point0, ?TAG_REMOVED) of
-%%            TagVal -> buffer_delete(Key, Acc);
-%%            _ -> buffer_update(Key, Point0, Acc)
-%%         end
-%%      end,
-%%   CleanedBuffer = lists:foldl(CleanFun, Buff, Buff),
-%%   State#state{buffer = CleanedBuffer}.
 
 age_cleanup(State = #state{buffer = Buffer, max_age = Age}) ->
    Now = faxe_time:now(),
@@ -389,11 +376,11 @@ maybe_rewrite_ts(Point, #state{current_batch_start = undefined}) ->
    Point;
 maybe_rewrite_ts(Point, #state{current_batch_start = Ts}) ->
    Point#data_point{ts = Ts}.
-%%
-%%maybe_batch_sort(PointList, #state{current_batch_start = undefined}) ->
-%%   lists:keysort(2, PointList);
-%%maybe_batch_sort(PointList, #state{}) ->
-%%   PointList.
+
+maybe_batch_sort(PointList, #state{current_batch_start = undefined}) ->
+   lists:keysort(2, PointList);
+maybe_batch_sort(PointList, #state{}) ->
+   PointList.
 
 add(Key, Point, S = #state{buffer = Buffer0, tag_added = false}) ->
    {true, S#state{buffer = buffer_add(Key, keep(Point, S), Buffer0)}};
