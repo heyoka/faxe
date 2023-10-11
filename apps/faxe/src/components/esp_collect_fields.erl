@@ -24,31 +24,39 @@
    node_id,
    current = #data_point{},
    fields,
-   default
+   default,
+   emit_unchanged,
+   keep,
+   keep_as
 }).
 
 options() -> [
    {fields, string_list},
-   {default, any, undefined}
+   {default, any, undefined},
+   {emit_unchanged, boolean, true},
+   {keep, string_list, []},
+   {keep_as, string_list, undefined}
 ].
 
 check_options() ->
    [
-%%      {same_length, [keep, keep_as]}
+      {same_length, [keep, keep_as]}
    ].
 
 wants() -> point.
 emits() -> point.
 
-init(NodeId, _Ins, #{fields := Fields, default := Default}) ->
+init(NodeId, _Ins,
+    #{fields := Fields, default := Default, emit_unchanged := EmitUnchanged, keep := Keep, keep_as := KeepAs}) ->
    {ok, all,
-      #state{node_id = NodeId, fields = Fields, default = Default}}.
+      #state{
+         node_id = NodeId, fields = Fields, default = Default,
+         emit_unchanged = EmitUnchanged, keep = Keep, keep_as = KeepAs}}.
 
 process(_Port, #data_point{ts = Ts, dtag = DTag, tags = Tags} = Point,
     State = #state{current = Current, fields = Fields, default = Default}) ->
    CollectedVals = flowdata:fields(Point, Fields),
    All = lists:zip(Fields, CollectedVals),
-   lager:notice("all vals: ~p",[All]),
    UpdateFun =
    fun
       ({FName, undefined}, CPoint) ->
@@ -65,6 +73,30 @@ process(_Port, #data_point{ts = Ts, dtag = DTag, tags = Tags} = Point,
    end,
    CurrentPoint = Current#data_point{ts = Ts, dtag = DTag, tags = Tags},
    ResultPoint = lists:foldl(UpdateFun, CurrentPoint, All),
-   {emit, ResultPoint, State#state{current = ResultPoint}}.
+   maybe_emit(ResultPoint, keep(Point, State), State).
+
+
+-spec keep(#data_point{}, #state{}) -> #data_point{}.
+keep(_DataPoint, #state{keep = []}) ->
+   [];
+keep(DataPoint, #state{keep = FieldNames, keep_as = As0}) when is_list(FieldNames) ->
+   KeepF = flowdata:fields(DataPoint, FieldNames),
+   UseFieldNames =
+   case As0 of
+      undefined -> FieldNames;
+      _ -> As0
+   end,
+   lists:filter(fun
+                   ({_, undefined}) -> false;
+                   ({_, _}) -> true
+                end,
+      lists:zip(UseFieldNames, KeepF)
+   ).
+
+maybe_emit(Point = #data_point{fields = Fields}, _Kept,
+    State = #state{emit_unchanged = false, current = #data_point{fields = Fields}}) ->
+   {ok, State#state{current = Point}};
+maybe_emit(Point, Kept, State) ->
+   {emit, flowdata:set_fields(Point, Kept), State#state{current = Point}}.
 
 
