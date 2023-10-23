@@ -113,7 +113,6 @@ init(NodeId, Inputs,
        remaining_fields_as := RemFieldsAs, max_retries := MaxRetries,
        ignore_response_timeout := IgnoreRespTimeout, use_flow_ack := FlowAck}) ->
 
-   lager:notice("~p", [?CONNECT_OPTS]),
    Host = binary_to_list(Host0),
    erlang:send_after(0, self(), query_init),
 %%   Query = maybe_build_query(DBFields, Table, RemFieldsAs),
