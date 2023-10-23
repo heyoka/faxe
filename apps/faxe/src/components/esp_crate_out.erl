@@ -61,11 +61,11 @@
 -define(ARGS, <<"bulk_args">>).
 -define(DEFAULT_SCHEMA_HDR, <<"Default-Schema">>).
 -define(AUTH_HEADER_KEY, <<"Authorization">>).
--define(QUERY_TIMEOUT, 15000).
+-define(QUERY_TIMEOUT, faxe_config:get_sub(crate_http, query_timeout)).
 -define(FAILED_RETRIES, 3).
 -define(FAILED_RETRY_INTERVAL, 1000).
 
--define(CONNECT_OPTS, #{connect_timeout => 3000}).
+-define(CONNECT_OPTS, #{connect_timeout => faxe_config:get_sub(crate_http, connection_timeout)}).
 
 -define(DEDUP_QUEUE_SIZE, 250).
 
@@ -113,6 +113,7 @@ init(NodeId, Inputs,
        remaining_fields_as := RemFieldsAs, max_retries := MaxRetries,
        ignore_response_timeout := IgnoreRespTimeout, use_flow_ack := FlowAck}) ->
 
+   lager:notice("~p", [?CONNECT_OPTS]),
    Host = binary_to_list(Host0),
    erlang:send_after(0, self(), query_init),
 %%   Query = maybe_build_query(DBFields, Table, RemFieldsAs),

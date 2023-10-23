@@ -533,6 +533,13 @@
     [{default, off}, {datatype, flag}, {commented, off}]
 }.
 
+
+
+%% @doc  CrateDB ignore rules
+{mapping, "crate.ignore_rules", "faxe.crate.ignore_rules",
+    [{default, "code=5000,message=example"}, {datatype, string}]
+}.
+
 %% @doc -------------------------------------------------------------------------------
 %% CrateDB defaults (http api)
 %% -------------------------------------------------------------------------------
@@ -562,16 +569,22 @@
     [{default, "doc"}, {datatype, string}]
 }.
 
-%% @doc crate tls
-%% enable the use of tls for crate http connections
+% @doc cratedb http connection timeout
+{mapping, "crate_http.connection_timeout", "faxe.crate_http.connection_timeout",
+    [{default, "30s"}, {datatype, {duration, ms}}]
+}.
+
+%% @doc cratedb http query timeout
+{mapping, "crate_http.query_timeout", "faxe.crate_http.query_timeout",
+    [{default, "15s"}, {datatype, {duration, ms}}]
+}.
+
+
+%% @doc crate tls - enable the use of tls for crate http connections
 {mapping, "crate_http.tls.enable", "faxe.crate_http.tls.enable",
     [{default, off}, {datatype, flag}, {commented, off}]
 }.
 
-%% @doc  CrateDB ignore rules
-{mapping, "crate.ignore_rules", "faxe.crate.ignore_rules",
-    [{default, "code=5000,message=example"}, {datatype, string}]
-}.
 
 %% @doc -------------------------------------------------------------------------------
 %% InfluxDB defaults (http api)
