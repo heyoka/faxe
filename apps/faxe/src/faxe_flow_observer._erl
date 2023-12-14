@@ -1,0 +1,100 @@
+%%%-------------------------------------------------------------------
+%%% @author heyoka
+%%% @copyright (C) 2023, <COMPANY>
+%%% @doc
+%%% @end
+%%%-------------------------------------------------------------------
+-module(faxe_flow_obsever).
+
+-behaviour(gen_server).
+
+-export([start_link/0, is_alive/1]).
+-export([init/1, handle_call/3, handle_cast/2, handle_info/2, terminate/2,
+  code_change/3]).
+
+-define(ETS_FLOW_TABLE, flow_state).
+
+-record(state, {flow_id}).
+
+%% tgw/sys/faxe/{{device_id}}/health/{{flow_id}}
+%% {"status": 1} -> healthy
+%% {"status": 0} -> problems
+
+%%% possible problems:
+%% running -> implicit, when health message is sent, that means that the flow is running
+%% connection
+%% processing errors
+%% no data seen / processed -> maybe better: last item seen/processed
+%%
+
+%% {"status": 0, "conn_status" : [conn_status problems], "processing_errors": [list errors], "data" : [no data since],
+%% ""}
+
+%%% what must be solved:
+%% we cannot send every conn/disconn event, must deflap, same with processing errors, that must be grouped by time somehow
+%% when does the status return to good, after processing errors for example ?
+
+%%% health message with status 1 (all is good) will be sent after a certain time, when nothing else has happened
+%%%
+
+%%%==================================================================
+%%% API
+%%%==================================================================
+
+is_alive(Name) ->
+  case ets:lookup(?ETS_FLOW_TABLE, Name) of
+    [] -> false;
+    [{Name, Pid}] -> is_process_alive(Pid)
+  end.
+
+%%%===================================================================
+%%% Spawning and gen_server implementation
+%%%===================================================================
+
+start_link(FlowId) ->
+  gen_server:start_link(?MODULE, [FlowId], []).
+
+init([FlowId]) ->
+  gen_event:add_sup_handler(conn_status, {conn_status_handler_dataflow, {FlowId, self()}},
+    #{parent => self(), flow_id => FlowId, node_id => undefined}),
+
+  lager_observer_backend:start_trace(FlowId),
+
+  %% use mqtt publisher pool !!
+%%  MqttOpts = #{host => Host, client_id => ClientId, node_id => GNId, retained => false}.
+  MqttOpts = #{},
+  mqtt_pub_pool_manager:connect(MqttOpts),
+  {ok, #state{flow_id = FlowId}}.
+
+handle_call(_Request, _From, State = #state{}) ->
+  {reply, ok, State}.
+
+handle_cast(_Request, State = #state{}) ->
+  {noreply, State}.
+
+handle_info({log, Item}, State) ->
+  lager:info("got log item: ~p", [Item]),
+  {noreply, State};
+handle_info({conn_status, Item}, State) ->
+  lager:notice("conn_status ~p",[Item]),
+%%  Out = #{<<"type">> => <<"conn_status">>, <<"data">> => flowdata:to_mapstruct(Item)},
+%%%%  {[{text, jiffy:encode(Out)}], State};
+  {noreply, State};
+handle_info(_Info, State = #state{}) ->
+  {noreply, State}.
+
+terminate(_Reason, _State = #state{}) ->
+  ok.
+
+code_change(_OldVsn, State = #state{}, _Extra) ->
+  {ok, State}.
+
+%%%===================================================================
+%%% Internal functions
+%%%===================================================================
+update_flow(Name, Pid) ->
+  ets:insert(?ETS_FLOW_TABLE, {Name, Pid}).
+
+remove_flow(Name) ->
+  ets:delete(?ETS_FLOW_TABLE, Name).
+
