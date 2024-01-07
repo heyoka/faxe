@@ -446,7 +446,9 @@ start_temp(DfsScript, Type, TTL) ->
                   name = Id
                },
                ets:insert(temp_tasks, {Id, Graph}),
-               try df_graph:start_graph(Graph, #task_modes{temporary = true, temp_ttl = TTL}) of
+               ObservedDefault = proplists:get_value(enable, faxe_config:get_sub(flow_health, observer)),
+               RunConfig = #task_modes{temporary = true, temp_ttl = TTL, observed = ObservedDefault},
+               try df_graph:start_graph(Graph, RunConfig) of
                   _ ->
                      {ok, Id}
                catch
@@ -466,7 +468,9 @@ start_task(TaskId) ->
 start_task(TaskId, #task_modes{run_mode = _RunMode} = Mode) ->
    case faxe_db:get_task(TaskId) of
       {error, not_found} -> {error, task_not_found};
-      T = #task{} -> graph_starter:start_graph(T, Mode), {ok, enqueued_to_start}
+      T = #task{} ->
+         ObservedDefault = proplists:get_value(enable, faxe_config:get_sub(flow_health, observer)),
+         graph_starter:start_graph(T, Mode#task_modes{observed = ObservedDefault}), {ok, enqueued_to_start}
    end;
 start_task(TaskId, Permanent) when Permanent == true orelse Permanent == false ->
    start_task(TaskId, push, Permanent).

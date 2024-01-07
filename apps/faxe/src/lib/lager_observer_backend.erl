@@ -9,8 +9,7 @@
    , handle_event/2
    , handle_info/2
    , terminate/2
-   , code_change/3
-   , start_log/2, stop_log/2]).
+   , code_change/3]).
 
 -record(state, {
    level  :: {mask, integer()},
@@ -25,39 +24,8 @@
 %% gen_event callbacks
 %%==============================================================================
 
-start_log(FlowId, Observer) ->
-   ets:insert(observed_flows, {FlowId, Observer}),
-   ets:insert(observed_flow_pids, {Observer, FlowId}).
-
-stop_log(FlowId, Observer) ->
-   ets:delete(observed_flows, FlowId),
-   ets:delete(observed_flow_pids, Observer).
-
-get_observer_pid(FlowId) ->
-   case ets:lookup(observed_flows, FlowId) of
-      [{FlowId, Pid}] -> Pid;
-      [] -> undefined
-   end.
-
-get_flow_id(Pid) ->
-   case ets:lookup(observed_flow_pids, Pid) of
-      [] -> undefined;
-      [{Pid, FlowId}] -> FlowId
-   end.
-
-remove_flow_ets(FlowId) ->
-   case ets:lookup(observed_flows, FlowId) of
-      [{Flow, Pid}] ->
-         ets:delete(observed_flows, FlowId),
-         ets:delete(observed_flow_pids, Pid);
-      [] -> ok
-   end.
-
-
 init(Args) ->
    Level = proplists:get_value(level, Args, warning),
-   erlang:send_after(?FLOW_LIST_UPDATE_INTERVAL, self(), update_flow_list),
-
    {ok, #state{level = Level}}.
 
 handle_call(get_loglevel, State = #state{level = Level}) ->
@@ -66,10 +34,7 @@ handle_call({set_loglevel, Level}, State) ->
    {ok, ok, State#state{level = lager_util:config_to_mask(Level)}};
 handle_call(_Request, State) ->
    {ok, ok, State}.
-handle_event({log, _M}, State = #state{flow_ids = []}) ->
-%%   lager:info("no flows registered for logging"),
-   {ok, State};
-handle_event({log, Message}, State = #state{level = Level, flow_ids = Flows}) ->
+handle_event({log, Message}, State = #state{level = Level}) ->
    case lager_util:is_loggable(Message, Level, ?MODULE) of
       true ->
          %% we only log messages concerning dataflows
@@ -78,14 +43,14 @@ handle_event({log, Message}, State = #state{level = Level, flow_ids = Flows}) ->
             undefined ->
                ok;
             FlowId ->
-               case lists:member(FlowId, Flows) of
-                  true ->
-                     %% get receiver pid
-                     Rec = get_observer_pid(FlowId),
+               %% get receiver pid
+               Rec = faxe_flow_observer:get_observer(FlowId),
+               case Rec of
+                  undefined ->
+                     ok;
+                  _ ->
                      NodeId = proplists:get_value(comp, MetaData),
-                     notify(Rec, FlowId, NodeId, Message, State);
-                  false ->
-                     ok
+                     notify(Rec, FlowId, NodeId, Message, State)
                end
          end;
       false ->
@@ -94,24 +59,6 @@ handle_event({log, Message}, State = #state{level = Level, flow_ids = Flows}) ->
    {ok, State};
 handle_event(_Event, State) ->
    {ok, State}.
-
-handle_info(update_flow_list, State = #state{}) ->
-   {ok, update_flow_list(State)};
-handle_info({add_flow, _FlowId, Observer}, State = #state{}) ->
-   erlang:monitor(process, Observer),
-   lager:info("add_flow: ~p", [_FlowId]),
-   {ok, update_flow_list(State)};
-%%handle_info({remove_flow, FlowId}, State) ->
-%%   {ok, remove_flow(FlowId, State)};
-%% observer is DOWN
-handle_info({'DOWN', _MonitorRef, _Type, Pid, _Info}, State = #state{}) ->
-   lager:info("remove_flow: ~p", [_FlowId]),
-   case get_flow_id(Pid) of
-      undefined -> {ok, State};
-      FlowId ->
-         remove_flow_ets(FlowId),
-         {ok, remove_flow(FlowId, Pid, State)}
-   end;
 
 handle_info(_, State) ->
    {ok, State}.
@@ -124,20 +71,10 @@ code_change(_, State, _) ->
 %%==============================================================================
 %% Internal functions
 %%==============================================================================
-update_flow_list(State) ->
-   List = ets:tab2list(observed_flows),
-%%   lager:info("new flow_list: ~p",[List]),
-   erlang:send_after(?FLOW_LIST_UPDATE_INTERVAL, self(), update_flow_list),
-   State#state{flow_ids = proplists:get_keys(List)}.
-
-remove_flow(FlowId, _Pid, State = #state{flow_ids = Flows}) ->
-   lager:info("remove_flow: ~p", [_FlowId]),
-   State#state{flow_ids = lists:delete(FlowId, Flows)}.
-
 
 notify(_Receiver, _F, undefined, _, _S) ->
    ok;
-notify(Receiver, FlowId, NodeId, Message, #state{}) ->
+notify(Receiver, _FlowId, _NodeId, Message, #state{}) ->
 %%   io:format("~npublish: ~p",[{Topic, flowdata:to_json(format_data(Message))}]),
    catch Receiver ! {log, flowdata:to_json(format_data(Message))}.
 

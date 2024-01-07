@@ -59,6 +59,11 @@ get_graph_table() ->
     {error, What} -> {error, What}
   end.
 
+
+%% @doc get the pid of the df_graph process, given a pid of one of a flows nodes
+%% @param ComponentPid pid of a flow node
+%% @returns pid of the df_graph process, if found
+-spec get_graph(ComponentPid :: pid()) -> pid()|{error, not_found}.
 get_graph(ComponentPid) when is_pid(ComponentPid) ->
   case ets:lookup(?NODE_TO_GRAPH_ETS, ComponentPid) of
     [] -> {error, not_found};

@@ -1,10 +1,13 @@
 .PHONY: dev1 start dev2 dev3 remsh
 
+CURRENT_DIR = $(shell pwd)
+BUILD_DIR = _build/dev1/rel/faxe/
+
 dev1:
 	export QUIET=1 && \
-	export FAXE_EXTENSIONS=/home/heyoka/workspace/faxe/extensions.config && \
-	export FAXE_DFS_SCRIPT_PATH=/home/heyoka/workspace/faxe/dfs/ && \
-	export FAXE_PYTHON_SCRIPT_PATH=/home/heyoka/workspace/faxe/python/ && \
+	export FAXE_EXTENSIONS=$(CURRENT_DIR)/extensions.config && \
+	export FAXE_DFS_SCRIPT_PATH=$(CURRENT_DIR)/dfs/ && \
+	export FAXE_PYTHON_SCRIPT_PATH=$(CURRENT_DIR)/python/ && \
 	export FAXE_QUEUE_BASE_DIR=/home/heyoka/esq_data/ && \
 	export FAXE_MNESIA_DIR=./mnesia_data && \
 	export FAXE_QUEUE_CAPACITY=50 && \
@@ -50,7 +53,11 @@ dev1:
 	export FAXE_S7READER_OPTIMIZED=on && \
 	export FAXE_CRATE_HTTP_CONNECTION_TIMEOUT=31s && \
 	export FAXE_CRATE_IGNORE_RULES='message=MaxBytesLengthExceededException,code=5000,message=MaxBytesLengthExceededException' && \
-	rebar3 as dev1 release && _build/dev1/rel/faxe/bin/faxe console
+#	export FAXE_FLOW_HEALTH_HANDLER_MQTT_HOST=mqtt.example.com && \
+	export FAXE_FLOW_HEALTH_OBSERVER_ENABLE=on && \
+	export FAXE_FLOW_HEALTH_OBSERVER_REPORT_INTERVAL=10s && \
+	git config --global url."https://".insteadOf git:// && \
+	rebar3 as dev1 release && $(BUILD_DIR)/bin/faxe console
 
 start:
 	export FAXE_DFS_SCRIPT_PATH=/home/heyoka/workspace/faxe/dfs/ && \

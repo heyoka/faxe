@@ -118,6 +118,7 @@
         ]}
         ,
         {lager_emit_backend, [{level, EmitLevel}]} ,
+        {lager_observer_backend, [{level, warning}]} ,
         {lager_file_backend, [{file, "log/error.log"}, {level, error}]}
       ] ++ LogstashConf
     end}.
@@ -785,7 +786,7 @@
 
 
 %% @doc ----------------------- FLOW_CHANGED --------------------------
-%%
+%% @deprecated: will be removed in a future version
 %%
 %% flow_changed handler MQTT
 %%
@@ -804,6 +805,40 @@
 }.
 %% @doc flow_changed handler mqtt base topic
 {mapping, "flow_changed.handler.mqtt.base_topic", "faxe.flow_changed.handler.mqtt.base_topic",
+    [{default, "sys/faxe"}, {datatype, string}, {commented, "sys/faxe"}]
+}.
+
+
+%% @doc ----------------------- FLOW HEALTH STATUS (observer) --------------------------
+%%
+%% enable/disable flow health observer process
+{mapping, "flow_health.observer.enable", "faxe.flow_health.observer.enable",
+    [{default, on}, {datatype, flag}]
+}.
+%%
+%% flow health report interval
+{mapping, "flow_health.observer.report_interval", "faxe.flow_health.observer.report_interval",
+    [{default, "3m"}, {datatype, {duration, ms}}]
+}.
+
+%%
+%% flow_health handler MQTT
+%%
+%%
+%% enable/disable health status handler mqtt
+{mapping, "flow_health.handler.mqtt.enable", "faxe.flow_health.handler.mqtt.enable",
+    [{default, on}, {datatype, flag}]
+}.
+%% @doc flow_health handler mqtt host
+{mapping, "flow_health.handler.mqtt.host", "faxe.flow_health.handler.mqtt.host",
+    [{default, ""}, {datatype, string}, {commented, "example.com"}]
+}.
+%% @doc flow_health handler mqtt port
+{mapping, "flow_health.handler.mqtt.port", "faxe.flow_health.handler.mqtt.port",
+    [{datatype, integer}, {commented, 1883}]
+}.
+%% @doc flow_health handler mqtt base topic
+{mapping, "flow_health.handler.mqtt.base_topic", "faxe.flow_health.handler.mqtt.base_topic",
     [{default, "sys/faxe"}, {datatype, string}, {commented, "sys/faxe"}]
 }.
 
