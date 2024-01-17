@@ -72,6 +72,7 @@ CMD ["erl"]
 ### python requirements
 
 COPY python_requirements_prod.txt ./
+
 RUN apt-get update && apt-get install -y --no-install-recommends gcc g++ make \
     && pip install --no-cache-dir -r python_requirements_prod.txt \
 	&& echo "-------------->start to install tether stuff<--------------" \
@@ -126,6 +127,10 @@ RUN groupadd -g 10000 faxe \
 	&& useradd -g 10000 -u 9999 -s /bin/bash -m faxe \
 	&& chown -R 9999 /faxe  \
 	&& chmod -R g=u /faxe
+
+# add tether config to image
+COPY tethercred.key /home/faxe/.cdh/tethercred.key
+COPY tethercred.yml.crypt /home/faxe/.cdh/tethercred.yml.crypt
 
 USER 9999
 
