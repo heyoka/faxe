@@ -1,0 +1,142 @@
+### Build stage 0
+FROM python:3.9.1 as debian
+
+### erlang and rebar3
+ENV OTP_VERSION="25.3.2.2" \
+    REBAR3_VERSION="3.22.0"
+
+# system token to fetch tether
+ARG SYSTEM_ACCESSTOKEN
+
+LABEL org.opencontainers.image.version=$OTP_VERSION
+
+RUN set -xe \
+	&& OTP_DOWNLOAD_URL="https://github.com/erlang/otp/archive/OTP-${OTP_VERSION}.tar.gz" \
+	&& OTP_DOWNLOAD_SHA256="eeaa9e388fbfad90751fd75bf9207d87d7372b0a1a3266ff693c8015be91d634" \
+	&& CONFIGURE_ARGS="--without-wx --without-debugger --without-observer --without-et --without-javac --without-odbc --without-megaco" \
+	&& fetchDeps=' \
+		curl \
+		ca-certificates' \
+	&& apt-get update \
+	&& apt-get install -y --no-install-recommends $fetchDeps \
+	&& curl -fSL -o otp-src.tar.gz "$OTP_DOWNLOAD_URL" \
+	&& echo "$OTP_DOWNLOAD_SHA256  otp-src.tar.gz" | sha256sum -c - \
+	&& runtimeDeps=' \
+		libodbc1 \
+		libssl1.1 \
+		libsctp1 \
+	' \
+	&& buildDeps=' \
+		autoconf \
+		dpkg-dev \
+		gcc \
+		g++ \
+		make \
+		libncurses-dev \
+		unixodbc-dev \
+		libssl-dev \
+		libsctp-dev \
+	' \
+	&& apt-get install -y --no-install-recommends $runtimeDeps \
+	&& apt-get install -y --no-install-recommends $buildDeps \
+	# tell git to use https instead of git protocol (faxe dependencies)
+	&& git config --global url."https://".insteadOf git:// \
+	&& export ERL_TOP="/usr/src/otp_src_${OTP_VERSION%%@*}" \
+	&& mkdir -vp $ERL_TOP \
+	&& tar -xzf otp-src.tar.gz -C $ERL_TOP --strip-components=1 \
+	&& rm otp-src.tar.gz \
+	&& ( cd $ERL_TOP \
+	  && ./otp_build autoconf \
+	  && gnuArch="$(dpkg-architecture --query DEB_HOST_GNU_TYPE)" \
+	  && ./configure --build="$gnuArch" $CONFIGURE_ARGS \
+	  && make -j$(nproc) \
+	  && make install ) \
+	&& find /usr/local -name examples | xargs rm -rf \
+	&& REBAR3_DOWNLOAD_URL="https://github.com/erlang/rebar3/archive/${REBAR3_VERSION}.tar.gz" \
+	&& REBAR3_DOWNLOAD_SHA256="28b256038b445ec818d2cc33000b3217f42a946219ede55ab5970503bfcf6647" \
+	&& mkdir -p /usr/src/rebar3-src \
+	&& curl -fSL -o rebar3-src.tar.gz "$REBAR3_DOWNLOAD_URL" \
+	&& echo "$REBAR3_DOWNLOAD_SHA256 rebar3-src.tar.gz" | sha256sum -c - \
+	&& tar -xzf rebar3-src.tar.gz -C /usr/src/rebar3-src --strip-components=1 \
+	&& rm rebar3-src.tar.gz \
+	&& cd /usr/src/rebar3-src \
+	&& HOME=$PWD ./bootstrap \
+	&& install -v ./rebar3 /usr/local/bin/ \
+	&& rm -rf /usr/src/rebar3-src \
+	&& find /usr/local -name examples | xargs rm -rf \
+    && apt-get purge -y --auto-remove $buildDeps $fetchDeps \
+    && rm -rf $ERL_TOP /var/lib/apt/lists/*
+
+CMD ["erl"]
+
+### python requirements
+
+COPY python_requirements_prod.txt ./
+
+RUN apt-get update && apt-get install -y --no-install-recommends gcc g++ make \
+    && pip install --no-cache-dir -r python_requirements_prod.txt \
+	&& echo "-------------->start to install tether stuff<--------------" \
+    && git config --global http.sslverify false \
+	&& echo "token: "$SYSTEM_ACCESSTOKEN \
+    && python -m pip install git+https://$SYSTEM_ACCESSTOKEN@dev.azure.com/HOLD-CWA/ConnectedWarehouse-Customers/_git/Tether \
+    && echo "-------------->end of tether stuff<--------------" \
+    && apt-get purge -y --auto-remove gcc g++ make \
+    && rm -rf /var/lib/apt/lists/*
+
+
+### Build stage 1
+ARG VERSION=latest
+FROM debian AS erlang
+
+# Set working directory
+RUN mkdir -p /buildroot/rebar3/bin
+WORKDIR /buildroot
+
+# Copy faxe application
+COPY ./ faxe
+
+WORKDIR faxe
+
+# define all packeges that should be updated
+#ARG update_list="libbsd* libzstd* libcurl3-gnutls libldap-common libopenjp2-7 python3.7 libsvn1 libtiff5 linux-libc-dev subversion libpq5 libldap-2.4-2 liblz4-1"
+#ARG remove_list="libx11-6 libx11-data libx11-dev subversion libsvn1 libwebp* libwebp-dev"
+
+# faxe extensions
+ENV FAXE_EXTENSIONS="ext.config"
+
+# install git, build release and cleanup deps
+RUN apt-get update && apt-get install -y --no-install-recommends gcc g++ make git-all \
+    && apt upgrade -y \
+    && apt autoremove -y \
+    # tell git to use https instead of git protocol (faxe dependencies)
+    && git config --global url."https://".insteadOf git:// \
+    && rebar3 as prod release \
+    && apt-get purge -y --auto-remove gcc g++ make git-all \
+    && rm -rf /var/lib/apt/lists/*
+
+
+### Build stage 2
+FROM erlang
+
+# Install the released application
+COPY --from=erlang /buildroot/faxe/_build/prod/rel/faxe /faxe
+# cleanup
+RUN rm -rf /buildroot
+
+RUN groupadd -g 10000 faxe \
+	&& useradd -g 10000 -u 9999 -s /bin/bash -m faxe \
+	&& chown -R 9999 /faxe  \
+	&& chmod -R g=u /faxe
+
+# add tether config to image
+COPY tethercred.key /home/faxe/.cdh/tethercred.key
+COPY tethercred.yml.crypt /home/faxe/.cdh/tethercred.yml.crypt
+
+USER 9999
+
+# Expose relevant ports
+## http api
+EXPOSE 8080 1883
+
+ENTRYPOINT ["/faxe/bin/faxe"]
+CMD ["foreground"]
