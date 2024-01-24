@@ -83,8 +83,8 @@ init([]) ->
    ok = new_table(node_connections, set),
 
    ok = new_table(debug_trace_flows, set),
-   %% flow-ids to flow-observers
-   ok = new_table(observed_flows, set),
+   %% flow-id to flow-observer pid
+   ok = new_table(flow_observer, set),
    ok = new_table(metric_trace_flows, set),
 
    ok = new_table(esq_queues, set),

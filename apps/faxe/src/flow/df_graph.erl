@@ -54,6 +54,7 @@
    running  = false        :: true | false,
    started  = false        :: true | false,
    graph    = nil,
+   observer = undefined    :: undefined | pid(), %% observer process
    start_mode = undefined  :: #task_modes{},
    timeout_ref             :: reference(),
    debug_timeout_ref       :: reference(),
@@ -170,6 +171,7 @@ init([Id, #{nodes := Nodes, edges := Edges}]=_T) ->
    {ok, #state{graph = Graph, id = Id}}
 ;
 init([Id, _Params]) ->
+   lager:md([{flow, Id}]),
    Graph = digraph:new([acyclic, protected]),
    {ok, #state{graph = Graph, id = Id}}.
 
@@ -199,6 +201,16 @@ handle_call({vertices}, _From, State = #state{graph = G}) ->
    Out = [digraph:vertex(G, V) || V <- All],
    {reply, Out, State};
 handle_call({sink_nodes}, _From, State = #state{graph = G}) ->
+   Nodes = State#state.nodes,
+   SinkVertices = digraph:sink_vertices(State#state.graph),
+   MapFun =
+      fun(NodeName) ->
+         E = lists:keyfind(NodeName, 2, Nodes),
+         {NodeName, element(3, E)}
+      end,
+   SinkNodes = lists:map(MapFun, SinkVertices),
+   lager:warning("sink-vertices are: ~p~n nodes are: ~p",[SinkVertices, State#state.nodes]),
+   lager:warning("sink-nodes are: ~p~n nodes are: ~p",[SinkNodes, State#state.nodes]),
    OutNodes = digraph:sink_vertices(G),
    {reply, OutNodes, State};
 handle_call({source_nodes}, _From, State = #state{graph = G}) ->
@@ -215,20 +227,17 @@ handle_call({make_subgraph, FromVertex}, _From, State=#state{}) ->
 handle_call({delete_subgraph, FromVertex, Port}, _From, State=#state{}) ->
 %%   lager:notice("make_subgraph from Vertex: ~p",[FromVertex]),
    NewState = delete_subgraph(FromVertex, Port, State),
-%%   {reply, {ok, 2}, State};
    {reply, ok, NewState};
 %% start the computation
-handle_call({start, Modes}, _From, State=#state{graph = _G}) ->
-   NewState = start(Modes, State),
-   Nodes = NewState#state.nodes,
-   SinkVertices = digraph:sink_vertices(NewState#state.graph),
-   MapFun =
-   fun(NodeName) ->
-      E = lists:keyfind(NodeName, 2, Nodes),
-      {NodeName, element(3, E)}
+handle_call({start, Modes=#task_modes{observed = Observed}}, _From, State=#state{id = Id}) ->
+   NewState0 = start(Modes, State),
+   NewState =
+   case Observed of
+      true ->
+         {ok, Observer} = faxe_flow_observer:start_monitor(Id),
+         NewState0#state{observer = Observer};
+      false -> NewState0
    end,
-   SinkNodes = lists:map(MapFun, SinkVertices),
-%%   lager:warning("sink-nodes are: ~p~n nodes are: ~p",[SinkNodes, NewState#state.nodes]),
    {reply, ok, NewState};
 handle_call({stop}, _From, State) ->
    do_stop(State),
@@ -280,11 +289,16 @@ handle_info(collect_metrics, State = #state{nodes = Nodes, id = Id}) ->
 handle_info(stop, State=#state{}) ->
    do_stop(State),
    %gen_event:notify(dfevent_graph, {stop, Id}),
-   {stop, normal, State}.
+   {stop, normal, State};
+handle_info({'DOWN', _Mon, process, Pid, _Info}, State = #state{observer = Pid, id = Id}) ->
+   lager:notice("observer process is DOWN"),
+   {ok, NewObserver} = faxe_flow_observer:start_monitor(Id),
+   {noreply, State#state{observer = NewObserver}}.
 
 
-terminate(_Reason, _State) ->
-   ok.
+terminate(_Reason, #state{observer = Observer}) ->
+   lager:info("df_graph terminates with reason ~p",[_Reason]).
+%%   faxe_flow_observer:stop(Observer).
 
 -spec(code_change(OldVsn :: term() | {down, term()}, State :: #state{},
     Extra :: term()) ->

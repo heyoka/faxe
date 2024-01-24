@@ -14,7 +14,10 @@
 
 install() ->
   install_handlers(debug),
-  install_handlers(conn_status).
+  install_handlers(conn_status),
+  supervisor:start_child(faxe_event_guard_sup, [conn_status, conn_status_handler_observer, []]).
+%%  gen_event:add_sup_handler(conn_status, {conn_status_handler_dataflow, {FlowId, self()}},
+%%    #{}).
 %%,
 %%  install_handlers(metrics),
 %%  install_handlers(flow_changed).
@@ -24,11 +27,14 @@ install_handlers(Key) ->
   [add_handler(HandlerType, atom_to_binary(Key, utf8), Opts) || {HandlerType, Opts} <- Handlers].
 
 %% from a config proplist get only those with an 'enable' flag set to 'true'
+%% config entries start with '{Key}.handler.mqtt.{...}' (ie: debug.handler.mqtt.{...})
 get_enabled(Key, SubKey) ->
+  lager:info("event handlers mqtt opts Key ~p, SubKey: ~p", [Key, SubKey]),
   All = faxe_config:get(Key, []),
   case proplists:get_value(SubKey, All) of
     undefined -> [];
     List when is_list(List) ->
+      %% _Type here is "mqtt" always at the moment, we do not care, could also be amqp
       lists:filter(fun({_Type, E}) -> proplists:get_value(enable, E) end, List)
   end
 .
