@@ -29,7 +29,6 @@ install_handlers(Key) ->
 %% from a config proplist get only those with an 'enable' flag set to 'true'
 %% config entries start with '{Key}.handler.mqtt.{...}' (ie: debug.handler.mqtt.{...})
 get_enabled(Key, SubKey) ->
-  lager:info("event handlers mqtt opts Key ~p, SubKey: ~p", [Key, SubKey]),
   All = faxe_config:get(Key, []),
   case proplists:get_value(SubKey, All) of
     undefined -> [];

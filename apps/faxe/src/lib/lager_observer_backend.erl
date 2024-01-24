@@ -12,13 +12,8 @@
    , code_change/3]).
 
 -record(state, {
-   level  :: {mask, integer()},
-   flow_ids = []
+   level  :: {mask, integer()}
 }).
-
-%% delay the start of our mqtt publisher
--define(START_DELAY, 200).
--define(FLOW_LIST_UPDATE_INTERVAL, 2000).
 
 %%==============================================================================
 %% gen_event callbacks
