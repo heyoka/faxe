@@ -456,7 +456,8 @@ list_param(tuple_list, Val) ->
 list_param(_Type, Val) ->
    cparam(any, Val).
 
-cparam(is_set, _) -> true;
+cparam(is_set, {bool,false}) -> false;
+cparam(is_set, _W) -> true;
 cparam(atom, {identifier, Val}) -> binary_to_atom(Val);
 cparam(bool, {identifier, Val}) -> binary_to_atom(Val);
 cparam(binary, {string, Val}) -> Val;
