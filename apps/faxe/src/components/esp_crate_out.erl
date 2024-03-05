@@ -51,7 +51,14 @@
    use_flow_ack = false :: true|false,
 
    pending_data = #{} :: map(),
-   dedup_queue :: memory_queue:memory_queue()
+   dedup_queue :: memory_queue:memory_queue(),
+   %% settings for the extra pg connection, when needed, see options below
+   pg_port :: pos_integer(),
+   pg_tls :: boolean(),
+   pg_user :: binary(),
+   pg_pass :: binary()
+
+
 }).
 
 -define(KEY, <<"stmt">>).
@@ -84,7 +91,13 @@ options() ->
       {max_retries, integer, ?FAILED_RETRIES},
       {error_trace, boolean, false},
       {ignore_response_timeout, boolean, true},
-      {use_flow_ack, boolean, {amqp, flow_ack, enable}}
+      {use_flow_ack, boolean, {amqp, flow_ack, enable}},
+      %% connection params for the epgsql client used to fetch schema infos (when db_fields is undefined)
+      %% the params default to the crate postgre protocol config settings
+      {pg_port, integer, {crate, port}},
+      {pg_tls, boolean, {crate, tls, enable}},
+      {pg_user, string, {crate, user}},
+      {pg_pass, string, {crate, pass}}
    ].
 
 check_options() ->
@@ -111,7 +124,8 @@ init(NodeId, Inputs,
     #{host := Host0, port := Port, database := DB, table := Table, user := User, pass := Pass,
        tls := Tls, db_fields := DBFields0, faxe_fields := FaxeFields, error_trace := ETrace,
        remaining_fields_as := RemFieldsAs, max_retries := MaxRetries,
-       ignore_response_timeout := IgnoreRespTimeout, use_flow_ack := FlowAck}) ->
+       ignore_response_timeout := IgnoreRespTimeout, use_flow_ack := FlowAck,
+       pg_port := PgPort, pg_user := PgUser, pg_pass := PgPass, pg_tls := PgTls}) ->
 
    Host = binary_to_list(Host0),
    erlang:send_after(0, self(), query_init),
@@ -142,7 +156,13 @@ init(NodeId, Inputs,
       fn_id = NodeId, flow_inputs = Inputs,
       ignore_resp_timeout = IgnoreRespTimeout,
       use_flow_ack = FlowAck,
-      dedup_queue = memory_queue:new(?DEDUP_QUEUE_SIZE)},
+      dedup_queue = memory_queue:new(?DEDUP_QUEUE_SIZE),
+
+      pg_port = PgPort,
+      pg_user = PgUser,
+      pg_pass = PgPass,
+      pg_tls = PgTls
+      },
 
    {ok, all,State}.
 
@@ -152,7 +172,7 @@ process(_In, #data_batch{points = []}, State = #state{}) ->
    {ok, State};
 %% not connected -> buffer
 process(_In, DataItem, State = #state{client = undefined, buffer = Buffer}) ->
-   lager:notice("got item when not connected"),
+   lager:warning("got item when not connected"),
    {ok, State#state{buffer = Buffer ++ [DataItem]}};
 %% busy -> buffer
 process(_In, DataItem, State = #state{busy = true, buffer = Buffer}) ->
@@ -189,6 +209,7 @@ handle_info({'DOWN', _MonitorRef, _Type, Pid, _Info}, State = #state{client = Pi
    handle_info(start_client, State#state{client = undefined});
 
 handle_info(query_init, State=#state{faxe_fields = undefined, db_fields = undefined}) ->
+   lager:warning("query_init with no fields defined"),
    %% special case to retrieve column names automatically
    NewState =
    case get_fields(State) of
@@ -503,7 +524,7 @@ get_fields(State = #state{table = Tab0, database = Db0}) ->
    receive
       {faxe_epgsql_stmt, connected} ->
          Res = faxe_epgsql_stmt:execute(PgClient, Stmt),
-%%         lager:info("Result from column statement: ~p",[Res]),
+         lager:info("Result from column statement: ~p",[Res]),
          case Res of
             {ok,[{column,<<"column_name">>,varchar,_,_,_,_,_,_}], Columns} ->
                ColumnNames = lists:map(fun({ColName}) -> ColName end, Columns),
@@ -516,7 +537,7 @@ get_fields(State = #state{table = Tab0, database = Db0}) ->
                {false, NewState}
          end
    after 4000 ->
-      lager:error("error getting column names from table"),
+      lager:error("error getting column names from table, timeout (4000)"),
       erlang:send_after(2000, self(), query_init),
       {false, NewState}
    end.
@@ -524,13 +545,13 @@ get_fields(State = #state{table = Tab0, database = Db0}) ->
 get_pg_client(State = #state{pg_client = C}) when is_pid(C) ->
    {C, State};
 get_pg_client(State = #state{pg_client = undefined,
-   host = Host, port = Port, user = User, pass = Pass, database = Db0}) ->
+   host = Host, pg_port = Port, pg_user = User, pg_pass = Pass, database = Db0, pg_tls = Tls}) ->
    Db = binary:replace(Db0, <<"\"">>, <<>>, [global]),
    {ok, PgClient} = faxe_epgsql_stmt:start_link(
       #{host => Host, port => Port,
          username => faxe_util:to_list(User),
          password => faxe_util:to_list(Pass),
-         database => Db}
+         database => Db, tls => Tls}
    ),
    {PgClient, State#state{pg_client = PgClient}}.
 

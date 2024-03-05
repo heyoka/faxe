@@ -19,6 +19,7 @@
    user :: string(),
    pass :: string(),
    database :: iodata(),
+   tls :: boolean(),
    client,
    client_ref,
    stmt,
@@ -45,8 +46,9 @@ options() ->
    [
       {host, string, {crate, host}},
       {port, integer, {crate, port}},
+      {tls, boolean, {crate, tls, enable}},
       {user, string, {crate, user}},
-      {pass, string, <<>>},
+      {pass, string, {crate, pass}},
       {database, string, {crate, database}},
       {query, string},
       {time_field, string, <<"ts">>},
@@ -72,12 +74,12 @@ metrics() ->
    ].
 
 init(NodeId, _Inputs, #{host := Host0, port := Port, user := User, every := Every, period := Period,
-      pass := Pass, database := DB, query := Q0, align := Align, group_by_time := TimeGroup,
+      pass := Pass, database := DB, tls := Tls, query := Q0, align := Align, group_by_time := TimeGroup,
       time_field := TimeField, group_by := GroupBys, result_type := RType}) ->
 
    process_flag(trap_exit, true),
    Host = binary_to_list(Host0),
-   Opts = #{host => Host, port => Port, username => User, password => Pass, database => DB},
+   Opts = #{host => Host, port => Port, username => User, password => Pass, database => DB, tls => Tls},
    DBOpts = maps:merge(?DB_OPTIONS, Opts),
 
 %%   lager:warning("the QUERY before: ~p",[Q0]),

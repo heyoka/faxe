@@ -150,7 +150,7 @@ connect(State = #state{db_opts = Opts}) ->
          maybe_send_execute(NewState),
          NewState;
       {error, What} ->
-         lager:warning("Error connecting to crate: ~p",[What]),
+         lager:warning("Error connecting to postgre host: ~p",[What]),
          State
    end.
 
