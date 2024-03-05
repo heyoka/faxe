@@ -27,10 +27,6 @@
   timeout => 5000
 }).
 
-%%#{codecs => [{faxe_epgsql_codec,nil},{epgsql_codec_json,{jiffy,[],[return_maps]}}],database => <<"doc">>,host => "tgw.aks1.westeurope.azure.cratedb.net",password => "7H0CqQsUt2BfuZu80ZUv",port => 5432,ssl => true,timeout => 4000,username => "defaultuser"}
-%%#{codecs => [{faxe_epgsql_codec,nil},{epgsql_codec_json,{jiffy,[],[return_maps]}}],database => <<"debug">>,host => "devat-crate-vip1.tgwdev.internal",password => [],port => 4200,timeout => 5000,username => "crate"}
-
-
 %%%===================================================================
 %%% Spawning and gen_server implementation
 %%%===================================================================
