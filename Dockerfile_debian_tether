@@ -1,5 +1,5 @@
 ### Build stage 0
-FROM python:3.9.1 as debian
+FROM registry.datahub.tgw-group.cloud/docker-hub-proxy/python:3.9.1 as debian
 
 ### erlang and rebar3
 ENV OTP_VERSION="25.3.2.2" \
