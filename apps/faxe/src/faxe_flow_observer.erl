@@ -15,23 +15,24 @@
   code_change/3]).
 
 -define(ETS_FLOW_OBSERVER_TABLE, flow_observer).
--define(BASE_TOPIC, <<"tgw/sys/faxe">>).
 -define(TOPIC_KEY, <<"health">>).
--define(QOS, 1).
+-define(QOS, 0).
+-define(RETAINED, false).
 -define(REPORT_INTERVAL, proplists:get_value(report_interval, faxe_config:get_sub(flow_health, observer), 10000)).
 -define(BUFFER_MAX_AGE, round(?REPORT_INTERVAL/2)).
 
--define(CONN_REF_FIELDS, [<<"conn_type">>, <<"peer">>, <<"port">>]).
+-define(CONN_REF_FIELDS,      [<<"conn_type">>, <<"peer">>, <<"port">>]).
 -define(CONN_FIELD_CONNECTED, <<"connected">>).
--define(CONN_FIELD_STATUS, <<"status">>).
+-define(CONN_FIELD_STATUS,    <<"status">>).
 
--define(MSG_HEALTHY, #{<<"status">> => 1}).
--define(MSG_UNHEALTHY, #{<<"status">> => 0}).
--define(MSG_STOPPED, #{<<"status">> => 2}).
--define(MSG_CRASHED, #{<<"status">> => 3}).
--define(FIELD_CONN_STATUS, <<"conn_status">>).
--define(FIELD_ERRORS, <<"processing_errors">>).
--define(FIELD_MESSAGE, <<"message">>).
+-define(FIELD_CONN_STATUS,  <<"conn_status">>).
+-define(FIELD_ERRORS,       <<"processing_errors">>).
+-define(FIELD_MESSAGE,      <<"message">>).
+
+-define(MSG_UNHEALTHY,      #{<<"status">> => 0}).
+-define(MSG_HEALTHY,        #{<<"status">> => 1}).
+-define(MSG_STOPPED,        #{<<"status">> => 2}).
+-define(MSG_CRASHED,        #{<<"status">> => 3}).
 
 -record(state, {
   flow_id                 :: binary(),
@@ -128,16 +129,15 @@ init([FlowId, GraphPid]) ->
   ets:insert(?ETS_FLOW_OBSERVER_TABLE, {FlowId, self()}),
 
   %% MQTT
-  MqttOpts = #{host := Host, port := Port} = mqtt_opts(),
+  MqttOpts = #{host := Host, port := Port, base_topic := BaseTopic} = mqtt_opts(),
 
   connection_registry:reg({<<"sys">>, <<"sys">>}, Host, Port, <<"mqtt">>),
-%%  lager:warning("~p MQTT Opts: ~p",[?MODULE, MqttOpts]),
   %% use mqtt publisher pool !!
   mqtt_pub_pool_manager:connect(MqttOpts),
 
   %%% TOPIC
   DeviceName = faxe_util:device_name(),
-  Topic = faxe_util:build_topic([?BASE_TOPIC, DeviceName, ?TOPIC_KEY, FlowId]),
+  Topic = faxe_util:build_topic([BaseTopic, DeviceName, ?TOPIC_KEY, FlowId]),
 
   %%% REPORT TIMER
   Timer = start_timer(?REPORT_INTERVAL),
@@ -158,7 +158,7 @@ mqtt_opts() ->
   HandlerOpts = proplists:get_value(mqtt, HandlerOpts0, []),
   MqttOpts2 = faxe_util:proplists_merge(faxe_config:filter_empty_options(HandlerOpts), MqttOpts0),
   MqttOpts3 = maps:from_list(MqttOpts2),
-  MqttOpts3#{retained => false}.
+  MqttOpts3#{retained => ?RETAINED, qos => ?QOS}.
 
 
 handle_call(_Request, _From, State = #state{}) ->
@@ -198,7 +198,6 @@ handle_info({mqtt_disconnected, _}, State) ->
   {noreply, State#state{mqtt_connected = false}};
 handle_info({log, Item}, State) ->
   NewState = cancel_timer(State),
-%%  lager:info("~p got log item: ~p", [{?MODULE, self()}, Item]),
   Item0 = flowdata:from_json_struct(Item),
   Msg0 = flowdata:to_mapstruct(Item0),
   Msg = ?MSG_UNHEALTHY#{?FIELD_ERRORS => [Msg0]},
@@ -206,7 +205,6 @@ handle_info({log, Item}, State) ->
   {noreply, NewState1#state{timer_ref = start_timer(?REPORT_INTERVAL)}};
 handle_info({conn_status, Item}, State) ->
   NewState = cancel_timer(State),
-%%  lager:notice("~p conn_status ~p",[{?MODULE, self()}, Item]),
   NewState1 = conn_status_received(NewState, Item),
   {noreply, NewState1#state{timer_ref = start_timer(?REPORT_INTERVAL)}};
 handle_info(Info, State = #state{}) ->
@@ -214,7 +212,7 @@ handle_info(Info, State = #state{}) ->
   {noreply, State}.
 
 terminate(Reason, _State = #state{flow_id = FlowId}) ->
-  lager:warning("~p terminates with reason: ~p",[?MODULE, Reason]),
+%%  lager:warning("~p terminates with reason: ~p",[?MODULE, Reason]),
   remove_flow(FlowId).
 
 code_change(_OldVsn, State = #state{}, _Extra) ->
@@ -228,7 +226,6 @@ make_conn_ref(ConnStatus = #data_point{}) ->
 
 %% ignore status "connecting"
 conn_status_received(State, P = #data_point{fields = #{?FIELD_CONN_STATUS := 1}}) ->
-  lager:info("ignore conn_status 'connecting' ~p", [lager:pr(P, ?MODULE)]),
   State;
 conn_status_received(State = #state{connection_issues = []}, ConnStatus = #data_point{}) ->
   case flowdata:field(ConnStatus, ?CONN_FIELD_CONNECTED) of
@@ -306,7 +303,12 @@ publish(Message, State) ->
   do_publish(Message, State),
   State.
 
-do_publish(Message, #state{topic = Topic, host = Host}) ->
-  {ok, Publisher} = mqtt_pub_pool_manager:get_connection(Host),
-  Publisher ! {publish, {Topic, Message}}.
-
+%% do publish calling mqtt pool manager
+do_publish(Message, State = #state{topic = Topic, host = Host}) ->
+  case mqtt_pub_pool_manager:get_connection(Host) of
+    {ok, Publisher}  ->
+      Publisher ! {publish, {Topic, Message, ?QOS, ?RETAINED}};
+    Other ->
+      lager:warning("attempt to publish when connect status is ~p | ~p",
+        [State#state.mqtt_connected, Other])
+  end.

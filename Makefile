@@ -18,9 +18,9 @@ dev1:
 	export FAXE_CRATE_HOST=localhost && \
 	export FAXE_CRATE_PORT=5432 && \
 	export FAXE_CRATE_HTTP_HOST=localhost && \
-    export FAXE_CRATE_USER=faxe && \
-    export FAXE_CRATE_PASS=faxe_pass && \
-	export FAXE_MQTT_HOST='10.14.204.20' && \
+  export FAXE_CRATE_USER=faxe && \
+  export FAXE_CRATE_PASS=faxe_pass && \
+	export FAXE_MQTT_HOST='localhost' && \
 	export FAXE_MQTT_SSL_ENABLE='off' && \
 	export FAXE_MQTT_PUB_POOL_WORKER_MAX_RATE=15 && \
 	export FAXE_MQTT_PUB_POOL_MIN_SIZE=2 && \
