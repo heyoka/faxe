@@ -15,12 +15,11 @@ dev1:
 	export FAXE_DEQUEUE_MIN_INTERVAL=1ms && \
 	export FAXE_DEQUEUE_MAX_INTERVAL=600ms && \
 	export FAXE_CRATE_HTTP_TLS_ENABLE=off && \
-#	export FAXE_CRATE_HOST='devat-crate-vip1.tgwdev.internal' && \
 	export FAXE_CRATE_HOST=10.14.204.11 && \
-	export FAXE_CRATE_HTTP_HOST='devat-crate-vip1.tgwdev.internal' && \
+	export FAXE_CRATE_HTTP_HOST='localhost' && \
     export FAXE_CRATE_USER=faxedevuhw873 && \
     export FAXE_CRATE_PASS=sD7YAu6qrENaYpYzUpZT && \
-	export FAXE_MQTT_HOST='10.14.204.20' && \
+	export FAXE_MQTT_HOST='localhost' && \
 	export FAXE_MQTT_SSL_ENABLE='off' && \
 	export FAXE_MQTT_PUB_POOL_WORKER_MAX_RATE=15 && \
 	export FAXE_MQTT_PUB_POOL_MIN_SIZE=2 && \
