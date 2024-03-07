@@ -24,7 +24,7 @@
 
 -define(DB_OPTIONS, #{
   codecs => [{faxe_epgsql_codec, nil}, {epgsql_codec_json, {jiffy, [], [return_maps]}}],
-  timeout => 5000
+  timeout => 5000, port => 5432
 }).
 
 %%%===================================================================
@@ -41,7 +41,13 @@ init([{parent, Parent}, {opts, #{host := Host0, port := Port, username := User, 
   process_flag(trap_exit, true),
 %%  Host = binary_to_list(Host0),
 %%  Opts = #{host => Host0, port => Port, username => User, password => Pass, database => Db},
-  DBOpts = maps:merge(?DB_OPTIONS, Opts),
+  DBOpts0 =
+  case maps:get(tls, Opts, false) of
+    true -> ?DB_OPTIONS#{ssl => true};
+    _Else -> ?DB_OPTIONS
+  end,
+  DBOpts = maps:merge(DBOpts0, Opts),
+  lager:notice("[~p] DBOPTS: ~p",[?MODULE, DBOpts]),
   erlang:send_after(0, self(), reconnect),
   {ok, #state{host = Host0, port = Port, user = User, pass = Pass, db_opts = DBOpts, parent = Parent}}.
 
@@ -77,7 +83,7 @@ code_change(_OldVsn, State = #state{}, _Extra) ->
 %%%===================================================================
 connect(State = #state{db_opts = Opts, parent = Parent}) ->
 %%  lager:notice("db opts ~p",[Opts]),
-  case epgsql:connect(Opts#{port => 5432}) of
+  case epgsql:connect(Opts) of
     {ok, C} ->
       Parent ! {?MODULE, connected},
       State#state{client = C};

@@ -68,6 +68,7 @@ options() ->
       {host, string, {crate, host}},
       {port, integer, {crate, port}},
       {ssl, boolean, {crate, tls, enable}},
+      {tls, boolean, {crate, tls, enable}},
       {user, string, {crate, user}},
       {pass, string, {crate, pass}},
       {database, string, {crate, database}},
@@ -439,6 +440,11 @@ handle_result(Resp, FromTs, State = #state{period = Period, query_mark = QueryMa
 %%         lager:notice("JB: ~s",[flowdata:to_json(Data)]),
          node_metrics:metric(?METRIC_ITEMS_IN, 1, FnId),
          {emit, {1, Data#data_batch{start = FromTs}}, NewState#state{response_def = NewResponseDef}};
+      {error, sock_closed} ->
+         lager:warning("Error response from Crate: sock_closed", []),
+         %% keep the state with the current query-mark (do not advance), so that on reconnect, we try the current batch again
+         cancel_timer(NewState),
+         {ok, State#state{timer = undefined}}; %% retry
       {error, Error} ->
          lager:warning("Error response from Crate: ~p", [Error]),
          {ok, NewState};
@@ -464,6 +470,8 @@ time_range(TimeField) ->
    << TimeField/binary, " >= $1 AND ", TimeField/binary, " < $2" >>
 .
 
+cancel_timer(State = #state{timer = undefined}) ->
+   State;
 cancel_timer(State = #state{timer = TRef}) ->
-   catch erlang:cancel_timer(TRef),
+   erlang:cancel_timer(TRef),
    State#state{timer = undefined}.

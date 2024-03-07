@@ -58,7 +58,7 @@ options() -> [
    {include_topic, bool, true},
    {topic_as, string, <<"topic">>},
    {as, string, undefined},
-   {ssl, is_set}].
+   {ssl, is_set, {mqtt, ssl, enable}}].
 
 check_options() ->
    [
