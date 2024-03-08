@@ -109,7 +109,7 @@ metrics() ->
 init({GraphId, NodeId} = Idx, _Ins,
    #{ host := Host0, port := Port, user := _User, pass := _Pass, vhost := _VHost, queue := Q0,
       exchange := Ex0, qx_name := _QxName, prefetch := Prefetch, routing_key := RoutingKey0, bindings := Bindings0,
-      dt_field := DTField, dt_format := DTFormat, ssl := _UseSSL, include_topic := IncludeTopic,
+      dt_field := DTField, dt_format := DTFormat, ssl := UseSSL, include_topic := IncludeTopic,
       topic_as := TopicKey, ack_every := AckEvery0, ack_after := AckTimeout0, as := As, consumer_tag := CTag0,
       queue_prefix := QPrefix, root_exchange := RExchange, exchange_prefix := XPrefix
       , use_flow_ack := FlowAck, clean_field_names := Clean,
@@ -137,7 +137,7 @@ init({GraphId, NodeId} = Idx, _Ins,
       include_topic = IncludeTopic, topic_key = TopicKey, as = As, dedup_queue = memory_queue:new(DedupSize),
       opts = Opts, prefetch = Prefetch, ack_every = AckEvery0, ack_after = AckTimeout, flow_ack = FlowAck,
       dt_field = DTField, dt_format = DTFormat, safe_mode = Safe, flownodeid = Idx, confirm = Confirm,
-      clean_names = Clean},
+      clean_names = Clean, ssl = UseSSL},
 
    NewState = maybe_init_q(State),
 

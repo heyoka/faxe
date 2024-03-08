@@ -50,7 +50,7 @@ options() -> [
    {routing_key_lambda, lambda, undefined},
    {routing_key_field, string, undefined},
    {exchange, string, {rabbitmq, root_exchange}},
-   {ssl, is_set, false},
+   {ssl, is_set, {amqp, ssl, enable}},
    {persistent, bool, false},
 
    {qos, integer, 0}
@@ -67,7 +67,7 @@ metrics() ->
 
 init({_GraphId, _NodeId} = Idx, _Ins,
    #{ host := Host0, port := Port, user := _User, pass := _Pass, vhost := _VHost, exchange := Ex,
-      routing_key := RoutingKey, routing_key_lambda := RkLambda, routing_key_field := RkField, ssl := _UseSSL,
+      routing_key := RoutingKey, routing_key_lambda := RkLambda, routing_key_field := RkField, ssl := UseSSL,
       persistent := _Persist} = Opts0) ->
 
    Opts1 = #{safe_mode := SafeMode, use_queue := UseInternalQueue} = eval_qos(Opts0),
@@ -77,7 +77,8 @@ init({_GraphId, _NodeId} = Idx, _Ins,
    Opts = Opts1#{host => Host},
 
    State0 = #state{opts = Opts, exchange = Ex, routing_key = faxe_util:to_rkey(RoutingKey), rk_field = RkField,
-      rk_lambda = RkLambda, safe_mode = SafeMode, use_internal_queue = UseInternalQueue, flowid_nodeid = Idx},
+      rk_lambda = RkLambda, safe_mode = SafeMode, use_internal_queue = UseInternalQueue, flowid_nodeid = Idx,
+      ssl = UseSSL},
 
    State1 = maybe_start_queue(State0),
 
