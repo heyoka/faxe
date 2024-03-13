@@ -81,7 +81,7 @@ start_cowboy(#{path := Route, port := Port, tls := Tls, content_type := ContentT
       true -> {start_tls, faxe_config:get_http_ssl_opts()++[{fail_if_no_peer_cert, false}]};
       _ -> {start_clear, []}
     end,
-  lager:info("cowboy http(s) listener starting with: ~p on Port: ~p", [{StartFunction, SockOpts}, Port]),
+  lager:info("cowboy http(s) listener starting with: ~p on Port: ~p [~p]", [{StartFunction, SockOpts}, Port, ContentType]),
   {ok, _} = cowboy:StartFunction(CowboyRef,
     #{socket_opts => [{port, Port}] ++ SockOpts,
       max_connections => ?MAX_CONNECTIONS,

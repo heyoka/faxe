@@ -17,7 +17,8 @@
    is_authorized/2,
    content_types_accepted/2,
    malformed_request/2,
-   from_req/2, allow_missing_post/2]).
+   from_req/2,
+   allow_missing_post/2]).
 
 %%
 %% Additional callbacks

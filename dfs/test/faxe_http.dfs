@@ -21,9 +21,13 @@ def port = 8081
 .path(path)
 .every(3s)
 
+|debug('info')
+.message('got from {{path}}')
+
 %% post this data to the http_listen node setup at the beginning of the script
 |http_post()
 .host(host)
 .port(8899)
 .path(path2)
+.method('put')
 

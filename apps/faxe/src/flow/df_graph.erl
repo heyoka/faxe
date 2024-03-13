@@ -296,10 +296,8 @@ handle_info({'DOWN', _Mon, process, Pid, _Info}, State = #state{observer = Pid, 
    {noreply, State#state{observer = NewObserver}}.
 
 
-terminate(_Reason, #state{observer = _Observer}) ->
+terminate(_Reason, #state{}) ->
    ok.
-%%   lager:info("df_graph terminates with reason ~p",[_Reason]).
-%%   faxe_flow_observer:stop(Observer).
 
 -spec(code_change(OldVsn :: term() | {down, term()}, State :: #state{},
     Extra :: term()) ->

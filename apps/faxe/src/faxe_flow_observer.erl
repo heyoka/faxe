@@ -41,7 +41,6 @@
   mqtt_connected = false  :: true | false,
   host                    :: string(),
   timer_ref               :: reference(),
-  status                  :: true | false, %% healthy or not
   connection_issues = []  :: list(),
   message_buffer = []     :: list()
 }).
@@ -101,7 +100,7 @@ is_alive(Name) ->
 get_observer(FlowId) ->
   case ets:lookup(?ETS_FLOW_OBSERVER_TABLE, FlowId) of
     [] -> undefined;
-    [{Name, Pid}] -> Pid
+    [{FlowId, Pid}] -> Pid
   end.
 
 stop(ObserverPid) when is_pid(ObserverPid) ->
@@ -169,12 +168,11 @@ handle_cast(_Request, State = #state{}) ->
 
 
 handle_info({'DOWN', _Mon, process, Pid, Info}, State = #state{graph = Pid}) when Info == normal; Info == shutdown ->
-  lager:notice("[~p] flow stopping normal, by request or timeout, will also stop now", [?MODULE]),
+  lager:notice("flow ~p stopping normal, by request or timeout, will also stop now", [State#state.flow_id]),
   NewState = publish(jiffy:encode(?MSG_STOPPED), State),
   {stop, normal, NewState};
 handle_info({'DOWN', _Mon, process, Pid, Info}, State = #state{graph = Pid}) ->
-  lager:notice("[~p] flow graph pid is DOWN for flow ~p with Reason ~p, will stop now",
-    [?MODULE, State#state.flow_id, Info]),
+  lager:notice("flow graph pid is DOWN for flow ~p with Reason ~p, will stop now", [State#state.flow_id, Info]),
   InfoMsg = list_to_binary(io_lib:format("~p", [Info])),
   Msg = ?MSG_CRASHED#{?FIELD_MESSAGE => InfoMsg},
   NewState = publish(jiffy:encode(Msg), State),
@@ -184,7 +182,7 @@ handle_info(report, State = #state{connection_issues = []}) ->
   NewTimer = start_timer(?REPORT_INTERVAL),
   NewState = publish(jiffy:encode(?MSG_HEALTHY), State),
   {noreply, NewState#state{timer_ref = NewTimer}};
-handle_info(report, State = #state{status = false, connection_issues = ConnIssues}) ->
+handle_info(report, State = #state{connection_issues = ConnIssues}) ->
   NewTimer = start_timer(?REPORT_INTERVAL),
   NewState = publish_conn_status(ConnIssues, State),
   {noreply, NewState#state{timer_ref = NewTimer}};
@@ -208,10 +206,10 @@ handle_info({conn_status, Item}, State) ->
   NewState1 = conn_status_received(NewState, Item),
   {noreply, NewState1#state{timer_ref = start_timer(?REPORT_INTERVAL)}};
 handle_info(Info, State = #state{}) ->
-  lager:warning("~p got unexpected message ~p",[?MODULE, Info]),
+  lager:warning("~p got unexpected message: ~p",[?MODULE, Info]),
   {noreply, State}.
 
-terminate(Reason, _State = #state{flow_id = FlowId}) ->
+terminate(_Reason, _State = #state{flow_id = FlowId}) ->
 %%  lager:warning("~p terminates with reason: ~p",[?MODULE, Reason]),
   remove_flow(FlowId).
 
@@ -225,7 +223,7 @@ make_conn_ref(ConnStatus = #data_point{}) ->
   flowdata:fields(ConnStatus, ?CONN_REF_FIELDS).
 
 %% ignore status "connecting"
-conn_status_received(State, P = #data_point{fields = #{?FIELD_CONN_STATUS := 1}}) ->
+conn_status_received(State, _P = #data_point{fields = #{?FIELD_CONN_STATUS := 1}}) ->
   State;
 conn_status_received(State = #state{connection_issues = []}, ConnStatus = #data_point{}) ->
   case flowdata:field(ConnStatus, ?CONN_FIELD_CONNECTED) of
