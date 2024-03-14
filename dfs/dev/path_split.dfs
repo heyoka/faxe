@@ -1,0 +1,13 @@
+def path_prefix = 'module'
+
+%% mock s7_read
+|json_emitter(
+    '{"module32201" : {"what" : "ever"}, "module2203": {"this" : 555}, "e14069" : 14}'
+)
+
+%% split data-points by 'module' and keep the root path name as the field 'module'
+|path_split()
+.include_as(path_prefix)
+
+%% get rid of the prefix 'module' so that instead of ie: 'module32201' we get '32201'
+|eval(lambda: str_slice("{{path_prefix}}", str_length(path_prefix))).as(path_prefix)
