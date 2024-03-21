@@ -72,6 +72,9 @@ percentile(#{vals := List, count := Count}, N) when is_list(List) andalso is_num
 
 %%%%%%%%%%%%
 -ifdef(TEST).
+basic_perc_test() ->
+  Data = #{vals => [12.4, 16.8, 23, 23.9, 25.9, 12.2], count => 6},
+  ?assertEqual(23.18, percentile(Data, 70)).
 
 
 

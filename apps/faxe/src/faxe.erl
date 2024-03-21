@@ -65,7 +65,7 @@
    reset_templates/0,
    stop_all/0
 %%   , do_start_task/2
-   , get_task_node_pids/1, list_connection_status/1]).
+   , get_task_node_pids/1, list_connection_status/1, eval_dfs/3]).
 
 start_permanent_tasks() ->
    Tasks = faxe_db:get_permanent_tasks(),
@@ -233,7 +233,7 @@ register_task(DfsScript, Name, Type) ->
 check_task(DfsScript, Name, Type) ->
    case faxe_db:get_task(Name) of
       {error, not_found} ->
-         case eval_dfs(DfsScript, Type) of
+         case eval_dfs(DfsScript, Type, Name) of
             {_DFS, Def} = Res when is_map(Def) ->
                Res;
             {error, What} -> {error, What}
@@ -262,7 +262,7 @@ register_template(DfsScript, Name, Type) ->
    case faxe_db:get_template(Name) of
       {error, not_found} ->
 
-         case eval_dfs(DfsScript, Type) of
+         case eval_dfs(DfsScript, Type, Name) of
             {DFS, Def} when is_map(Def) ->
                Template = #template{
                   date = faxe_time:now_date(),
@@ -362,8 +362,8 @@ maybe_update(DfsScript, T = #task{dfs = DFS}, false, ScriptType) ->
    end.
 
 -spec update(list()|binary(), #task{}, atom()) -> ok|{error, term()}.
-update(DfsScript, Task, ScriptType) ->
-   case eval_dfs(DfsScript, ScriptType) of
+update(DfsScript, Task = #task{name = Name}, ScriptType) ->
+   case eval_dfs(DfsScript, ScriptType, Name) of
       {DFS, Map} when is_map(Map) ->
          NewTask = Task#task{
             definition = Map,
@@ -394,6 +394,14 @@ update_running(DfsScript, Task = #task{id = TId, pid = TPid}, Force, ScriptType)
 -spec eval_dfs(list()|binary(), file|data) ->
    {DFSString :: list(), GraphDefinition :: map()} | {error, term()}.
 eval_dfs(DfsScript, Type) ->
+   TempName0 = faxe_time:to_iso8601(faxe_time:now()),
+   TempName = <<"flow_temp_", TempName0/binary>>,
+   eval_dfs(DfsScript, Type, TempName).
+-spec eval_dfs(list()|binary(), file|data, binary()) ->
+   {DFSString :: list(), GraphDefinition :: map()} | {error, term()}.
+eval_dfs(DfsScript, Type, Name) ->
+   maybe_debug_dfs(Name),
+   Ret =
    try faxe_dfs:Type(DfsScript, []) of
       {_DFSString, {error, What}} -> {error, What};
       {error, What} -> {error, What};
@@ -406,7 +414,9 @@ eval_dfs(DfsScript, Type) ->
       _:Err:Stacktrace      ->
          lager:warning("Error: ~p ~nstacktrace: ~p",[Err, Stacktrace]),
          {error, Err}
-   end.
+   end,
+   maybe_stop_debug_dfs(Name),
+   Ret.
 
 %% @doc get a task by its id and also if it is currently running
 -spec get_running(integer()|binary()) -> {error, term()}|{true|false, #task{}}.
@@ -434,9 +444,9 @@ start_file_temp(DfsScript, TTL) ->
 start_temp(DfsScript, TTL) ->
    start_temp(DfsScript, data, TTL).
 start_temp(DfsScript, Type, TTL) ->
-   case eval_dfs(DfsScript, Type) of
+   Id = list_to_binary(faxe_util:uuid_string()),
+   case eval_dfs(DfsScript, Type, Id) of
       {DFS, Def} when is_map(Def) ->
-         Id = list_to_binary(faxe_util:uuid_string()),
          case dataflow:create_graph(Id, Def) of
             {ok, Graph} ->
                _Task = #task{
@@ -831,7 +841,20 @@ template_to_task(Template = #template{dfs = DFS}, TaskName, Vars) ->
       {error, What} -> {error, What}
    end.
 
-flow_changed({Type, Affected, Method}) ->
-   Msg = #data_point{ts = faxe_time:now(),
-      fields = #{<<"type">> => Type, <<"affected">> => Affected, <<"method">> => Method}},
-   gen_event:notify(flow_changed, Msg).
+%%flow_changed({Type, Affected, Method}) ->
+%%   Msg = #data_point{ts = faxe_time:now(),
+%%      fields = #{<<"type">> => Type, <<"affected">> => Affected, <<"method">> => Method}},
+%%   gen_event:notify(flow_changed, Msg).
+
+
+maybe_debug_dfs(Name) ->
+   case faxe_config:get_sub(dfs, debug) of
+      true -> gen_event:add_sup_handler(dfs_debug, {dfs_debug_handler, Name}, [Name]);
+      _ -> ok
+   end.
+
+maybe_stop_debug_dfs(Name) ->
+   case faxe_config:get_sub(dfs, debug) of
+      true -> gen_event:delete_handler(dfs_debug, {dfs_debug_handler, Name}, []);
+      _ -> ok
+   end.

@@ -153,6 +153,12 @@
     {commented, "{{dfs_script_path}}"}]
 }.
 
+%% whether to output debug messages from dfs script evaluation
+%% currently inline script expressions will be sent to faxe's log system
+{mapping, "dfs.debug", "faxe.dfs.debug",
+    [{default, false}, {datatype, flag}]
+}.
+
 %% @doc ----------------------------------------------------------------
 %% API USER - default user, that will be created on first startup
 %%----------------------------------------------------------------
