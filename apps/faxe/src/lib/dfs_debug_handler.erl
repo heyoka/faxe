@@ -22,7 +22,7 @@ init([FlowName]) ->
 
 handle_event(#{expression := Expr0, result := Result0}, State) ->
   Expr = clean(Expr0),
-  lager:notice("dfs_debug: Expression: ~s || Result: ~p~n", [Expr, Result0]),
+  lager:notice("EXPRESSION: ~s || RESULT: ~p~n", [Expr, Result0]),
   {ok, State};
 handle_event(Event, State) ->
   lager:notice("unexpected event  ~p: ~p~n", [?MODULE, Event]),
@@ -39,5 +39,11 @@ handle_info(_Info, State) -> {noreply, State}.
 terminate(_Args, _State) -> ok.
 
 clean(String) ->
-  %% remove the modules
-  string:replace(string:replace(String, "faxe_lambda_lib:", "", all), "dfs_std_lib:", "", all).
+  %% remove the module names
+  string:replace(
+    string:replace(
+      string:replace(
+        string:replace(String, "math:", "", all),
+          "estr:", "", all),
+          "faxe_lambda_lib:", "", all),
+            "dfs_std_lib:", "", all).
